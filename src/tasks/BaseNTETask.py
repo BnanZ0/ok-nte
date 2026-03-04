@@ -34,6 +34,11 @@ class BaseNTETask(BaseTask):
         else:
             return False, -1, exist_count + 1
 
+    def in_team_and_world(self):
+        in_team, _, _ = self.in_team()
+        in_world = True
+        return in_team and in_world
+
 
 lower_white = np.array([244, 244, 244], dtype=np.uint8)
 upper_white = np.array([255, 255, 255], dtype=np.uint8)

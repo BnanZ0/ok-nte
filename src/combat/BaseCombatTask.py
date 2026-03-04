@@ -415,10 +415,15 @@ class BaseCombatTask(CombatCheck):
         if not in_team:
             return False
         # self.log_info('load chars')
-        self.chars = [None, None, None, None]
+        # self.chars = [None, None, None, None]
 
-        for i in range(count):
-            self.chars[i] = get_char_by_pos(self, self.get_box_by_name(f'box_char_{i+1}'), i, safe_get(self.chars, i))
+        MAX_SIZE = 4  # 固定長度
+
+        self.chars = [
+            get_char_by_pos(self, self.get_box_by_name(f'box_char_{i+1}'), i, safe_get(self.chars, i))
+            if i < count else None
+            for i in range(MAX_SIZE)
+        ]
 
         healer_count = 0
         for char in self.chars:

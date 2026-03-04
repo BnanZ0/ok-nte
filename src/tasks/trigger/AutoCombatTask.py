@@ -4,6 +4,15 @@ from qfluentwidgets import FluentIcon
 
 from ok import TriggerTask, Logger
 from src.combat.BaseCombatTask import BaseCombatTask, NotInCombatException, CharDeadException
+from PySide6.QtCore import Signal, QObject
+from src.char.CharFactory import get_char_feature_by_pos
+from src.char.custom.CustomCharManager import CustomCharManager
+
+class ScannerSignals(QObject):
+    # Sends list of dicts: {"index": i, "feat_id": tmp_id, "mat": ndarray, "match": str|None}
+    scan_done = Signal(list)
+
+scanner_signals = ScannerSignals()
 
 logger = Logger.get_logger(__name__)
 
@@ -48,3 +57,25 @@ class AutoCombatTask(BaseCombatTask, TriggerTask):
                 break
         if ret:
             self.combat_end()
+
+    def scan_team(self):
+        self.log_info("开始扫描当前队伍...")
+        in_team, _, count = self.in_team()
+        if not in_team or count == 0:
+            scanner_signals.scan_done.emit([])
+            return
+
+        manager = CustomCharManager()
+        results = []
+        for i in range(count):
+            feature_mat = get_char_feature_by_pos(self, i)
+            if feature_mat is not None and feature_mat.size > 0:
+                is_match, match_name, _ = manager.match_feature(feature_mat, threshold=0.8)
+                results.append({
+                    "index": i,
+                    "mat": feature_mat,
+                    "match": match_name if is_match else None
+                })
+        
+        scanner_signals.scan_done.emit(results)
+        self.log_info("扫描完成！")

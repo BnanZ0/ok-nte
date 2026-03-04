@@ -2,7 +2,7 @@ import os
 
 import numpy as np
 from ok import ConfigOption
-from src.tasks.process_feature import process_feature
+from src.process_feature import process_feature
 
 version = "dev"
 #不需要修改version, Github Action打包会自动修改
@@ -107,17 +107,21 @@ config = {
     'version': version, #版本
     'my_app': ['src.globals', 'Globals'], #可选. 全局单例对象, 可以存放加载的模型, 使用og.my_app调用
     'onetime_tasks': [  # 用户点击触发的任务
-        ["src.tasks.MyOneTimeTask", "MyOneTimeTask"],
-        ["src.tasks.MyOneTimeWithAGroup", "MyOneTimeWithAGroup"],
-        ["src.tasks.MyOneTimeWithAGroup2", "MyOneTimeWithAGroup2"],
-        ["src.tasks.MyOneTimeWithBGroup", "MyOneTimeWithBGroup"],
+        # ["src.tasks.MyOneTimeTask", "MyOneTimeTask"],
+        # ["src.tasks.MyOneTimeWithAGroup", "MyOneTimeWithAGroup"],
+        # ["src.tasks.MyOneTimeWithAGroup2", "MyOneTimeWithAGroup2"],
+        # ["src.tasks.MyOneTimeWithBGroup", "MyOneTimeWithBGroup"],
         ["ok", "DiagnosisTask"],
+        # ["src.tasks.custom.TeamScannerTask", "TeamScannerTask"],
     ],
     'trigger_tasks':[ # 不断执行的触发式任务
-        ["src.tasks.MyTriggerTask", "MyTriggerTask"],
+        ["src.tasks.trigger.AutoCombatTask", "AutoCombatTask"],
+        # ["src.tasks.MyTriggerTask", "MyTriggerTask"],
     ],
     'custom_tabs': [
-        ['src.ui.MyTab', 'MyTab'], #可选, 自定义UI, 显示在侧边栏
+        ['src.ui.TeamScannerTab', 'TeamScannerTab'],
+        ['src.ui.CharManagerTab', 'CharManagerTab'],
+        # ['src.ui.MyTab', 'MyTab'], #可选, 自定义UI, 显示在侧边栏
     ],
     'scene': ["src.scene.NTEScene", "NTEScene"],
 }
