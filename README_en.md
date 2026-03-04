@@ -115,7 +115,7 @@ If the solutions above do not resolve your issue, feel free to report it via [**
 
 ## 💬 Community
 
-*   **QQ Users Group**: ``
+*   **QQ Users Group**: `1090560071`
 *   **QQ Developers Group**: ``
 *   **QQ Channel**: [Click to join]()
 *   **Discord**: [https://discord.gg/vVyCatEBgA](https://discord.gg/vVyCatEBgA)
