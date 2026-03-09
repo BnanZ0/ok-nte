@@ -18,6 +18,9 @@ jobs:
       matrix:
         python-version: [ 3.12 ]
 
+    permissions:
+      contents: write
+
     steps:
       - name: Configure git
         run: |
@@ -64,8 +67,8 @@ jobs:
         uses: ok-oldking/partial-sync-repo@master # Replace with your action path
         with:
           repos: |
+            https://cnb:${{ secrets.CNB_GH }}@cnb.cool/BnanZ0/ok-nte-update.git
             https://BnanZ0:${{ secrets.OK_GH }}@github.com/BnanZ0/ok-nte-update.git
-            https://cnb:${{ secrets.CNB_TOKEN }}@cnb.cool/BnanZ0/ok-neverness-to-everness.git
           sync_list: 'deploy.txt'
           tag: ${{ github.ref_name }}
           gitignore_file: '.update_repo_gitignore'

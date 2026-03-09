@@ -2,7 +2,7 @@
 
 <div align="center">
   <img src="icons/icon.png" alt="icon" width="200"><br>
-  <h1>ok-dna</h1>
+  <h1>ok-nte</h1>
   <p>一款基于图像识别的《异环》自动化工具，支持后台运行。</p>
   <p>基于 <a href="https://github.com/ok-oldking/ok-script">ok-script</a> 框架开发。</p>
   
