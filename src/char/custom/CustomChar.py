@@ -3,6 +3,14 @@ import re
 
 from src.char.BaseChar import BaseChar
 from src.char.custom.CustomCharManager import CustomCharManager
+from typing import NamedTuple, Callable, List, Any
+
+class Cmd(NamedTuple):
+    name: str
+    func: Callable[..., Any]
+    params: str
+    doc: str
+    example: str
 
 class CustomChar(BaseChar):
     """
@@ -36,24 +44,31 @@ class CustomChar(BaseChar):
         self._execute_parsed_combo()
 
     @classmethod
-    def get_command_definitions(cls):
+    def get_command_definitions(cls) -> List[Cmd]:
         # 统一在此处配置所有可用指令：指令名、对应内置函数
+        # 这些文案在运行时不会变动：集中成“常量”避免静态扫描工具提示重复字面量，
+        # 同时保持下方清单的直观可读性。
+        PARAM_NONE = "无参数"
+        PARAM_OPT_DURATION = "持续时间(s)，选填"
+        PARAM_OPT_KEY = "按键，选填"
+        PARAM_REQ_KEY = "按键，必填"
+        DOC_MOUSE_BUTTON = "鼠标按键left、right、middle, 不填默认left"
         return [
-            {"name": "skill", "func": cls.click_skill, "params": "无参数", "doc": "释放技能", "example": "skill"},
-            {"name": "ultimate", "func": cls.click_ultimate, "params": "无参数", "doc": "释放终结技", "example": "ultimate"},
-            {"name": "l_click", "func": cls.smart_left_click, "params": "持续时间(s)，选填", "doc": "鼠标左键。带参数则连点鼠标左键指定秒数，无参数为单次点按", "example": "l_click, l_click(3)"},
-            {"name": "r_click", "func": cls.smart_right_click, "params": "持续时间(s)，选填", "doc": "鼠标右键。带参数则连点鼠标右键指定秒数，无参数为单次点按", "example": "r_click, r_click(2)"},
-            {"name": "l_hold", "func": cls.heavy_attack, "params": "持续时间(s)，选填", "doc": "按住鼠标左键。带参数则指定秒数", "example": "l_hold, l_hold(2)"},
-            {"name": "r_hold", "func": cls.hold_right_click, "params": "持续时间(s)，选填", "doc": "按住鼠标右键。带参数则指定秒数", "example": "r_hold, r_hold(2)"},
-            {"name": "wait", "func": cls.sleep, "params": "等待时间(s)，必填", "doc": "休眠停顿等待指定时间", "example": "wait(0.5)"},
-            {"name": "jump", "func": cls.jump, "params": "无参数", "doc": "跳跃一下", "example": "jump"},
-            {"name": "walk", "func": cls.walk, "params": "按键方向、持续时间(s)，必填", "doc": "控制角色向指定方向行走", "example": "walk(w, 0.2)"},
-            {"name": "mousedown", "func": cls.mousedown, "params": "按键，选填", "doc": "鼠标按键left、right、middle, 不填默认left", "example": "mousedown, mousedown(left)"},
-            {"name": "mouseup", "func": cls.mouseup, "params": "按键，选填", "doc": "鼠标按键left、right、middle, 不填默认left", "example": "mouseup, mouseup(right)"},
-            {"name": "click", "func": cls.command_click, "params": "按键，选填", "doc": "鼠标按键left、right、middle, 不填默认left", "example": "click, click(middle)"},
-            {"name": "keydown", "func": cls.keydown, "params": "按键，必填", "doc": "按下按键", "example": "keydown(a)"},
-            {"name": "keyup", "func": cls.keyup, "params": "按键，必填", "doc": "松开按键", "example": "keyup(d)"},
-            {"name": "keypress", "func": cls.keypress, "params": "按键，必填", "doc": "按下并松开按键", "example": "keypress(f1)"},
+            Cmd("skill", cls.click_skill, PARAM_NONE, "释放技能", "skill"),
+            Cmd("ultimate", cls.click_ultimate, PARAM_NONE, "释放终结技", "ultimate"),
+            Cmd("l_click", cls.smart_left_click, PARAM_OPT_DURATION, "鼠标左键。带参数则连点鼠标左键指定秒数，无参数为单次点按", "l_click, l_click(3)"),
+            Cmd("r_click", cls.smart_right_click, PARAM_OPT_DURATION, "鼠标右键。带参数则连点鼠标右键指定秒数，无参数为单次点按", "r_click, r_click(2)"),
+            Cmd("l_hold", cls.heavy_attack, PARAM_OPT_DURATION, "按住鼠标左键。带参数则指定秒数", "l_hold, l_hold(2)"),
+            Cmd("r_hold", cls.hold_right_click, PARAM_OPT_DURATION, "按住鼠标右键。带参数则指定秒数", "r_hold, r_hold(2)"),
+            Cmd("wait", cls.sleep, "等待时间(s)，必填", "休眠停顿等待指定时间", "wait(0.5)"),
+            Cmd("jump", cls.jump, PARAM_NONE, "跳跃一下", "jump"),
+            Cmd("walk", cls.walk, "按键方向、持续时间(s)，必填", "控制角色向指定方向行走", "walk(w, 0.2)"),
+            Cmd("mousedown", cls.mousedown, PARAM_OPT_KEY, DOC_MOUSE_BUTTON, "mousedown, mousedown(left)"),
+            Cmd("mouseup", cls.mouseup, PARAM_OPT_KEY, DOC_MOUSE_BUTTON, "mouseup, mouseup(right)"),
+            Cmd("click", cls.command_click, PARAM_OPT_KEY, DOC_MOUSE_BUTTON, "click, click(middle)"),
+            Cmd("keydown", cls.keydown, PARAM_REQ_KEY, "按下按键", "keydown(a)"),
+            Cmd("keyup", cls.keyup, PARAM_REQ_KEY, "松开按键", "keyup(d)"),
+            Cmd("keypress", cls.keypress, PARAM_REQ_KEY, "按下并松开按键", "keypress(f1)"),
         ]
 
     def _compile_combo(self):
@@ -63,7 +78,7 @@ class CustomChar(BaseChar):
             return
 
         # 仅在编译时提取别名映射即可，无需战斗中高频执行
-        aliases = {cmd["name"]: cmd["func"] for cmd in self.get_command_definitions()}
+        aliases = {cmd.name: cmd.func for cmd in self.get_command_definitions()}
 
         commands = []
         paren_level = 0

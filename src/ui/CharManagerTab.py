@@ -534,11 +534,11 @@ class CharManagerTab(CustomTab):
             from src.char.custom.CustomChar import CustomChar
             docs = CustomChar.get_available_commands()
             text = "可以在出招表中输入以下指令 (以逗号分隔):\n\n"
-            for d in docs:
-                text += f"▶ 【{d['name']}】\n"
-                text += f"    • 参数: {d.get('params', '无')}\n"
-                text += f"    • 说明: {d.get('doc', '无')}\n"
-                text += f"    • 示例: {d.get('example', d['name'])}\n\n"
+            for cmd in docs:
+                text += f"▶ 【{cmd.name}】\n"
+                text += f"    • 参数: {cmd.params or '无'}\n"
+                text += f"    • 说明: {cmd.doc or '无'}\n"
+                text += f"    • 示例: {cmd.example or cmd.name}\n\n"
             return text
         except Exception as e:
             return f"生成文档失败: {e}"

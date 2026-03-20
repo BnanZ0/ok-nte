@@ -590,10 +590,8 @@ class BaseChar:
             bool: 如果需要则返回 True。
         """
         current_char = self.task.get_current_char(raise_exception=False)
-        for i, char in enumerate(self.task.chars):
-            if char == current_char:
-                pass
-            else:
+        for char in self.task.chars:
+            if char != current_char:
                 priority = char.do_get_switch_priority(current_char=current_char, has_intro=False, target_low_con=False)
                 if priority >= Priority.FAST_SWITCH:
                     self.logger.info(f'In lock with {char}')
@@ -610,9 +608,9 @@ class BaseChar:
             return 'null'
         time = 0
         outro = 'null'
-        for i, char in enumerate(self.task.chars):
+        for char in self.task.chars:
             if char == self:
-                pass
+                continue
             elif char.last_switch_time > time:
                 time = char.last_switch_time
                 outro = char.char_name

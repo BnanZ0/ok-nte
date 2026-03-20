@@ -25,6 +25,7 @@ def make_bottom_left_black(frame): #可选. 某些游戏截图时遮挡UID使用
         if there's an error (e.g., invalid frame).
     """
     try:
+        original_frame = frame
         height, width = frame.shape[:2]  # Get height and width
 
         # Calculate the size of the black rectangle
@@ -44,7 +45,7 @@ def make_bottom_left_black(frame): #可选. 某些游戏截图时遮挡UID使用
         return frame
     except Exception as e:
         print(f"Error processing frame: {e}")
-        return frame
+        return original_frame
 
 config = {
     'debug': False,  # Optional, default: False

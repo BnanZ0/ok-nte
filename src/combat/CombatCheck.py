@@ -100,11 +100,6 @@ class CombatCheck(BaseNTETask):
         if len(texts) > 0:
             return True
         self.draw_boxes('search_lv', lv_text_boxes, color='blue')
-        if self._in_combat:
-            pass
-        else:
-            self.draw_boxes('enemy_health_bar_red', boxes, color='green')
-            return True
 
     def has_health_bar(self):
         if self._in_combat:
@@ -188,7 +183,7 @@ def merge_images_vertically(img_list, bg_color=(255, 255, 255)):
     
     processed_imgs = []
     for img in img_list:
-        h, w = img.shape[:2]
+        _, w = img.shape[:2]
         if w < max_width:
             # 计算需要填充的宽度
             pad_width = max_width - w

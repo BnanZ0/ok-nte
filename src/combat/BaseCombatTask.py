@@ -148,6 +148,7 @@ class BaseCombatTask(CombatCheck):
             return 0
 
     def revive_action(self):
+        # TODO: 復活邏輯
         pass
 
     def raise_not_in_combat(self, message, exception_type=None):
