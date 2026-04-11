@@ -27,7 +27,7 @@ jobs:
           echo "action_state=yellow" >> $env:GITHUB_ENV
           echo $env:action_state
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           submodules: true
           lfs: true
