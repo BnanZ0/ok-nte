@@ -103,11 +103,11 @@ jobs:
           make_latest: true
           files: pyappify_dist/*
 
-      # - name: Trigger MirrorChyanUploading
-      #   if: startsWith(github.ref, 'refs/tags/')
-      #   shell: bash
-      #   run: |
-      #     gh workflow run --repo $GITHUB_REPOSITORY mirrorchyan_uploading
-      #     gh workflow run --repo $GITHUB_REPOSITORY mirrorchyan_release_note
-      #   env:
-      #     GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Trigger MirrorChyanUploading
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: bash
+        run: |
+          gh workflow run --repo $GITHUB_REPOSITORY mirrorchyan_release.yml -f tag=${{ needs.meta.outputs.tag }}
+          gh workflow run --repo $GITHUB_REPOSITORY mirrorchyan_release_note.yml -f tag=${{ needs.meta.outputs.tag }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
