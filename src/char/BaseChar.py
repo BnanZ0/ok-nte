@@ -8,7 +8,7 @@ import numpy as np  # noqa
 from ok import Config, Logger, Box  # noqa
 from src import text_white_color  # noqa
 from src.Labels import Labels
-from src.tasks.BaseNTETask import isolate_white_text_to_black
+from src.utils import image_utils as iu
 
 from typing import TYPE_CHECKING
 
@@ -428,13 +428,13 @@ class BaseChar:
 
         box_ultimate = self.task.get_box_by_name(Labels.box_ultimate)
         snapshot = box_ultimate.crop_frame(self.task.frame)
-        processed_snapshot = isolate_white_text_to_black(snapshot)
+        processed_snapshot = iu.isolate_cd_to_black(snapshot)
         self.task.wait_until(
             lambda: (
                 not self.task.find_one(
                     template=processed_snapshot,
                     box=box_ultimate,
-                    frame_processor=isolate_white_text_to_black,
+                    frame_processor=iu.isolate_cd_to_black,
                     threshold=0.7,
                 )
             ),
@@ -733,16 +733,3 @@ class BaseChar:
                 self.send_key(next_char)
             self.sleep(0.2, False)
         self.logger.debug(f"switch_other_char on_combat_end {self.index} switch end")
-
-
-forte_white_color = {  # 用于检测共鸣回路UI元素可用状态的白色颜色范围。
-    "r": (244, 255),  # Red range
-    "g": (246, 255),  # Green range
-    "b": (250, 255),  # Blue range
-}
-
-dot_color = {  # 用于检测技能冷却CD提示点 (通常在技能图标下方) 的颜色范围。
-    "r": (195, 255),  # Red range
-    "g": (195, 255),  # Green range
-    "b": (195, 255),  # Blue range
-}

@@ -1,3 +1,5 @@
+from typing import Any, Union
+
 from ok import og
 from PySide6.QtCore import (
     QEasingCurve,
@@ -7,14 +9,21 @@ from PySide6.QtCore import (
     Qt,
     Signal,
 )
-from PySide6.QtGui import QImage, QPixmap
+from PySide6.QtGui import QIcon, QImage, QPixmap
 from PySide6.QtWidgets import (
     QCompleter,
     QHBoxLayout,
     QVBoxLayout,
     QWidget,
 )
-from qfluentwidgets import EditableComboBox, FluentIcon, IconWidget, ListWidget, SearchLineEdit
+from qfluentwidgets import (
+    EditableComboBox,
+    FluentIcon,
+    FluentIconBase,
+    IconWidget,
+    ListWidget,
+    SearchLineEdit,
+)
 
 
 def get_tr(text):
@@ -75,7 +84,9 @@ class SearchableComboBox(EditableComboBox):
 
         self.setCompleter(completer)
 
-    def addItem(self, text: str, icon=None, userData=None):
+    def addItem(
+        self, text: str, icon: Union[QIcon, str, FluentIconBase, None] = None, userData: Any = None
+    ):
         """重写以同步更新搜寻清单"""
         super().addItem(text, icon, userData)
         self.search_items.append(text)

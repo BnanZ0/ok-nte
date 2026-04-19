@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING, List
 
 import cv2
 import numpy as np
-from ok import Logger, color_range_to_bound, safe_get
+from ok import Logger, safe_get
 from skimage.feature import ORB, match_descriptors
 from skimage.metrics import structural_similarity as ssim
 
@@ -15,10 +15,7 @@ from src.char.custom.CustomCharManager import CustomCharManager
 from src.char.Healer import Healer
 from src.combat.CombatCheck import CombatCheck
 from src.Labels import Labels
-from src.tasks.BaseNTETask import (
-    binarize_bgr_by_adaptive_center,
-    blackout_corners_by_circle,
-)
+from src.utils import image_utils as iu
 
 if TYPE_CHECKING:
     from src.char.BaseChar import BaseChar
@@ -151,7 +148,7 @@ class BaseCombatTask(CombatCheck):
         cds["skill"] = 0
         cds["ultimate"] = 0
         texts = self.ocr(
-            0.8594, 0.8847, 0.9578, 0.9139, frame_processor=isolate_cd_to_black, match=cd_regex
+            0.8594, 0.8847, 0.9578, 0.9139, frame_processor=iu.isolate_cd_to_black, match=cd_regex
         )
         for text in texts:
             cd = convert_cd(text)
@@ -564,33 +561,11 @@ class BaseCombatTask(CombatCheck):
             return True
         return False
 
-    # def load_chars_element(self, count=4):
-    #     def processor(image):
-    #         image = binarize_bgr_by_adaptive_center(image)
-    #         image = blackout_corners_by_circle(image)
-    #         return image
-    #     results = []
-    #     to_find = [Labels.blue_element, Labels.green_element, Labels.red_element, Labels.purple_element, Labels.yellow_element, Labels.white_element]
-    #     first_box = self.box_of_screen_scaled(2560, 1440, 2438, 335, width_original=29, height_original=29)
-    #     for i in range(count):
-    #         box = first_box.copy(y_offset=int(self.height * 176 / 1440 * i))
-    #         display_image(processor(box.crop_frame(self.frame)), f'char_{i+1}_element')
-    #         best = self.find_best_match_in_box(box, to_find, threshold=0.4, frame_processor=processor)
-    #         if best:
-    #             name = best.name.value
-    #             confidence = best.confidence
-    #         else:
-    #             name = None
-    #             confidence = 0
-    #         self.log_debug(f'char_{i+1}_element {name} {confidence}')
-    #         results.append(name)
-    #     return results
-
     def load_chars_element(self, count=4) -> List[Element]:
 
         def processor(image):
-            image = binarize_bgr_by_adaptive_center(image)
-            image = blackout_corners_by_circle(image)
+            image = iu.binarize_bgr_by_adaptive_center(image)
+            image = iu.blackout_corners_by_circle(image)
             return image
 
         results = []
@@ -746,37 +721,6 @@ class BaseCombatTask(CombatCheck):
             self.log_debug(f"compare_char_slot: confidence {confidence}")
         self.chars_slot_mat[index] = current_mat
         return confidence < 0.7
-
-
-white_color = {  # 用于检测UI元素可用状态的白色颜色范围。
-    "r": (253, 255),  # Red range
-    "g": (253, 255),  # Green range
-    "b": (253, 255),  # Blue range
-}
-
-cd_white_color = {
-    "r": (153, 186),  # Red range
-    "g": (158, 192),  # Green range
-    "b": (162, 193),  # Blue range
-}
-
-
-def isolate_cd_to_black(cv_image):
-    """
-    Converts pixels in the cd_white_color range to black,
-    and all others to white.
-    Args:
-        cv_image: Input image (NumPy array, BGR).
-    Returns:
-        Black and white image (NumPy array), where matches are black.
-    """
-    lower_bound, upper_bound = color_range_to_bound(cd_white_color)
-
-    match_mask = cv2.inRange(cv_image, lower_bound, upper_bound)
-    output_image = cv2.cvtColor(match_mask, cv2.COLOR_GRAY2BGR)
-    output_image = cv2.bitwise_not(output_image)
-
-    return output_image
 
 
 def convert_cd(text):

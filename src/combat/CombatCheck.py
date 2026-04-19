@@ -3,13 +3,11 @@ import time
 from typing import TYPE_CHECKING
 
 import cv2
-from ok import (
-    Logger,
-    find_color_rectangles,
-)
+from ok import Logger, find_color_rectangles
 
 from src.Labels import Labels
-from src.tasks.BaseNTETask import BaseNTETask, binarize_bgr_by_brightness
+from src.tasks.BaseNTETask import BaseNTETask
+from src.utils import image_utils as iu
 
 if TYPE_CHECKING:
     from src.char.BaseChar import BaseChar
@@ -75,7 +73,7 @@ class CombatCheck(BaseNTETask):
 
     def is_boss(self):
         def filter(image):
-            return binarize_bgr_by_brightness(image, threshold=180)
+            return iu.binarize_bgr_by_brightness(image, threshold=180)
 
         box = self.box_of_screen(0.3582, 0.0215, 0.4508, 0.0569)
         is_boss = self.find_one(Labels.boss_lv_text, box=box, frame_processor=filter)
@@ -88,7 +86,7 @@ class CombatCheck(BaseNTETask):
         height = self.height
         frame = self.frame
         lv_regex = re.compile(r"lv", flags=re.IGNORECASE)
-        self.ocr(box=boxes[0], frame=frame, frame_processor=binarize_bgr_by_brightness)
+        self.ocr(box=boxes[0], frame=frame, frame_processor=iu.binarize_bgr_by_brightness)
         for box in boxes:
             box_xr = box.x / width + 0.01
             box_yr = box.y / height - 0.035
@@ -98,7 +96,7 @@ class CombatCheck(BaseNTETask):
             lv_text_boxes.append(lv_text_box)
         img = merge_images_vertically(lv_text_imgs)
         start = time.perf_counter()
-        texts = self.ocr(match=lv_regex, frame=img, frame_processor=binarize_bgr_by_brightness)
+        texts = self.ocr(match=lv_regex, frame=img, frame_processor=iu.binarize_bgr_by_brightness)
         end = time.perf_counter()
         logger.info(f"ocr: {end - start}")
         if len(texts) > 0:
