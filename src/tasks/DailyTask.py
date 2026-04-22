@@ -17,15 +17,15 @@ class DailyTask(BaseNTETask):
         self.support_schedule_task = True
 
         # ===== 任务状态管理 =====
-        self.task_status = {"success": [], "failed": [], "skipped": [], "all": []}
+        # pending: 尚未执行的任务
+        # success: 执行成功
+        # failed: 执行失败
+        # skipped: 被配置跳过（未执行）
+        self.task_status = {"success": [], "failed": [], "skipped": [], "pending": []}
 
         # ===== 配置 =====
-        self.default_config.update({
-            "日常子项1": True,
-            "日常子项2": True,
-        })
-
-        self.current_task_key = None
+        self.default_config.update({"日常子项1": True, "日常子项2": True})
+        self.current_task_key = None  # 当前执行的任务
         self.add_exit_after_config()
 
     # ==============================
@@ -36,12 +36,9 @@ class DailyTask(BaseNTETask):
             self.log_info("开始执行日常任务...", notify=True)
 
             """
-            此处添加任务配置与任务执行函数映射
+            此处添加任务配置与任务执行函数映射，同时决定任务顺序
             """
-            tasks = [
-                ("日常子项1", self.daily_1),
-                ("日常子项2", self.daily_2),
-            ]
+            tasks = [("日常子项1", self.daily_1), ("日常子项2", self.daily_2)]
 
             # 初始化任务列表
             self._reset_task_status(tasks)
@@ -56,7 +53,7 @@ class DailyTask(BaseNTETask):
             self._handle_exception(e)
 
     def execute_task(self, key, func):
-        self.task_status["all"].remove(key)
+        self.task_status["pending"].remove(key)
 
         # 开关控制
         if not self.config.get(key, False):
@@ -68,7 +65,6 @@ class DailyTask(BaseNTETask):
 
         # self.ensure_main()  # 每轮任务前确保在主界面
 
-        
         result = func()
 
         if result is False:
@@ -81,7 +77,7 @@ class DailyTask(BaseNTETask):
         self.current_task_key = None
 
     def _reset_task_status(self, tasks):
-        self.task_status = {"success": [], "failed": [], "skipped": [], "all": [t[0] for t in tasks]}
+        self.task_status = {"success": [], "failed": [], "skipped": [], "pending": [t[0] for t in tasks]}
 
     def _print_result(self):
         self.info_set("success", f"{self.task_status['success']}")
@@ -95,8 +91,11 @@ class DailyTask(BaseNTETask):
             self.info_set("当前失败任务", self.current_task_key)
         self._print_result()
         raise e
-    def daily_1(self):
-        ...
 
-    def daily_2(self):
-        ...
+    """
+    以下为各子项任务函数示例，实际使用时请替换为具体实现
+    """
+
+    def daily_1(self): ...
+
+    def daily_2(self): ...
