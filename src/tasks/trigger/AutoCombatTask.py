@@ -25,6 +25,7 @@ class AutoCombatTask(BaseCombatTask, TriggerTask):
         self.default_config = {"_enabled": True}
         self.trigger_interval = 0.1
         self.name = "自动战斗"
+        self.description = "受限于异环UI的问题, 存在不稳定的情况"
         self.icon = FluentIcon.CALORIES
         self.last_is_click = False
         self.default_config.update(

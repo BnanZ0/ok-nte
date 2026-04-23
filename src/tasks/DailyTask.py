@@ -10,7 +10,7 @@ class DailyTask(BaseNTETask):
         super().__init__(*args, **kwargs)
         # ===== 基础信息 =====
         self.name = "日常任务"
-        self.description = "收菜(暂不可用)"
+        self.description = "暂不可用"
         self.icon = FluentIcon.SYNC
 
         # ===== 能力开关 =====

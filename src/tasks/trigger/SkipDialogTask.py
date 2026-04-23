@@ -17,6 +17,7 @@ class SkipDialogTask(TriggerTask, BaseNTETask):
         self.trigger_interval = 0.5
         self.skip_message_hold = False
         self.name = "任务跳过对话"
+        self.description = "点击时将短暂控制物理鼠标"
 
     def run(self):
         if self.scene.in_team(self.is_in_team):
