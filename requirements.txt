@@ -27,9 +27,9 @@ numpy==2.4.4
     #   scipy
     #   shapely
     #   tifffile
-ok-script==1.0.97
+ok-script==1.0.107
     # via ok-nte (pyproject.toml)
-onnxocr-ppocrv5==0.0.14
+onnxocr-ppocrv5==0.0.15
     # via ok-nte (pyproject.toml)
 opencc==1.2.0
     # via ok-nte (pyproject.toml)
