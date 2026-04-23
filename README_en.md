@@ -21,9 +21,12 @@ This software is an open-source, free external tool intended for learning and ex
 
 All issues and consequences arising from the use of this software are not related to this project or its development team. The development team reserves the final right of interpretation for this project. If you encounter vendors using this software for services and charging a fee, this may cover their costs for equipment and time; any resulting problems or consequences are not associated with this software.
 
-> **Please Note: According to the [*Neverness To Everness* Fair Play Declaration]():**
+> **Please Note: According to the [*Neverness To Everness* Fair Play Declaration](https://nte.perfectworld.com/en/article/news/gamebroad/20260206/260828.html):**
 >
 > > ""
+> > The use of any third-party tools that undermine fair gameplay is strictly prohibited. We will take strong action against violations involving illegal tools such as cheats, speed hacks, macro scripts, and similar software.
+> >
+> > Prohibited behaviors include, but are not limited to: auto-farming, skill acceleration, god mode, teleportation, and game data manipulation. Any account found to be involved in such activities will be banned upon verification.
 > > ""
 >
 > **You should fully understand and voluntarily assume all potential risks associated with using this tool.**
