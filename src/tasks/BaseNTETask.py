@@ -6,6 +6,7 @@ from ok import BaseTask, Box
 
 from src.Labels import Labels
 from src.scene.NTEScene import NTEScene
+from src.scene.ScreenPosition import ScreenPosition
 from src.utils import image_utils as iu
 
 
@@ -16,6 +17,7 @@ class BaseNTETask(BaseTask):
         self.key_config = self.get_global_config("Game Hotkey Config")
         self._logged_in = False
         self.arrow_contour = {"contours": None, "shape": None}
+        self.box= ScreenPosition(self)
 
     def is_in_team(self):
         find_box = self.get_box_by_name(Labels.health_bar_slash).scale(1.5)
