@@ -524,22 +524,28 @@ class FishingTask(BaseNTETask):
             height = getattr(text, "height", 0) or 0
             if x is None or y is None:
                 continue
-            if mode == "raw":
-                click_x = int(round(x))
-                click_y = int(round(y))
-            elif mode == "center":
-                click_x = int(round(x + width / 2)) if width else int(round(x))
-                click_y = int(round(y + height / 2)) if height else int(round(y))
-            else:
-                click_x, click_y = self.resolve_fallback_start_pos()
+            click_x, click_y = self._calc_start_click_position(mode, x, y, width, height)
             return click_x, click_y, x, y, width, height
         return None
 
+    def _calc_start_click_position(self, mode: str, x: float, y: float, width: float, height: float):
+        if mode == "raw":
+            return int(round(x)), int(round(y))
+        if mode == "center":
+            click_x = int(round(x + width / 2)) if width else int(round(x))
+            click_y = int(round(y + height / 2)) if height else int(round(y))
+            return click_x, click_y
+        return self.resolve_fallback_start_pos()
+
     def resolve_fallback_start_pos(self):
         x, y = self.START_BUTTON_POS
-        if 0 < x < 1 and 0 < y < 1:
+        if self._is_normalized_point(x, y):
             return int(round(self.width * x)), int(round(self.height * y))
         return int(round(x)), int(round(y))
+
+    @staticmethod
+    def _is_normalized_point(x: float, y: float) -> bool:
+        return 0 < x < 1 and 0 < y < 1
 
     def dispatch_start_click(self, click_x: int, click_y: int) -> bool:
         # 按用户要求：开始钓鱼按钮只使用实体点击，不走虚拟点击
