@@ -539,13 +539,7 @@ class FishingTask(BaseNTETask):
 
     def resolve_fallback_start_pos(self):
         x, y = self.START_BUTTON_POS
-        if self._is_normalized_point(x, y):
-            return int(round(self.width * x)), int(round(self.height * y))
-        return int(round(x)), int(round(y))
-
-    @staticmethod
-    def _is_normalized_point(x: float, y: float) -> bool:
-        return 0 < x < 1 and 0 < y < 1
+        return int(round(self.width * x)), int(round(self.height * y))
 
     def dispatch_start_click(self, click_x: int, click_y: int) -> bool:
         # 按用户要求：开始钓鱼按钮只使用实体点击，不走虚拟点击
