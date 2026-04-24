@@ -10,11 +10,11 @@ from src.tasks.BaseNTETask import BaseNTETask
 from src.utils import image_utils as iu
 
 class FishingTask(BaseNTETask):
-    # 1080p 固定参数（仅“循环次数”开放配置）
+    # 1080p 固定参数（“循环次数”“方向反转”开放配置）
     ENTRY_BOX = (0.54, 0.50, 0.82, 0.60)
     START_PANEL_BOX = (0.63, 0.08, 0.98, 0.95)
-    BITE_BOX = (0.30, 0.66, 0.72, 0.88)
-    FAIL_BOX = (0.22, 0.56, 0.80, 0.90)
+    BITE_BOX = (0.20, 0.56, 0.82, 0.92)
+    FAIL_BOX = (0.12, 0.48, 0.88, 0.92)
     SUCCESS_BOX = (0.30, 0.70, 0.71, 0.92)
     SUCCESS_TITLE_BOX = (0.34, 0.08, 0.68, 0.17)
     BAR_BOX = (0.30, 0.025, 0.70, 0.085)
@@ -26,13 +26,13 @@ class FishingTask(BaseNTETask):
     CONTROL_TIMEOUT = 30
     RESULT_TIMEOUT = 10
     BAR_TOLERANCE = 4
-    BITE_BLUE_THRESHOLD = 260
     CONTROL_TAP_HOLD = 0.05
     CONTROL_USE_LONG_PRESS = True
     CONTROL_LONG_PRESS_THRESHOLD = 10
     CONTROL_LONG_PRESS_HOLD = 0.18
-    CONTROL_OCR_CHECK_INTERVAL = 0.25
+    CONTROL_OCR_CHECK_INTERVAL = 0.45
     DIRECTION_INVERT = True
+    CONTROL_SPEED_PERCENT = 100
     START_PHASE_STABLE_CHECKS = 3
     START_CLICK_USE_PHYSICAL_FALLBACK = True
 
@@ -51,19 +51,27 @@ class FishingTask(BaseNTETask):
         self.description = "自动完成一轮或多轮钓鱼"
         self.icon = FluentIcon.GAME
         self.support_schedule_task = True
-        self.default_config.update({"循环次数": 1})
+        self.default_config.update(
+            {
+                "循环次数": 1,
+                "方向反转": bool(self.DIRECTION_INVERT),
+                "拉力速度": int(self.CONTROL_SPEED_PERCENT),
+            }
+        )
         self._fishing_started = False
-        self._last_bite_log_time = 0.0
         self._last_bar_log_time = 0.0
         self._prev_pointer_center = None
         self._prev_error = 0.0
         self._prev_control_time = 0.0
         self._last_control_key = None
         self._same_key_streak = 0
+        self._last_control_failed_escape = False
 
     def run(self):
         self.reset_runtime_state()
         rounds = max(1, int(self.config.get("循环次数", 1)))
+        self.log_info(f"控条方向反转: {self.is_direction_invert()}")
+        self.log_info(f"拉力速度倍率: x{self.get_control_speed_factor():.2f}")
         self.log_info(f"开始自动钓鱼，共 {rounds} 轮", notify=True)
         success_count = 0
         try:
@@ -101,19 +109,35 @@ class FishingTask(BaseNTETask):
 
             self._fishing_started = True
 
-        if not self.cast_rod():
-            self.screenshot(f"fishing_cast_failed_{round_index}")
-            return False
+        round_deadline = time.time() + max(30.0, float(self.BITE_TIMEOUT) + float(self.CONTROL_TIMEOUT) + 12.0)
+        round_attempt = 0
+        while time.time() < round_deadline:
+            round_attempt += 1
+            if round_attempt > 1:
+                self.log_info(f"第 {round_index} 轮自动重试抛竿: 第 {round_attempt} 次")
 
-        if not self.wait_bite():
-            self.screenshot(f"fishing_bite_timeout_{round_index}")
-            return False
+            if not self.cast_rod():
+                self.screenshot(f"fishing_cast_failed_{round_index}")
+                return False
 
-        if not self.control_until_finish():
+            if not self.wait_bite():
+                self.screenshot(f"fishing_bite_timeout_{round_index}")
+                return False
+
+            if self.control_until_finish():
+                return True
+
+            if self._last_control_failed_escape:
+                self._last_control_failed_escape = False
+                self.log_info("检测到“鱼儿溜走了”，本轮自动重新抛竿继续")
+                continue
+
             self.screenshot(f"fishing_control_failed_{round_index}")
             return False
 
-        return True
+        self.log_error(f"第 {round_index} 轮重试超时，结束本轮")
+        self.screenshot(f"fishing_round_timeout_{round_index}")
+        return False
 
     def open_fishing_panel(self) -> bool:
         if self.is_start_panel():
@@ -126,7 +150,7 @@ class FishingTask(BaseNTETask):
             self.log_error("未检测到钓鱼入口，请先站在钓点旁")
             return False
 
-        self.send_key("f", after_sleep=0.2)
+        self.send_game_key("f", after_sleep=0.2)
         return self.wait_until(
             self.is_start_panel,
             time_out=self.OPEN_PANEL_TIMEOUT,
@@ -166,36 +190,49 @@ class FishingTask(BaseNTETask):
             self.log_error("未稳定离开钓鱼准备面板，抛竿取消")
             return False
 
-        self.log_info("执行抛竿操作")
-        self.send_key("f", down_time=0.05, after_sleep=0.25)
-        start = time.time()
-        while time.time() - start < 4:
-            state = self.get_bar_state()
-            if self.is_bite_signal() or self.is_valid_bar_state(state):
-                return True
-            self.next_frame()
+        for attempt in range(2):
+            if attempt == 0:
+                self.log_info("执行抛竿操作")
+            else:
+                self.log_info(f"抛竿未生效，重试按 F ({attempt + 1}/2)")
+            self.send_game_key("f", down_time=0.05, after_sleep=0.16)
+            start = time.time()
+            while time.time() - start < 2.2:
+                state = self.get_bar_state()
+                if self.is_bite_signal() or self.is_valid_bar_state(state):
+                    return True
+                if self.is_fail_signal():
+                    return False
+                self.next_frame()
         self.log_error("抛竿后未进入咬钩/控条状态")
         return False
 
     def wait_bite(self) -> bool:
         start = time.time()
         timeout = float(self.BITE_TIMEOUT)
-        threshold = int(self.BITE_BLUE_THRESHOLD)
+        next_reel_tap = 0.0
+        tap_interval = 0.08
+        bar_confirm_count = 0
+        bar_confirm_required = 3
         while time.time() - start < timeout:
             if self._is_start_panel_stuck():
                 return False
 
-            bite_indicator = self.get_bite_indicator_state()
-            blue_pixels, white_pixels = self._read_bite_pixels(bite_indicator)
-            self._log_bite_pixels(blue_pixels, white_pixels, threshold)
+            bar_state = self.get_bar_state()
+            if self.is_valid_bar_state(bar_state):
+                bar_confirm_count += 1
+                if bar_confirm_count >= bar_confirm_required:
+                    self.log_info(f"已连续识别到拉力条 {bar_confirm_count} 帧，进入控条阶段")
+                    return True
+            else:
+                bar_confirm_count = 0
 
-            if self._try_reel_from_blue_ring(blue_pixels, threshold):
-                return True
-            if self._try_reel_from_text():
-                return True
-            if self.is_fail_signal():
-                self.log_error("检测到鱼已溜走，本轮钓鱼失败")
-                return False
+            now = time.time()
+            if now >= next_reel_tap:
+                self.log_info("等待上钩中：点按 F 尝试收杆")
+                self.send_game_key("f", down_time=0.03, after_sleep=0.0)
+                next_reel_tap = now + tap_interval
+
             self.next_frame()
         return False
 
@@ -205,35 +242,8 @@ class FishingTask(BaseNTETask):
         self.log_error("仍处于钓鱼准备面板，判定开始钓鱼未生效")
         return True
 
-    @staticmethod
-    def _read_bite_pixels(bite_indicator) -> tuple[int, int]:
-        if bite_indicator is None:
-            return 0, 0
-        return int(bite_indicator.get("blue_pixels", 0)), int(bite_indicator.get("white_pixels", 0))
-
-    def _log_bite_pixels(self, blue_pixels: int, white_pixels: int, threshold: int):
-        now = time.time()
-        if now - self._last_bite_log_time <= 0.6:
-            return
-        self.log_info(
-            f"检测咬钩蓝环: blue_pixels={blue_pixels}, "
-            f"white_pixels={white_pixels}, threshold={threshold}"
-        )
-        self._last_bite_log_time = now
-
-    def _try_reel_from_blue_ring(self, blue_pixels: int, threshold: int) -> bool:
-        if blue_pixels < threshold:
-            return False
-        self.log_info("检测到右下角蓝色收杆环，立即按 F 收杆")
-        return self.reel_hook()
-
-    def _try_reel_from_text(self) -> bool:
-        if not self.is_bite_signal():
-            return False
-        self.log_info("检测到文字上钩提示，立即按 F 收杆")
-        return self.reel_hook()
-
     def control_until_finish(self) -> bool:
+        self._last_control_failed_escape = False
         start = time.time()
         timeout = float(self.CONTROL_TIMEOUT)
         next_ocr_check = 0.0
@@ -251,8 +261,9 @@ class FishingTask(BaseNTETask):
             now = time.time()
             if now >= next_ocr_check:
                 # OCR 判定降频，避免拖慢控条按键节奏
-                if self.is_fail_signal():
+                if self.is_control_fail_signal():
                     self.log_error("控条阶段检测到失败文案（鱼儿溜走）")
+                    self._last_control_failed_escape = True
                     return False
                 if self.is_success_overlay():
                     self.close_success_overlay()
@@ -291,6 +302,7 @@ class FishingTask(BaseNTETask):
         self._update_bar_runtime_state(decision["pointer_center"], decision["zone_center"], now)
 
     def _make_bar_decision(self, state: dict, tolerance: int, now: float) -> dict:
+        invert = self.is_direction_invert()
         pointer_center = int(state["pointer_center"])
         zone_left = int(state["zone_left"])
         zone_right = int(state["zone_right"])
@@ -300,20 +312,25 @@ class FishingTask(BaseNTETask):
         dt = max(0.01, now - self._prev_control_time) if self._prev_control_time > 0 else 0.01
         velocity = (pointer_center - prev_pointer) / dt
 
-        soft_margin = max(tolerance + 1, int(zone_width * 0.24))
+        soft_margin = max(tolerance + 1, int(zone_width * 0.18))
         soft_left = zone_left + soft_margin
         soft_right = zone_right - soft_margin
         if soft_left >= soft_right:
             soft_left = zone_left + tolerance
             soft_right = zone_right - tolerance
 
-        if pointer_center < soft_left:
+        capped_velocity = max(-260.0, min(260.0, velocity))
+        predict_gain = 0.015
+        predicted_pointer = int(round(pointer_center + capped_velocity * predict_gain))
+
+        if predicted_pointer < soft_left:
             return {
                 "stable": False,
-                "key": "d" if bool(self.DIRECTION_INVERT) else "a",
-                "distance": soft_left - pointer_center,
-                "drift_wrong": velocity < -15,
+                "key": "d" if invert else "a",
+                "distance": soft_left - predicted_pointer,
+                "drift_wrong": velocity < -35,
                 "pointer_center": pointer_center,
+                "predicted_pointer": predicted_pointer,
                 "zone_left": zone_left,
                 "zone_right": zone_right,
                 "zone_center": zone_center,
@@ -321,16 +338,17 @@ class FishingTask(BaseNTETask):
                 "velocity": velocity,
                 "soft_left": soft_left,
                 "soft_right": soft_right,
-                "ratio": min(1.0, (soft_left - pointer_center) / max(1, zone_width)),
+                "ratio": min(1.0, (soft_left - predicted_pointer) / max(1, zone_width)),
             }
 
-        if pointer_center > soft_right:
+        if predicted_pointer > soft_right:
             return {
                 "stable": False,
-                "key": "a" if bool(self.DIRECTION_INVERT) else "d",
-                "distance": pointer_center - soft_right,
-                "drift_wrong": velocity > 15,
+                "key": "a" if invert else "d",
+                "distance": predicted_pointer - soft_right,
+                "drift_wrong": velocity > 35,
                 "pointer_center": pointer_center,
+                "predicted_pointer": predicted_pointer,
                 "zone_left": zone_left,
                 "zone_right": zone_right,
                 "zone_center": zone_center,
@@ -338,12 +356,13 @@ class FishingTask(BaseNTETask):
                 "velocity": velocity,
                 "soft_left": soft_left,
                 "soft_right": soft_right,
-                "ratio": min(1.0, (pointer_center - soft_right) / max(1, zone_width)),
+                "ratio": min(1.0, (predicted_pointer - soft_right) / max(1, zone_width)),
             }
 
         return {
             "stable": True,
             "pointer_center": pointer_center,
+            "predicted_pointer": predicted_pointer,
             "zone_left": zone_left,
             "zone_right": zone_right,
             "zone_center": zone_center,
@@ -354,26 +373,34 @@ class FishingTask(BaseNTETask):
 
     def _resolve_press_profile(self, decision: dict) -> tuple[float, int]:
         tap_hold = float(self.CONTROL_TAP_HOLD)
-        long_hold = float(self.CONTROL_LONG_PRESS_HOLD)
-        long_press_threshold = max(1, int(self.CONTROL_LONG_PRESS_THRESHOLD))
-        use_long_press = bool(self.CONTROL_USE_LONG_PRESS)
         ratio = decision["ratio"]
         distance = decision["distance"]
+        zone_width = max(1, int(decision.get("zone_width", 1)))
+        speed = self.get_control_speed_factor()
 
-        press_hold = tap_hold + 0.10 + ratio * 0.22
-        if use_long_press and (distance >= long_press_threshold or ratio >= 0.35):
-            press_hold = max(press_hold, long_hold + ratio * 0.16)
+        # 提高追条力度：偏差大时更长按、更高 burst
+        distance_factor = min(1.0, distance / max(1, zone_width * 2))
+        press_hold = max(0.035, tap_hold * 0.70 + 0.022 + ratio * 0.050 + distance_factor * 0.030)
         if decision["drift_wrong"]:
-            press_hold += 0.05
-        press_hold = min(0.45, max(0.05, press_hold))
+            press_hold += 0.012
+        press_hold *= speed
+        press_hold = min(0.120, max(0.032, press_hold))
 
-        burst = 1
-        if ratio > 0.28:
+        burst = 2
+        if ratio < 0.12 and distance < zone_width * 0.12:
+            burst = 1
+        if ratio > 0.55:
             burst = 2
-        if ratio > 0.52:
+        if ratio > 0.75:
             burst = 3
+        if distance > zone_width * 1.6:
+            burst = max(burst, 4)
         if decision["drift_wrong"] and burst < 3:
             burst += 1
+        if speed >= 1.20:
+            burst = min(4, burst + 1)
+        elif speed <= 0.85:
+            burst = max(1, burst - 1)
         return press_hold, burst
 
     def _apply_key_streak(self, key: str, ratio: float, burst: int) -> int:
@@ -382,7 +409,7 @@ class FishingTask(BaseNTETask):
         else:
             self._same_key_streak = 1
         self._last_control_key = key
-        if self._same_key_streak >= 4 and ratio > 0.55:
+        if self._same_key_streak >= 3 and ratio > 0.60:
             return min(4, burst + 1)
         return burst
 
@@ -415,10 +442,19 @@ class FishingTask(BaseNTETask):
             return False
         zone_left = int(state.get("zone_left", 0))
         zone_right = int(state.get("zone_right", 0))
+        pointer_center = int(state.get("pointer_center", -1))
         image_width = max(1, int(state.get("image_width", 1)))
         zone_width = max(0, int(state.get("zone_width", zone_right - zone_left)))
         ratio = zone_width / image_width
-        return 0.05 <= ratio <= 0.55
+        if not (0.05 <= ratio <= 0.55):
+            return False
+        if not (0 <= pointer_center < image_width):
+            return False
+        # 过滤明显误检：绿区贴边且指针又远离，通常不是有效拉力条
+        edge_zone = zone_left <= 1 or zone_right >= image_width - 2
+        if edge_zone and abs(pointer_center - int((zone_left + zone_right) / 2)) > int(image_width * 0.38):
+            return False
+        return True
 
     def ocr_safe(self, *box, match=None, retry: int = 3):
         """
@@ -459,6 +495,10 @@ class FishingTask(BaseNTETask):
     def is_fail_signal(self) -> bool:
         if self.ocr_safe(*self.BITE_BOX, match=self.FAIL_PATTERN):
             return True
+        return bool(self.ocr_safe(*self.FAIL_BOX, match=self.FAIL_PATTERN))
+
+    def is_control_fail_signal(self) -> bool:
+        # “鱼儿溜走了”只在拉力条阶段出现，控条阶段仅检查该区域，减轻 OCR 开销
         return bool(self.ocr_safe(*self.FAIL_BOX, match=self.FAIL_PATTERN))
 
     def is_success_overlay(self) -> bool:
@@ -627,27 +667,116 @@ class FishingTask(BaseNTETask):
 
     def reset_runtime_state(self):
         self._fishing_started = False
-        self._last_bite_log_time = 0.0
         self._last_bar_log_time = 0.0
         self._prev_pointer_center = None
         self._prev_error = 0.0
         self._prev_control_time = 0.0
         self._last_control_key = None
         self._same_key_streak = 0
+        self._last_control_failed_escape = False
 
     def reel_hook(self) -> bool:
         # 咬钩后短时间重试几次 F，避免单次按键被吞
-        for attempt in range(3):
-            self.send_key("f", down_time=0.05, after_sleep=0.08)
+        for attempt in range(4):
+            self.send_game_key("f", down_time=0.05, after_sleep=0.05)
             if self.wait_until(
                 lambda: self.is_valid_bar_state(self.get_bar_state()) or self.is_success_overlay() or self.is_fail_signal(),
-                time_out=0.7,
+                time_out=0.9,
                 raise_if_not_found=False,
             ):
                 return True
-            self.log_info(f"收杆未生效，重试按 F ({attempt + 1}/3)")
+            self.log_info(f"收杆未生效，重试按 F ({attempt + 1}/4)")
         return False
 
     def send_control_key(self, key: str, hold: float):
         # 纯后台按键（PostMessage）
-        self.send_key(key, down_time=hold, after_sleep=0.0)
+        self.send_game_key(key, down_time=hold, after_sleep=0.0)
+
+    def send_game_key(self, key: str, down_time: float = 0.02, after_sleep: float = 0.0):
+        """
+        F/A/D 走实体按键（前台窗口），其余保持原有按键通道。
+        """
+        interaction = self.executor.interaction
+        if hasattr(interaction, "_dynamic_target_hwnd"):
+            interaction._dynamic_target_hwnd = 0
+        low_key = str(key).lower()
+        if low_key in {"f", "a", "d"} and self.physical_key_press(low_key, hold=down_time):
+            if after_sleep > 0:
+                self.sleep(after_sleep)
+            return True
+        self.send_key(key, down_time=down_time, after_sleep=after_sleep)
+        return True
+
+    def physical_key_press(self, key: str, hold: float = 0.03) -> bool:
+        try:
+            hwnd = self.get_game_top_hwnd()
+            if hwnd <= 0:
+                self.log_info(f"实体按键失败: hwnd无效 key={key}")
+                return False
+            self._ensure_foreground(hwnd)
+
+            vk = self._vk_code(key)
+            scan = win32api.MapVirtualKey(vk, 0)
+            self.log_info(f"发送实体按键: {str(key).upper()} (hwnd={hwnd}, vk={vk})")
+            win32api.keybd_event(vk, scan, 0, 0)
+            time.sleep(max(0.015, float(hold)))
+            win32api.keybd_event(vk, scan, win32con.KEYEVENTF_KEYUP, 0)
+            return True
+        except Exception as e:
+            self.log_info(f"实体按键失败 key={key}: {e}")
+            return False
+
+    def get_game_top_hwnd(self) -> int:
+        interaction = self.executor.interaction
+        hwnd_window = getattr(interaction, "hwnd_window", None)
+        if hwnd_window is not None:
+            return int(getattr(hwnd_window, "top_hwnd", 0) or getattr(hwnd_window, "hwnd", 0) or 0)
+        return int(getattr(interaction, "hwnd", 0) or 0)
+
+    def _ensure_foreground(self, hwnd: int):
+        try:
+            win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
+        except Exception:
+            pass
+        try:
+            if win32gui.GetForegroundWindow() != hwnd:
+                current_tid = win32api.GetCurrentThreadId()
+                target_tid = win32process.GetWindowThreadProcessId(hwnd)[0]
+                win32process.AttachThreadInput(current_tid, target_tid, True)
+                win32gui.SetForegroundWindow(hwnd)
+                win32process.AttachThreadInput(current_tid, target_tid, False)
+        except Exception:
+            try:
+                win32gui.SetForegroundWindow(hwnd)
+            except Exception:
+                pass
+
+    @staticmethod
+    def _vk_code(key: str) -> int:
+        key = str(key).lower()
+        if key == "a":
+            return 0x41
+        if key == "d":
+            return 0x44
+        if key == "f":
+            return 0x46
+        vk = win32api.VkKeyScan(key)
+        if isinstance(vk, int) and vk >= 0:
+            return vk & 0xFF
+        return ord(key.upper())
+
+    def is_direction_invert(self) -> bool:
+        value = self.config.get("方向反转", self.DIRECTION_INVERT)
+        if isinstance(value, str):
+            value = value.strip().lower()
+            return value in {"1", "true", "yes", "on", "是"}
+        return bool(value)
+
+    def get_control_speed_factor(self) -> float:
+        value = self.config.get("拉力速度", self.CONTROL_SPEED_PERCENT)
+        try:
+            percent = float(value)
+        except Exception:
+            percent = float(self.CONTROL_SPEED_PERCENT)
+        percent = max(50.0, min(220.0, percent))
+        return percent / 100.0
