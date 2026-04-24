@@ -26,6 +26,7 @@ class BaseNTETask(BaseTask):
         self._logged_in = False
         self.arrow_contour = {"contours": None, "shape": None}
         self.default_box = ScreenPosition(self)
+        self.char_ui_offset = False
 
     @property
     def thread_pool_executor(self) -> ThreadPoolExecutor:
@@ -37,18 +38,18 @@ class BaseNTETask(BaseTask):
     def main_viewport(self):
         return self.box_of_screen(0.1543, 0.1021, 0.9070, 0.8458)
 
-    def get_char_box(self, index: int, offset: bool = False):
+    def get_char_box(self, index: int):
         box = self.get_box_by_name(f"box_char_{index + 1}")
-        if offset:
+        if self.char_ui_offset:
             offset = -9 * self.width / 2560
             box = box.copy(x_offset=offset)
         return box
 
-    def get_char_text_box(self, index: int, offset: bool = False):
+    def get_char_text_box(self, index: int):
         box = self.get_box_by_name(f"char_{index + 1}_text")
-        if offset:
-            offset = -9 * self.width / 2560
-            box = box.copy(x_offset=offset)
+        # if self.char_ui_offset:
+        #     offset = -9 * self.width / 2560
+        #     box = box.copy(x_offset=offset)
         return box
 
     def is_in_team(self):
@@ -68,15 +69,25 @@ class BaseNTETask(BaseTask):
             return iu.binarize_bgr_by_brightness(image, threshold=180)
 
         def find_char_text(index: int):
-            return self.find_one(f"char_{index + 1}_text", box=self.get_char_text_box(index),
-                                 threshold=0.7, frame_processor=process_char_text,
-                                 mask_function=iu.mask_outside_white_rect)
+            return self.find_one(f"char_{index + 1}_text", threshold=0.7,
+                                 frame_processor=process_char_text,
+                                 mask_function=iu.mask_outside_white_rect,
+                                 horizontal_variance=0.005)
         
         c1 = find_char_text(0)
         c2 = find_char_text(1)
         c3 = find_char_text(2)
         c4 = find_char_text(3)
         arr: List[Box | None] = [c1, c2, c3, c4]
+        results = [
+            c.x < self.get_char_text_box(idx).x for idx, c in enumerate(arr) if c is not None
+        ]
+
+        if results:
+            self.char_ui_offset = sum(results) > (len(results) / 2)
+        else:
+            self.char_ui_offset = False
+
         # self.log_debug(f"in_team {arr}")
         current = -1
         exist_count = 0

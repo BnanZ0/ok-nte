@@ -25,10 +25,7 @@ class AutoCombatTask(BaseCombatTask, TriggerTask):
         self.default_config = {"_enabled": True}
         self.trigger_interval = 0.1
         self.name = "自动战斗"
-        self.description = (
-            "受《异环》UI的特殊性影响, 部分场景下存在识别稳定性波动。\n"
-            "由于完成“照相馆”任务后角色UI将发生偏移, 目前仅针对任务达成后的UI布局进行适配。"
-        )
+        self.description = "受《异环》UI的特殊性影响, 部分场景下存在识别稳定性波动"
         self.icon = FluentIcon.CALORIES
         self.last_is_click = False
         self.default_config.update(
