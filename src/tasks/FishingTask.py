@@ -101,16 +101,16 @@ class FishingTask(BaseNTETask):
         return False
 
     def enter_fishing_scene(self) -> bool:
-        # 暂时不使用该功能
+        # TODO: is_fishing_entry / is_start_panel 待实现后再启用入口校验
+        # if not self.is_fishing_entry():
+        #     self.log_error("未检测到钓鱼入口，请先站在钓点旁")
+        #     return False
+        # return self.wait_until(
+        #     self.is_start_panel,
+        #     pos_action=lambda: self.send_key("f", interval=2),
+        #     time_out=self.OPEN_PANEL_TIMEOUT,
+        # )
         return True
-        if not self.is_fishing_entry():
-            self.log_error("未检测到钓鱼入口，请先站在钓点旁")
-            return False
-        return self.wait_until(
-            self.is_start_panel,
-            pos_action=lambda: self.send_key("f", interval=2),
-            time_out=self.OPEN_PANEL_TIMEOUT,
-        )
 
     def cast_rod(self) -> bool:
         self.log_info("执行抛竿操作")
@@ -153,6 +153,7 @@ class FishingTask(BaseNTETask):
                     if self.wait_until(self.is_success_overlay, time_out=5):
                         return True
                 self.log_error("疑似脱钩或失败")
+                self._last_control_failed_escape = True
                 break
 
             if self.is_success_overlay():
@@ -161,7 +162,6 @@ class FishingTask(BaseNTETask):
             self.next_frame()
         else:
             self.log_error("控条阶段超时")
-        self._last_control_failed_escape = True
         return False
 
     def apply_bar_control(self, state: dict):
@@ -353,7 +353,7 @@ class FishingTask(BaseNTETask):
         box = self.box_of_screen(*self.BITE_INDICATOR_BOX, name="fishing_bite_indicator")
         image = box.crop_frame(self.frame)
 
-        blue_mask = iu.create_color_mask(image, fishing_bite_bule_color, gray=True)
+        blue_mask = iu.create_color_mask(image, fishing_bite_blue_color, gray=True)
 
         h, w = blue_mask.shape[:2]
         center = (w // 2, h // 2)
@@ -377,7 +377,7 @@ class FishingTask(BaseNTETask):
         return blue_pixels_ratio > 0.07
 
 
-fishing_bite_bule_color = {
+fishing_bite_blue_color = {
     "r": (30, 35),
     "g": (120, 130),
     "b": (250, 255),
