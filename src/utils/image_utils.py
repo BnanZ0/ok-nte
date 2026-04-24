@@ -276,7 +276,7 @@ def detect_fishing_bar_state(image: np.ndarray):
     if not green_candidates:
         return None
 
-    zone_x, zone_y, zone_w, zone_h = max(green_candidates, key=lambda item: item[2] * item[3])
+    zone_x, _, zone_w, zone_h = max(green_candidates, key=lambda item: item[2] * item[3])
     zone_left = zone_x
     zone_right = zone_x + zone_w
 
@@ -288,7 +288,7 @@ def detect_fishing_bar_state(image: np.ndarray):
         if h >= vertical_min and w <= 30:
             pointer_candidates.append((x, y, w, h))
     if pointer_candidates:
-        pointer_x, pointer_y, pointer_w, pointer_h = max(
+        pointer_x, _, pointer_w, _ = max(
             pointer_candidates, key=lambda item: item[3] * max(1, item[2])
         )
         pointer_center = pointer_x + pointer_w // 2
