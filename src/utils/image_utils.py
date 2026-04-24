@@ -304,6 +304,8 @@ def detect_fishing_bar_state(image: np.ndarray):
         "zone_left": zone_left,
         "zone_right": zone_right,
         "zone_center": zone_left + zone_w // 2,
+        "zone_width": zone_w,
+        "image_width": int(image.shape[1]),
         "pointer_center": pointer_center,
         "in_zone": zone_left <= pointer_center <= zone_right,
     }

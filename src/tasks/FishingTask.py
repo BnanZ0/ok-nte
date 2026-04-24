@@ -1,66 +1,20 @@
 import re
 import time
-import ctypes
-from ctypes import wintypes
-
 import win32api
 import win32con
 import win32gui
-from win32api import GetCursorPos, SetCursorPos
+import win32process
 from qfluentwidgets import FluentIcon
 
 from src.tasks.BaseNTETask import BaseNTETask
 from src.utils import image_utils as iu
-
-
-INPUT_KEYBOARD = 1
-KEYEVENTF_SCANCODE = 0x0008
-KEYEVENTF_KEYUP = 0x0002
-ULONG_PTR = wintypes.WPARAM
-
-
-class KEYBDINPUT(ctypes.Structure):
-    _fields_ = [
-        ("wVk", wintypes.WORD),
-        ("wScan", wintypes.WORD),
-        ("dwFlags", wintypes.DWORD),
-        ("time", wintypes.DWORD),
-        ("dwExtraInfo", ULONG_PTR),
-    ]
-
-
-class MOUSEINPUT(ctypes.Structure):
-    _fields_ = [
-        ("dx", wintypes.LONG),
-        ("dy", wintypes.LONG),
-        ("mouseData", wintypes.DWORD),
-        ("dwFlags", wintypes.DWORD),
-        ("time", wintypes.DWORD),
-        ("dwExtraInfo", ULONG_PTR),
-    ]
-
-
-class HARDWAREINPUT(ctypes.Structure):
-    _fields_ = [
-        ("uMsg", wintypes.DWORD),
-        ("wParamL", wintypes.WORD),
-        ("wParamH", wintypes.WORD),
-    ]
-
-
-class INPUTUNION(ctypes.Union):
-    _fields_ = [("ki", KEYBDINPUT), ("mi", MOUSEINPUT), ("hi", HARDWAREINPUT)]
-
-
-class INPUT(ctypes.Structure):
-    _fields_ = [("type", wintypes.DWORD), ("union", INPUTUNION)]
-
 
 class FishingTask(BaseNTETask):
     # 1080p 固定参数（仅“循环次数”开放配置）
     ENTRY_BOX = (0.54, 0.50, 0.82, 0.60)
     START_PANEL_BOX = (0.63, 0.08, 0.98, 0.95)
     BITE_BOX = (0.30, 0.66, 0.72, 0.88)
+    FAIL_BOX = (0.22, 0.56, 0.80, 0.90)
     SUCCESS_BOX = (0.30, 0.70, 0.71, 0.92)
     SUCCESS_TITLE_BOX = (0.34, 0.08, 0.68, 0.17)
     BAR_BOX = (0.30, 0.025, 0.70, 0.085)
@@ -77,22 +31,20 @@ class FishingTask(BaseNTETask):
     CONTROL_USE_LONG_PRESS = True
     CONTROL_LONG_PRESS_THRESHOLD = 10
     CONTROL_LONG_PRESS_HOLD = 0.18
+    CONTROL_OCR_CHECK_INTERVAL = 0.25
     DIRECTION_INVERT = True
+    START_PHASE_STABLE_CHECKS = 3
+    START_CLICK_USE_PHYSICAL_FALLBACK = True
 
     ENTRY_PATTERN = re.compile(r"钓鱼", re.IGNORECASE)
     START_PATTERN = re.compile(r"开始钓鱼|钓鱼准备", re.IGNORECASE)
     START_BUTTON_PATTERN = re.compile(r"开始钓鱼", re.IGNORECASE)
-    BITE_PATTERN = re.compile(r"上钩|钩了", re.IGNORECASE)
-    FAIL_PATTERN = re.compile(r"溜走|跑掉|失败", re.IGNORECASE)
+    BITE_PATTERN = re.compile(r"上钩|Clinch|钩了", re.IGNORECASE)
+    FAIL_PATTERN = re.compile(
+        r"鱼儿溜走了|鱼.?溜走|溜走了|溜走|跑掉|脱钩|失败",
+        re.IGNORECASE,
+    )
     SUCCESS_PATTERN = re.compile(r"钓鱼经验|点击空白区域关闭|垂钓等级", re.IGNORECASE)
-    VK_CODE = {
-        "a": 0x41,
-        "d": 0x44,
-        "f": 0x46,
-        "enter": 0x0D,
-        "space": 0x20,
-    }
-
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.name = "自动钓鱼"
@@ -103,6 +55,11 @@ class FishingTask(BaseNTETask):
         self._fishing_started = False
         self._last_bite_log_time = 0.0
         self._last_bar_log_time = 0.0
+        self._prev_pointer_center = None
+        self._prev_error = 0.0
+        self._prev_control_time = 0.0
+        self._last_control_key = None
+        self._same_key_streak = 0
 
     def run(self):
         self.reset_runtime_state()
@@ -116,7 +73,9 @@ class FishingTask(BaseNTETask):
                     success_count += 1
                 else:
                     self.log_error(f"第 {index + 1} 轮钓鱼失败", notify=True)
-                    break
+                    # 失败后重置状态继续下一轮，避免“设置2轮只跑1轮”
+                    self.reset_runtime_state()
+                    self.clear_success_overlay_if_present()
             self.info_set("Fishing Success Count", success_count)
             self.log_info(f"自动钓鱼结束，成功 {success_count}/{rounds}", notify=True)
         finally:
@@ -179,9 +138,9 @@ class FishingTask(BaseNTETask):
             return False
 
         strategies = [
-            ("OCR中心坐标物理单击", lambda: self.click_start_button(mode="center")),
-            ("OCR原始坐标物理单击", lambda: self.click_start_button(mode="raw")),
-            ("固定坐标物理单击", lambda: self.click_start_button(mode="fallback")),
+            ("OCR中心坐标点击", lambda: self.click_start_button(mode="center")),
+            ("OCR原始坐标点击", lambda: self.click_start_button(mode="raw")),
+            ("固定坐标点击", lambda: self.click_start_button(mode="fallback")),
         ]
 
         for strategy_name, action in strategies:
@@ -198,19 +157,33 @@ class FishingTask(BaseNTETask):
         return False
 
     def cast_rod(self) -> bool:
+        if not self.wait_until(
+            self.has_left_start_phase,
+            time_out=1.5,
+            raise_if_not_found=False,
+        ):
+            self.log_error("未稳定离开钓鱼准备面板，抛竿取消")
+            return False
+
         self.log_info("执行抛竿操作")
-        self.physical_key_press("f", hold=0.05, after_sleep=0.25)
+        self.send_key("f", down_time=0.05, after_sleep=0.25)
         start = time.time()
         while time.time() - start < 4:
-            if self.is_bite_signal() or self.get_bar_state() is not None:
+            state = self.get_bar_state()
+            if self.is_bite_signal() or self.is_valid_bar_state(state):
                 return True
             self.next_frame()
-        return True
+        self.log_error("抛竿后未进入咬钩/控条状态")
+        return False
 
     def wait_bite(self) -> bool:
         start = time.time()
         timeout = float(self.BITE_TIMEOUT)
         while time.time() - start < timeout:
+            if self.is_start_panel_stable(expected=True, checks=2):
+                self.log_error("仍处于钓鱼准备面板，判定开始钓鱼未生效")
+                return False
+
             bite_indicator = self.get_bite_indicator_state()
             blue_pixels = bite_indicator["blue_pixels"] if bite_indicator is not None else 0
             white_pixels = bite_indicator["white_pixels"] if bite_indicator is not None else 0
@@ -237,22 +210,16 @@ class FishingTask(BaseNTETask):
             if self.is_fail_signal():
                 self.log_error("检测到鱼已溜走，本轮钓鱼失败")
                 return False
-            if self.get_bar_state() is not None:
-                self.log_info("未捕获到文字提示，但已进入控条阶段")
-                return True
             self.next_frame()
         return False
 
     def control_until_finish(self) -> bool:
         start = time.time()
         timeout = float(self.CONTROL_TIMEOUT)
+        next_ocr_check = 0.0
         while time.time() - start < timeout:
-            if self.is_success_overlay():
-                self.close_success_overlay()
-                return True
-
             state = self.get_bar_state()
-            if state is not None:
+            if self.is_valid_bar_state(state):
                 self.apply_bar_control(state)
             elif time.time() - self._last_bar_log_time > 0.5:
                 self.log_info("控条阶段: 未识别到有效指针/绿区，等待下一帧")
@@ -260,6 +227,17 @@ class FishingTask(BaseNTETask):
             elif time.time() - start > 1.0 and self.is_fishing_entry():
                 self.log_error("钓鱼条阶段提前结束，疑似脱钩或失败")
                 return False
+
+            now = time.time()
+            if now >= next_ocr_check:
+                # OCR 判定降频，避免拖慢控条按键节奏
+                if self.is_fail_signal():
+                    self.log_error("控条阶段检测到失败文案（鱼儿溜走）")
+                    return False
+                if self.is_success_overlay():
+                    self.close_success_overlay()
+                    return True
+                next_ocr_check = now + float(self.CONTROL_OCR_CHECK_INTERVAL)
 
             self.next_frame()
 
@@ -270,45 +248,87 @@ class FishingTask(BaseNTETask):
         pointer_center = state["pointer_center"]
         zone_left = state["zone_left"]
         zone_right = state["zone_right"]
+        zone_center = state.get("zone_center", (zone_left + zone_right) // 2)
+        zone_width = max(1, zone_right - zone_left)
         invert = bool(self.DIRECTION_INVERT)
         use_long_press = bool(self.CONTROL_USE_LONG_PRESS)
         long_press_threshold = max(1, int(self.CONTROL_LONG_PRESS_THRESHOLD))
         tap_hold = float(self.CONTROL_TAP_HOLD)
         long_hold = float(self.CONTROL_LONG_PRESS_HOLD)
         now = time.time()
-        distance = 0
+        prev_pointer = self._prev_pointer_center if self._prev_pointer_center is not None else pointer_center
+        dt = max(0.01, now - self._prev_control_time) if self._prev_control_time > 0 else 0.01
+        velocity = (pointer_center - prev_pointer) / dt
 
-        if pointer_center < zone_left - tolerance:
-            distance = (zone_left - tolerance) - pointer_center
+        # 提前纠偏：不等完全出绿区，接近边缘就开始拉回
+        soft_margin = max(tolerance + 1, int(zone_width * 0.24))
+        soft_left = zone_left + soft_margin
+        soft_right = zone_right - soft_margin
+        if soft_left >= soft_right:
+            soft_left = zone_left + tolerance
+            soft_right = zone_right - tolerance
+
+        distance = 0
+        drift_wrong = False
+        if pointer_center < soft_left:
+            distance = soft_left - pointer_center
             key = "d" if invert else "a"
-        elif pointer_center > zone_right + tolerance:
-            distance = pointer_center - (zone_right + tolerance)
+            drift_wrong = velocity < -15
+        elif pointer_center > soft_right:
+            distance = pointer_center - soft_right
             key = "a" if invert else "d"
+            drift_wrong = velocity > 15
         else:
             if now - self._last_bar_log_time > 0.5:
                 self.log_info(
-                    f"控条稳定区: pointer={pointer_center}, zone=({zone_left},{zone_right}), tolerance={tolerance}"
+                    f"控条稳定区: pointer={pointer_center}, zone=({zone_left},{zone_right}), "
+                    f"soft=({soft_left},{soft_right}), vel={velocity:.1f}"
                 )
                 self._last_bar_log_time = now
+            self._prev_pointer_center = pointer_center
+            self._prev_error = pointer_center - zone_center
+            self._prev_control_time = now
+            self._same_key_streak = max(0, self._same_key_streak - 1)
             return
 
-        press_hold = tap_hold
-        if use_long_press and distance >= long_press_threshold:
-            # 偏差越大，按住越久，提高追条速度
-            ratio = min(distance, 120) / 120.0
-            press_hold = long_hold + 0.12 * ratio
+        ratio = min(1.0, distance / max(1, zone_width))
+        press_hold = tap_hold + 0.10 + ratio * 0.22
+        if use_long_press and (distance >= long_press_threshold or ratio >= 0.35):
+            press_hold = max(press_hold, long_hold + ratio * 0.16)
+        if drift_wrong:
+            press_hold += 0.05
+        press_hold = min(0.45, max(0.05, press_hold))
 
-        burst = 2 if distance >= 90 else 1
+        burst = 1
+        if ratio > 0.28:
+            burst = 2
+        if ratio > 0.52:
+            burst = 3
+        if drift_wrong and burst < 3:
+            burst += 1
+
+        if key == self._last_control_key:
+            self._same_key_streak += 1
+        else:
+            self._same_key_streak = 1
+        self._last_control_key = key
+        if self._same_key_streak >= 4 and ratio > 0.55:
+            burst = min(4, burst + 1)
 
         if now - self._last_bar_log_time > 0.2:
             self.log_info(
                 f"控条输入: key={key}, hold={press_hold:.3f}, burst={burst}, dist={distance}, "
-                f"pointer={pointer_center}, zone=({zone_left},{zone_right}), tolerance={tolerance}"
+                f"ratio={ratio:.2f}, vel={velocity:.1f}, drift_wrong={drift_wrong}, "
+                f"pointer={pointer_center}, zone=({zone_left},{zone_right}), soft=({soft_left},{soft_right})"
             )
             self._last_bar_log_time = now
 
         for _ in range(burst):
             self.send_control_key(key, hold=press_hold)
+
+        self._prev_pointer_center = pointer_center
+        self._prev_error = pointer_center - zone_center
+        self._prev_control_time = now
 
     def get_bar_state(self):
         box = self.box_of_screen(*self.BAR_BOX, name="fishing_bar")
@@ -320,25 +340,61 @@ class FishingTask(BaseNTETask):
         indicator_image = box.crop_frame(self.frame)
         return iu.detect_fishing_bite_indicator(indicator_image)
 
+    def is_valid_bar_state(self, state) -> bool:
+        if state is None:
+            return False
+        zone_left = int(state.get("zone_left", 0))
+        zone_right = int(state.get("zone_right", 0))
+        image_width = max(1, int(state.get("image_width", 1)))
+        zone_width = max(0, int(state.get("zone_width", zone_right - zone_left)))
+        ratio = zone_width / image_width
+        return 0.05 <= ratio <= 0.55
+
+    def ocr_safe(self, *box, match=None, retry: int = 3):
+        """
+        OCR with retry for OpenVINO busy errors.
+        Prefer bg_onnx_ocr channel to reduce contention with default OCR.
+        """
+        for attempt in range(retry):
+            try:
+                return self.ocr(*box, match=match, lib="bg_onnx_ocr")
+            except RuntimeError as e:
+                if "Infer Request is busy" not in str(e):
+                    raise
+                if attempt == 0:
+                    self.log_info("OCR busy，开始重试")
+                time.sleep(0.03 * (attempt + 1))
+
+        # fallback to default channel once
+        try:
+            return self.ocr(*box, match=match)
+        except RuntimeError as e:
+            if "Infer Request is busy" in str(e):
+                self.log_info("OCR busy，跳过当前帧")
+                return []
+            raise
+
     def is_fishing_entry(self) -> bool:
-        return bool(self.ocr(*self.ENTRY_BOX, match=self.ENTRY_PATTERN))
+        return bool(self.ocr_safe(*self.ENTRY_BOX, match=self.ENTRY_PATTERN))
 
     def is_start_panel(self) -> bool:
-        return bool(self.ocr(*self.START_PANEL_BOX, match=self.START_PATTERN))
+        return bool(self.ocr_safe(*self.START_PANEL_BOX, match=self.START_PATTERN))
 
     def is_start_button_visible(self) -> bool:
-        return bool(self.ocr(*self.START_PANEL_BOX, match=self.START_BUTTON_PATTERN))
+        return bool(self.ocr_safe(*self.START_PANEL_BOX, match=self.START_BUTTON_PATTERN))
 
     def is_bite_signal(self) -> bool:
-        return bool(self.ocr(*self.BITE_BOX, match=self.BITE_PATTERN))
+        return bool(self.ocr_safe(*self.BITE_BOX, match=self.BITE_PATTERN))
 
     def is_fail_signal(self) -> bool:
-        return bool(self.ocr(*self.BITE_BOX, match=self.FAIL_PATTERN))
+        if self.ocr_safe(*self.BITE_BOX, match=self.FAIL_PATTERN):
+            return True
+        return bool(self.ocr_safe(*self.FAIL_BOX, match=self.FAIL_PATTERN))
 
     def is_success_overlay(self) -> bool:
-        if self.ocr(*self.SUCCESS_BOX, match=self.SUCCESS_PATTERN):
+        if self.ocr_safe(*self.SUCCESS_BOX, match=self.SUCCESS_PATTERN):
             return True
-        return bool(self.ocr(*self.SUCCESS_TITLE_BOX, match=self.SUCCESS_PATTERN))
+        return bool(self.ocr_safe(*self.SUCCESS_TITLE_BOX, match=self.SUCCESS_PATTERN))
 
     def close_success_overlay(self):
         self.click(
@@ -359,16 +415,24 @@ class FishingTask(BaseNTETask):
             self.close_success_overlay()
 
     def has_left_start_phase(self) -> bool:
-        if not self.is_start_button_visible():
-            return True
-        if self.get_bar_state() is not None:
-            return True
-        if self.is_bite_signal():
-            return True
-        return False
+        # 以“面板连续多帧消失”为准，避免 OCR 单帧漏检导致假阳性
+        return self.is_start_panel_stable(
+            expected=False,
+            checks=self.START_PHASE_STABLE_CHECKS,
+        )
+
+    def is_start_panel_stable(self, expected: bool, checks: int = 2, interval: float = 0.06) -> bool:
+        checks = max(1, int(checks))
+        for i in range(checks):
+            if self.is_start_panel() != expected:
+                return False
+            if i < checks - 1:
+                self.sleep(interval)
+                self.next_frame()
+        return True
 
     def click_start_button(self, mode: str = "center") -> bool:
-        texts = self.ocr(*self.START_PANEL_BOX, match=self.START_BUTTON_PATTERN)
+        texts = self.ocr_safe(*self.START_PANEL_BOX, match=self.START_BUTTON_PATTERN)
         for text in texts:
             name = str(getattr(text, "name", ""))
             if "开始钓鱼" not in name:
@@ -388,31 +452,123 @@ class FishingTask(BaseNTETask):
                 click_x = int(round(x + width / 2)) if width else int(round(x))
                 click_y = int(round(y + height / 2)) if height else int(round(y))
             else:
-                click_x = self.START_BUTTON_POS[0]
-                click_y = self.START_BUTTON_POS[1]
+                click_x, click_y = self.resolve_fallback_start_pos()
 
             self.log_info(
                 f"点击开始钓鱼 OCR 位置 mode={mode}: ({click_x}, {click_y}), "
                 f"raw=({x}, {y}), size=({width}, {height})"
             )
-            self.physical_click(click_x, click_y)
+            self.dispatch_start_click(click_x, click_y)
             return True
 
-        self.log_info(f"未定位到开始钓鱼文本，改用兜底坐标点击 mode={mode}")
-        self.physical_click(self.START_BUTTON_POS[0], self.START_BUTTON_POS[1])
+        click_x, click_y = self.resolve_fallback_start_pos()
+        self.log_info(f"未定位到开始钓鱼文本，改用兜底坐标点击 mode={mode}: ({click_x}, {click_y})")
+        self.dispatch_start_click(click_x, click_y)
         return True
+
+    def resolve_fallback_start_pos(self):
+        x, y = self.START_BUTTON_POS
+        if 0 < x < 1 and 0 < y < 1:
+            return int(round(self.width * x)), int(round(self.height * y))
+        return int(round(x)), int(round(y))
+
+    def dispatch_start_click(self, click_x: int, click_y: int):
+        # 按用户要求：开始钓鱼按钮只使用实体点击，不走虚拟点击
+        self.log_info("开始钓鱼按钮使用实体点击")
+        self.physical_click(click_x, click_y, down_time=0.04)
+        self.wait_until(
+            lambda: not self.is_start_panel(),
+            time_out=0.8,
+            raise_if_not_found=False,
+        )
+
+    def resolve_click_target(self, x: int, y: int):
+        interaction = self.executor.interaction
+        hwnd_window = getattr(interaction, "hwnd_window", None)
+        if hwnd_window is not None:
+            hwnd = int((getattr(hwnd_window, "top_hwnd", 0) or getattr(hwnd_window, "hwnd", 0) or 0))
+            tx, ty = hwnd_window.get_top_window_cords(int(round(x)), int(round(y)))
+            return hwnd, int(round(tx)), int(round(ty))
+        hwnd = int(getattr(interaction, "hwnd", 0) or 0)
+        return hwnd, int(round(x)), int(round(y))
+
+    def sendmessage_click(self, x: int, y: int, down_time: float = 0.03) -> bool:
+        try:
+            hwnd, tx, ty = self.resolve_click_target(x, y)
+            if hwnd <= 0:
+                return False
+            self.log_info(f"SendMessage 点击坐标: hwnd={hwnd}, client=({tx},{ty})")
+            lparam = win32api.MAKELONG(int(tx), int(ty))
+            win32gui.SendMessage(hwnd, win32con.WM_ACTIVATE, win32con.WA_ACTIVE, 0)
+            win32gui.SendMessage(hwnd, win32con.WM_MOUSEMOVE, 0, lparam)
+            win32gui.SendMessage(hwnd, win32con.WM_LBUTTONDOWN, win32con.MK_LBUTTON, lparam)
+            time.sleep(max(0.01, float(down_time)))
+            win32gui.SendMessage(hwnd, win32con.WM_LBUTTONUP, 0, lparam)
+            return True
+        except Exception as e:
+            self.log_info(f"SendMessage 点击失败: {e}")
+            return False
+
+    def physical_click(self, x: int, y: int, down_time: float = 0.03):
+        try:
+            hwnd, tx, ty = self.resolve_click_target(x, y)
+            if hwnd <= 0:
+                self.log_info("物理点击失败: hwnd 无效")
+                return
+            # 确保点击坐标在游戏窗口 client 区内
+            left, top, right, bottom = win32gui.GetClientRect(hwnd)
+            max_x = max(0, int(right) - 1)
+            max_y = max(0, int(bottom) - 1)
+            tx = min(max(0, int(tx)), max_x)
+            ty = min(max(0, int(ty)), max_y)
+            self.log_info(f"物理点击坐标: hwnd={hwnd}, client=({tx},{ty}), client_size=({right},{bottom})")
+
+            # 物理点击只能作用于前台窗口，先确保目标窗口前置
+            try:
+                win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
+            except Exception:
+                pass
+            try:
+                foreground = win32gui.GetForegroundWindow()
+                if foreground != hwnd:
+                    current_tid = win32api.GetCurrentThreadId()
+                    target_tid = win32process.GetWindowThreadProcessId(hwnd)[0]
+                    win32process.AttachThreadInput(current_tid, target_tid, True)
+                    win32gui.SetForegroundWindow(hwnd)
+                    win32process.AttachThreadInput(current_tid, target_tid, False)
+            except Exception:
+                try:
+                    win32gui.SetForegroundWindow(hwnd)
+                except Exception:
+                    pass
+
+            abs_x, abs_y = win32gui.ClientToScreen(hwnd, (int(tx), int(ty)))
+
+            current_x, current_y = win32api.GetCursorPos()
+            win32api.SetCursorPos((int(abs_x), int(abs_y)))
+            win32api.mouse_event(win32con.MOUSEEVENTF_LEFTDOWN, 0, 0, 0, 0)
+            time.sleep(max(0.01, float(down_time)))
+            win32api.mouse_event(win32con.MOUSEEVENTF_LEFTUP, 0, 0, 0, 0)
+            win32api.SetCursorPos((current_x, current_y))
+        except Exception as e:
+            self.log_info(f"物理点击失败: {e}")
 
     def reset_runtime_state(self):
         self._fishing_started = False
         self._last_bite_log_time = 0.0
         self._last_bar_log_time = 0.0
+        self._prev_pointer_center = None
+        self._prev_error = 0.0
+        self._prev_control_time = 0.0
+        self._last_control_key = None
+        self._same_key_streak = 0
 
     def reel_hook(self) -> bool:
         # 咬钩后短时间重试几次 F，避免单次按键被吞
         for attempt in range(3):
-            self.physical_key_press("f", hold=0.05, after_sleep=0.08)
+            self.send_key("f", down_time=0.05, after_sleep=0.08)
             if self.wait_until(
-                lambda: self.get_bar_state() is not None or self.is_success_overlay() or self.is_fail_signal(),
+                lambda: self.is_valid_bar_state(self.get_bar_state()) or self.is_success_overlay() or self.is_fail_signal(),
                 time_out=0.7,
                 raise_if_not_found=False,
             ):
@@ -420,112 +576,6 @@ class FishingTask(BaseNTETask):
             self.log_info(f"收杆未生效，重试按 F ({attempt + 1}/3)")
         return False
 
-    def physical_click(self, x, y, down_time: float = 0.03):
-        original_position = GetCursorPos()
-        interaction = self.executor.interaction
-        try:
-            interaction.try_activate()
-        except Exception:
-            pass
-
-        self._focus_game_window()
-
-        time.sleep(0.08)
-        abs_x, abs_y = interaction.capture.get_abs_cords(x, y)
-        abs_x = int(round(abs_x))
-        abs_y = int(round(abs_y))
-        SetCursorPos((abs_x, abs_y))
-        time.sleep(0.06)
-        win32api.mouse_event(win32con.MOUSEEVENTF_LEFTDOWN, 0, 0, 0, 0)
-        time.sleep(down_time)
-        win32api.mouse_event(win32con.MOUSEEVENTF_LEFTUP, 0, 0, 0, 0)
-        time.sleep(0.08)
-        SetCursorPos(original_position)
-
-    def _focus_game_window(self):
-        interaction = self.executor.interaction
-        try:
-            interaction.try_activate()
-        except Exception:
-            pass
-
-        hwnd = getattr(getattr(interaction, "capture", None), "hwnd", None)
-        if hwnd:
-            try:
-                if win32gui.IsIconic(hwnd):
-                    win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
-                win32gui.BringWindowToTop(hwnd)
-                win32gui.SetForegroundWindow(hwnd)
-                win32gui.SetActiveWindow(hwnd)
-            except Exception:
-                pass
-
-    def physical_key_press(self, key: str, hold: float = 0.05, after_sleep: float = 0.0, focus: bool = True):
-        vk = self.VK_CODE.get(str(key).lower())
-        if vk is None:
-            self.log_error(f"不支持的物理按键: {key}")
-            return
-
-        if focus:
-            self._focus_game_window()
-            time.sleep(0.03)
-        self.log_info(f"发送物理按键: {key.upper()}")
-        sent = False
-        try:
-            sent = self._send_key_sendinput(vk, hold)
-        except Exception as e:
-            self.log_info(f"SendInput 发送失败，回退 keybd_event: {e}")
-        if not sent:
-            # 兜底回退到 keybd_event
-            win32api.keybd_event(vk, 0, 0, 0)
-            time.sleep(hold)
-            win32api.keybd_event(vk, 0, win32con.KEYEVENTF_KEYUP, 0)
-        if after_sleep > 0:
-            time.sleep(after_sleep)
-
     def send_control_key(self, key: str, hold: float):
-        # 控条专用：真实键 + 框架键双通道，提高 A/D 生效概率
-        self.physical_key_press(key, hold=hold, after_sleep=0.0, focus=False)
-        try:
-            self.send_key(key, down_time=min(0.02, hold), after_sleep=0.0)
-        except Exception as e:
-            self.log_info(f"控条框架按键发送失败: {e}")
-
-    def _send_key_sendinput(self, vk: int, hold: float) -> bool:
-        user32 = ctypes.windll.user32
-        scan = user32.MapVirtualKeyW(vk, 0)
-        if scan == 0:
-            return False
-
-        down = INPUT(
-            type=INPUT_KEYBOARD,
-            union=INPUTUNION(
-                ki=KEYBDINPUT(
-                    wVk=0,
-                    wScan=scan,
-                    dwFlags=KEYEVENTF_SCANCODE,
-                    time=0,
-                    dwExtraInfo=0,
-                )
-            ),
-        )
-        up = INPUT(
-            type=INPUT_KEYBOARD,
-            union=INPUTUNION(
-                ki=KEYBDINPUT(
-                    wVk=0,
-                    wScan=scan,
-                    dwFlags=KEYEVENTF_SCANCODE | KEYEVENTF_KEYUP,
-                    time=0,
-                    dwExtraInfo=0,
-                )
-            ),
-        )
-
-        user32.SendInput.argtypes = (wintypes.UINT, ctypes.POINTER(INPUT), ctypes.c_int)
-        user32.SendInput.restype = wintypes.UINT
-
-        down_ok = user32.SendInput(1, ctypes.pointer(down), ctypes.sizeof(INPUT)) == 1
-        time.sleep(hold)
-        up_ok = user32.SendInput(1, ctypes.pointer(up), ctypes.sizeof(INPUT)) == 1
-        return down_ok and up_ok
+        # 纯后台按键（PostMessage）
+        self.send_key(key, down_time=hold, after_sleep=0.0)
