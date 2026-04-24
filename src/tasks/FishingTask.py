@@ -36,6 +36,7 @@ class FishingTask(BaseNTETask):
                 "循环次数": 1,
             }
         )
+        self.instructions = "进入钓鱼界面后运行任务"
         self._fishing_started = False
         self._last_bar_log_time = 0.0
         self._last_control_failed_escape = False
