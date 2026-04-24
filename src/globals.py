@@ -20,36 +20,23 @@ class Globals(QObject):
         communicate.starting_emulator.connect(self.ocr_init)
 
     def ocr_init(self, done, error, seconds_left):
-        if done and error == "" and seconds_left == 0 and not self._ocr_init:
+        if not self._ocr_init and done and error == "" and seconds_left == 0:
             self._ocr_init = True
-            import threading
+            try:
+                all_tasks = og.executor.get_all_tasks()
+                if all_tasks and hasattr(all_tasks[0], "ocr"):
+                    logger.info("Warming up default OCR...")
+                    all_tasks[0].ocr(frame=np.zeros((50, 50, 3)))
+                
+                self.init_bg_ocr()
+                bg_ocr = getattr(og.executor, "_ocr_lib", {}).get("bg_onnx_ocr")
+                if bg_ocr:
+                    logger.info("Warming up background OCR...")
+                    bg_ocr.ocr(np.zeros((50, 50, 3), dtype=np.uint8))
 
-            def run_background_init():
-                try:
-                    logger.info("Starting background OCR initialization...")
-
-                    if getattr(og, "executor", None) is None:
-                        logger.warning("og.executor is not initialized yet.")
-                        return
-
-                    all_tasks = og.executor.get_all_tasks()
-                    if all_tasks and hasattr(all_tasks[0], "ocr"):
-                        logger.info("Warming up default OCR...")
-                        all_tasks[0].ocr(0, 0, 0.01, 0.01)
-
-                    self.init_bg_ocr()
-
-                    bg_ocr = getattr(og.executor, "_ocr_lib", {}).get("bg_onnx_ocr")
-                    if bg_ocr:
-                        logger.info("Warming up background OCR...")
-                        bg_ocr.ocr(np.zeros((50, 50, 3), dtype=np.uint8))
-
-                    logger.info("Background OCR initialization finished.")
-                except Exception as e:
-                    logger.error(f"Failed to initialize OCR in background: {e}")
-
-            t = threading.Thread(target=run_background_init, daemon=True)
-            t.start()
+                logger.info("OCR initialization finished.")
+            except Exception as e:
+                logger.error(f"Failed to initialize OCR in background: {e}")
 
     def init_bg_ocr(self):
         from onnxocr.onnx_paddleocr import ONNXPaddleOcr

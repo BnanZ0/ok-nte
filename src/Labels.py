@@ -13,6 +13,8 @@ class Labels(str, Enum):
     char_2_text = 'char_2_text'
     char_3_text = 'char_3_text'
     char_4_text = 'char_4_text'
+    dialog_click = 'dialog_click'
+    dialog_history = 'dialog_history'
     health_bar_slash = 'health_bar_slash'
     message = 'message'
     message_dialog = 'message_dialog'

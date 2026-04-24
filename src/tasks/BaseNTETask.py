@@ -12,6 +12,7 @@ from ok import BaseTask, Box, Logger, og, safe_get
 
 from src.Labels import Labels
 from src.scene.NTEScene import NTEScene
+from src.scene.ScreenPosition import ScreenPosition
 from src.utils import image_utils as iu
 
 logger = Logger.get_logger(__name__)
@@ -24,6 +25,7 @@ class BaseNTETask(BaseTask):
         self.key_config = self.get_global_config("Game Hotkey Config")
         self._logged_in = False
         self.arrow_contour = {"contours": None, "shape": None}
+        self.default_box = ScreenPosition(self)
 
     @property
     def thread_pool_executor(self) -> ThreadPoolExecutor:
@@ -35,10 +37,18 @@ class BaseNTETask(BaseTask):
     def main_viewport(self):
         return self.box_of_screen(0.1543, 0.1021, 0.9070, 0.8458)
 
-    def get_char_box(self, index: int):
+    def get_char_box(self, index: int, offset: bool = False):
         box = self.get_box_by_name(f"box_char_{index + 1}")
-        # offset = -9 * self.width / 2560
-        # return box.copy(x_offset=offset)
+        if offset:
+            offset = -9 * self.width / 2560
+            box = box.copy(x_offset=offset)
+        return box
+
+    def get_char_text_box(self, index: int, offset: bool = False):
+        box = self.get_box_by_name(f"char_{index + 1}_text")
+        if offset:
+            offset = -9 * self.width / 2560
+            box = box.copy(x_offset=offset)
         return box
 
     def is_in_team(self):
@@ -56,15 +66,16 @@ class BaseNTETask(BaseTask):
 
         def process_char_text(image):
             return iu.binarize_bgr_by_brightness(image, threshold=180)
+
+        def find_char_text(index: int):
+            return self.find_one(f"char_{index + 1}_text", box=self.get_char_text_box(index),
+                                 threshold=0.7, frame_processor=process_char_text,
+                                 mask_function=iu.mask_outside_white_rect)
         
-        c1 = self.find_one(Labels.char_1_text, threshold=0.7, frame_processor=process_char_text,
-                           mask_function=iu.mask_outside_white_rect)
-        c2 = self.find_one(Labels.char_2_text, threshold=0.7, frame_processor=process_char_text,
-                           mask_function=iu.mask_outside_white_rect)
-        c3 = self.find_one(Labels.char_3_text, threshold=0.7, frame_processor=process_char_text,
-                           mask_function=iu.mask_outside_white_rect)
-        c4 = self.find_one(Labels.char_4_text, threshold=0.7, frame_processor=process_char_text,
-                           mask_function=iu.mask_outside_white_rect)
+        c1 = find_char_text(0)
+        c2 = find_char_text(1)
+        c3 = find_char_text(2)
+        c4 = find_char_text(3)
         arr: List[Box | None] = [c1, c2, c3, c4]
         # self.log_debug(f"in_team {arr}")
         current = -1

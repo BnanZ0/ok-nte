@@ -1,6 +1,8 @@
-from src.tasks.BaseNTETask import BaseNTETask
-from qfluentwidgets import FluentIcon
 from datetime import datetime
+
+from qfluentwidgets import FluentIcon
+
+from src.tasks.BaseNTETask import BaseNTETask
 
 
 class DailyTask(BaseNTETask):
@@ -40,10 +42,7 @@ class DailyTask(BaseNTETask):
             self.log_info("开始执行日常任务...", notify=True)
 
             # 定义任务列表，格式为 [(任务配置名称, 任务函数)]
-            tasks = [
-                ("日常子项1", self.daily_1), 
-                ("日常子项2", self.daily_2)
-            ]
+            tasks = [("日常子项1", self.daily_1), ("日常子项2", self.daily_2)]
 
             self._reset_task_status(tasks)
 
@@ -94,7 +93,12 @@ class DailyTask(BaseNTETask):
         Args:
             tasks (list): [(key, func)] 任务列表
         """
-        self.task_status = {"success": [], "failed": [], "skipped": [], "pending": [t[0] for t in tasks]}
+        self.task_status = {
+            "success": [],
+            "failed": [],
+            "skipped": [],
+            "pending": [t[0] for t in tasks],
+        }
 
     def _print_result(self):
         """输出任务执行结果。"""

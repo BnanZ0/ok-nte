@@ -10,10 +10,17 @@ dialog_white_color = {
     "b": (220, 240),  # Blue range
 }
 
+lv_white_color = {
+    'r': (210, 240),  # Red range
+    'g': (210, 240),  # Green range
+    'b': (210, 240)  # Blue range
+}
 
 def isolate_cd_to_black(cv_image):
     return create_color_mask(cv_image, text_white_color, invert=True)
 
+def isolate_lv_to_black(cv_image):
+    return create_color_mask(cv_image, lv_white_color, invert=True)
 
 def isolate_dialog_to_white(cv_image):
     return create_color_mask(cv_image, dialog_white_color, invert=False)

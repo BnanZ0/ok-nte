@@ -5,7 +5,6 @@ from typing import TYPE_CHECKING, List
 import cv2
 import numpy as np
 from ok import Logger, safe_get
-from skimage.feature import ORB, match_descriptors
 from skimage.metrics import structural_similarity as ssim
 
 from src import text_white_color
@@ -14,7 +13,6 @@ from src.char.CharFactory import get_char_by_name, get_char_by_pos
 from src.char.custom.CustomCharManager import CustomCharManager
 from src.char.Healer import Healer
 from src.combat.CombatCheck import CombatCheck
-from src.Labels import Labels
 from src.utils import image_utils as iu
 
 if TYPE_CHECKING:
@@ -656,7 +654,7 @@ class BaseCombatTask(CombatCheck):
         ]
 
         base_box = self.box_of_screen_scaled(
-            2560, 1440, 2438, 335, width_original=29, height_original=29
+            2560, 1440, 2429, 335, width_original=29, height_original=29
         )
 
         ref_img = cv2.imread(f"assets/esper_icons/{Element.BLUE.value}.png")
@@ -680,6 +678,7 @@ class BaseCombatTask(CombatCheck):
 
             crop_img = preprocess_image(current_box.crop_frame(self.frame))
             crop_resized = cv2.resize(crop_img, standard_size, interpolation=cv2.INTER_NEAREST)
+            # iu.display_image(crop_resized, f"crop_resized_{i}")
 
             best_element = Element.DEFAULT
             max_score = -1.0

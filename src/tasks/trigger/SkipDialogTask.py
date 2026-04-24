@@ -10,7 +10,7 @@ logger = Logger.get_logger(__name__)
 class SkipDialogTask(TriggerTask, BaseNTETask):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.default_config = {"_enabled": True}
+        self.default_config = {"_enabled": False}
         self.confirm_dialog_checked = False
         self.has_eye_time = 0
         self.skip = None
@@ -24,8 +24,18 @@ class SkipDialogTask(TriggerTask, BaseNTETask):
             return
         if self.check_skip():
             return
+        if self.check_dialog_click():
+            return
         if self.skip_message():
             return
+
+    def check_dialog_click(self):
+        if self.find_one(
+            Labels.dialog_history, threshold=0.8, box=self.default_box.dialog_icon_box
+        ):
+            if result := self.find_one(Labels.dialog_click, threshold=0.8, vertical_variance=0.02):
+                self.click(result, after_sleep=0.1)
+                return True
 
     def skip_message(self):
         if self.find_one(Labels.message):
@@ -56,8 +66,9 @@ class SkipDialogTask(TriggerTask, BaseNTETask):
             # sleep 0.2 to stable click skip button
             self.sleep(0.2)
             self.click(0.4508, 0.5194)
-            self.click(skip_button)
-            return True
+            self.click(skip_button, after_sleep=0.1)
+            if not self.find_one(Labels.skip_quest_confirm, threshold=0.8):
+                return True
         if self.is_in_team():
             return True
 
@@ -79,7 +90,7 @@ class SkipDialogTask(TriggerTask, BaseNTETask):
 
     def check_skip(self):
         if self.try_click_skip():
-            return self.wait_until(self.skip_confirm, time_out=3, raise_if_not_found=False)
+            return self.wait_until(self.skip_confirm, time_out=5, raise_if_not_found=False)
 
     def click(self, *args, **kwargs):
         kwargs.setdefault("move", True)

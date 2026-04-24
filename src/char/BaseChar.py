@@ -165,6 +165,7 @@ class BaseChar:
         if self.has_intro:
             self.logger.debug("has_intro wait click 1.2 sec")
             self.continues_normal_attack(1.2, click_skill_if_ready_and_return=True)
+        self.click_arc()
         self.click_ultimate()
         if self.click_skill()[0]:
             return
@@ -489,6 +490,10 @@ class BaseChar:
     def get_skill_key(self):
         """获取技能按键 (代理到 task.get_skill_key)。"""
         return self.task.get_skill_key()
+
+    def get_arc_key(self):
+        """获取弧盘技能按键 (代理到 task.get_arc_key)。"""
+        return self.task.get_arc_key()
 
     def get_switch_priority(self, has_intro):
         """获取切换到此角色的优先级。

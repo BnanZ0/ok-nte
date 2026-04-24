@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING
 
 import cv2
 import numpy as np
-from ok import Box, Logger, find_color_rectangles, color_range_to_bound
+from ok import Box, Logger, color_range_to_bound, find_color_rectangles
 
 from src.Labels import Labels
 from src.tasks.BaseNTETask import BaseNTETask
@@ -88,10 +88,10 @@ class CombatCheck(BaseNTETask):
             if self.has_target():
                 return True
             else:
-                logger.info(f'target lost try retarget {self.target_enemy_time_out}')
+                logger.info(f"target lost try retarget {self.target_enemy_time_out}")
                 start = time.time()
                 while time.time() - start < self.target_enemy_time_out:
-                    self.middle_click(interval=0.4)
+                    self.middle_click(interval=0.3)
                     if self.combat_detect() is True:
                         return True
                     self.next_frame()
@@ -178,7 +178,7 @@ class CombatCheck(BaseNTETask):
             if combat_detect is None or combat_detect is True:
                 return self.scene.set_in_combat()
             if self.target_enemy(wait=True):
-                logger.debug('retarget enemy succeeded')
+                logger.debug("retarget enemy succeeded")
                 return self.scene.set_in_combat()
             # if self.should_check_monthly_card() and self.handle_monthly_card():
             #     return self.scene.set_in_combat()
@@ -186,11 +186,21 @@ class CombatCheck(BaseNTETask):
             return self.reset_to_false(reason="target enemy failed")
         else:
             from src.tasks.trigger.AutoCombatTask import AutoCombatTask
+
             has_target = self.has_target()
             if not has_target and target:
-                self.log_debug('try target')
+                self.log_debug("try target")
                 self.middle_click(after_sleep=0.1)
-            in_combat = (self.config.get('自动目标') or not isinstance(self, AutoCombatTask)) and self.check_health_bar()
+            in_combat = (
+                self.config.get("自动目标") or not isinstance(self, AutoCombatTask)
+            ) and self.check_health_bar()
+            if not in_combat:
+                in_combat = has_target and self.ocr(
+                    box=self.main_viewport,
+                    frame_processor=iu.isolate_lv_to_black,
+                    match=re.compile(r"lv", re.IGNORECASE),
+                    target_height=720,
+                )
             if in_combat:
                 if not has_target and not self.target_enemy(wait=True):
                     return False
@@ -204,15 +214,15 @@ class CombatCheck(BaseNTETask):
         """
         template = np.zeros((size, size), dtype=np.uint8)
         mask = np.zeros((size, size), dtype=np.uint8)
-        
+
         # 浮点数中心点，完美解决偶数尺寸没有绝对中心的问题
         cy, cx = (size - 1) / 2.0, (size - 1) / 2.0
-        
+
         for i in range(size):
             for j in range(size):
                 # 计算到中心的精确曼哈顿距离
                 dist = abs(i - cy) + abs(j - cx)
-                
+
                 # 动态划分内核与外框的范围
                 if dist < (size / 2.0) - 1.5:
                     template[i, j] = 255
@@ -220,8 +230,7 @@ class CombatCheck(BaseNTETask):
                 elif dist < (size / 2.0) + 0.5:
                     template[i, j] = 0
                     mask[i, j] = 255
-                    
-        
+
         return template, mask
 
     def find_diamond_target(self, scales=range(10, 15), threshold=0.8, frame=None):
@@ -232,7 +241,7 @@ class CombatCheck(BaseNTETask):
         if frame is None:
             frame = self.frame
         ratio = self.height / 1440.0
-        
+
         dynamic_scales = set()
         for base_size in scales:
             new_size = max(5, int(round(base_size * ratio)))
@@ -251,7 +260,7 @@ class CombatCheck(BaseNTETask):
             "g": (255, 255),
             "b": (255, 255),
         }
-        lower_bound, upper_bound = color_range_to_bound(color) # 假设你有这个辅助函数
+        lower_bound, upper_bound = color_range_to_bound(color)  # 假设你有这个辅助函数
         white_mask = cv2.inRange(roi, lower_bound, upper_bound)
 
         # 2. 【极大提升性能】初步检查
@@ -262,23 +271,23 @@ class CombatCheck(BaseNTETask):
         # 【新增】：剔除过大的白块 (Size Filtering)
         # ==========================================================
         # 获取当前最大的预期尺寸
-        max_allowed_size = max(dynamic_scales) * 1.2 # 允许 20% 的冗余误差
-        
+        max_allowed_size = max(dynamic_scales) * 1.2  # 允许 20% 的冗余误差
+
         # 查找连通区域
         # connectivity=8 表示 8 邻域插件；stats 包含 [x, y, w, h, area]
         num_labels, labels, stats, _ = cv2.connectedComponentsWithStats(white_mask, connectivity=8)
-        
+
         # 遍历所有找到的“块”（索引 0 是背景，从 1 开始）
         for i in range(1, num_labels):
             w = stats[i, cv2.CC_STAT_WIDTH]
             h = stats[i, cv2.CC_STAT_HEIGHT]
             area = stats[i, cv2.CC_STAT_AREA]
-            
+
             # 过滤条件：如果宽度或高度明显超过了最大模板尺寸
             # 或者你可以根据面积过滤：area > max_allowed_size**2
             if w > max_allowed_size or h > max_allowed_size:
-                white_mask[labels == i] = 0 # 将过大的块抹黑
-        
+                white_mask[labels == i] = 0  # 将过大的块抹黑
+
         # 再次检查抹除后是否还有剩余有效区域
         if cv2.countNonZero(white_mask) == 0:
             return None, None, None
@@ -288,22 +297,22 @@ class CombatCheck(BaseNTETask):
         roi_gray_original = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY) if len(roi.shape) == 3 else roi
         # 将无效区域设为 0 (黑色)，有效区域保留原图细节
         roi_gray = np.where(white_mask == 255, roi_gray_original, 0)
-        
+
         # iu.display_image(roi_gray, name="roi_gray")
         # ==========================================
 
-        best_match_val = -1.0  
+        best_match_val = -1.0
         best_loc = None
         best_scale = None
-        
+
         for size in dynamic_scales:
             template, mask = self.create_rhombus_template(size)
             # iu.display_image(template, name="template")
-            
+
             res = cv2.matchTemplate(roi_gray, template, cv2.TM_CCOEFF_NORMED)
-            
+
             _, max_val, _, max_loc = cv2.minMaxLoc(res)
-            
+
             if max_val > best_match_val:
                 best_match_val = max_val
                 best_loc = max_loc
@@ -312,7 +321,7 @@ class CombatCheck(BaseNTETask):
         if best_match_val >= threshold:
             center_x = box.x + best_loc[0] + best_scale // 2
             center_y = box.y + best_loc[1] + best_scale // 2
-            
+
             result_box = Box(
                 center_x - best_scale // 2,
                 center_y - best_scale // 2,
@@ -321,7 +330,7 @@ class CombatCheck(BaseNTETask):
                 confidence=best_match_val,
             )
             self.draw_boxes("target", result_box, color="blue")
-            
+
             return (center_x, center_y), best_scale, best_match_val
         else:
             return None, None, None
@@ -332,8 +341,9 @@ class CombatCheck(BaseNTETask):
         if self.ocr(
             frame=frame,
             box=self.main_viewport,
-            frame_processor=iu.isolate_cd_to_black,
+            frame_processor=iu.isolate_lv_to_black,
             match=re.compile(r"lv", re.IGNORECASE),
+            target_height=720,
             lib="bg_onnx_ocr",
         ):
             return True, "lv"
@@ -352,7 +362,7 @@ class CombatCheck(BaseNTETask):
                 self._async_combat_detect, frame=frame
             )
         return None
-        
+
 
 enemy_health_color_red = {
     "r": (210, 255),
