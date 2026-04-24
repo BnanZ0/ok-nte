@@ -240,14 +240,18 @@ def create_color_mask(
     return output_image
 
 
-def display_image(images, name="image", scale=None, wait_key=0):
+def show_images(images, names=None, scale=None, wait_key=0):
     if not isinstance(images, list):
         images = [images]
+    if names is None or not isinstance(names, list):
+        names = ["image"] * len(images)
+    if len(images) != len(names):
+        raise ValueError("images and names must have the same length")
     if isinstance(scale, float) or isinstance(scale, int):
         images = [
             cv2.resize(image, None, fx=scale, fy=scale, interpolation=cv2.INTER_NEAREST)
             for image in images
         ]
     for i, image in enumerate(images):
-        cv2.imshow(f"{name}_{i}", image)
+        cv2.imshow(f"{names[i]}_{i}", image)
     cv2.waitKey(wait_key)

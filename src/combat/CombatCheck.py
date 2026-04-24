@@ -298,7 +298,7 @@ class CombatCheck(BaseNTETask):
         # 将无效区域设为 0 (黑色)，有效区域保留原图细节
         roi_gray = np.where(white_mask == 255, roi_gray_original, 0)
 
-        # iu.display_image(roi_gray, name="roi_gray")
+        # iu.show_images(roi_gray, name="roi_gray")
         # ==========================================
 
         best_match_val = -1.0
@@ -307,7 +307,7 @@ class CombatCheck(BaseNTETask):
 
         for size in dynamic_scales:
             template, mask = self.create_rhombus_template(size)
-            # iu.display_image(template, name="template")
+            # iu.show_images(template, name="template")
 
             res = cv2.matchTemplate(roi_gray, template, cv2.TM_CCOEFF_NORMED)
 

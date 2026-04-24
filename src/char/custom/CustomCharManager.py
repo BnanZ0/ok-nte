@@ -571,7 +571,7 @@ class CustomCharManager:
             return mat, w, h
         return None, 0, 0
 
-    def match_feature(self, task: "BaseCombatTask", new_image_mat, threshold=0.8, target_char=None):
+    def match_feature(self, task: "BaseCombatTask", new_image_mat, threshold=0.6, target_char=None):
         """比对新截图与所有数据库内特征图，返回(是/否匹配, 匹配到的角色名, 相似度)"""
         current_scr_h, current_scr_w = task.height, task.width
 
@@ -604,13 +604,14 @@ class CustomCharManager:
                 for fid in feature_ids:
                     saved_img, w, h = self.load_feature_image(fid)
                     if saved_img is not None:
-                        if w != current_scr_w or h != current_scr_h:
+                        if w and h and (w != current_scr_w or h != current_scr_h):
                             scale_x = current_scr_w / w
                             scale_y = current_scr_h / h
                             scale = min(scale_x, scale_y)
-                            resized_saved = cv2.resize(
-                                saved_img, (round(w * scale), round(h * scale))
-                            )
+                            save_h, save_w = saved_img.shape[:2]
+                            new_w = max(1, round(save_w * scale))
+                            new_h = max(1, round(save_h * scale))
+                            resized_saved = cv2.resize(saved_img, (new_w, new_h))
                         else:
                             scale = 1
                             resized_saved = saved_img
@@ -643,11 +644,34 @@ class CustomCharManager:
                 # show_masked_template(cached_mat, self._cache_mask)  # Debug
                 mask = None
                 if self._cache_mask is not None:
-                    mask = (
-                        self._cache_mask
-                        if cached_mat.shape[0:2] == self._cache_mask.shape[0:2]
-                        else None
-                    )
+                    if cached_mat.shape[0:2] == self._cache_mask.shape[0:2]:
+                        mask = self._cache_mask
+                    else:
+                        mask = cv2.resize(
+                            self._cache_mask,
+                            (cached_mat.shape[1], cached_mat.shape[0]),
+                            interpolation=cv2.INTER_NEAREST,
+                        )
+
+                # Ensure cached_mat is not statically larger than new_image_mat
+                if (
+                    cached_mat.shape[0] > new_image_mat.shape[0]
+                    or cached_mat.shape[1] > new_image_mat.shape[1]
+                ):
+                    ch = min(cached_mat.shape[0], new_image_mat.shape[0])
+                    cw = min(cached_mat.shape[1], new_image_mat.shape[1])
+                    cached_mat = cached_mat[:ch, :cw]
+                    if mask is not None:
+                        mask = mask[:ch, :cw]
+
+                # 裁切掉边缘的几个像素，给予 matchTemplate 在 new_image_mat 内部滑动的冗余空间
+                # 这样可以解决跨分辨率时因为引擎级渲染和坐标四舍五入造成的 1-2 像素错位导致的断崖式掉率
+                margin = 2
+                if cached_mat.shape[0] > margin * 2 and cached_mat.shape[1] > margin * 2:
+                    cached_mat = cached_mat[margin:-margin, margin:-margin]
+                    if mask is not None:
+                        mask = mask[margin:-margin, margin:-margin]
+
                 res = cv2.matchTemplate(new_image_mat, cached_mat, cv2.TM_CCOEFF_NORMED, mask=mask)
                 res[np.isinf(res)] = 0
                 min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(res)

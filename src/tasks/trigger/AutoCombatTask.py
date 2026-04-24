@@ -69,13 +69,10 @@ class AutoCombatTask(BaseCombatTask, TriggerTask):
         manager = CustomCharManager()
         results = []
         frame = self.frame
-        is_single = count == 1
         for i in range(count):
-            feature_mat, w, h = get_char_feature_by_pos(self, i, frame=frame, single_char=is_single)
+            feature_mat, w, h = get_char_feature_by_pos(self, i, frame=frame)
             if feature_mat is not None and feature_mat.size > 0:
-                is_match, match_name, confidence = manager.match_feature(
-                    self, feature_mat, threshold=0.8
-                )
+                is_match, match_name, confidence = manager.match_feature(self, feature_mat)
                 name = match_name if is_match else None
                 results.append(
                     {"index": i, "mat": feature_mat, "width": w, "height": h, "match": name}

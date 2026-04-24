@@ -678,7 +678,7 @@ class BaseCombatTask(CombatCheck):
 
             crop_img = preprocess_image(current_box.crop_frame(self.frame))
             crop_resized = cv2.resize(crop_img, standard_size, interpolation=cv2.INTER_NEAREST)
-            # iu.display_image(crop_resized, f"crop_resized_{i}")
+            # iu.show_images(crop_resized, f"crop_resized_{i}")
 
             best_element = Element.DEFAULT
             max_score = -1.0

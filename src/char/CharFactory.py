@@ -76,13 +76,13 @@ def get_char_by_pos(task: "BaseCombatTask", box: "Box", index: int, old_char: Ba
     # Fast path check: if we already have an old_char, specifically test its matching only
     if old_char and old_char.confidence > 0.8:
         is_match, match_name, sim = manager.match_feature(
-            task, cropped, threshold=0.8, target_char=old_char.char_name
+            task, cropped, target_char=old_char.char_name
         )
         if is_match and match_name == old_char.char_name:
             return _build_char_instance(task, index, match_name, sim, manager)
 
     # Perform Full DB Scan using the memory-cached match_feature
-    is_match, match_name, sim = manager.match_feature(task, cropped, threshold=0.8)
+    is_match, match_name, sim = manager.match_feature(task, cropped)
 
     if is_match and match_name:
         return _build_char_instance(task, index, match_name, sim, manager)
@@ -92,7 +92,7 @@ def get_char_by_pos(task: "BaseCombatTask", box: "Box", index: int, old_char: Ba
 
 
 def get_char_feature_by_pos(
-    task: "BaseCombatTask", index, frame=None, scale_box=1.0, single_char=False
+    task: "BaseCombatTask", index, frame=None, scale_box=1.0
 ) -> tuple["np.ndarray", int, int]:
     """
     Get the feature image of the character at the given position.
@@ -107,9 +107,6 @@ def get_char_feature_by_pos(
     if frame is None:
         frame = task.frame
     box = task.get_char_box(index)
-    # if single_char:
-    #     offset = int(task.width * -9 / 2560)
-    #     box = box.copy(x_offset=offset)
     if not math.isclose(scale_box, 1.0):
         box = box.scale(scale_box, scale_box)
     return box.crop_frame(frame), task.width, task.height
