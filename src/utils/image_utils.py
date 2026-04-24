@@ -230,3 +230,115 @@ def display_image(image: np.ndarray, name="image", scale=None):
         image = cv2.resize(image, None, fx=scale, fy=scale, interpolation=cv2.INTER_NEAREST)
     cv2.imshow(name, image)
     cv2.waitKey(0)
+
+
+def detect_fishing_bar_state(image: np.ndarray):
+    """
+    Detect the fishing control bar state from a cropped top-bar image.
+
+    Returns:
+        dict | None:
+            {
+                "zone_left": int,
+                "zone_right": int,
+                "zone_center": int,
+                "pointer_center": int,
+                "in_zone": bool,
+            }
+    """
+    if image is None or image.size == 0:
+        return None
+
+    hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+
+    green_mask = cv2.inRange(
+        hsv,
+        np.array([30, 40, 100], dtype=np.uint8),
+        np.array([100, 255, 255], dtype=np.uint8),
+    )
+    yellow_mask = cv2.inRange(
+        hsv,
+        np.array([15, 60, 120], dtype=np.uint8),
+        np.array([55, 255, 255], dtype=np.uint8),
+    )
+
+    kernel = np.ones((3, 3), dtype=np.uint8)
+    green_mask = cv2.morphologyEx(green_mask, cv2.MORPH_OPEN, kernel)
+    green_mask = cv2.morphologyEx(green_mask, cv2.MORPH_CLOSE, kernel)
+    yellow_mask = cv2.morphologyEx(yellow_mask, cv2.MORPH_OPEN, kernel)
+
+    green_contours, _ = cv2.findContours(green_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    green_candidates = []
+    for contour in green_contours:
+        x, y, w, h = cv2.boundingRect(contour)
+        if w >= 20 and h >= 5:
+            green_candidates.append((x, y, w, h))
+    if not green_candidates:
+        return None
+
+    zone_x, zone_y, zone_w, zone_h = max(green_candidates, key=lambda item: item[2] * item[3])
+    zone_left = zone_x
+    zone_right = zone_x + zone_w
+
+    yellow_contours, _ = cv2.findContours(yellow_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    pointer_candidates = []
+    vertical_min = max(4, int(zone_h * 0.5))
+    for contour in yellow_contours:
+        x, y, w, h = cv2.boundingRect(contour)
+        if h >= vertical_min and w <= 30:
+            pointer_candidates.append((x, y, w, h))
+    if pointer_candidates:
+        pointer_x, pointer_y, pointer_w, pointer_h = max(
+            pointer_candidates, key=lambda item: item[3] * max(1, item[2])
+        )
+        pointer_center = pointer_x + pointer_w // 2
+    else:
+        # 兜底：按黄线列投影找最亮竖线（避免轮廓断裂时丢指针）
+        col_sum = np.sum(yellow_mask > 0, axis=0)
+        idx = int(np.argmax(col_sum))
+        if col_sum[idx] < vertical_min:
+            return None
+        pointer_center = idx
+
+    return {
+        "zone_left": zone_left,
+        "zone_right": zone_right,
+        "zone_center": zone_left + zone_w // 2,
+        "pointer_center": pointer_center,
+        "in_zone": zone_left <= pointer_center <= zone_right,
+    }
+
+
+def detect_fishing_bite_indicator(image: np.ndarray):
+    """
+    Detect the blue bite/reel indicator shown at the bottom-right of the fishing UI.
+
+    Returns:
+        dict | None:
+            {
+                "blue_pixels": int,
+                "white_pixels": int,
+            }
+    """
+    if image is None or image.size == 0:
+        return None
+
+    hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+    blue_mask = cv2.inRange(
+        hsv,
+        np.array([85, 80, 120], dtype=np.uint8),
+        np.array([130, 255, 255], dtype=np.uint8),
+    )
+    white_mask = cv2.inRange(
+        hsv,
+        np.array([0, 0, 180], dtype=np.uint8),
+        np.array([180, 70, 255], dtype=np.uint8),
+    )
+
+    blue_pixels = int(cv2.countNonZero(blue_mask))
+    white_pixels = int(cv2.countNonZero(white_mask))
+
+    return {
+        "blue_pixels": blue_pixels,
+        "white_pixels": white_pixels,
+    }
