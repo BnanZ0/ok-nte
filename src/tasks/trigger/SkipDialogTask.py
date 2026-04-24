@@ -29,9 +29,7 @@ class SkipDialogTask(TriggerTask, BaseNTETask):
 
     def skip_message(self):
         if self.find_one(Labels.message):
-            if message_dialog := self.find_one(
-                Labels.message_dialog, vertical_variance=0.2, horizontal_variance=0.01
-            ):
+            if message_dialog := self.find_one(Labels.message_dialog, vertical_variance=0.2, horizontal_variance=0.01):
                 self.click(message_dialog)
                 self.log_info(f"click {message_dialog}")
             # else:
@@ -56,17 +54,15 @@ class SkipDialogTask(TriggerTask, BaseNTETask):
             # sleep 0.2 to stable click skip button
             self.sleep(0.2)
             self.click(0.4508, 0.5194)
-            self.click(skip_button)
-            # return True
+            self.click(skip_button, after_sleep=0.1)
+            if not self.find_one(Labels.skip_quest_confirm, threshold=0.8):
+                return True 
         if self.is_in_team():
             return True
 
     def find_skip(self):
         return self.find_one(
-            Labels.skip_dialog,
-            horizontal_variance=0.02,
-            threshold=0.75,
-            frame_processor=iu.isolate_dialog_to_white,
+            Labels.skip_dialog, horizontal_variance=0.02, threshold=0.75, frame_processor=iu.isolate_dialog_to_white
         )
 
     def try_click_skip(self):
@@ -79,7 +75,7 @@ class SkipDialogTask(TriggerTask, BaseNTETask):
 
     def check_skip(self):
         if self.try_click_skip():
-            return self.wait_until(self.skip_confirm, time_out=3, raise_if_not_found=False)
+            return self.wait_until(self.skip_confirm, time_out=5, raise_if_not_found=False)
 
     def click(self, *args, **kwargs):
         kwargs.setdefault("move", True)
