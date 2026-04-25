@@ -644,6 +644,26 @@ class BaseCombatTask(CombatCheck):
         def preprocess_image(image):
             return iu.binarize_bgr_by_adaptive_center(image)
 
+        def process_transparency(img):
+            """
+            如果图片有透明通道，将其转为黑色背景
+            """
+            if img.shape[2] == 4:
+                b, g, r, a = cv2.split(img)
+                black_bg = np.zeros_like(img[:, :, :3])
+                alpha_factor = a.astype(float) / 255.0
+                alpha_factor = cv2.merge([alpha_factor, alpha_factor, alpha_factor])
+
+                foreground = cv2.merge([b, g, r]).astype(float)
+                background = black_bg.astype(float)
+
+                final_img = cv2.add(
+                    cv2.multiply(foreground, alpha_factor),
+                    cv2.multiply(background, 1.0 - alpha_factor),
+                )
+                return final_img.astype(np.uint8)
+            return img
+
         results = []
         target_elements = [
             Element.BLUE,
@@ -667,24 +687,26 @@ class BaseCombatTask(CombatCheck):
                     f"assets/esper_icons/{element.value}.png", cv2.IMREAD_UNCHANGED
                 )
                 if raw_template is not None:
-                    raw_template[raw_template[:, :, 3] == 0] = [0, 0, 0, 0]
-                    template_bin = preprocess_image(raw_template[:, :, :3])
+                    raw_template = process_transparency(raw_template)
+                    template_bin = preprocess_image(raw_template)
                     _, mask = cv2.threshold(template_bin, 127, 255, cv2.THRESH_BINARY)
-                    self._element_template_cache[element] = (template_bin, mask)
-
-        standard_size = self._element_standard_size
+                    kernel = np.ones((30, 30), np.uint8)
+                    mask = cv2.dilate(mask, kernel, iterations=1)
+                    # iu.show_images([mask], [f"mask_{element}"])
+                    self._element_template_cache[element] = (raw_template, mask)
 
         vertical_spacing = int(self.height * 176 / 1440)
+        _frame = self.frame
+        # self.screenshot("load_chars_element", _frame)
 
         for i in range(count):
             current_box = base_box.copy(y_offset=vertical_spacing * i)
-
-            crop_img = preprocess_image(current_box.crop_frame(self.frame))
+            crop_img = current_box.crop_frame(_frame)
             crop_h, crop_w = crop_img.shape[:2]
-            _, standard_h = standard_size
-            target_w = int(crop_w * (standard_h / crop_h))
-            crop_resized = cv2.resize(crop_img, (target_w, standard_h), interpolation=cv2.INTER_NEAREST)
-            # iu.show_images(crop_resized, f"crop_resized_{i}")
+            crop_resized = cv2.resize(
+                crop_img, (int(crop_w * 16), int(crop_h * 16)), interpolation=cv2.INTER_NEAREST
+            )
+            # iu.show_images([crop_resized, crop_img], [f"crop_resized_{i}", f"crop_img_{i}"])
 
             best_element = Element.DEFAULT
             max_score = -1.0
@@ -698,8 +720,9 @@ class BaseCombatTask(CombatCheck):
                 match_score = 0
                 if crop_resized is not None and template_img is not None:
                     res = cv2.matchTemplate(
-                        crop_resized, template_img, cv2.TM_CCORR_NORMED, mask=template_mask
+                        crop_resized, template_img, cv2.TM_CCOEFF_NORMED, mask=template_mask
                     )
+                    res[np.isinf(res)] = 0
                     _, match_score, _, _ = cv2.minMaxLoc(res)
 
                 if match_score > max_score:

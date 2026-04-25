@@ -51,7 +51,7 @@ class BaseNTETask(BaseTask):
 
     def get_base_char_element_box(self):
         box = self.box_of_screen_scaled(
-            2560, 1440, 2429, 335, width_original=29, height_original=29
+            2560, 1440, 2438, 335, width_original=29, height_original=29
         )
         box = self.shift_char_ui_box(box, expend=True)
         return box
