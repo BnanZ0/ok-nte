@@ -36,26 +36,25 @@ class NTEScene(BaseScene):
     
     def ocr_warm_up(self):
         if not self._ocr_warm_up:
+            white_frame = np.ones((50, 50, 3), dtype=np.uint8)
             from ok import og
             self._ocr_warm_up = True
             try:
                 all_tasks = og.executor.get_all_tasks()
                 if all_tasks and hasattr(all_tasks[0], "ocr"):
                     logger.info("Warming up default OCR...")
-                    all_tasks[0].ocr(frame=np.zeros((50, 50, 3)))
+                    all_tasks[0].ocr(frame=white_frame)
                 
-                self.init_bg_ocr()
-                bg_ocr = getattr(og.executor, "_ocr_lib", {}).get("bg_onnx_ocr")
-                if bg_ocr:
-                    logger.info("Warming up background OCR...")
-                    bg_ocr.ocr(np.zeros((50, 50, 3), dtype=np.uint8))
+                self.make_bg_ocr()
+                all_tasks[0].ocr(frame=white_frame, lib="bg_onnx_ocr")
 
                 logger.info("OCR initialization finished.")
             except Exception as e:
                 logger.error(f"Failed to initialize OCR in background: {e}")
 
-    def init_bg_ocr(self):
+    def make_bg_ocr(self):
         from ok import og
+        from ok.task.TaskExecutor import logger as te_logger
         from onnxocr.onnx_paddleocr import ONNXPaddleOcr
 
         ocr_config = og.executor.config.get("ocr", {})
@@ -65,7 +64,7 @@ class NTEScene(BaseScene):
         logger.info(f"Initializing bg onnxocr with params: {config_params}")
         og.executor._ocr_lib["bg_onnx_ocr"] = ONNXPaddleOcr(
             use_angle_cls=False,
-            logger=logger,
+            logger=te_logger,
             use_npu=config_params.get("use_npu", True),
             use_openvino=config_params.get("use_openvino", False),
         )
