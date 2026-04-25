@@ -11,9 +11,9 @@ dialog_white_color = {
 }
 
 lv_white_color = {
-    'r': (210, 240),  # Red range
-    'g': (210, 240),  # Green range
-    'b': (210, 240)  # Blue range
+    'r': (210, 255),  # Red range
+    'g': (210, 255),  # Green range
+    'b': (210, 255)  # Blue range
 }
 
 def isolate_cd_to_black(cv_image):
