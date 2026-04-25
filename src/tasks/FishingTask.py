@@ -24,7 +24,7 @@ class FishingTask(BaseNTETask):
     BITE_TIMEOUT = 20
     CONTROL_TIMEOUT = 30
     RESULT_TIMEOUT = 10
-    BAR_TOLERANCE = 12
+    BAR_TOLERANCE = 15
     CONTROL_TAP_HOLD = 0.05
 
     def __init__(self, *args, **kwargs):
@@ -38,7 +38,6 @@ class FishingTask(BaseNTETask):
                 "循环次数": 1,
             }
         )
-        self.instructions = "进入钓鱼界面后运行任务"
         self._fishing_started = False
         self._last_bar_log_time = 0.0
         self._last_control_failed_escape = False
@@ -130,7 +129,7 @@ class FishingTask(BaseNTETask):
         if self.wait_until(self.is_fishing_bite, time_out=self.BITE_TIMEOUT):
             self.log_info("鱼儿咬钩")
             if not self.wait_until(
-                lambda: not self.is_start_fishing_exist(),
+                lambda: not self.is_fish_start_exist(),
                 pre_action=lambda: self.send_key("f", interval=2),
                 time_out=10,
             ):
@@ -172,10 +171,13 @@ class FishingTask(BaseNTETask):
         zone_left = int(state["zone_left"])
         zone_right = int(state["zone_right"])
         zone_center = int(state.get("zone_center", (zone_left + zone_right) // 2))
+        image_width = int(state.get("image_width", None))
         zone_width = max(1, zone_right - zone_left)
 
         # 容差范围内认为稳定
         tolerance = max(0, int(self.BAR_TOLERANCE))
+        if image_width is not None:
+            tolerance = int(tolerance * image_width / 934)
         if zone_left + tolerance <= pointer <= zone_right - tolerance:
             if now - self._last_bar_log_time > 0.5:
                 self.log_info(f"控条稳定区: pointer={pointer}, zone=({zone_left},{zone_right})")
@@ -234,18 +236,16 @@ class FishingTask(BaseNTETask):
         return self.is_success_text_exist()
 
     def close_success_overlay(self):
-        self.click(
-            self.SUCCESS_CLOSE_POS[0],
-            self.SUCCESS_CLOSE_POS[1],
-            move=True,
-            down_time=0.01,
-            after_sleep=0.2,
-        )
         self.wait_until(
             lambda: not self.is_success_overlay(),
+            pre_action=lambda: self.click(
+                self.SUCCESS_CLOSE_POS[0],
+                self.SUCCESS_CLOSE_POS[1],
+            ),
             time_out=self.RESULT_TIMEOUT,
-            raise_if_not_found=False,
         )
+        self.wait_until(self.is_fish_start_exist, time_out=5)
+        self.sleep(0.5)
 
     def clear_success_overlay_if_present(self):
         if self.is_success_overlay():
@@ -326,12 +326,13 @@ class FishingTask(BaseNTETask):
             "in_zone": zone_left <= pointer_center <= zone_right,
         }
 
-    def is_start_fishing_exist(self):
+    def is_fish_start_exist(self):
         """
         检测开始钓鱼按钮是否存在
         """
-        box = self.box_of_screen(*self.START_FISHING_BOX, name="start_fishing")
-        return self.calculate_color_percentage(text_white_color, box) > 0.09
+        # box = self.box_of_screen(*self.START_FISHING_BOX, name="start_fishing")
+        # return self.calculate_color_percentage(text_white_color, box) > 0.09
+        return self.find_one(Labels.fish_start)
 
     def is_success_text_exist(self):
         """
@@ -344,8 +345,9 @@ class FishingTask(BaseNTETask):
         """
         检测鱼饵是否存在
         """
-        box = self.box_of_screen(*self.FISH_BAIT_BOX, name="fish_bait")
-        return self.calculate_color_percentage(text_white_color, box) > 0.06
+        # box = self.box_of_screen(*self.FISH_BAIT_BOX, name="fish_bait")
+        # return self.calculate_color_percentage(text_white_color, box) > 0.06
+        return self.find_one(Labels.fish_bait)
 
     def is_fishing_bite(self):
         """
