@@ -117,8 +117,9 @@ class TestCustomChar(TaskTestCase):
         self.assertEqual(self.manager.get_combo("combo_test"), "")
 
         # 模擬截圖特徵值的加入
-        fake_mat = np.zeros((10, 10, 3), dtype=np.uint8)
-        fid = self.manager.add_feature_to_character("char1", fake_mat, 1920, 1080)
+        np.random.seed(42)
+        fake_mat = np.random.randint(0, 256, (10, 10, 3), dtype=np.uint8)
+        fid = self.manager.add_feature_to_character("char1", fake_mat, self.task.width, self.task.height)
         char_info_features = self.manager.get_character_info("char1")
         assert char_info_features is not None
         self.assertIn(fid, char_info_features["feature_ids"])
@@ -126,7 +127,7 @@ class TestCustomChar(TaskTestCase):
         # 測試特徵匹配邏輯 match_feature
         # 目前特徵庫內有一張假圖，如果餵入一模一樣的黑圖，應該回報 True
         is_match, match_char, similarity = self.manager.match_feature(self.task, fake_mat, threshold=0.99)
-        self.assertTrue(is_match)
+        self.assertTrue(is_match, f"match_char: {match_char}, similarity: {similarity}")
         self.assertEqual(match_char, "char1")
 
     def test_combo_compile(self):

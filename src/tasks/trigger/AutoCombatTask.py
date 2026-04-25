@@ -20,6 +20,9 @@ logger = Logger.get_logger(__name__)
 
 
 class AutoCombatTask(BaseCombatTask, TriggerTask):
+    txt_team_not_exist = "队伍不存在"
+    txt_team_not_enough = "队伍人数少于2人"
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.default_config = {"_enabled": True}
@@ -38,8 +41,9 @@ class AutoCombatTask(BaseCombatTask, TriggerTask):
         }
         self.op_index = 0
         self.origin_func = {}
-        self.tr_team_not_exist = self.tr("队伍不存在")
-        self.tr_team_not_enough = self.tr("队伍人数少于2人")
+        if self._app is not None:
+            self.tr(self.txt_team_not_exist)
+            self.tr(self.txt_team_not_enough)
 
     def run(self):
         ret = False
@@ -64,11 +68,11 @@ class AutoCombatTask(BaseCombatTask, TriggerTask):
         self.log_info("开始扫描当前队伍...")
         in_team, _, count = self.in_team()
         if not in_team or count == 0:
-            scanner_signals.scan_done.emit([], self.tr_team_not_exist)
+            scanner_signals.scan_done.emit([], self.tr(self.txt_team_not_exist))
             self.log_info("队伍不存在, 扫描结束")
             return
         if count < 2:
-            scanner_signals.scan_done.emit([], self.tr_team_not_enough)
+            scanner_signals.scan_done.emit([], self.tr(self.txt_team_not_enough))
             self.log_info("队伍人数少于2人, 扫描结束")
             return
 
