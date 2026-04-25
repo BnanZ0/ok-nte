@@ -11,7 +11,7 @@ from src.combat.BaseCombatTask import BaseCombatTask, CharDeadException, NotInCo
 
 class ScannerSignals(QObject):
     # Sends list of dicts: {"index": i, "feat_id": tmp_id, "mat": ndarray, "match": str|None}
-    scan_done = Signal(list)
+    scan_done = Signal(list, str)
 
 
 scanner_signals = ScannerSignals()
@@ -38,6 +38,8 @@ class AutoCombatTask(BaseCombatTask, TriggerTask):
         }
         self.op_index = 0
         self.origin_func = {}
+        self.tr_team_not_exist = self.tr("队伍不存在")
+        self.tr_team_not_enough = self.tr("队伍人数少于2人")
 
     def run(self):
         ret = False
@@ -62,8 +64,12 @@ class AutoCombatTask(BaseCombatTask, TriggerTask):
         self.log_info("开始扫描当前队伍...")
         in_team, _, count = self.in_team()
         if not in_team or count == 0:
-            scanner_signals.scan_done.emit([])
-            self.log_info("队伍不存在，扫描结束")
+            scanner_signals.scan_done.emit([], self.tr_team_not_exist)
+            self.log_info("队伍不存在, 扫描结束")
+            return
+        if count < 2:
+            scanner_signals.scan_done.emit([], self.tr_team_not_enough)
+            self.log_info("队伍人数少于2人, 扫描结束")
             return
 
         manager = CustomCharManager()
@@ -78,5 +84,5 @@ class AutoCombatTask(BaseCombatTask, TriggerTask):
                     {"index": i, "mat": feature_mat, "width": w, "height": h, "match": name}
                 )
                 self.log_debug(f"char_{i + 1}: {name}, confidence={confidence:.2f}")
-        scanner_signals.scan_done.emit(results)
+        scanner_signals.scan_done.emit(results, "")
         self.log_info("扫描完成！")

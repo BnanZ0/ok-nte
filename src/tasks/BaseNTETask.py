@@ -42,24 +42,18 @@ class BaseNTETask(BaseTask):
     def get_char_box(self, index: int):
         box = self.get_box_by_name(f"box_char_{index + 1}")
         if self.char_ui_offset:
-            offset = -9 * self.width / 2560
-            box = box.copy(x_offset=offset)
+            box = self.shift_char_ui_box(box)
         return box
 
     def get_char_text_box(self, index: int):
         box = self.get_box_by_name(f"char_{index + 1}_text")
-        # if self.char_ui_offset:
-        #     offset = -9 * self.width / 2560
-        #     box = box.copy(x_offset=offset)
         return box
 
     def get_base_char_element_box(self):
         box = self.box_of_screen_scaled(
             2560, 1440, 2429, 335, width_original=29, height_original=29
         )
-        if self.char_ui_offset:
-            offset = -9 * self.width / 2560
-            box = box.copy(x_offset=offset)
+        box = self.shift_char_ui_box(box, expend=True)
         return box
 
     def is_in_team(self):
@@ -72,6 +66,20 @@ class BaseNTETask(BaseTask):
         result = box is not None
         # self.log_debug(f"is_in_team {box}")
         return result
+
+    def shift_char_ui_box(self, box: Box, expend=False):
+        """
+        针对角色UI偏移的box修正
+        :param box: 
+        :param expend: 是否扩展box
+        :return: 
+        """
+        offset = -9 * self.width / 2560
+        width_offset = 0
+        if expend:
+            width_offset = -offset
+        box = box.copy(x_offset=offset, width_offset=width_offset)
+        return box
 
     def in_team(self):
         if not self.is_in_team():

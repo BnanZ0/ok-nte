@@ -10,7 +10,6 @@ SET_CHAR_LABELS = {Labels.char_1_text, Labels.char_2_text, Labels.char_3_text, L
 def process_feature(feature_name, feature: Feature):
     if feature_name in SET_CHAR_LABELS:
         feature.mat = iu.binarize_bgr_by_brightness(feature.mat, threshold=180)
-    #     feature.x = feature.x + int(og.executor.method.width * -9 / 2560)
     match feature_name:
         case Labels.boss_lv_text:
             feature.mat = iu.binarize_bgr_by_brightness(feature.mat, threshold=180)

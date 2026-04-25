@@ -585,10 +585,14 @@ class TeamManagerTab(CustomTab):
         char_manager_signals.refresh_tab.emit()
         self._show_bar(self.tr_clear_success_title, self.tr_clear_success_desc)
 
-    def on_scan_done(self, results):
+    def on_scan_done(self, results, error_msg=""):
         self.last_scan_results = results or []
         self.scan_btn.setEnabled(True)
         self.scan_btn.setText(self.tr_scan_btn)
+
+        if error_msg:
+            self._show_bar("", error_msg, success=False)
+            return
 
         if not results:
             for card in self.slots:

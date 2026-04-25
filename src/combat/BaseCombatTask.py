@@ -591,9 +591,8 @@ class BaseCombatTask(CombatCheck):
             )
 
         box = self.get_char_box(index)
-        # if count == 1:
-        #     offset = int(self.width * -9 / 2560)
-        #     box = box.copy(x_offset=offset)
+        if count == 1:
+            box = self.shift_char_ui_box(box, expend=True)
         box_scaled = box.scale(1.1, 1.1)
 
         return get_char_by_pos(self, box_scaled, index, safe_get(self.chars, index))
@@ -660,7 +659,8 @@ class BaseCombatTask(CombatCheck):
         if not self._element_template_cache:
             ref_img = cv2.imread(f"assets/esper_icons/{Element.BLUE.value}.png")
             if ref_img is not None:
-                self._element_standard_size = (ref_img.shape[1], ref_img.shape[0])
+                h, w = ref_img.shape[:2]
+                self._element_standard_size = (w, h)
 
             for element in target_elements:
                 raw_template = cv2.imread(
@@ -680,7 +680,10 @@ class BaseCombatTask(CombatCheck):
             current_box = base_box.copy(y_offset=vertical_spacing * i)
 
             crop_img = preprocess_image(current_box.crop_frame(self.frame))
-            crop_resized = cv2.resize(crop_img, standard_size, interpolation=cv2.INTER_NEAREST)
+            crop_h, crop_w = crop_img.shape[:2]
+            _, standard_h = standard_size
+            target_w = int(crop_w * (standard_h / crop_h))
+            crop_resized = cv2.resize(crop_img, (target_w, standard_h), interpolation=cv2.INTER_NEAREST)
             # iu.show_images(crop_resized, f"crop_resized_{i}")
 
             best_element = Element.DEFAULT
@@ -703,7 +706,10 @@ class BaseCombatTask(CombatCheck):
                     max_score = match_score
                     best_element = element
 
+            current_box.confidence = max_score
+            current_box.name = best_element.name
             results.append(best_element)
+            self.draw_boxes(boxes=current_box, color="red")
             self.log_debug(
                 f"char_{i + 1} identified as {best_element.name} (score: {max_score:.4f})"
             )
