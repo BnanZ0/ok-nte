@@ -1,3 +1,5 @@
+from dataclasses import dataclass
+
 import cv2
 import numpy as np
 from ok import color_range_to_bound
@@ -11,16 +13,19 @@ dialog_white_color = {
 }
 
 lv_white_color = {
-    'r': (210, 255),  # Red range
-    'g': (210, 255),  # Green range
-    'b': (210, 255)  # Blue range
+    "r": (210, 255),  # Red range
+    "g": (210, 255),  # Green range
+    "b": (210, 255),  # Blue range
 }
+
 
 def isolate_cd_to_black(cv_image):
     return create_color_mask(cv_image, text_white_color, invert=True)
 
+
 def isolate_lv_to_black(cv_image):
     return create_color_mask(cv_image, lv_white_color, invert=True)
+
 
 def isolate_dialog_to_white(cv_image):
     return create_color_mask(cv_image, dialog_white_color, invert=False)
@@ -255,3 +260,15 @@ def show_images(images, names=None, scale=None, wait_key=0):
     for i, image in enumerate(images):
         cv2.imshow(f"{names[i]}_{i}", image)
     cv2.waitKey(wait_key)
+
+
+@dataclass
+class HSVRange:
+    lower: np.ndarray
+    upper: np.ndarray
+
+
+def filter_by_hsv(image, hsv_range: HSVRange):
+    hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+    mask = cv2.inRange(hsv, hsv_range.lower, hsv_range.upper)
+    return cv2.bitwise_and(image, image, mask=mask)

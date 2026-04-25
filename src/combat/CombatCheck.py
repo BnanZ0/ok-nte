@@ -111,8 +111,10 @@ class CombatCheck(BaseNTETask):
         max_height = min_height * 2.5
         max_width = self.width_of_screen(200 / 2560)
 
+        _frame = iu.filter_by_hsv(self.frame, enemy_health_hsv)
+
         boxes = find_color_rectangles(
-            self.frame,
+            _frame,
             enemy_health_color_red,
             min_width,
             min_height,
@@ -364,6 +366,8 @@ class CombatCheck(BaseNTETask):
             )
         return None
 
+
+enemy_health_hsv = iu.HSVRange(np.array([0, 190, 175]), np.array([10, 255, 255]))
 
 enemy_health_color_red = {
     "r": (210, 255),
