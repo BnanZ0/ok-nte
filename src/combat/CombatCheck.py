@@ -91,7 +91,7 @@ class CombatCheck(BaseNTETask):
                 logger.info(f"target lost try retarget {self.target_enemy_time_out}")
                 start = time.time()
                 while time.time() - start < self.target_enemy_time_out:
-                    self.middle_click(interval=0.3)
+                    self.middle_click(interval=0.5)
                     if self.combat_detect() is True:
                         return True
                     self.next_frame()

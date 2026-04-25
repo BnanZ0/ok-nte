@@ -24,7 +24,7 @@ class FishingTask(BaseNTETask):
     BITE_TIMEOUT = 20
     CONTROL_TIMEOUT = 30
     RESULT_TIMEOUT = 10
-    BAR_TOLERANCE = 4
+    BAR_TOLERANCE = 12
     CONTROL_TAP_HOLD = 0.05
 
     def __init__(self, *args, **kwargs):

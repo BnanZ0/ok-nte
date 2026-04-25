@@ -42,7 +42,7 @@ class SkipDialogTask(TriggerTask, BaseNTETask):
             if message_dialog := self.find_one(
                 Labels.message_dialog, vertical_variance=0.2, horizontal_variance=0.01
             ):
-                self.click(message_dialog)
+                self.click(message_dialog, down_time=0.02, after_sleep=1)
                 self.log_info(f"click {message_dialog}")
             # else:
             #     try:
