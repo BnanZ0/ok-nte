@@ -13,7 +13,7 @@ from src.utils import image_utils as iu
 
 class FishingTask(BaseNTETask):
     # 1080p 固定参数（“循环次数”“方向反转”开放配置）
-    BAR_BOX = (0.3199, 0.0646, 0.6848, 0.0743)
+    BAR_BOX = (0.3164, 0.0646, 0.6875, 0.0743)
     BITE_INDICATOR_BOX = (0.9023, 0.8562, 0.9488, 0.9403)
     START_FISHING_BOX = (0.9102, 0.8743, 0.9387, 0.9271)
     FISH_BAIT_BOX = (0.8395, 0.8736, 0.8691, 0.9243)
@@ -269,16 +269,18 @@ class FishingTask(BaseNTETask):
         hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
 
         green_mask = cv2.inRange(
-            hsv, np.array([30, 40, 100], dtype=np.uint8), np.array([100, 255, 255], dtype=np.uint8)
+            hsv, np.array([50, 150, 160], dtype=np.uint8), np.array([160, 220, 255], dtype=np.uint8)
         )
         yellow_mask = cv2.inRange(
-            hsv, np.array([15, 60, 120], dtype=np.uint8), np.array([55, 255, 255], dtype=np.uint8)
+            hsv, np.array([20, 60, 195], dtype=np.uint8), np.array([55, 200, 255], dtype=np.uint8)
         )
 
         kernel = np.ones((3, 3), dtype=np.uint8)
         green_mask = cv2.morphologyEx(green_mask, cv2.MORPH_OPEN, kernel)
         green_mask = cv2.morphologyEx(green_mask, cv2.MORPH_CLOSE, kernel)
         yellow_mask = cv2.morphologyEx(yellow_mask, cv2.MORPH_OPEN, kernel)
+        yellow_mask = cv2.morphologyEx(yellow_mask, cv2.MORPH_CLOSE, kernel)
+        # iu.show_images([green_mask, yellow_mask], names=["green_mask", "yellow_mask"])
 
         green_contours, _ = cv2.findContours(green_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         green_candidates = []
