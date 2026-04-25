@@ -349,34 +349,14 @@ class FishingTask(BaseNTETask):
 
     def is_fishing_bite(self):
         """
-        Detect the blue bite/reel indicator shown at the bottom-right of the fishing UI.
-        聚焦于中心 70% 半径区域以提高识别精度。
+        全窗口 OCR 检测"快点击按钮上鱼"来判断是否咬钩。
         """
-        box = self.box_of_screen(*self.BITE_INDICATOR_BOX, name="fishing_bite_indicator")
-        image = box.crop_frame(self.frame)
-
-        blue_mask = iu.create_color_mask(image, fishing_bite_blue_color, gray=True)
-
-        h, w = blue_mask.shape[:2]
-        center = (w // 2, h // 2)
-        max_radius = min(h, w) // 2
-        target_radius = int(max_radius * 0.7)
-
-        circle_mask = np.ones((h, w), dtype="uint8")
-        cv2.circle(circle_mask, center, target_radius, 0, -1)
-
-        masked_blue = cv2.bitwise_and(blue_mask, circle_mask)
-
-        blue_pixels = int(cv2.countNonZero(masked_blue))
-
-        total_circle_pixels = int(cv2.countNonZero(circle_mask))
-
-        if total_circle_pixels == 0:
-            return 0.0
-
-        blue_pixels_ratio = blue_pixels / total_circle_pixels
-
-        return blue_pixels_ratio > 0.07
+        ocr_results = self.ocr(0, 0, 1, 1, log=False)
+        if ocr_results:
+            for text in ocr_results:
+                if "快点击按钮上鱼" in str(text):
+                    return True
+        return False
 
 
 fishing_bite_blue_color = {
