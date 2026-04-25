@@ -18,16 +18,24 @@ class SkipDialogTask(TriggerTask, BaseNTETask):
         self.skip_message_hold = False
         self.name = "任务跳过对话"
         self.description = "点击时将短暂控制物理鼠标"
+        self.default_config.update(
+            {
+                "跳过剧情": True,
+                "自动消息": True,
+            }
+        )
 
     def run(self):
         if self.scene.in_team(self.is_in_team):
             return
-        if self.check_skip():
-            return
-        if self.check_dialog_click():
-            return
-        if self.skip_message():
-            return
+        if self.config.get("跳过剧情"):
+            if self.check_skip():
+                return
+            if self.check_dialog_click():
+                return
+        if self.config.get("自动消息"):
+            if self.skip_message():
+                return
 
     def check_dialog_click(self):
         if self.find_one(

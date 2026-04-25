@@ -191,18 +191,16 @@ class CombatCheck(BaseNTETask):
             if not has_target and target:
                 self.log_debug("try target")
                 self.middle_click(after_sleep=0.1)
-            in_combat = (
-                self.config.get("自动目标") or not isinstance(self, AutoCombatTask)
-            ) and self.check_health_bar()
-            if not in_combat:
-                in_combat = has_target and (
-                    self.check_health_bar()
-                    or self.ocr(
-                        box=self.main_viewport,
-                        frame_processor=iu.isolate_lv_to_black,
-                        match=re.compile(r"lv", re.IGNORECASE),
-                        target_height=720,
-                    )
+            has_health_bar = self.check_health_bar()
+            is_auto = self.config.get("自动目标") or not isinstance(self, AutoCombatTask)
+
+            in_combat = has_health_bar and (is_auto or has_target)
+            if not in_combat and has_target:
+                in_combat = self.ocr(
+                    box=self.main_viewport,
+                    frame_processor=iu.isolate_lv_to_black,
+                    match=re.compile(r"lv", re.IGNORECASE),
+                    target_height=720,
                 )
             if in_combat:
                 if not has_target and not self.target_enemy(wait=True):
@@ -284,7 +282,7 @@ class CombatCheck(BaseNTETask):
         for i in range(1, num_labels):
             w = stats[i, cv2.CC_STAT_WIDTH]
             h = stats[i, cv2.CC_STAT_HEIGHT]
-            area = stats[i, cv2.CC_STAT_AREA]
+            # area = stats[i, cv2.CC_STAT_AREA]
 
             # 过滤条件：如果宽度或高度明显超过了最大模板尺寸
             # 或者你可以根据面积过滤：area > max_allowed_size**2
