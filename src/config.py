@@ -142,7 +142,7 @@ config = {
         "coco_feature_json": os.path.join("assets", "coco_annotations.json"),
         "default_horizontal_variance": 0.002,  # 默认x偏移, 查找不传box的时候, 会根据coco坐标, match偏移box内的
         "default_vertical_variance": 0.002,  # 默认y偏移
-        "default_threshold": 0.8,  # 默认threshold
+        "default_threshold": 0.7,  # 默认threshold
         "feature_processor": process_feature,
     },
     'template_tab': {
