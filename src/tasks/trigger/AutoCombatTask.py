@@ -34,7 +34,7 @@ class AutoCombatTask(BaseCombatTask, TriggerTask):
             }
         )
         self.config_description = {
-            "自动目标": "关闭时仅在中键选中敌人且画面识别到 'Lv' 文字时开启战斗",
+            "自动目标": "关闭时仅在中键选中敌人且画面识别到 'Lv' 文字或血条时开启战斗",
         }
         self.op_index = 0
         self.origin_func = {}

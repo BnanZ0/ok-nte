@@ -49,6 +49,8 @@ class BaseCombatTask(CombatCheck):
         Element.YELLOW,
     )
     element_ring_index = {element: index for index, element in enumerate(element_ring)}
+    _element_template_cache = {}
+    _element_standard_size = None
 
     def __init__(self, *args, **kwargs):
         """初始化战斗任务。
@@ -653,23 +655,24 @@ class BaseCombatTask(CombatCheck):
             Element.WHITE,
         ]
 
-        base_box = self.box_of_screen_scaled(
-            2560, 1440, 2429, 335, width_original=29, height_original=29
-        )
+        base_box = self.get_base_char_element_box()
 
-        ref_img = cv2.imread(f"assets/esper_icons/{Element.BLUE.value}.png")
-        standard_size = (ref_img.shape[1], ref_img.shape[0])
+        if not self._element_template_cache:
+            ref_img = cv2.imread(f"assets/esper_icons/{Element.BLUE.value}.png")
+            if ref_img is not None:
+                self._element_standard_size = (ref_img.shape[1], ref_img.shape[0])
 
-        processed_templates = {}
-        for element in target_elements:
-            raw_template = cv2.imread(
-                f"assets/esper_icons/{element.value}.png", cv2.IMREAD_UNCHANGED
-            )
-            raw_template[raw_template[:, :, 3] == 0] = [0, 0, 0, 0]
-            template_bin = preprocess_image(raw_template[:, :, :3])
+            for element in target_elements:
+                raw_template = cv2.imread(
+                    f"assets/esper_icons/{element.value}.png", cv2.IMREAD_UNCHANGED
+                )
+                if raw_template is not None:
+                    raw_template[raw_template[:, :, 3] == 0] = [0, 0, 0, 0]
+                    template_bin = preprocess_image(raw_template[:, :, :3])
+                    _, mask = cv2.threshold(template_bin, 127, 255, cv2.THRESH_BINARY)
+                    self._element_template_cache[element] = (template_bin, mask)
 
-            _, mask = cv2.threshold(template_bin, 127, 255, cv2.THRESH_BINARY)
-            processed_templates[element] = (template_bin, mask)
+        standard_size = self._element_standard_size
 
         vertical_spacing = int(self.height * 176 / 1440)
 
@@ -684,7 +687,10 @@ class BaseCombatTask(CombatCheck):
             max_score = -1.0
 
             for element in target_elements:
-                template_img, template_mask = processed_templates[element]
+                template_data = self._element_template_cache.get(element)
+                if template_data is None:
+                    continue
+                template_img, template_mask = template_data
 
                 match_score = 0
                 if crop_resized is not None and template_img is not None:

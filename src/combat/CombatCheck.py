@@ -195,11 +195,14 @@ class CombatCheck(BaseNTETask):
                 self.config.get("自动目标") or not isinstance(self, AutoCombatTask)
             ) and self.check_health_bar()
             if not in_combat:
-                in_combat = has_target and self.ocr(
-                    box=self.main_viewport,
-                    frame_processor=iu.isolate_lv_to_black,
-                    match=re.compile(r"lv", re.IGNORECASE),
-                    target_height=720,
+                in_combat = has_target and (
+                    self.check_health_bar()
+                    or self.ocr(
+                        box=self.main_viewport,
+                        frame_processor=iu.isolate_lv_to_black,
+                        match=re.compile(r"lv", re.IGNORECASE),
+                        target_height=720,
+                    )
                 )
             if in_combat:
                 if not has_target and not self.target_enemy(wait=True):

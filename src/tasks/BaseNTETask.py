@@ -53,6 +53,15 @@ class BaseNTETask(BaseTask):
         #     box = box.copy(x_offset=offset)
         return box
 
+    def get_base_char_element_box(self):
+        box = self.box_of_screen_scaled(
+            2560, 1440, 2429, 335, width_original=29, height_original=29
+        )
+        if self.char_ui_offset:
+            offset = -9 * self.width / 2560
+            box = box.copy(x_offset=offset)
+        return box
+
     def is_in_team(self):
         box = self.find_one(
             Labels.health_bar_slash,
