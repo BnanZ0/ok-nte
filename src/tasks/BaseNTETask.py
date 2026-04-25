@@ -4,6 +4,7 @@ from concurrent.futures import ThreadPoolExecutor
 from typing import List
 
 import cv2
+import numpy as np
 import win32api
 import win32con
 import win32gui
@@ -71,11 +72,14 @@ class BaseNTETask(BaseTask):
             return iu.binarize_bgr_by_brightness(image, threshold=180)
 
         def find_char_text(index: int):
-            return self.find_one(f"char_{index + 1}_text", threshold=0.7,
-                                 frame_processor=process_char_text,
-                                 mask_function=iu.mask_outside_white_rect,
-                                 horizontal_variance=0.005)
-        
+            return self.find_one(
+                f"char_{index + 1}_text",
+                threshold=0.7,
+                frame_processor=process_char_text,
+                mask_function=iu.mask_outside_white_rect,
+                horizontal_variance=0.005,
+            )
+
         c1 = find_char_text(0)
         c2 = find_char_text(1)
         c3 = find_char_text(2)
@@ -182,8 +186,10 @@ class BaseNTETask(BaseTask):
         通过索引 (idx) 设置交互方法。
         会从配置的交互列表中读取指定索引的方法。
         """
+
         def get_name(m):
             return getattr(m, "__name__", str(m))
+
         methods: list = og.device_manager.windows_capture_config.get("interaction", [])
         available_options = [get_name(m) for m in methods]
 
@@ -244,3 +250,45 @@ class BaseNTETask(BaseTask):
                 )
             if attached_target:
                 ctypes.windll.user32.AttachThreadInput(current_thread_id, target_thread_id, False)
+
+    @property
+    def interac_box(self):
+        interac_box = self.get_box_by_name(Labels.interactable)
+        interac_box = interac_box.copy(
+            x_offset=-interac_box.width * 0.3,
+            y_offset=-interac_box.height * 2.5,
+            width_offset=interac_box.width * 0.6,
+            height_offset=interac_box.height * 5,
+            name="search_interac",
+        )
+        return interac_box
+
+    def find_interac(self):
+        return self.find_one(
+            Labels.interactable,
+            box=self.interac_box,
+            threshold=0.7,
+            mask_function=interactable_mask,
+        )
+
+    def walk_until_find_interac(self, time_out=10, raise_if_not_found=False):
+        self.send_key_down("w")
+        self.wait_until(
+            self.find_interac,
+            time_out=time_out,
+            raise_if_not_found=raise_if_not_found,
+        )
+        self.send_key_up("w")
+
+
+def interactable_mask(image):
+    mask = iu.create_color_mask(image, interac_pink_color, gray=True)
+    kernel = np.ones((3, 3), np.uint8)
+    dilated_mask = cv2.dilate(mask, kernel, iterations=1)
+    return dilated_mask
+
+interac_pink_color = {
+    "r": (197, 221),
+    "g": (71, 78),
+    "b": (119, 133),
+}

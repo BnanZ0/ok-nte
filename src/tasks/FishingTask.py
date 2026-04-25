@@ -5,6 +5,7 @@ import numpy as np
 from ok import TaskDisabledException
 from qfluentwidgets import FluentIcon
 
+from src.Labels import Labels
 from src.tasks.BaseNTETask import BaseNTETask
 from src.tasks.NTEOneTimeTask import NTEOneTimeTask
 from src.utils import image_utils as iu
@@ -17,6 +18,7 @@ class FishingTask(BaseNTETask):
     START_FISHING_BOX = (0.9102, 0.8743, 0.9387, 0.9271)
     FISH_BAIT_BOX = (0.8395, 0.8736, 0.8691, 0.9243)
     SUCCESS_TEXT_BOX = (0.4434, 0.8938, 0.5566, 0.9181)
+    ENTER_FISHING_PANEL_BOX = (0.7113, 0.8247, 0.8089, 0.9111)
     SUCCESS_CLOSE_POS = (0.12, 0.88)
     OPEN_PANEL_TIMEOUT = 5
     BITE_TIMEOUT = 20
@@ -102,16 +104,15 @@ class FishingTask(BaseNTETask):
         return False
 
     def enter_fishing_scene(self) -> bool:
-        # TODO: is_fishing_entry / is_start_panel 待实现后再启用入口校验
-        # if not self.is_fishing_entry():
-        #     self.log_error("未检测到钓鱼入口，请先站在钓点旁")
-        #     return False
-        # return self.wait_until(
-        #     self.is_start_panel,
-        #     pos_action=lambda: self.send_key("f", interval=2),
-        #     time_out=self.OPEN_PANEL_TIMEOUT,
-        # )
-        return True
+        if self.find_interac():
+            box = self.box_of_screen(*self.ENTER_FISHING_PANEL_BOX)
+            self.wait_until(
+                lambda: self.find_one(Labels.skip_quest_confirm, box=box) is not None,
+                pre_action=lambda: self.send_key("f", interval=1.5),
+                time_out=self.OPEN_PANEL_TIMEOUT,
+            )
+            self.click(box)
+            self.sleep(1.5)
 
     def cast_rod(self) -> bool:
         self.log_info("执行抛竿操作")

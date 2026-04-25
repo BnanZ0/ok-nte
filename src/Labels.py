@@ -16,6 +16,7 @@ class Labels(str, Enum):
     dialog_click = 'dialog_click'
     dialog_history = 'dialog_history'
     health_bar_slash = 'health_bar_slash'
+    interactable = 'interactable'
     message = 'message'
     message_dialog = 'message_dialog'
     mini_map_arrow = 'mini_map_arrow'

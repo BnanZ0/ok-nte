@@ -35,6 +35,12 @@
             "file_name": "images/0.png",
             "width": 2560,
             "height": 1440
+        },
+        {
+            "id": 7,
+            "file_name": "images/0.png",
+            "width": 2560,
+            "height": 1440
         }
     ],
     "annotations": [
@@ -284,6 +290,19 @@
             ],
             "area": 1102,
             "iscrowd": 0
+        },
+        {
+            "id": 20,
+            "image_id": 7,
+            "category_id": 21,
+            "bbox": [
+                1536,
+                753,
+                63,
+                65
+            ],
+            "area": 4095,
+            "iscrowd": 0
         }
     ],
     "categories": [
@@ -380,6 +399,11 @@
         {
             "id": 19,
             "name": "dialog_history",
+            "supercategory": ""
+        },
+        {
+            "id": 21,
+            "name": "interactable",
             "supercategory": ""
         }
     ]
