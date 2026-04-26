@@ -3,21 +3,21 @@ from typing import TYPE_CHECKING
 
 from typing_extensions import Any
 
-from src.char.BaseChar import BaseChar
+from src.char.BaseChar import BaseChar, Element
 from src.char.Mint import Mint
 from src.char.Zero import Zero
 
 if TYPE_CHECKING:
     import numpy as np
-    from ok import Box
 
+    from ok import Box
     from src.char.custom.CustomCharManager import CustomCharManager
     from src.combat.BaseCombatTask import BaseCombatTask
 
 char_dict: dict[str, dict[str, Any]] = {
     "char_default": {"cls": BaseChar},
-    "char_zero": {"cls": Zero, "cn_name": "零"},
-    "char_mint": {"cls": Mint, "cn_name": "薄荷"},
+    "char_zero": {"cls": Zero, "cn_name": "零", "element": Element.WHITE},
+    "char_mint": {"cls": Mint, "cn_name": "薄荷", "element": Element.GREEN},
 }
 
 char_names = char_dict.keys()
@@ -48,6 +48,7 @@ def _build_char_instance(
         instance: "BaseChar" = cls(task, index, char_name=match_name, confidence=sim)
         instance.builtin_key = builtin_key
         instance.combo_label = manager.to_combo_label(combo_ref)
+        instance.element = char_dict[builtin_key].get("element", Element.DEFAULT)
         return instance
 
     # Otherwise return default parsed CustomChar

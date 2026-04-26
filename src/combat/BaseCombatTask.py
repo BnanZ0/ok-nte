@@ -4,9 +4,9 @@ from typing import TYPE_CHECKING, List
 
 import cv2
 import numpy as np
-from ok import Logger, safe_get
 from skimage.metrics import structural_similarity as ssim
 
+from ok import Logger, safe_get
 from src import text_white_color
 from src.char.BaseChar import Element, Priority
 from src.char.CharFactory import get_char_by_name, get_char_by_pos
@@ -320,11 +320,6 @@ class BaseCombatTask(CombatCheck):
         if require_intro and not has_intro:
             return switch_to, has_intro
 
-        if has_intro:
-            switch_to = self.find_element_ring_reaction_target(current_char)
-            if switch_to:
-                return switch_to, has_intro
-
         max_priority = Priority.MIN
 
         for char in self.chars:
@@ -334,7 +329,7 @@ class BaseCombatTask(CombatCheck):
             if char == current_char:
                 priority = Priority.CURRENT_CHAR
             else:
-                priority = char.get_switch_priority(has_intro)
+                priority = char.get_switch_priority(current_char, has_intro)
                 logger.debug(f"switch_next_char priority: {char} {priority}")
 
             if priority > max_priority or (
@@ -344,6 +339,11 @@ class BaseCombatTask(CombatCheck):
                     logger.debug("switch priority equal, determine by last perform")
                 max_priority = priority
                 switch_to = char
+
+        if has_intro and max_priority < Priority.FAST_SWITCH:
+            switch_to = self.find_element_ring_reaction_target(current_char)
+            if switch_to:
+                return switch_to, has_intro
 
         return switch_to, has_intro
 
@@ -615,7 +615,8 @@ class BaseCombatTask(CombatCheck):
         new_chars = []
         for i in range(count):
             char = self._do_load_char(i, count, fixed_slots)
-            char.element = elements[i]
+            if char.element is Element.DEFAULT:
+                char.element = elements[i]
             new_chars.append(char)
         self.chars = new_chars
 

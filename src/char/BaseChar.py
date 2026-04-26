@@ -495,16 +495,17 @@ class BaseChar:
         """获取弧盘技能按键 (代理到 task.get_arc_key)。"""
         return self.task.get_arc_key()
 
-    def get_switch_priority(self, has_intro):
+    def get_switch_priority(self, current_char, has_intro):
         """获取切换到此角色的优先级。
 
         Args:
-            has_intro (bool): 当前场上角色是否拥有入场技 (通常因协奏值满)。
+            current_char (BaseChar): 当前场上角色。
+            has_intro (bool): 当前场上角色是否拥有入场技。
 
         Returns:
             Priority: 优先级数值。
         """
-        priority = self.do_get_switch_priority()
+        priority = self.do_get_switch_priority(current_char, has_intro)
         if (
             priority < Priority.MAX
             and self.time_elapsed_accounting_for_freeze(self.last_switch_time) < 0.9
@@ -514,8 +515,12 @@ class BaseChar:
         else:
             return priority
 
-    def do_get_switch_priority(self):
+    def do_get_switch_priority(self, current_char, has_intro=False):
         """计算切换到此角色的基础优先级 (不考虑切换CD)。
+
+        Args:
+            current_char (BaseChar): 当前场上角色。
+            has_intro (bool): 当前场上角色是否拥有入场技。
 
         Returns:
             int: 优先级数值。
