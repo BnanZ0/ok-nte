@@ -2,9 +2,9 @@ import time
 
 import cv2
 import numpy as np
-from ok import TaskDisabledException
 from qfluentwidgets import FluentIcon
 
+from ok import TaskDisabledException
 from src.Labels import Labels
 from src.tasks.BaseNTETask import BaseNTETask
 from src.tasks.NTEOneTimeTask import NTEOneTimeTask
@@ -24,7 +24,7 @@ class FishingTask(BaseNTETask):
     BITE_TIMEOUT = 20
     CONTROL_TIMEOUT = 30
     RESULT_TIMEOUT = 10
-    BAR_TOLERANCE = 15
+    BAR_TOLERANCE = 20
     CONTROL_TAP_HOLD = 0.05
 
     def __init__(self, *args, **kwargs):
@@ -40,7 +40,10 @@ class FishingTask(BaseNTETask):
         )
         self._fishing_started = False
         self._last_bar_log_time = 0.0
-        self._last_control_failed_escape = False
+
+    def click(self, *args, **kwargs):
+        kwargs.setdefault("move", True)
+        return super().click(*args, **kwargs)
 
     def run(self):
         NTEOneTimeTask.run(self)
@@ -63,7 +66,7 @@ class FishingTask(BaseNTETask):
             if self.run_once(index + 1):
                 success_count += 1
             else:
-                self.log_error(f"第 {index + 1} 轮钓鱼失败", notify=True)
+                self.log_error(f"第 {index + 1} 轮钓鱼失败")
                 # 失败后重置状态继续下一轮，避免“设置2轮只跑1轮”
                 self.reset_runtime_state()
         self.info_set("Fishing Success Count", success_count)
@@ -71,35 +74,17 @@ class FishingTask(BaseNTETask):
 
     def run_once(self, round_index: int) -> bool:
         self.clear_success_overlay_if_present()
-        round_deadline = time.time() + max(
-            30.0, float(self.BITE_TIMEOUT) + float(self.CONTROL_TIMEOUT) + 12.0
-        )
-        round_attempt = 0
-        while time.time() < round_deadline:
-            round_attempt += 1
-            if round_attempt > 1:
-                self.log_info(f"第 {round_index} 轮自动重试抛竿: 第 {round_attempt} 次")
 
-            if not self.cast_rod():
-                raise TaskDisabledException("未检测到进入抛竿状态")
+        if not self.cast_rod():
+            raise TaskDisabledException("未检测到进入抛竿状态")
 
-            if not self.wait_bite():
-                self.screenshot(f"fishing_bite_timeout_{round_index}")
-                return False
-
-            if self.control_until_finish():
-                return True
-
-            if self._last_control_failed_escape:
-                self._last_control_failed_escape = False
-                self.log_info("检测到“鱼儿溜走了”，本轮自动重新抛竿继续")
-                continue
-
-            self.screenshot(f"fishing_control_failed_{round_index}")
+        if not self.wait_bite():
+            self.screenshot(f"fishing_bite_timeout_{round_index}")
             return False
 
-        self.log_error(f"第 {round_index} 轮重试超时，结束本轮")
-        self.screenshot(f"fishing_round_timeout_{round_index}")
+        if self.control_until_finish():
+            return True
+
         return False
 
     def enter_fishing_scene(self) -> bool:
@@ -116,7 +101,7 @@ class FishingTask(BaseNTETask):
     def cast_rod(self) -> bool:
         self.log_info("执行抛竿操作")
         if not self.wait_until(
-            lambda: not self.is_fish_bait_exist(),
+            lambda: not self.is_fish_bait_exist() and self.is_fish_start_exist(),
             pre_action=lambda: self.send_key("f", interval=2),
             time_out=10,
         ):
@@ -142,20 +127,22 @@ class FishingTask(BaseNTETask):
             return False
 
     def control_until_finish(self) -> bool:
-        self._last_control_failed_escape = False
         deadline = time.time() + self.CONTROL_TIMEOUT
+        failed_time = 0
         while time.time() < deadline:
             state = self.get_bar_state()
             if self.is_valid_bar_state(state):
                 self.apply_bar_control(state)
 
             if self.is_fish_bait_exist():
-                if self.wait_until(lambda: not self.is_fish_bait_exist(), time_out=5):
-                    if self.wait_until(self.is_success_overlay, time_out=5):
-                        return True
+                if failed_time == 0:
+                    failed_time = time.time()
+            else:
+                failed_time = 0
+
+            if failed_time != 0 and time.time() - failed_time > 5:
                 self.log_error("疑似脱钩或失败")
-                self._last_control_failed_escape = True
-                break
+                return False
 
             if self.is_success_overlay():
                 return True
@@ -254,7 +241,6 @@ class FishingTask(BaseNTETask):
     def reset_runtime_state(self):
         self._fishing_started = False
         self._last_bar_log_time = 0.0
-        self._last_control_failed_escape = False
 
     def detect_fishing_bar_state(self):
         """
@@ -274,6 +260,8 @@ class FishingTask(BaseNTETask):
         yellow_mask = cv2.inRange(
             hsv, np.array([20, 60, 195], dtype=np.uint8), np.array([55, 200, 255], dtype=np.uint8)
         )
+        
+        # iu.show_images([green_mask, yellow_mask], names=["green_mask", "yellow_mask"], wait_key=1)
 
         kernel = np.ones((3, 3), dtype=np.uint8)
         green_mask = cv2.morphologyEx(green_mask, cv2.MORPH_OPEN, kernel)
@@ -282,41 +270,39 @@ class FishingTask(BaseNTETask):
         yellow_mask = cv2.morphologyEx(yellow_mask, cv2.MORPH_CLOSE, kernel)
         # iu.show_images([green_mask, yellow_mask], names=["green_mask", "yellow_mask"])
 
+        yellow_contours, _ = cv2.findContours(
+            yellow_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
+        )
+
+        if yellow_contours:
+            yellow_max_contour = max(yellow_contours, key=cv2.contourArea)
+            px, _, pw, _ = cv2.boundingRect(yellow_max_contour)
+            pointer_center = px + pw // 2
+        else:
+            pointer_center = -1
+
         green_contours, _ = cv2.findContours(green_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         green_candidates = []
         for contour in green_contours:
             x, y, w, h = cv2.boundingRect(contour)
-            if w >= 20 and h >= 5:
+            if w >= 5 and h >= 5:
                 green_candidates.append((x, y, w, h))
+
         if not green_candidates:
             return None
 
-        zone_x, _, zone_w, zone_h = max(green_candidates, key=lambda item: item[2] * item[3])
-        zone_left = zone_x
-        zone_right = zone_x + zone_w
+        green_candidates.sort(key=lambda item: item[0])
 
-        yellow_contours, _ = cv2.findContours(
-            yellow_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
-        )
-        pointer_candidates = []
-        vertical_min = max(4, int(zone_h * 0.5))
-        for contour in yellow_contours:
-            x, y, w, h = cv2.boundingRect(contour)
-            if h >= vertical_min and w <= 30:
-                pointer_candidates.append((x, y, w, h))
-
-        if pointer_candidates:
-            pointer_x, _, pointer_w, _ = max(
-                pointer_candidates, key=lambda item: item[3] * max(1, item[2])
-            )
-            pointer_center = pointer_x + pointer_w // 2
+        if len(green_candidates) == 1:
+            zone_x, _, zone_w, _ = green_candidates[0]
+            zone_left = zone_x
+            zone_right = zone_x + zone_w
         else:
-            # 兜底：按黄线列投影找最亮竖线（避免轮廓断裂时丢指针）
-            col_sum = np.sum(yellow_mask > 0, axis=0)
-            idx = int(np.argmax(col_sum))
-            if col_sum[idx] < vertical_min:
-                return None
-            pointer_center = idx
+            min_x = green_candidates[0][0]
+            max_x_w = green_candidates[-1][0] + green_candidates[-1][2]
+            zone_left = min_x
+            zone_right = max_x_w
+            zone_w = zone_right - zone_left
 
         return {
             "zone_left": zone_left,
