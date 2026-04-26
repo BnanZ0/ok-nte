@@ -24,7 +24,6 @@ class FishingTask(BaseNTETask):
     BITE_TIMEOUT = 20
     CONTROL_TIMEOUT = 30
     RESULT_TIMEOUT = 10
-    BAR_TOLERANCE = 20
     CONTROL_TAP_HOLD = 0.05
 
     def __init__(self, *args, **kwargs):
@@ -157,35 +156,44 @@ class FishingTask(BaseNTETask):
         pointer = int(state["pointer_center"])
         zone_left = int(state["zone_left"])
         zone_right = int(state["zone_right"])
-        zone_center = int(state.get("zone_center", (zone_left + zone_right) // 2))
-        image_width = int(state.get("image_width", None))
+
+        zone_center = (zone_left + zone_right) // 2
         zone_width = max(1, zone_right - zone_left)
 
-        # 容差范围内认为稳定
-        tolerance = max(0, int(self.BAR_TOLERANCE))
-        if image_width is not None:
-            tolerance = int(tolerance * image_width / 934)
-        if zone_left + tolerance <= pointer <= zone_right - tolerance:
+        deadzone = max(2, int(zone_width * 0.05))
+
+        dist_from_center = pointer - zone_center
+        abs_dist = abs(dist_from_center)
+
+        if abs_dist <= deadzone:
             if now - self._last_bar_log_time > 0.5:
-                self.log_info(f"控条稳定区: pointer={pointer}, zone=({zone_left},{zone_right})")
+                self.log_info(f"已精准对齐中心: pointer={pointer}, target={zone_center}")
                 self._last_bar_log_time = now
             return
 
-        key = "d" if pointer < zone_center else "a"
+        key = "d" if dist_from_center < 0 else "a"
 
-        ratio = abs(pointer - zone_center) / zone_width
+        ratio = abs_dist / (zone_width / 2)
 
         base_hold = float(self.CONTROL_TAP_HOLD)
-        hold = min(0.12, max(0.02, base_hold + ratio * 0.05))
 
-        burst = 2 if ratio > 0.5 else 1
+        hold = base_hold + (ratio * 0.08)
+        hold = min(0.15, max(0.015, hold))
+
+        burst = 1
+        if ratio > 1.2:
+            burst = 2
 
         if now - self._last_bar_log_time > 0.2:
-            self.log_info(f"控条输入: key={key}, hold={hold:.3f}, burst={burst}, ratio={ratio:.2f}")
+            self.log_info(
+                f"中心对齐: key={key}, dist={dist_from_center}, hold={hold:.3f}, ratio={ratio:.2f}"
+            )
             self._last_bar_log_time = now
 
         for _ in range(burst):
             self.send_key(key, down_time=hold)
+            if burst > 1:
+                time.sleep(0.01)
 
     def get_bar_state(self):
         return self.detect_fishing_bar_state()
@@ -260,7 +268,7 @@ class FishingTask(BaseNTETask):
         yellow_mask = cv2.inRange(
             hsv, np.array([20, 60, 195], dtype=np.uint8), np.array([55, 200, 255], dtype=np.uint8)
         )
-        
+
         # iu.show_images([green_mask, yellow_mask], names=["green_mask", "yellow_mask"], wait_key=1)
 
         kernel = np.ones((3, 3), dtype=np.uint8)
