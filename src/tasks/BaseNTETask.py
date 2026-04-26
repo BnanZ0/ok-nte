@@ -39,6 +39,10 @@ class BaseNTETask(BaseTask):
     def main_viewport(self):
         return self.box_of_screen(0.1543, 0.1021, 0.9070, 0.8458)
 
+    def click(self, *args, **kwargs):
+        kwargs.setdefault("move", False)
+        return super().click(*args, **kwargs)
+
     def get_char_box(self, index: int):
         box = self.get_box_by_name(f"box_char_{index + 1}")
         if self.char_ui_offset:
