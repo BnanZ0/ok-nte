@@ -5,6 +5,10 @@ from typing_extensions import Any
 
 from src.char.BaseChar import BaseChar
 from src.char.Mint import Mint
+from src.char.NanallyTeamJiuyuan import NanallyTeamJiuyuan
+from src.char.NanallyTeamNanally import NanallyTeamNanally
+from src.char.NanallyTeamSakiri import NanallyTeamSakiri
+from src.char.NanallyTeamZero import NanallyTeamZero
 from src.char.Zero import Zero
 
 if TYPE_CHECKING:
@@ -18,6 +22,22 @@ char_dict: dict[str, dict[str, Any]] = {
     "char_default": {"cls": BaseChar},
     "char_zero": {"cls": Zero, "cn_name": "零"},
     "char_mint": {"cls": Mint, "cn_name": "薄荷"},
+    "char_nanally_team_nanally": {
+        "cls": NanallyTeamNanally,
+        "cn_name": "娜娜莉队-娜娜莉",
+    },
+    "char_nanally_team_zero": {
+        "cls": NanallyTeamZero,
+        "cn_name": "娜娜莉队-零",
+    },
+    "char_nanally_team_jiuyuan": {
+        "cls": NanallyTeamJiuyuan,
+        "cn_name": "娜娜莉队-九原",
+    },
+    "char_nanally_team_sakiri": {
+        "cls": NanallyTeamSakiri,
+        "cn_name": "娜娜莉队-早雾",
+    },
 }
 
 char_names = char_dict.keys()
