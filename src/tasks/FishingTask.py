@@ -24,7 +24,6 @@ class FishingTask(BaseNTETask):
     BITE_TIMEOUT = 20
     CONTROL_TIMEOUT = 30
     RESULT_TIMEOUT = 10
-    CONTROL_TAP_HOLD = 0.05
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -159,41 +158,30 @@ class FishingTask(BaseNTETask):
 
         zone_center = (zone_left + zone_right) // 2
         zone_width = max(1, zone_right - zone_left)
-
-        deadzone = max(2, int(zone_width * 0.05))
-
+        
         dist_from_center = pointer - zone_center
         abs_dist = abs(dist_from_center)
-
+        
+        deadzone = max(2, int(zone_width * 0.06))
+        
         if abs_dist <= deadzone:
-            if now - self._last_bar_log_time > 0.5:
-                self.log_info(f"已精准对齐中心: pointer={pointer}, target={zone_center}")
+            if now - getattr(self, "_last_bar_log_time", 0) > 0.5:
+                self.log_info(f"指针已锁定中心: pointer={pointer}, target={zone_center}")
                 self._last_bar_log_time = now
             return
 
         key = "d" if dist_from_center < 0 else "a"
 
         ratio = abs_dist / (zone_width / 2)
+        
+        base_hold = 0.015
+        
+        hold_ext = (ratio ** 1.2) * 0.15
+        hold = base_hold + hold_ext
+        
+        hold = min(0.20, max(0.01, hold))
 
-        base_hold = float(self.CONTROL_TAP_HOLD)
-
-        hold = base_hold + (ratio * 0.08)
-        hold = min(0.15, max(0.015, hold))
-
-        burst = 1
-        if ratio > 1.2:
-            burst = 2
-
-        if now - self._last_bar_log_time > 0.2:
-            self.log_info(
-                f"中心对齐: key={key}, dist={dist_from_center}, hold={hold:.3f}, ratio={ratio:.2f}"
-            )
-            self._last_bar_log_time = now
-
-        for _ in range(burst):
-            self.send_key(key, down_time=hold)
-            if burst > 1:
-                time.sleep(0.01)
+        self.send_key(key, down_time=hold)
 
     def get_bar_state(self):
         return self.detect_fishing_bar_state()
