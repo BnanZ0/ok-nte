@@ -692,7 +692,7 @@ class BaseChar:
         current_char = self.task.get_current_char(raise_exception=False)
         for char in self.task.chars:
             if char != current_char:
-                priority = char.do_get_switch_priority()
+                priority = char.do_get_switch_priority(current_char, has_intro=False)
                 if priority >= Priority.FAST_SWITCH:
                     self.logger.info(f"In lock with {char}")
                     return True
