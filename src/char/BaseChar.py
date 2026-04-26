@@ -85,6 +85,8 @@ class BaseChar:
         self.cycle_start_time = 0.0
         self.combo_label = "default"
         self.element = Element.DEFAULT
+        self.queued_switch_builtin_key = None
+        self.queued_switch_free_intro = False
 
     def cycle_start(self):
         self.cycle_start_time = time.time()
@@ -126,6 +128,19 @@ class BaseChar:
         else:
             self.do_perform()
         self.logger.debug(f"set current char false {self.index}")
+        queued_switch_builtin_key = self.queued_switch_builtin_key
+        queued_switch_free_intro = self.queued_switch_free_intro
+        self.queued_switch_builtin_key = None
+        self.queued_switch_free_intro = False
+        if queued_switch_builtin_key:
+            switched = self.task.switch_to_builtin_char(
+                self, queued_switch_builtin_key, free_intro=queued_switch_free_intro
+            )
+            if switched:
+                return
+            self.logger.warning(
+                f"queued switch target not found or failed, fallback to switch_next_char: {queued_switch_builtin_key}"
+            )
         self.switch_next_char()
 
     def wait_intro(self, time_out=1.2, click=True):
@@ -220,6 +235,10 @@ class BaseChar:
         self.task.switch_next_char(
             self, post_action=post_action, free_intro=free_intro
         )
+
+    def queue_switch_to_builtin_char(self, builtin_key: str, free_intro: bool = False):
+        self.queued_switch_builtin_key = builtin_key
+        self.queued_switch_free_intro = free_intro
 
     def sleep(self, sec, check_combat=True):
         if not check_combat:
@@ -341,6 +360,15 @@ class BaseChar:
             self.get_skill_key(), interval=interval, down_time=down_time, after_sleep=after_sleep
         )
 
+    def hold_skill(self, duration=1.0, after_sleep=0.05):
+        if not self.skill_available():
+            self.logger.debug("hold_skill skipped because skill is not available")
+            return False
+        self.send_skill_key(down_time=duration)
+        if after_sleep > 0:
+            self.sleep(after_sleep)
+        return True
+
     def send_arc_key(self, after_sleep=0, interval=-1, down_time=0.01):
         """发送弧盘技能的按键。
 
@@ -375,6 +403,8 @@ class BaseChar:
         self.has_intro = False
         self._ultimate_available = False
         self._skill_available = False
+        self.queued_switch_builtin_key = None
+        self.queued_switch_free_intro = False
 
     def click_ultimate(self, send_click=False, wait_if_cd_ready=0.1):
         """尝试释放终结技。
@@ -615,6 +645,23 @@ class BaseChar:
             self.click()
             self.sleep(interval)
         self.sleep(after_sleep)
+
+    def continues_normal_attack_until(
+        self,
+        condition,
+        interval: float = 0.1,
+        time_out: float = 15.0,
+        after_sleep: float = 0,
+    ) -> bool:
+        start = time.time()
+        while time.time() - start < time_out:
+            if condition():
+                self.sleep(after_sleep)
+                return True
+            self.click()
+            self.sleep(interval)
+        self.sleep(after_sleep)
+        return condition()
 
     def continues_click(self, key, duration, interval=0.1):
         """持续发送指定按键一段时间。

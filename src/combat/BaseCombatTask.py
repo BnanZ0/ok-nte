@@ -357,7 +357,7 @@ class BaseCombatTask(CombatCheck):
         """
         if self.team_size <= 1:
             self.click(interval=0.1)
-            return
+            return False
 
         current_char.wait_switch_cd()
 
@@ -383,85 +383,16 @@ class BaseCombatTask(CombatCheck):
 
         if switch_to is None or switch_to == current_char:
             logger.warning(f"{current_char} failed to find a valid switch target")
-            return
+            return False
 
-        switch_to.has_intro = has_intro
-        logger.info(
-            f"switch_next_char {current_char} -> {switch_to} has_intro {switch_to.has_intro}"
+        return self._perform_switch(
+            current_char,
+            switch_to,
+            has_intro,
+            post_action=post_action,
+            allow_dynamic_intro_update=True,
+            free_intro=free_intro,
         )
-
-        last_click_time = 0.0
-        last_decide_time = 0.0
-        start_time = time.time()
-        self.has_char_slot_changed(switch_to.index, reset_char_slot=True)
-
-        while True:
-            self.check_combat()
-            current_time = time.time()
-
-            is_char_switched = self.has_char_slot_changed(switch_to.index)
-
-            if not is_char_switched:
-                self.click(interval=0.2)
-            else:
-                self.in_ultimate = False
-                current_char.switch_out()
-                switch_to.is_current_char = True
-                if has_intro:
-                    current_char.last_outro_time = time.time()
-                break
-
-            if not is_char_switched and not has_intro and current_time - last_decide_time > 0.12:
-                last_decide_time = current_time
-                new_switch_to, new_has_intro = self._decide_switch_to(
-                    current_char, free_intro, require_intro=True
-                )
-                if new_has_intro and new_switch_to != current_char:
-                    switch_to = new_switch_to
-                    has_intro = new_has_intro
-                    switch_to.has_intro = True
-                    logger.info(
-                        f"switch_next_char updated target to {switch_to} has_intro {switch_to.has_intro}"
-                    )
-
-            if not self.is_in_team():
-                logger.info(
-                    f"not in world while switching chars_{current_char}_to_{switch_to} {current_time - start_time}"
-                )
-                # if self.debug:
-                #     self.screenshot(f'not in team while switching chars_{current_char}_to_{switch_to} {now - start}')
-                # confirm = self.wait_feature('revive_confirm_hcenter_vcenter', threshold=0.8, time_out=2)
-                # if confirm:
-                #     self.log_info(f'char dead')
-                #     if not self.revive_action():
-                #         self.raise_not_in_combat(f'char dead', exception_type=CharDeadException)
-                if current_time - start_time > self.switch_char_time_out:
-                    self.raise_not_in_combat(
-                        f"switch too long failed chars_{current_char}_to_{switch_to}, {current_time - start_time}"
-                    )
-                self.next_frame()
-                continue
-
-            if current_time - last_click_time > 0.1:
-                self.send_key(switch_to.index + 1)
-                self.sleep(0.001)
-                last_click_time = current_time
-
-            if current_time - start_time > 10:
-                if self.debug:
-                    self.screenshot(f"switch_not_detected_{current_char}_to_{switch_to}")
-                self.raise_not_in_combat("failed switch chars")
-
-            self.next_frame()
-
-        if has_intro:
-            self.record_element_ring_reaction(current_char, switch_to)
-
-        if post_action:
-            logger.debug(f"post_action {post_action}")
-            post_action(switch_to, has_intro)
-
-        logger.info(f"switch_next_char end {(current_char.last_switch_time - start_time):.3f}s")
 
     def get_ultimate_key(self):
         """获取终结技技能的按键。
@@ -573,6 +504,139 @@ class BaseCombatTask(CombatCheck):
         for char in self.chars:
             if isinstance(char, char_cls):
                 return char
+
+    def get_char_by_builtin_key(self, builtin_key: str):
+        for char in self.chars:
+            if char and getattr(char, "builtin_key", None) == builtin_key:
+                return char
+        return None
+
+    def _perform_switch(
+        self,
+        current_char: "BaseChar",
+        switch_to: "BaseChar",
+        has_intro: bool,
+        post_action=None,
+        allow_dynamic_intro_update: bool = True,
+        free_intro: bool = False,
+    ) -> bool:
+        if switch_to is None or switch_to == current_char:
+            logger.warning(f"{current_char} failed to find a valid switch target")
+            return False
+
+        switch_to.has_intro = has_intro
+        logger.info(
+            f"switch_next_char {current_char} -> {switch_to} has_intro {switch_to.has_intro}"
+        )
+
+        last_click_time = 0.0
+        last_decide_time = 0.0
+        start_time = time.time()
+        self.has_char_slot_changed(switch_to.index, reset_char_slot=True)
+
+        while True:
+            self.check_combat()
+            current_time = time.time()
+
+            is_char_switched = self.has_char_slot_changed(switch_to.index)
+
+            if not is_char_switched:
+                self.click(interval=0.2)
+            else:
+                self.in_ultimate = False
+                current_char.switch_out()
+                switch_to.is_current_char = True
+                if has_intro:
+                    current_char.last_outro_time = time.time()
+                break
+
+            if (
+                allow_dynamic_intro_update
+                and not is_char_switched
+                and not has_intro
+                and current_time - last_decide_time > 0.12
+            ):
+                last_decide_time = current_time
+                new_switch_to, new_has_intro = self._decide_switch_to(
+                    current_char, free_intro, require_intro=True
+                )
+                if new_has_intro and new_switch_to != current_char:
+                    switch_to = new_switch_to
+                    has_intro = new_has_intro
+                    switch_to.has_intro = True
+                    logger.info(
+                        f"switch_next_char updated target to {switch_to} has_intro {switch_to.has_intro}"
+                    )
+
+            if not self.is_in_team():
+                logger.info(
+                    f"not in world while switching chars_{current_char}_to_{switch_to} {current_time - start_time}"
+                )
+                if current_time - start_time > self.switch_char_time_out:
+                    self.raise_not_in_combat(
+                        f"switch too long failed chars_{current_char}_to_{switch_to}, {current_time - start_time}"
+                    )
+                self.next_frame()
+                continue
+
+            if current_time - last_click_time > 0.1:
+                self.send_key(switch_to.index + 1)
+                self.sleep(0.001)
+                last_click_time = current_time
+
+            if current_time - start_time > 10:
+                if self.debug:
+                    self.screenshot(f"switch_not_detected_{current_char}_to_{switch_to}")
+                self.raise_not_in_combat("failed switch chars")
+
+            self.next_frame()
+
+        if has_intro:
+            self.record_element_ring_reaction(current_char, switch_to)
+
+        if post_action:
+            logger.debug(f"post_action {post_action}")
+            post_action(switch_to, has_intro)
+
+        logger.info(f"switch_next_char end {(current_char.last_switch_time - start_time):.3f}s")
+        return True
+
+    def switch_to_char(
+        self,
+        current_char: "BaseChar",
+        target_char: "BaseChar",
+        post_action=None,
+        free_intro: bool = False,
+    ) -> bool:
+        if self.team_size <= 1:
+            self.click(interval=0.1)
+            return False
+
+        current_char.wait_switch_cd()
+        has_intro = free_intro or current_char.is_cycle_full()
+        return self._perform_switch(
+            current_char,
+            target_char,
+            has_intro,
+            post_action=post_action,
+            allow_dynamic_intro_update=False,
+            free_intro=free_intro,
+        )
+
+    def switch_to_builtin_char(
+        self,
+        current_char: "BaseChar",
+        builtin_key: str,
+        post_action=None,
+        free_intro: bool = False,
+    ) -> bool:
+        target_char = self.get_char_by_builtin_key(builtin_key)
+        if target_char is None:
+            logger.warning(f"switch_to_builtin_char target not found: {builtin_key}")
+            return False
+        return self.switch_to_char(
+            current_char, target_char, post_action=post_action, free_intro=free_intro
+        )
 
     def _do_load_char(self, index: int, count: int, fixed_slots) -> "BaseChar":
         fixed_slot = safe_get(fixed_slots, index)
