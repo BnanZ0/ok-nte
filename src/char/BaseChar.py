@@ -141,7 +141,7 @@ class BaseChar:
             self.logger.warning(
                 f"queued switch target not found or failed, fallback to switch_next_char: {queued_switch_builtin_key}"
             )
-        self.switch_next_char()
+        self.switch_next_char(free_intro=queued_switch_free_intro)
 
     def wait_intro(self, time_out=1.2, click=True):
         """等待角色入场动画结束。
@@ -237,6 +237,7 @@ class BaseChar:
         )
 
     def queue_switch_to_builtin_char(self, builtin_key: str, free_intro: bool = False):
+        """在本轮动作结束后排队切换到指定内置角色。"""
         self.queued_switch_builtin_key = builtin_key
         self.queued_switch_free_intro = free_intro
 
@@ -361,6 +362,7 @@ class BaseChar:
         )
 
     def hold_skill(self, duration=1.0, after_sleep=0.05):
+        """长按技能键一段时间。"""
         if not self.skill_available():
             self.logger.debug("hold_skill skipped because skill is not available")
             return False
@@ -653,6 +655,7 @@ class BaseChar:
         time_out: float = 15.0,
         after_sleep: float = 0,
     ) -> bool:
+        """持续普攻直到条件成立或超时。"""
         start = time.time()
         while time.time() - start < time_out:
             if condition():

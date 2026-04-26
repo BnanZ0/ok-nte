@@ -506,6 +506,7 @@ class BaseCombatTask(CombatCheck):
                 return char
 
     def get_char_by_builtin_key(self, builtin_key: str):
+        """根据内置角色 key 查找当前队伍中的角色实例。"""
         for char in self.chars:
             if char and getattr(char, "builtin_key", None) == builtin_key:
                 return char
@@ -520,6 +521,7 @@ class BaseCombatTask(CombatCheck):
         allow_dynamic_intro_update: bool = True,
         free_intro: bool = False,
     ) -> bool:
+        """执行一次切人流程，并在需要时动态更新目标。"""
         if switch_to is None or switch_to == current_char:
             logger.warning(f"{current_char} failed to find a valid switch target")
             return False
@@ -564,6 +566,7 @@ class BaseCombatTask(CombatCheck):
                     switch_to = new_switch_to
                     has_intro = new_has_intro
                     switch_to.has_intro = True
+                    self.has_char_slot_changed(switch_to.index, reset_char_slot=True)
                     logger.info(
                         f"switch_next_char updated target to {switch_to} has_intro {switch_to.has_intro}"
                     )
@@ -608,6 +611,7 @@ class BaseCombatTask(CombatCheck):
         post_action=None,
         free_intro: bool = False,
     ) -> bool:
+        """切换到指定角色实例。"""
         if self.team_size <= 1:
             self.click(interval=0.1)
             return False
@@ -630,6 +634,7 @@ class BaseCombatTask(CombatCheck):
         post_action=None,
         free_intro: bool = False,
     ) -> bool:
+        """切换到指定内置角色 key 对应的队友。"""
         target_char = self.get_char_by_builtin_key(builtin_key)
         if target_char is None:
             logger.warning(f"switch_to_builtin_char target not found: {builtin_key}")

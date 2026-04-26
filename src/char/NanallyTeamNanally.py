@@ -4,20 +4,34 @@ from src.char.BaseChar import BaseChar
 
 
 class NanallyTeamNanally(BaseChar):
-    SKILL_WAIT_TIMEOUT = 10.0
-    SKILL_MIN_DURATION = 10.0
+    """娜娜莉队中的娜娜莉固定轮转脚本。"""
+
+    SKILL_WAIT_TIMEOUT = 12.0
+    SKILL_MIN_DURATION = 12.0
     CYCLE_WAIT_TIMEOUT = 30.0
     ATTACK_INTERVAL = 0.1
     NEXT_BUILTIN_KEY = "char_nanally_team_sakiri"
 
     def do_perform(self):
-        if not self.skill_available():
-            self.continues_normal_attack_until(
+        """执行娜娜莉的站场循环，满足条件后切到早雾。"""
+        skill_ready = self.skill_available()
+        if not skill_ready:
+            skill_ready = self.continues_normal_attack_until(
                 self.skill_available,
                 time_out=self.SKILL_WAIT_TIMEOUT,
             )
 
-        self.click_skill()
+        if not skill_ready:
+            self.logger.warning("NanallyTeamNanally skill wait timed out, fallback to switch")
+            self.queue_switch_to_builtin_char(self.NEXT_BUILTIN_KEY)
+            return
+
+        clicked, _, _ = self.click_skill()
+        if not clicked:
+            self.logger.warning("NanallyTeamNanally failed to activate skill, fallback to switch")
+            self.queue_switch_to_builtin_char(self.NEXT_BUILTIN_KEY)
+            return
+
         skill_start = time.time()
 
         while True:
