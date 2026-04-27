@@ -697,14 +697,13 @@ class BaseCombatTask(CombatCheck):
                     # iu.show_images([mask], [f"mask_{element}"])
                     self._element_template_cache[element] = (raw_template, mask)
 
-        vertical_spacing = int(self.height * 176 / 1440)
         _frame = self.frame
         # self.screenshot("load_chars_element", _frame)
 
         for i in range(count):
             base_scale = 16
             scale = base_scale * 1440 / self.height
-            current_box = base_box.copy(y_offset=vertical_spacing * i)
+            current_box = self.get_box_by_char_spacing(base_box, i)
             crop_img = current_box.crop_frame(_frame)
             crop_h, crop_w = crop_img.shape[:2]
             crop_resized = cv2.resize(

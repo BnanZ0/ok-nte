@@ -8,7 +8,7 @@
         },
         {
             "id": 2,
-            "file_name": "images/0.png",
+            "file_name": "images/1.png",
             "width": 2560,
             "height": 1440
         },
@@ -335,6 +335,19 @@
             ],
             "area": 2736,
             "iscrowd": 0
+        },
+        {
+            "id": 23,
+            "image_id": 2,
+            "category_id": 23,
+            "bbox": [
+                2353,
+                344,
+                76,
+                31
+            ],
+            "area": 2356,
+            "iscrowd": 0
         }
     ],
     "categories": [
@@ -446,6 +459,11 @@
         {
             "id": 22,
             "name": "fish_bait",
+            "supercategory": ""
+        },
+        {
+            "id": 23,
+            "name": "is_current_char",
             "supercategory": ""
         }
     ]

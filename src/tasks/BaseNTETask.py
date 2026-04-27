@@ -9,8 +9,8 @@ import win32api
 import win32con
 import win32gui
 import win32process
-from ok import BaseTask, Box, Logger, og, safe_get
 
+from ok import BaseTask, Box, Logger, og, safe_get
 from src.Labels import Labels
 from src.scene.NTEScene import NTEScene
 from src.scene.ScreenPosition import ScreenPosition
@@ -74,9 +74,9 @@ class BaseNTETask(BaseTask):
     def shift_char_ui_box(self, box: Box, expend=False):
         """
         针对角色UI偏移的box修正
-        :param box: 
+        :param box:
         :param expend: 是否扩展box
-        :return: 
+        :return:
         """
         offset = -9 * self.width / 2560
         width_offset = 0
@@ -89,23 +89,7 @@ class BaseNTETask(BaseTask):
         if not self.is_in_team():
             return False, -1, 0
 
-        def process_char_text(image):
-            return iu.binarize_bgr_by_brightness(image, threshold=180)
-
-        def find_char_text(index: int):
-            return self.find_one(
-                f"char_{index + 1}_text",
-                threshold=0.7,
-                frame_processor=process_char_text,
-                mask_function=iu.mask_outside_white_rect,
-                horizontal_variance=0.005,
-            )
-
-        c1 = find_char_text(0)
-        c2 = find_char_text(1)
-        c3 = find_char_text(2)
-        c4 = find_char_text(3)
-        arr: List[Box | None] = [c1, c2, c3, c4]
+        arr = self.multi_stage_char_match()
         results = [
             c.x < self.get_char_text_box(idx).x for idx, c in enumerate(arr) if c is not None
         ]
@@ -125,8 +109,81 @@ class BaseNTETask(BaseTask):
             else:
                 exist_count += 1
 
+        if current == -1:
+            current = self.get_current_char_index()
+            if current != -1:
+                exist_count -= 1
+
         self._logged_in = True
         return True, current, exist_count + 1
+
+    @property
+    def char_vertical_spacing(self):
+        return int(self.height * 176 / 1440)
+
+    def get_box_by_char_spacing(self, box: Box, index: int):
+        return box.copy(y_offset=index * self.char_vertical_spacing)
+
+    def get_current_char_index(self):
+        def get_img_contour(img):
+            contours, _ = cv2.findContours(img, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            if not contours:
+                return None
+            return max(contours, key=cv2.contourArea)
+
+        base_feature = self.get_feature_by_name(Labels.is_current_char)
+        base_box = self.get_box_by_name(Labels.is_current_char)
+        _frame = self.frame.copy()
+        best_ret = 999
+        idx = -1
+        template_cnt = get_img_contour(base_feature.mat)
+        for i in range(4):
+            box = self.get_box_by_char_spacing(base_box, i)
+            current_mat = iu.current_char_filter(box.crop_frame(_frame))
+            current_cnt = get_img_contour(current_mat)
+            if current_cnt is None:
+                continue
+            ret = cv2.matchShapes(template_cnt, current_cnt, cv2.CONTOURS_MATCH_I1, 0.0)
+            if ret < best_ret:
+                best_ret = ret
+                idx = i
+        return idx
+
+    def multi_stage_char_match(self):
+        # 初始化 4 个结果为 None
+        results = [None, None, None, None]
+
+        # 定义对比度阶梯（从低到高）
+        # 低对比度下匹配到的置信度通常更高
+        contrast_steps = [0, 30, 60, 90]
+
+        for c_val in contrast_steps:
+            # 如果 4 个都找齐了，直接跳出大循环，节省计算时间
+            if all(res is not None for res in results):
+                break
+
+            for i in range(4):
+                # 只有还没找到的位置才进行匹配
+                if results[i] is None:
+                    # 构造处理函数
+                    def process(image, current_c=c_val):
+                        return iu.adjust_lightness_contrast_lab(
+                            image, brightness=0, contrast=current_c
+                        )
+
+                    res = self.find_one(
+                        f"char_{i + 1}_text",
+                        threshold=0.7,
+                        frame_processor=process,
+                        mask_function=iu.mask_outside_white_rect,
+                        horizontal_variance=0.005,
+                    )
+
+                    # 只要找到了，就存入结果，后续对比度级别不再处理这个索引
+                    if res:
+                        results[i] = res
+
+        return results
 
     def in_world(self) -> bool:
         frame = self.frame
@@ -307,6 +364,7 @@ def interactable_mask(image):
     kernel = np.ones((3, 3), np.uint8)
     dilated_mask = cv2.dilate(mask, kernel, iterations=1)
     return dilated_mask
+
 
 interac_pink_color = {
     "r": (197, 221),

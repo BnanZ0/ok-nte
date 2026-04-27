@@ -32,6 +32,10 @@ def isolate_dialog_to_white(cv_image):
     return create_color_mask(cv_image, dialog_white_color, invert=False)
 
 
+def current_char_filter(cv_image):
+    return filter_by_hsv(cv_image, HSVRange((150, 170, 165), (179, 255, 255)), gray=True)
+
+
 def binarize_bgr_by_brightness(image, threshold=180, binary=False):
     """
     根据亮度阈值对 BGR 图像进行二值化，并返回 BGR 格式的结果。

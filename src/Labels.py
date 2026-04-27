@@ -19,6 +19,7 @@ class Labels(str, Enum):
     fish_start = 'fish_start'
     health_bar_slash = 'health_bar_slash'
     interactable = 'interactable'
+    is_current_char = 'is_current_char'
     message = 'message'
     message_dialog = 'message_dialog'
     mini_map_arrow = 'mini_map_arrow'
