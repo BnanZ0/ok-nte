@@ -127,6 +127,7 @@ class FishingTask(BaseNTETask):
             return False
 
     def control_until_finish(self) -> bool:
+        start_check_time = time.time() + 1
         deadline = time.time() + self.CONTROL_TIMEOUT
         failed_time = 0
         try:
@@ -137,18 +138,19 @@ class FishingTask(BaseNTETask):
                 else:
                     self._set_bar_key(None)
 
-                if self.is_fish_bait_exist():
-                    if failed_time == 0:
-                        failed_time = time.time()
-                else:
-                    failed_time = 0
+                if time.time() > start_check_time:
+                    if self.is_fish_bait_exist():
+                        if failed_time == 0:
+                            failed_time = time.time()
+                    else:
+                        failed_time = 0
 
-                if failed_time != 0 and time.time() - failed_time > 5:
-                    self.log_error("疑似脱钩或失败")
-                    return False
+                    if failed_time != 0 and time.time() - failed_time > 5:
+                        self.log_error("疑似脱钩或失败")
+                        return False
 
-                if self.is_success_overlay():
-                    return True
+                    if self.is_success_overlay():
+                        return True
 
                 self.next_frame()
             else:
