@@ -127,6 +127,7 @@ class FishingTask(BaseNTETask):
     def control_until_finish(self) -> bool:
         deadline = time.time() + self.CONTROL_TIMEOUT
         failed_time = 0
+        result = False
         while time.time() < deadline:
             state = self.get_bar_state()
             if self.is_valid_bar_state(state):
@@ -140,15 +141,19 @@ class FishingTask(BaseNTETask):
 
             if failed_time != 0 and time.time() - failed_time > 5:
                 self.log_error("疑似脱钩或失败")
-                return False
+                break
 
             if self.is_success_overlay():
-                return True
+                result = True
+                break
 
             self.next_frame()
         else:
             self.log_error("控条阶段超时")
-        return False
+
+        self.send_key_up("a")
+        self.send_key_up("d")
+        return result
 
     def apply_bar_control(self, state: dict):
         now = time.time()
@@ -158,30 +163,27 @@ class FishingTask(BaseNTETask):
 
         zone_center = (zone_left + zone_right) // 2
         zone_width = max(1, zone_right - zone_left)
-        
+
         dist_from_center = pointer - zone_center
         abs_dist = abs(dist_from_center)
-        
+
         deadzone = max(2, int(zone_width * 0.06))
-        
+
+
         if abs_dist <= deadzone:
+            self.send_key_up("a")
+            self.send_key_up("d")
             if now - getattr(self, "_last_bar_log_time", 0) > 0.5:
                 self.log_info(f"指针已锁定中心: pointer={pointer}, target={zone_center}")
                 self._last_bar_log_time = now
             return
 
-        key = "d" if dist_from_center < 0 else "a"
-
-        ratio = abs_dist / (zone_width / 2)
-        
-        base_hold = 0.015
-        
-        hold_ext = (ratio ** 1.2) * 0.15
-        hold = base_hold + hold_ext
-        
-        hold = min(0.20, max(0.01, hold))
-
-        self.send_key(key, down_time=hold)
+        if dist_from_center < 0:
+            self.send_key_up("a")
+            self.send_key_down("d")
+        else:
+            self.send_key_up("d")
+            self.send_key_down("a")
 
     def get_bar_state(self):
         return self.detect_fishing_bar_state()
