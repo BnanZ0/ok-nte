@@ -156,6 +156,16 @@ class FishingTask(BaseNTETask):
             self._release_control_key()
 
     def apply_bar_control(self, state: dict):
+        context = self._build_bar_control_context(state)
+        if self._handle_bar_stable(context):
+            return
+
+        desired_key = self._resolve_desired_control_key(context)
+        self._log_bar_decision(context, desired_key)
+        self._set_control_key(desired_key)
+        self._update_bar_tracking(context["pointer"], context["now"])
+
+    def _build_bar_control_context(self, state: dict) -> dict:
         now = time.time()
         pointer = int(state["pointer_center"])
         zone_left = int(state["zone_left"])
@@ -169,8 +179,6 @@ class FishingTask(BaseNTETask):
         velocity = (pointer - prev_pointer) / dt
         velocity = max(-1800.0, min(1800.0, velocity))
 
-        # Adapt lead time to the actual frame interval. Slower machines need
-        # more forward prediction, faster machines need less.
         lead_time = min(0.080, max(0.035, dt * 2.0))
         predicted_pointer = int(round(pointer + velocity * lead_time))
         error = predicted_pointer - zone_center
@@ -179,38 +187,51 @@ class FishingTask(BaseNTETask):
         hard_deadzone = max(5, int(zone_width * 0.08))
         soft_deadzone = max(hard_deadzone + 6, int(zone_width * 0.16))
 
-        if abs_error <= hard_deadzone:
-            if now - self._last_bar_log_time > 0.5:
-                self.log_info(
-                    f"控条稳定: pointer={pointer}, predict={predicted_pointer}, "
-                    f"target={zone_center}, hard={hard_deadzone}"
-                )
-                self._last_bar_log_time = now
-            self._release_control_key()
-            self._prev_bar_pointer = pointer
-            self._prev_bar_time = now
-            return
+        return {
+            "now": now,
+            "pointer": pointer,
+            "zone_center": zone_center,
+            "zone_width": zone_width,
+            "velocity": velocity,
+            "lead_time": lead_time,
+            "predicted_pointer": predicted_pointer,
+            "error": error,
+            "abs_error": abs_error,
+            "hard_deadzone": hard_deadzone,
+            "soft_deadzone": soft_deadzone,
+        }
+
+    def _handle_bar_stable(self, context: dict) -> bool:
+        if context["abs_error"] > context["hard_deadzone"]:
+            return False
+        if context["now"] - self._last_bar_log_time > 0.5:
+            self.log_info(
+                f"控条稳定: pointer={context['pointer']}, predict={context['predicted_pointer']}, "
+                f"target={context['zone_center']}, hard={context['hard_deadzone']}"
+            )
+            self._last_bar_log_time = context["now"]
+        self._release_control_key()
+        self._update_bar_tracking(context["pointer"], context["now"])
+        return True
+
+    def _resolve_desired_control_key(self, context: dict):
+        error = context["error"]
+        abs_error = context["abs_error"]
+        velocity = context["velocity"]
+        hard_deadzone = context["hard_deadzone"]
+        soft_deadzone = context["soft_deadzone"]
+        zone_width = context["zone_width"]
+        now = context["now"]
 
         desired_key = "d" if error < 0 else "a"
-
         moving_toward_center = (error < 0 and velocity > 60) or (error > 0 and velocity < -60)
-        moving_away = (error < 0 and velocity < -60) or (error > 0 and velocity > 60)
 
-        # Hysteresis:
-        # - once we are already holding the correct direction, keep holding it
-        #   until we truly enter the hard deadzone
-        # - only release early when we are very close to center and momentum is
-        #   clearly carrying the pointer inward
         if abs_error <= soft_deadzone:
             if self._held_control_key == desired_key:
                 desired_key = self._held_control_key
             elif moving_toward_center and abs_error <= max(hard_deadzone + 3, hard_deadzone * 2):
                 desired_key = None
 
-        # Direction-switch hysteresis:
-        # when we already hold one direction, do not instantly flip on a small
-        # opposite error near the boundary. Require either more error or a short
-        # dwell time before reversing.
         if (
             desired_key is not None
             and self._held_control_key is not None
@@ -221,16 +242,24 @@ class FishingTask(BaseNTETask):
             if abs_error < switch_error_gate and time_since_switch < 0.14:
                 desired_key = self._held_control_key
 
-        if now - self._last_bar_log_time > 0.2:
-            self.log_info(
-                f"控条输入: key={desired_key}, held={self._held_control_key}, pointer={pointer}, "
-                f"predict={predicted_pointer}, target={zone_center}, error={abs_error}, "
-                f"vel={velocity:.1f}, lead={lead_time:.3f}, hard={hard_deadzone}, "
-                f"soft={soft_deadzone}, away={moving_away}"
-            )
-            self._last_bar_log_time = now
+        return desired_key
 
-        self._set_control_key(desired_key)
+    def _log_bar_decision(self, context: dict, desired_key):
+        if context["now"] - self._last_bar_log_time <= 0.2:
+            return
+        moving_away = (
+            (context["error"] < 0 and context["velocity"] < -60)
+            or (context["error"] > 0 and context["velocity"] > 60)
+        )
+        self.log_info(
+            f"控条输入: key={desired_key}, held={self._held_control_key}, pointer={context['pointer']}, "
+            f"predict={context['predicted_pointer']}, target={context['zone_center']}, error={context['abs_error']}, "
+            f"vel={context['velocity']:.1f}, lead={context['lead_time']:.3f}, hard={context['hard_deadzone']}, "
+            f"soft={context['soft_deadzone']}, away={moving_away}"
+        )
+        self._last_bar_log_time = context["now"]
+
+    def _update_bar_tracking(self, pointer: int, now: float):
         self._prev_bar_pointer = pointer
         self._prev_bar_time = now
 
