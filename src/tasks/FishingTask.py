@@ -12,7 +12,6 @@ from src.utils import image_utils as iu
 
 
 class FishingTask(BaseNTETask):
-    # 1080p 固定参数（“循环次数”“方向反转”开放配置）
     BAR_BOX = (0.3164, 0.0646, 0.6875, 0.0743)
     BITE_INDICATOR_BOX = (0.9023, 0.8562, 0.9488, 0.9403)
     START_FISHING_BOX = (0.9102, 0.8743, 0.9387, 0.9271)
@@ -38,6 +37,10 @@ class FishingTask(BaseNTETask):
         )
         self._fishing_started = False
         self._last_bar_log_time = 0.0
+        self._prev_bar_pointer = None
+        self._prev_bar_time = 0.0
+        self._held_control_key = None
+        self._last_control_switch_time = 0.0
 
     def click(self, *args, **kwargs):
         kwargs.setdefault("move", True)
@@ -65,7 +68,6 @@ class FishingTask(BaseNTETask):
                 success_count += 1
             else:
                 self.log_error(f"第 {index + 1} 轮钓鱼失败")
-                # 失败后重置状态继续下一轮，避免“设置2轮只跑1轮”
                 self.reset_runtime_state()
         self.info_set("Fishing Success Count", success_count)
         self.log_info(f"自动钓鱼结束，成功 {success_count}/{rounds}", notify=True)
@@ -120,35 +122,38 @@ class FishingTask(BaseNTETask):
                 return False
             self.log_info("进入溜鱼状态")
             return True
-        else:
-            self.log_error("等待鱼儿咬钩超时")
-            return False
+        self.log_error("等待鱼儿咬钩超时")
+        return False
 
     def control_until_finish(self) -> bool:
         deadline = time.time() + self.CONTROL_TIMEOUT
         failed_time = 0
-        while time.time() < deadline:
-            state = self.get_bar_state()
-            if self.is_valid_bar_state(state):
-                self.apply_bar_control(state)
+        try:
+            while time.time() < deadline:
+                state = self.get_bar_state()
+                if self.is_valid_bar_state(state):
+                    self.apply_bar_control(state)
+                else:
+                    self._release_control_key()
 
-            if self.is_fish_bait_exist():
-                if failed_time == 0:
-                    failed_time = time.time()
-            else:
-                failed_time = 0
+                if self.is_fish_bait_exist():
+                    if failed_time == 0:
+                        failed_time = time.time()
+                else:
+                    failed_time = 0
 
-            if failed_time != 0 and time.time() - failed_time > 5:
-                self.log_error("疑似脱钩或失败")
-                return False
+                if failed_time != 0 and time.time() - failed_time > 5:
+                    self.log_error("疑似脱钩或失败")
+                    return False
 
-            if self.is_success_overlay():
-                return True
+                if self.is_success_overlay():
+                    return True
 
-            self.next_frame()
-        else:
+                self.next_frame()
             self.log_error("控条阶段超时")
-        return False
+            return False
+        finally:
+            self._release_control_key()
 
     def apply_bar_control(self, state: dict):
         now = time.time()
@@ -158,30 +163,92 @@ class FishingTask(BaseNTETask):
 
         zone_center = (zone_left + zone_right) // 2
         zone_width = max(1, zone_right - zone_left)
-        
-        dist_from_center = pointer - zone_center
-        abs_dist = abs(dist_from_center)
-        
-        deadzone = max(2, int(zone_width * 0.06))
-        
-        if abs_dist <= deadzone:
-            if now - getattr(self, "_last_bar_log_time", 0) > 0.5:
-                self.log_info(f"指针已锁定中心: pointer={pointer}, target={zone_center}")
+
+        prev_pointer = self._prev_bar_pointer if self._prev_bar_pointer is not None else pointer
+        dt = max(0.001, now - self._prev_bar_time) if self._prev_bar_time else 0.016
+        velocity = (pointer - prev_pointer) / dt
+        velocity = max(-1800.0, min(1800.0, velocity))
+
+        # Adapt lead time to the actual frame interval. Slower machines need
+        # more forward prediction, faster machines need less.
+        lead_time = min(0.080, max(0.035, dt * 2.0))
+        predicted_pointer = int(round(pointer + velocity * lead_time))
+        error = predicted_pointer - zone_center
+        abs_error = abs(error)
+
+        hard_deadzone = max(5, int(zone_width * 0.08))
+        soft_deadzone = max(hard_deadzone + 6, int(zone_width * 0.16))
+
+        if abs_error <= hard_deadzone:
+            if now - self._last_bar_log_time > 0.5:
+                self.log_info(
+                    f"控条稳定: pointer={pointer}, predict={predicted_pointer}, "
+                    f"target={zone_center}, hard={hard_deadzone}"
+                )
                 self._last_bar_log_time = now
+            self._release_control_key()
+            self._prev_bar_pointer = pointer
+            self._prev_bar_time = now
             return
 
-        key = "d" if dist_from_center < 0 else "a"
+        desired_key = "d" if error < 0 else "a"
 
-        ratio = abs_dist / (zone_width / 2)
-        
-        base_hold = 0.015
-        
-        hold_ext = (ratio ** 1.2) * 0.15
-        hold = base_hold + hold_ext
-        
-        hold = min(0.20, max(0.01, hold))
+        moving_toward_center = (error < 0 and velocity > 60) or (error > 0 and velocity < -60)
+        moving_away = (error < 0 and velocity < -60) or (error > 0 and velocity > 60)
 
-        self.send_key(key, down_time=hold)
+        # Hysteresis:
+        # - once we are already holding the correct direction, keep holding it
+        #   until we truly enter the hard deadzone
+        # - only release early when we are very close to center and momentum is
+        #   clearly carrying the pointer inward
+        if abs_error <= soft_deadzone:
+            if self._held_control_key == desired_key:
+                desired_key = self._held_control_key
+            elif moving_toward_center and abs_error <= max(hard_deadzone + 3, hard_deadzone * 2):
+                desired_key = None
+
+        # Direction-switch hysteresis:
+        # when we already hold one direction, do not instantly flip on a small
+        # opposite error near the boundary. Require either more error or a short
+        # dwell time before reversing.
+        if (
+            desired_key is not None
+            and self._held_control_key is not None
+            and desired_key != self._held_control_key
+        ):
+            time_since_switch = now - self._last_control_switch_time
+            switch_error_gate = max(soft_deadzone + 4, int(zone_width * 0.28))
+            if abs_error < switch_error_gate and time_since_switch < 0.14:
+                desired_key = self._held_control_key
+
+        if now - self._last_bar_log_time > 0.2:
+            self.log_info(
+                f"控条输入: key={desired_key}, held={self._held_control_key}, pointer={pointer}, "
+                f"predict={predicted_pointer}, target={zone_center}, error={abs_error}, "
+                f"vel={velocity:.1f}, lead={lead_time:.3f}, hard={hard_deadzone}, "
+                f"soft={soft_deadzone}, away={moving_away}"
+            )
+            self._last_bar_log_time = now
+
+        self._set_control_key(desired_key)
+        self._prev_bar_pointer = pointer
+        self._prev_bar_time = now
+
+    def _set_control_key(self, key):
+        if key == self._held_control_key:
+            return
+        if self._held_control_key is not None:
+            self.send_key_up(self._held_control_key)
+            self._held_control_key = None
+        if key is not None:
+            self.send_key_down(key)
+            self._held_control_key = key
+            self._last_control_switch_time = time.time()
+
+    def _release_control_key(self):
+        if self._held_control_key is not None:
+            self.send_key_up(self._held_control_key)
+            self._held_control_key = None
 
     def get_bar_state(self):
         return self.detect_fishing_bar_state()
@@ -199,7 +266,6 @@ class FishingTask(BaseNTETask):
             return False
         if not (0 <= pointer_center < image_width):
             return False
-        # 过滤明显误检：绿区贴边且指针又远离，通常不是有效拉力条
         edge_zone = zone_left <= 1 or zone_right >= image_width - 2
         if edge_zone and abs(pointer_center - int((zone_left + zone_right) / 2)) > int(
             image_width * 0.38
@@ -208,11 +274,9 @@ class FishingTask(BaseNTETask):
         return True
 
     def is_fishing_entry(self) -> bool:
-        # TODO: 替换为非 OCR 方式检测“钓鱼”交互入口 (如图标匹配或特征颜色)
         return False
 
     def is_start_panel(self) -> bool:
-        # TODO: 替换为非 OCR 方式检测“钓鱼准备面板”或“开始钓鱼”按钮
         return False
 
     def is_success_overlay(self) -> bool:
@@ -237,12 +301,12 @@ class FishingTask(BaseNTETask):
     def reset_runtime_state(self):
         self._fishing_started = False
         self._last_bar_log_time = 0.0
+        self._prev_bar_pointer = None
+        self._prev_bar_time = 0.0
+        self._held_control_key = None
+        self._last_control_switch_time = 0.0
 
     def detect_fishing_bar_state(self):
-        """
-        Detect the fishing control bar state from a cropped top-bar image using
-        contour analysis to filter noise.
-        """
         box = self.box_of_screen(*self.BAR_BOX, name="fishing_bar")
         image = box.crop_frame(self.frame)
         if image is None or image.size == 0:
@@ -251,20 +315,21 @@ class FishingTask(BaseNTETask):
         hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
 
         green_mask = cv2.inRange(
-            hsv, np.array([50, 150, 160], dtype=np.uint8), np.array([160, 220, 255], dtype=np.uint8)
+            hsv,
+            np.array([50, 150, 160], dtype=np.uint8),
+            np.array([160, 220, 255], dtype=np.uint8),
         )
         yellow_mask = cv2.inRange(
-            hsv, np.array([20, 60, 195], dtype=np.uint8), np.array([55, 200, 255], dtype=np.uint8)
+            hsv,
+            np.array([20, 60, 195], dtype=np.uint8),
+            np.array([55, 200, 255], dtype=np.uint8),
         )
-
-        # iu.show_images([green_mask, yellow_mask], names=["green_mask", "yellow_mask"], wait_key=1)
 
         kernel = np.ones((3, 3), dtype=np.uint8)
         green_mask = cv2.morphologyEx(green_mask, cv2.MORPH_OPEN, kernel)
         green_mask = cv2.morphologyEx(green_mask, cv2.MORPH_CLOSE, kernel)
         yellow_mask = cv2.morphologyEx(yellow_mask, cv2.MORPH_OPEN, kernel)
         yellow_mask = cv2.morphologyEx(yellow_mask, cv2.MORPH_CLOSE, kernel)
-        # iu.show_images([green_mask, yellow_mask], names=["green_mask", "yellow_mask"])
 
         yellow_contours, _ = cv2.findContours(
             yellow_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
@@ -277,7 +342,9 @@ class FishingTask(BaseNTETask):
         else:
             pointer_center = -1
 
-        green_contours, _ = cv2.findContours(green_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        green_contours, _ = cv2.findContours(
+            green_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
+        )
         green_candidates = []
         for contour in green_contours:
             x, y, w, h = cv2.boundingRect(contour)
@@ -311,33 +378,16 @@ class FishingTask(BaseNTETask):
         }
 
     def is_fish_start_exist(self):
-        """
-        检测开始钓鱼按钮是否存在
-        """
-        # box = self.box_of_screen(*self.START_FISHING_BOX, name="start_fishing")
-        # return self.calculate_color_percentage(text_white_color, box) > 0.09
         return self.find_one(Labels.fish_start)
 
     def is_success_text_exist(self):
-        """
-        检测成功文本是否存在
-        """
         box = self.box_of_screen(*self.SUCCESS_TEXT_BOX, name="success_text")
         return self.calculate_color_percentage(text_white_color, box) > 0.2
 
     def is_fish_bait_exist(self):
-        """
-        检测鱼饵是否存在
-        """
-        # box = self.box_of_screen(*self.FISH_BAIT_BOX, name="fish_bait")
-        # return self.calculate_color_percentage(text_white_color, box) > 0.06
         return self.find_one(Labels.fish_bait)
 
     def is_fishing_bite(self):
-        """
-        Detect the blue bite/reel indicator shown at the bottom-right of the fishing UI.
-        聚焦于中心 70% 半径区域以提高识别精度。
-        """
         box = self.box_of_screen(*self.BITE_INDICATOR_BOX, name="fishing_bite_indicator")
         image = box.crop_frame(self.frame)
 
@@ -352,16 +402,13 @@ class FishingTask(BaseNTETask):
         cv2.circle(circle_mask, center, target_radius, 0, -1)
 
         masked_blue = cv2.bitwise_and(blue_mask, circle_mask)
-
         blue_pixels = int(cv2.countNonZero(masked_blue))
-
         total_circle_pixels = int(cv2.countNonZero(circle_mask))
 
         if total_circle_pixels == 0:
             return 0.0
 
         blue_pixels_ratio = blue_pixels / total_circle_pixels
-
         return blue_pixels_ratio > 0.07
 
 
