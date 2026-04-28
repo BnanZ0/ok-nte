@@ -51,8 +51,10 @@ class FishingTask(BaseNTETask):
         self._last_bar_log_time = 0.0
         self._morph_kernel = np.ones((3, 3), dtype=np.uint8)
         self._bar_active_key = None
+        self._last_key_time = 0
+        self._key_interval = 0.03  # 30ms
         self.add_exit_after_config()
-        
+
     def click(self, *args, **kwargs):
         kwargs.setdefault("move", True)
         return super().click(*args, **kwargs)
@@ -247,17 +249,36 @@ class FishingTask(BaseNTETask):
 
         key = "d" if dist_from_center < 0 else "a"
 
-        ratio = abs_dist / (zone_width / 2)
+        ratio = min(1.0, abs_dist / (zone_width / 2))
 
-        base_hold = 0.015
+        # S 曲线
+        curve = ratio * ratio * (3 - 2 * ratio)
 
-        hold_ext = (ratio ** 1.2) * 0.15
-        hold = base_hold + hold_ext
+        base_hold = 0.01
+        max_hold_ext = 0.18
 
-        hold = min(0.20, max(0.01, hold))
-        
+        hold = base_hold + curve * max_hold_ext
+
+        # 死区
+        deadzone = max(2, int(zone_width * 0.08))
+        if abs_dist <= deadzone:
+            return
+
+        # 方向
+        key = "d" if dist_from_center < 0 else "a"
+
+        # 方向变化削弱
+        if key != getattr(self, "_last_direction", None):
+            hold *= 0.6
+
+        self._last_direction = key
+
+        # 倍率
         multiplier = float(self.config.get("离散按键倍数", 1.0))
-        hold = hold * multiplier
+        hold *= multiplier
+
+        # 限制
+        hold = min(0.2, max(0.01, hold))
 
         self.send_key(key, down_time=hold)
 
