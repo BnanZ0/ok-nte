@@ -35,3 +35,4 @@ class Labels(str, Enum):
     monthly_card = 'monthly_card'
     skip_dialog = 'skip_dialog'
     skip_quest_confirm = 'skip_quest_confirm'
+    target = 'target'

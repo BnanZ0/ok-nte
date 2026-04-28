@@ -77,6 +77,12 @@
             "file_name": "images/0.png",
             "width": 2560,
             "height": 1440
+        },
+        {
+            "id": 14,
+            "file_name": "images/0.png",
+            "width": 2560,
+            "height": 1440
         }
     ],
     "annotations": [
@@ -508,6 +514,19 @@
             ],
             "area": 7209,
             "iscrowd": 0
+        },
+        {
+            "id": 34,
+            "image_id": 14,
+            "category_id": 33,
+            "bbox": [
+                1107,
+                648,
+                21,
+                21
+            ],
+            "area": 441,
+            "iscrowd": 0
         }
     ],
     "categories": [
@@ -669,6 +688,11 @@
         {
             "id": 32,
             "name": "f2_mission_panel",
+            "supercategory": ""
+        },
+        {
+            "id": 33,
+            "name": "target",
             "supercategory": ""
         },
         {

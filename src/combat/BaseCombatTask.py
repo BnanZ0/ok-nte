@@ -403,6 +403,7 @@ class BaseCombatTask(CombatCheck):
 
             if not is_char_switched:
                 self.click(interval=0.2)
+                self.sleep(0.001)
             else:
                 self.in_ultimate = False
                 current_char.switch_out()
@@ -442,7 +443,7 @@ class BaseCombatTask(CombatCheck):
                 self.next_frame()
                 continue
 
-            if current_time - last_click_time > 0.1:
+            if current_time - last_click_time > 0.2:
                 self.send_key(switch_to.index + 1)
                 self.sleep(0.001)
                 last_click_time = current_time
@@ -599,10 +600,12 @@ class BaseCombatTask(CombatCheck):
 
     def load_chars(self) -> bool:
         """加载队伍中的角色信息。"""
+        ret = False
+        now = time.perf_counter()
         self.load_hotkey()
         in_team, current_index, count = self.in_team()
         if not in_team or current_index == -1:
-            return False
+            return ret
 
         if count > 4:
             logger.warning(f"char count {count} larger than 4, set to 4")
@@ -639,8 +642,9 @@ class BaseCombatTask(CombatCheck):
 
         if self.team_size > 0:
             self.combat_start = time.time()
-            return True
-        return False
+            ret = True
+        logger.debug(f"load_chars cost {time.perf_counter() - now:.3f}s")
+        return ret
 
     def load_chars_element(self, count=4) -> List[Element]:
         def preprocess_image(image):
@@ -822,7 +826,7 @@ class BaseCombatTask(CombatCheck):
         if self.chars_slot_mat[index] is not None:
             img1, img2 = check_size(self.chars_slot_mat[index], current_mat)
             confidence = ssim(img1, img2, channel_axis=-1)
-            self.log_debug(f"compare_char_slot: confidence {confidence}")
+            # self.log_debug(f"compare_char_slot: confidence {confidence}")
         self.chars_slot_mat[index] = current_mat
         return confidence < 0.7
 

@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING
 import cv2
 import numpy as np
 
-from ok import Box, Logger, color_range_to_bound, find_color_rectangles
+from ok import Box, Logger, find_color_rectangles
 from src.Labels import Labels
 from src.tasks.BaseNTETask import BaseNTETask
 from src.utils import game_filters as gf
@@ -92,14 +92,121 @@ class CombatCheck(BaseNTETask):
                 logger.info(f"target lost try retarget {self.target_enemy_time_out}")
                 start = time.time()
                 while time.time() - start < self.target_enemy_time_out:
-                    self.middle_click(interval=0.4)
+                    self.middle_click(interval=0.2)
                     if self.combat_detect()[0] is True:
                         return True
                     self.next_frame()
 
     def has_target(self, frame=None):
-        ret = self.find_diamond_target(frame=frame)[0] is not None
+        # now = time.perf_counter()
+        ret = self.find_target(frame=frame)
+        # logger.debug(f"has_target cost {time.perf_counter() - now:.3f}")
         return ret
+
+    def find_target(self, frame=None):
+        def filter(image):
+            return iu.binarize_bgr_by_brightness(image, threshold=245)
+
+        if frame is None:
+            frame = self.frame
+
+        # 1. 提前 Crop，裁减检索区域面积，直接在 ROI 操作
+        box = self.box_of_screen(0.2, 0.2, 0.8, 0.8)
+        roi = box.crop_frame(frame)
+        self.draw_boxes("find_target", box, color="blue")
+
+        # 2. 获取纯白核心并前置判断
+        pure_white_mask = cv2.inRange(roi, (255, 255, 255), (255, 255, 255))
+        if cv2.countNonZero(pure_white_mask) == 0:
+            return False
+
+        # 3. 对 ROI 进行二值化，直接转换为单通道灰度图
+        roi_bin = filter(roi)
+        roi_gray = cv2.cvtColor(roi_bin, cv2.COLOR_BGR2GRAY)
+
+        pw_num_labels, pw_labels, pw_stats, _ = cv2.connectedComponentsWithStats(
+            pure_white_mask, connectivity=8
+        )
+
+        for scale in np.arange(1, 0.2, -0.3):
+            template = self.resize_target(scale)
+            th, tw = template.shape[:2]
+            template_area = th * tw
+
+            # 模板转换为单通道灰度图，保证 matchTemplate 工作在 1 channel 提升3倍速度
+            template_gray = (
+                cv2.cvtColor(template, cv2.COLOR_BGR2GRAY) if len(template.shape) == 3 else template
+            )
+
+            for i in range(1, pw_num_labels):
+                pw_w = pw_stats[i, cv2.CC_STAT_WIDTH]
+                pw_h = pw_stats[i, cv2.CC_STAT_HEIGHT]
+                pw_area = pw_w * pw_h
+                if pw_area > template_area:
+                    continue
+
+                pw_x = pw_stats[i, cv2.CC_STAT_LEFT]
+                pw_y = pw_stats[i, cv2.CC_STAT_TOP]
+                cx = pw_x + pw_w // 2
+                cy = pw_y + pw_h // 2
+
+                # 设定一个小框(长宽为原目标的 ~2倍)，给予哪怕位移造成的冗余也足够匹配
+                pad_x = int(tw * 1.0)
+                pad_y = int(th * 1.0)
+
+                y1 = max(0, cy - pad_y)
+                y2 = min(roi_gray.shape[0], cy + pad_y)
+                x1 = max(0, cx - pad_x)
+                x2 = min(roi_gray.shape[1], cx + pad_x)
+
+                # 切割出微型区域 (例如 100x100 像素量级)
+                crop = roi_gray[y1:y2, x1:x2].copy()
+
+                # 如果切割的区域因为在边缘而导致依然小于模板范围，则跳过
+                if crop.shape[0] < th or crop.shape[1] < tw:
+                    continue
+
+                # 在这几百像素的极小图上运算连通域，开销为 0
+                num_labels, labels, stats, _ = cv2.connectedComponentsWithStats(
+                    crop, connectivity=8
+                )
+                for j in range(1, num_labels):
+                    if (
+                        stats[j, cv2.CC_STAT_WIDTH] * stats[j, cv2.CC_STAT_HEIGHT]
+                        > template_area * 1.2
+                    ):
+                        crop[labels == j] = 0
+
+                # 原图单通道、模板单通道
+                res = cv2.matchTemplate(crop, template_gray, cv2.TM_CCOEFF_NORMED)
+                _, max_val, _, max_loc = cv2.minMaxLoc(res)
+
+                if max_val > 0.6:
+                    center_x = box.x + x1 + max_loc[0] + tw // 2
+                    center_y = box.y + y1 + max_loc[1] + th // 2
+
+                    result_box = Box(
+                        center_x - tw // 2,
+                        center_y - th // 2,
+                        width=tw,
+                        height=th,
+                        confidence=max_val,
+                    )
+                    self.draw_boxes("target", result_box, color="red")
+
+                    return result_box
+
+        return False
+
+    def resize_target(self, scale=1):
+        template = self.get_feature_by_name(Labels.target).mat
+        if scale == 1:
+            return template
+        h, w = template.shape[:2]
+        template = cv2.resize(
+            template, (int(w * scale), int(h * scale)), interpolation=cv2.INTER_NEAREST
+        )
+        return template
 
     def has_health_bar(self):
         if self._find_red_health_bar() or self._find_boss_health_bar():
@@ -190,7 +297,7 @@ class CombatCheck(BaseNTETask):
         else:
             from src.tasks.trigger.AutoCombatTask import AutoCombatTask
 
-            has_target = self.has_target()
+            has_target = self.async_combat_detect(target=True, lv=False)
             if not has_target and target:
                 self.log_debug("try target")
                 self.middle_click(after_sleep=0.1)
@@ -212,139 +319,12 @@ class CombatCheck(BaseNTETask):
                 self._in_combat = self.load_chars()
                 return self._in_combat
 
-    def create_rhombus_template(self, size):
-        """
-        版模板生成器：支持奇数(如9x9)的尖顶，也完美支持偶数(如10x10)的平顶
-        """
-        template = np.zeros((size, size), dtype=np.uint8)
-        mask = np.zeros((size, size), dtype=np.uint8)
-
-        # 浮点数中心点，完美解决偶数尺寸没有绝对中心的问题
-        cy, cx = (size - 1) / 2.0, (size - 1) / 2.0
-
-        for i in range(size):
-            for j in range(size):
-                # 计算到中心的精确曼哈顿距离
-                dist = abs(i - cy) + abs(j - cx)
-
-                # 动态划分内核与外框的范围
-                if dist < (size / 2.0) - 1.5:
-                    template[i, j] = 255
-                    mask[i, j] = 255
-                elif dist < (size / 2.0) + 0.5:
-                    template[i, j] = 0
-                    mask[i, j] = 255
-
-        return template, mask
-
-    def find_diamond_target(self, scales=range(10, 15), threshold=0.8, frame=None):
-        """
-        在图像中心 50% 范围内寻找黑框白底菱形
-        利用屏幕比例动态收缩范围 + 智能颜色遮罩剔除背景杂讯
-        """
+    def combat_detect(self, frame=None, target=True, lv=True):
         if frame is None:
             frame = self.frame
-        ratio = self.height / 1440.0
-
-        dynamic_scales = set()
-        for base_size in scales:
-            new_size = max(5, int(round(base_size * ratio)))
-            dynamic_scales.add(new_size)
-        dynamic_scales = sorted(list(dynamic_scales))
-
-        box = self.box_of_screen(0.25, 0.25, 0.75, 0.75)
-        roi = box.crop_frame(frame)
-
-        # ==========================================
-        # 【核心优化】：智能颜色过滤 + 保留灰度特征
-        # ==========================================
-        # 1. 严格过滤白内核 (建议范围放宽一点点如240-255，防止抗锯齿导致核心不是纯白)
-        color = {
-            "r": (255, 255),
-            "g": (255, 255),
-            "b": (255, 255),
-        }
-        lower_bound, upper_bound = color_range_to_bound(color)  # 假设你有这个辅助函数
-        white_mask = cv2.inRange(roi, lower_bound, upper_bound)
-
-        # 2. 【极大提升性能】初步检查
-        if cv2.countNonZero(white_mask) == 0:
-            return None, None, None
-
-        # ==========================================================
-        # 【新增】：剔除过大的白块 (Size Filtering)
-        # ==========================================================
-        # 获取当前最大的预期尺寸
-        max_allowed_size = max(dynamic_scales) * 1.2  # 允许 20% 的冗余误差
-
-        # 查找连通区域
-        # connectivity=8 表示 8 邻域插件；stats 包含 [x, y, w, h, area]
-        num_labels, labels, stats, _ = cv2.connectedComponentsWithStats(white_mask, connectivity=8)
-
-        # 遍历所有找到的“块”（索引 0 是背景，从 1 开始）
-        for i in range(1, num_labels):
-            w = stats[i, cv2.CC_STAT_WIDTH]
-            h = stats[i, cv2.CC_STAT_HEIGHT]
-            # area = stats[i, cv2.CC_STAT_AREA]
-
-            # 过滤条件：如果宽度或高度明显超过了最大模板尺寸
-            # 或者你可以根据面积过滤：area > max_allowed_size**2
-            if w > max_allowed_size or h > max_allowed_size:
-                white_mask[labels == i] = 0  # 将过大的块抹黑
-
-        # 再次检查抹除后是否还有剩余有效区域
-        if cv2.countNonZero(white_mask) == 0:
-            return None, None, None
-        # ==========================================================
-
-        # 4. 提取原灰度图，应用过滤后的掩码
-        roi_gray_original = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY) if len(roi.shape) == 3 else roi
-        # 将无效区域设为 0 (黑色)，有效区域保留原图细节
-        roi_gray = np.where(white_mask == 255, roi_gray_original, 0)
-
-        # iu.show_images(roi_gray, name="roi_gray")
-        # ==========================================
-
-        best_match_val = -1.0
-        best_loc = None
-        best_scale = None
-
-        for size in dynamic_scales:
-            template, mask = self.create_rhombus_template(size)
-            # iu.show_images(template, name="template")
-
-            res = cv2.matchTemplate(roi_gray, template, cv2.TM_CCOEFF_NORMED)
-
-            _, max_val, _, max_loc = cv2.minMaxLoc(res)
-
-            if max_val > best_match_val:
-                best_match_val = max_val
-                best_loc = max_loc
-                best_scale = size
-
-        if best_match_val >= threshold:
-            center_x = box.x + best_loc[0] + best_scale // 2
-            center_y = box.y + best_loc[1] + best_scale // 2
-
-            result_box = Box(
-                center_x - best_scale // 2,
-                center_y - best_scale // 2,
-                width=best_scale,
-                height=best_scale,
-                confidence=best_match_val,
-            )
-            self.draw_boxes("target", result_box, color="blue")
-
-            return (center_x, center_y), best_scale, best_match_val
-        else:
-            return None, None, None
-
-    def combat_detect(self, frame=None):
-        if frame is None:
-            frame = self.frame
-        if self.has_target(frame=frame):
+        if target and self.has_target(frame=frame):
             return True, "target"
-        if self.ocr(
+        if lv and self.ocr(
             frame=frame,
             box=self.main_viewport,
             frame_processor=gf.isolate_lv_to_black,
@@ -355,7 +335,7 @@ class CombatCheck(BaseNTETask):
             return True, "lv"
         return False, None
 
-    def async_combat_detect(self):
+    def async_combat_detect(self, target=True, lv=True):
         if self.combat_detect_future and self.combat_detect_future.done():
             ret, reason = self.combat_detect_future.result()
             self.combat_detect_future = None
@@ -365,9 +345,10 @@ class CombatCheck(BaseNTETask):
             self.logger.info("combat_detect_future submit")
             frame = self.frame
             self.combat_detect_future = self.thread_pool_executor.submit(
-                self.combat_detect, frame=frame
+                self.combat_detect, frame=frame, target=target, lv=lv
             )
         return None
+
 
 enemy_health_hsv = iu.HSVRange((0, 190, 175), (10, 255, 255))
 
