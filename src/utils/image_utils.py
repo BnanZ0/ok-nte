@@ -1,37 +1,13 @@
 from dataclasses import dataclass
+from typing import Tuple
 
 import cv2
 import numpy as np
+
 from ok import color_range_to_bound
 
-from src import text_white_color
 
-dialog_white_color = {
-    "r": (220, 240),  # Red range
-    "g": (220, 240),  # Green range
-    "b": (220, 240),  # Blue range
-}
-
-lv_white_color = {
-    "r": (210, 255),  # Red range
-    "g": (210, 255),  # Green range
-    "b": (210, 255),  # Blue range
-}
-
-
-def isolate_cd_to_black(cv_image):
-    return create_color_mask(cv_image, text_white_color, invert=True)
-
-
-def isolate_lv_to_black(cv_image):
-    return create_color_mask(cv_image, lv_white_color, invert=True)
-
-
-def isolate_dialog_to_white(cv_image):
-    return create_color_mask(cv_image, dialog_white_color, invert=False)
-
-
-def binarize_bgr_by_brightness(image, threshold=180, binary=False):
+def binarize_bgr_by_brightness(image, threshold=180, to_bgr: bool = True):
     """
     根据亮度阈值对 BGR 图像进行二值化，并返回 BGR 格式的结果。
 
@@ -42,15 +18,15 @@ def binarize_bgr_by_brightness(image, threshold=180, binary=False):
     - 经过二值化处理的 BGR 图像 (MatLike)
     """
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    _, binary_gray = cv2.threshold(gray, threshold, 255, cv2.THRESH_BINARY)
-    if binary:
-        return binary_gray
-    binary_bgr = cv2.cvtColor(binary_gray, cv2.COLOR_GRAY2BGR)
+    _, binary_mask = cv2.threshold(gray, threshold, 255, cv2.THRESH_BINARY)
+    if not to_bgr:
+        return binary_mask
+    binary_bgr = cv2.cvtColor(binary_mask, cv2.COLOR_GRAY2BGR)
 
     return binary_bgr
 
 
-def binarize_bgr_by_adaptive_center(image):
+def binarize_bgr_by_adaptive_center(image, to_bgr: bool = True):
     """
     根据图像中心 50% 范围的亮度自适应计算阈值，并对全图进行二值化。
 
@@ -78,10 +54,12 @@ def binarize_bgr_by_adaptive_center(image):
     ret, _ = cv2.threshold(roi, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
 
     # 6. 使用计算出的阈值对整张灰度图进行二值化
-    _, binary_gray = cv2.threshold(gray, ret, 255, cv2.THRESH_BINARY)
+    _, binary_mask = cv2.threshold(gray, ret, 255, cv2.THRESH_BINARY)
+    if not to_bgr:
+        return binary_mask
 
     # 7. 转回 BGR 格式
-    binary_bgr = cv2.cvtColor(binary_gray, cv2.COLOR_GRAY2BGR)
+    binary_bgr = cv2.cvtColor(binary_mask, cv2.COLOR_GRAY2BGR)
 
     return binary_bgr
 
@@ -119,7 +97,9 @@ def blackout_corners_by_circle(image):
     return masked_image
 
 
-def binarize_bgr_by_adaptive_brightness(image, ratio_threshold=0.05, offset=20, min_threshold=100):
+def binarize_bgr_by_adaptive_brightness(
+    image, ratio_threshold=0.05, offset=20, min_threshold=100, to_bgr: bool = True
+):
     """
     根据图像平均亮度动态计算“高亮度”阈值进行二值化。
 
@@ -154,8 +134,10 @@ def binarize_bgr_by_adaptive_brightness(image, ratio_threshold=0.05, offset=20, 
     else:
         final_threshold = 255
 
-    _, binary_gray = cv2.threshold(gray, int(final_threshold), 255, cv2.THRESH_BINARY)
-    binary_bgr = cv2.cvtColor(binary_gray, cv2.COLOR_GRAY2BGR)
+    _, binary_mask = cv2.threshold(gray, int(final_threshold), 255, cv2.THRESH_BINARY)
+    if not to_bgr:
+        return binary_mask
+    binary_bgr = cv2.cvtColor(binary_mask, cv2.COLOR_GRAY2BGR)
 
     return binary_bgr
 
@@ -219,7 +201,7 @@ def mask_outside_white_rect(image):
 
 
 def create_color_mask(
-    cv_image: np.ndarray, color_range, invert: bool = False, gray: bool = False
+    cv_image: np.ndarray, color_range, invert: bool = False, to_bgr: bool = True
 ) -> np.ndarray:
     """
     根据指定颜色范围生成3通道BGR掩码图.
@@ -228,17 +210,17 @@ def create_color_mask(
         cv_image (np.ndarray): 输入的OpenCV图像.
         color_range (Any): 目标颜色范围.
         invert (bool): 是否反转掩码, 默认为False.
-        gray (bool): 是否返回灰度图, 默认为False.
+        to_bgr (bool): 是否返回3通道BGR图(掩码), 默认为True.
 
     Returns:
-        np.ndarray: 3通道BGR掩码图(匹配区为白, 非匹配区为黑).
+        np.ndarray: 3通道BGR掩码图(匹配区为白, 非匹配区为黑)或单通道二值掩码图.
     """
     lower_bound, upper_bound = color_range_to_bound(color_range)
 
     match_mask = cv2.inRange(cv_image, lower_bound, upper_bound)
     if invert:
         match_mask = cv2.bitwise_not(match_mask)
-    if gray:
+    if not to_bgr:
         return match_mask
     output_image = cv2.cvtColor(match_mask, cv2.COLOR_GRAY2BGR)
 
@@ -264,11 +246,82 @@ def show_images(images, names=None, scale=None, wait_key=0):
 
 @dataclass
 class HSVRange:
+    """
+    HSV 颜色范围容器 (OpenCV 格式)
+
+    取值范围提示:
+    - H (Hue): 0 - 179
+    - S (Saturation): 0 - 255
+    - V (Value): 0 - 255
+    """
+
     lower: np.ndarray
     upper: np.ndarray
 
+    def __init__(self, lower: Tuple[int, int, int], upper: Tuple[int, int, int]):
+        """
+        初始化 HSV 范围 (输入值若超出范围会自动修正)
 
-def filter_by_hsv(image, hsv_range: HSVRange):
+        Args:
+            lower: 下限 (h: 0-179, s: 0-255, v: 0-255)
+            upper: 上限 (h: 0-179, s: 0-255, v: 0-255)
+        """
+        min_vals = [0, 0, 0]
+        max_vals = [179, 255, 255]
+
+        lower_clipped = np.clip(lower, min_vals, max_vals)
+        upper_clipped = np.clip(upper, min_vals, max_vals)
+
+        self.lower = np.array(lower_clipped, dtype=np.uint8)
+        self.upper = np.array(upper_clipped, dtype=np.uint8)
+
+
+def filter_by_hsv(image, hsv_range: HSVRange, return_mask: bool = False):
     hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
-    mask = cv2.inRange(hsv, hsv_range.lower, hsv_range.upper)
-    return cv2.bitwise_and(image, image, mask=mask)
+    match_mask = cv2.inRange(hsv, hsv_range.lower, hsv_range.upper)
+    if return_mask:
+        return match_mask
+    return cv2.bitwise_and(image, image, mask=match_mask)
+
+
+def adjust_lightness_contrast_lab(img, brightness=0, contrast=0):
+    """
+    基于 Lab 空间的通用亮度对比度调节函数
+    参数范围建议: brightness (-100 to 100), contrast (-100 to 100)
+    """
+    lab = cv2.cvtColor(img, cv2.COLOR_BGR2Lab)
+    lightness, a, b = cv2.split(lab)
+
+    if contrast >= 0:
+        factor = 1.0 + (contrast / 100.0) * 2.0
+    else:
+        factor = 1.0 + (contrast / 100.0)
+
+    offset = brightness * 1.28
+
+    lut = np.arange(256).astype(np.float32)
+    lut = (lut - 128) * factor + 128 + offset
+
+    lut = np.clip(lut, 0, 255).astype(np.uint8)
+
+    lightness = cv2.LUT(lightness, lut)
+    result_lab = cv2.merge((lightness, a, b))
+    return cv2.cvtColor(result_lab, cv2.COLOR_Lab2BGR)
+
+def dilate_mask(mask: np.ndarray, kernel_size: int = 3, to_bgr: bool = True) -> np.ndarray:
+    """
+    对遮罩（二值图像）进行膨胀处理。
+
+    Args:
+        mask (np.ndarray): 输入的二值遮罩图像.
+        kernel_size (int): 膨胀核的大小, 默认为 3.
+        to_bgr (bool): 是否将结果转换为 BGR 3通道格式, 默认为 True.
+
+    Returns:
+        np.ndarray: 膨胀后的遮罩图像 (3通道BGR或单通道二值图).
+    """
+    kernel = np.ones((kernel_size, kernel_size), np.uint8)
+    dilated = cv2.dilate(mask, kernel, iterations=1)
+    if to_bgr and len(dilated.shape) == 2:
+        dilated = cv2.cvtColor(dilated, cv2.COLOR_GRAY2BGR)
+    return dilated

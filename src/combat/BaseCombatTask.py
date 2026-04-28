@@ -13,6 +13,7 @@ from src.char.CharFactory import get_char_by_name, get_char_by_pos
 from src.char.custom.CustomCharManager import CustomCharManager
 from src.char.Healer import Healer
 from src.combat.CombatCheck import CombatCheck
+from src.utils import game_filters as gf
 from src.utils import image_utils as iu
 
 if TYPE_CHECKING:
@@ -50,7 +51,6 @@ class BaseCombatTask(CombatCheck):
     )
     element_ring_index = {element: index for index, element in enumerate(element_ring)}
     _element_template_cache = {}
-    _element_standard_size = None
 
     def __init__(self, *args, **kwargs):
         """初始化战斗任务。
@@ -225,7 +225,7 @@ class BaseCombatTask(CombatCheck):
         cds["skill"] = 0
         cds["ultimate"] = 0
         texts = self.ocr(
-            0.8594, 0.8847, 0.9578, 0.9139, frame_processor=iu.isolate_cd_to_black, match=cd_regex
+            0.8594, 0.8847, 0.9578, 0.9139, frame_processor=gf.isolate_cd_to_black, match=cd_regex
         )
         for text in texts:
             cd = convert_cd(text)
@@ -607,6 +607,7 @@ class BaseCombatTask(CombatCheck):
         if count > 4:
             logger.warning(f"char count {count} larger than 4, set to 4")
             count = 4
+        self.log_info(f"load_chars count {count} current_index {current_index}")
 
         elements = self.load_chars_element(count)
         self.clear_element_ring_reactions()
@@ -678,17 +679,19 @@ class BaseCombatTask(CombatCheck):
         base_box = self.get_base_char_element_box()
 
         if not self._element_template_cache:
-            ref_img = cv2.imread(f"assets/esper_icons/{Element.BLUE.value}.png")
-            if ref_img is not None:
-                h, w = ref_img.shape[:2]
-                self._element_standard_size = (w, h)
-
+            element_scale = 0.5
             for element in target_elements:
                 raw_template = cv2.imread(
                     f"assets/esper_icons/{element.value}.png", cv2.IMREAD_UNCHANGED
                 )
                 if raw_template is not None:
+                    h, w = raw_template.shape[:2]
                     raw_template = process_transparency(raw_template)
+                    raw_template = cv2.resize(
+                        raw_template,
+                        (int(w * element_scale), int(h * element_scale)),
+                        interpolation=cv2.INTER_NEAREST,
+                    )
                     template_bin = preprocess_image(raw_template)
                     _, mask = cv2.threshold(template_bin, 127, 255, cv2.THRESH_BINARY)
                     kernel = np.ones((30, 30), np.uint8)
@@ -696,16 +699,19 @@ class BaseCombatTask(CombatCheck):
                     # iu.show_images([mask], [f"mask_{element}"])
                     self._element_template_cache[element] = (raw_template, mask)
 
-        vertical_spacing = int(self.height * 176 / 1440)
         _frame = self.frame
         # self.screenshot("load_chars_element", _frame)
 
         for i in range(count):
-            current_box = base_box.copy(y_offset=vertical_spacing * i)
+            base_scale = 8
+            scale = base_scale * 1440 / self.height
+            current_box = self.get_box_by_char_spacing(base_box, i)
             crop_img = current_box.crop_frame(_frame)
             crop_h, crop_w = crop_img.shape[:2]
             crop_resized = cv2.resize(
-                crop_img, (int(crop_w * 16), int(crop_h * 16)), interpolation=cv2.INTER_NEAREST
+                crop_img,
+                (int(crop_w * scale), int(crop_h * scale)),
+                interpolation=cv2.INTER_NEAREST,
             )
             # iu.show_images([crop_resized, crop_img], [f"crop_resized_{i}", f"crop_img_{i}"])
 
@@ -807,10 +813,10 @@ class BaseCombatTask(CombatCheck):
             return img1, img2
 
         confidence = 1
-        frame = self.frame
+        _frame = self.frame
         feature_name = f"char_{index + 1}_text"
         box = self.get_box_by_name(feature_name)
-        current_mat = box.crop_frame(frame)
+        current_mat = box.crop_frame(_frame)
         if reset_char_slot:
             self.chars_slot_mat[index] = None
         if self.chars_slot_mat[index] is not None:

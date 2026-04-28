@@ -1,4 +1,5 @@
 import numpy as np
+
 from ok import BaseScene, Logger
 
 logger = Logger.get_logger(__name__)
@@ -53,9 +54,10 @@ class NTEScene(BaseScene):
                 logger.error(f"Failed to initialize OCR in background: {e}")
 
     def make_bg_ocr(self):
+        from onnxocr.onnx_paddleocr import ONNXPaddleOcr
+
         from ok import og
         from ok.task.TaskExecutor import logger as te_logger
-        from onnxocr.onnx_paddleocr import ONNXPaddleOcr
 
         ocr_config = og.executor.config.get("ocr", {})
         bg_config = ocr_config.get("bg_onnx_ocr") or ocr_config.get("default", {})

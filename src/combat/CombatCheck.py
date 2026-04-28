@@ -4,10 +4,11 @@ from typing import TYPE_CHECKING
 
 import cv2
 import numpy as np
-from ok import Box, Logger, color_range_to_bound, find_color_rectangles
 
+from ok import Box, Logger, color_range_to_bound, find_color_rectangles
 from src.Labels import Labels
 from src.tasks.BaseNTETask import BaseNTETask
+from src.utils import game_filters as gf
 from src.utils import image_utils as iu
 
 if TYPE_CHECKING:
@@ -91,8 +92,8 @@ class CombatCheck(BaseNTETask):
                 logger.info(f"target lost try retarget {self.target_enemy_time_out}")
                 start = time.time()
                 while time.time() - start < self.target_enemy_time_out:
-                    self.middle_click(interval=0.5)
-                    if self.combat_detect() is True:
+                    self.middle_click(interval=0.4)
+                    if self.combat_detect()[0] is True:
                         return True
                     self.next_frame()
 
@@ -176,7 +177,7 @@ class CombatCheck(BaseNTETask):
             #     return self.scene.set_in_combat()
             if self.combat_end_condition is not None and self.combat_end_condition():
                 return self.reset_to_false(reason="end condition reached")
-            combat_detect = self.combat_detect()
+            combat_detect = self.async_combat_detect()
             if combat_detect is None or combat_detect is True:
                 return self.scene.set_in_combat()
             if self.target_enemy(wait=True):
@@ -200,7 +201,7 @@ class CombatCheck(BaseNTETask):
             if not in_combat and has_target:
                 in_combat = self.ocr(
                     box=self.main_viewport,
-                    frame_processor=iu.isolate_lv_to_black,
+                    frame_processor=gf.isolate_lv_to_black,
                     match=re.compile(r"lv", re.IGNORECASE),
                     target_height=720,
                 )
@@ -338,13 +339,15 @@ class CombatCheck(BaseNTETask):
         else:
             return None, None, None
 
-    def _async_combat_detect(self, frame):
+    def combat_detect(self, frame=None):
+        if frame is None:
+            frame = self.frame
         if self.has_target(frame=frame):
             return True, "target"
         if self.ocr(
             frame=frame,
             box=self.main_viewport,
-            frame_processor=iu.isolate_lv_to_black,
+            frame_processor=gf.isolate_lv_to_black,
             match=re.compile(r"lv", re.IGNORECASE),
             target_height=720,
             lib="bg_onnx_ocr",
@@ -352,7 +355,7 @@ class CombatCheck(BaseNTETask):
             return True, "lv"
         return False, None
 
-    def combat_detect(self):
+    def async_combat_detect(self):
         if self.combat_detect_future and self.combat_detect_future.done():
             ret, reason = self.combat_detect_future.result()
             self.combat_detect_future = None
@@ -360,14 +363,13 @@ class CombatCheck(BaseNTETask):
             return ret
         if self.combat_detect_future is None:
             self.logger.info("combat_detect_future submit")
-            frame = self.frame.copy()
+            frame = self.frame
             self.combat_detect_future = self.thread_pool_executor.submit(
-                self._async_combat_detect, frame=frame
+                self.combat_detect, frame=frame
             )
         return None
 
-
-enemy_health_hsv = iu.HSVRange(np.array([0, 190, 175]), np.array([10, 255, 255]))
+enemy_health_hsv = iu.HSVRange((0, 190, 175), (10, 255, 255))
 
 enemy_health_color_red = {
     "r": (210, 255),

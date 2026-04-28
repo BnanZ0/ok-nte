@@ -1,9 +1,9 @@
 import time
 
-from ok import Logger, TriggerTask
 from PySide6.QtCore import QObject, Signal
 from qfluentwidgets import FluentIcon
 
+from ok import Logger, TriggerTask
 from src.char.CharFactory import get_char_feature_by_pos
 from src.char.custom.CustomCharManager import CustomCharManager
 from src.combat.BaseCombatTask import BaseCombatTask, CharDeadException, NotInCombatException

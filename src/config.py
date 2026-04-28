@@ -1,8 +1,8 @@
 import os
 
 import numpy as np
-from ok import ConfigOption
 
+from ok import ConfigOption
 from src.interaction.NTEInteraction import NTEInteraction
 from src.process_feature import process_feature
 
@@ -17,6 +17,16 @@ key_config_option = ConfigOption(
         "Arc Key": "r",
     },
     description="In Game Hotkey for Skills",
+)
+
+monthly_card_config_option = ConfigOption(
+    "Monthly Card Config",
+    {"Check Monthly Card": True, "Monthly Card Time": 4},
+    description="Turn on to avoid interruption by monthly card when executing tasks",
+    config_description={
+        "Check Monthly Card": "Check for monthly card to avoid interruption of tasks",
+        "Monthly Card Time": "Your computer's local time when the monthly card will popup, hour in (1-24)",
+    },
 )
 
 
@@ -62,7 +72,7 @@ config = {
     "debug": False,  # Optional, default: False
     "use_gui": True,  # 目前只支持True
     "config_folder": "configs",  # 最好不要修改
-    "global_configs": [key_config_option],
+    "global_configs": [key_config_option, monthly_card_config_option],
     "screenshot_processor": make_bottom_left_black,  # 在截图的时候对frame进行修改, 可选
     "gui_icon": "icons/icon.png",  # 窗口图标, 最好不需要修改文件名
     "wait_until_before_delay": 0,
@@ -82,12 +92,15 @@ config = {
             "params": {
                 "use_openvino": True,
             },
-        }
+        },
     },
     "windows": {  # Windows游戏请填写此设置
         "exe": "HTGame.exe",
         "hwnd_class": "UnrealWindow",
-        "interaction": [NTEInteraction, "Pynput"],  # Genshin:某些操作可以后台, 部分游戏支持 PostMessage:可后台点击, 极少游戏支持 ForegroundPostMessage:前台使用PostMessage Pynput/PyDirect:仅支持前台使用
+        "interaction": [
+            NTEInteraction,
+            "Pynput",
+        ],  # Genshin:某些操作可以后台, 部分游戏支持 PostMessage:可后台点击, 极少游戏支持 ForegroundPostMessage:前台使用PostMessage Pynput/PyDirect:仅支持前台使用
         "capture_method": [
             "WGC",
             "BitBlt_RenderFull",
@@ -145,11 +158,11 @@ config = {
         "default_threshold": 0.7,  # 默认threshold
         "feature_processor": process_feature,
     },
-    'template_tab': {
+    "template_tab": {
         # 默认是否生成标签枚举
-        'generate_label_enum': True,
+        "generate_label_enum": True,
         # 默认标签枚举的相对路径
-        'label_enum_relative_path': 'src/Labels',
+        "label_enum_relative_path": "src/Labels",
     },
     "version": version,  # 版本
     "my_app": [
@@ -169,6 +182,7 @@ config = {
     "trigger_tasks": [  # 不断执行的触发式任务
         ["src.tasks.trigger.AutoCombatTask", "AutoCombatTask"],
         ["src.tasks.trigger.SkipDialogTask", "SkipDialogTask"],
+        ["src.tasks.trigger.FastTravelTask", "FastTravelTask"],
     ],
     "custom_tabs": [
         ["src.ui.CharHubTab", "CharHubTab"]

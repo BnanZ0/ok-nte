@@ -2,57 +2,63 @@ from datetime import datetime
 
 from qfluentwidgets import FluentIcon
 
+from ok import TaskDisabledException, find_color_rectangles
+from src import text_white_color
+from src.Labels import Labels
 from src.tasks.BaseNTETask import BaseNTETask
+from src.utils import image_utils as iu
 
 
 class DailyTask(BaseNTETask):
-    """日常任务骨架执行器（纯结构版）"""
+    """日常任务执行器"""
+
+    DEFAULT_MOVE = True
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        # ===== 基础信息 =====
         self.name = "日常任务"
         self.description = "暂不可用"
         self.icon = FluentIcon.SYNC
-
-        # ===== 能力开关 =====
-        self.support_schedule_task = True
-
-        # ===== 任务状态管理 =====
-        # pending: 尚未执行的任务
-        # success: 执行成功
-        # failed: 执行失败
-        # skipped: 被配置跳过（未执行）
+        self.support_schedule_task = False
         self.task_status = {"success": [], "failed": [], "skipped": [], "pending": []}
 
-        # ===== 配置 =====
-        self.default_config.update({"日常子项1": True, "日常子项2": True})
-        self.current_task_key = None  # 当前执行的任务
+        self.default_config.update(
+            {
+                "领取邮件": True,
+                "完成每日活跃度": True,
+                "领取活跃度奖励": True,
+                "领取环期任务奖励": True,
+            }
+        )
+        self.current_task_key = None
         self.add_exit_after_config()
 
-    # ==============================
-    # 主流程
-    # ==============================
     def run(self):
-        """执行日常任务主流程。
-
-        初始化任务列表，依次执行子任务，并输出最终结果。
-        """
         try:
-            self.log_info("开始执行日常任务...", notify=True)
-
-            # 定义任务列表，格式为 [(任务配置名称, 任务函数)]
-            tasks = [("日常子项1", self.daily_1), ("日常子项2", self.daily_2)]
-
-            self._reset_task_status(tasks)
-
-            for key, func in tasks:
-                self.execute_task(key, func)
-
-            self._print_result()
-
+            self.do_run()
+        except TaskDisabledException:
+            pass
         except Exception as e:
             self._handle_exception(e)
+
+    def do_run(self):
+        """执行日常任务主流程"""
+        self.log_info("开始执行日常任务")
+
+        tasks = [
+            ("领取邮件", self.claim_mail),
+            ("完成每日活跃度", self.complete_daily_activities),
+            ("领取活跃度奖励", self.claim_activity_rewards),
+            ("领取环期任务奖励", self.claim_battle_pass_rewards),
+        ]
+
+        self._reset_task_status(tasks)
+
+        for key, func in tasks:
+            self.execute_task(key, func)
+
+        self.ensure_main()
+        self._print_result()
 
     def execute_task(self, key, func):
         """执行单个子任务。
@@ -74,7 +80,7 @@ class DailyTask(BaseNTETask):
         self.current_task_key = key
         self.log_info(f"开始任务: {key}")
 
-        # self.ensure_main()  # 每轮任务前确保在主界面
+        self.ensure_main()
 
         result = func()
 
@@ -85,6 +91,7 @@ class DailyTask(BaseNTETask):
             return
 
         self.task_status["success"].append(key)
+        self.log_info(f"任务完成: {key}")
         self.current_task_key = None
 
     def _reset_task_status(self, tasks):
@@ -119,22 +126,74 @@ class DailyTask(BaseNTETask):
         self._print_result()
         raise e
 
-    """
-    以下为各子项任务函数示例，实际使用时请替换为具体实现
-    """
-
-    def daily_1(self):
-        """日常子任务1（占位）。
+    def _open_mail_panel(self):
+        """打开mail panel。
 
         Returns:
             bool: True 表示成功，False 表示失败
         """
-        ...
+        self.log_info("正在打开邮件面板")
+        self.openESCpanel()
+        self.click(0.8707, 0.8736, after_sleep=1)
+        result = self.wait_panel(Labels.mail_panel)
+        if not result:
+            self.log_error("无法找到邮件面板", notify=True)
+            raise Exception("can't find mail panel")
+        return result
 
-    def daily_2(self):
-        """日常子任务2（占位）。
+    def claim_mail(self):
+        """领取邮件"""
+        self.log_info("正在领取邮件奖励")
+        self._open_mail_panel()
+        self.click(0.1289, 0.9299)
+        self.sleep(1)
+        return True
 
-        Returns:
-            bool: True 表示成功，False 表示失败
-        """
-        ...
+    def complete_daily_activities(self):
+        """执行操作完成每日活跃度"""
+        # TODO: 待实现具体逻辑
+        self.log_info("正在执行每日活跃度任务 (TODO)")
+        return True
+
+    def claim_activity_rewards(self):
+        """领取活跃度奖励"""
+        self.log_info("正在领取活跃度奖励")
+        self.openF1panel()
+        self.click(0.0551, 0.3833)
+        self.wait_panel(Labels.f1_activity_panel)
+        if self.find_one(Labels.f1_activity_mission):
+            self.click(0.2348, 0.7653)
+            self.sleep(2)
+
+        if target := self._get_activity_reward_box():
+            self.click(target)
+            self.sleep(1)
+        else:
+            self.log_error("无法找到活跃度奖励领取框")
+            return False
+        return True
+
+    def _get_activity_reward_box(self):
+        target = None
+        box = self.get_box_by_name(Labels.box_f1_activity_reward)
+        mask = iu.binarize_bgr_by_brightness(self.frame, threshold=245, to_bgr=False)
+        mask = iu.dilate_mask(mask, kernel_size=7, to_bgr=True)
+        reward_boxes = find_color_rectangles(
+            mask, color_range=text_white_color, min_width=10, min_height=10, box=box, threshold=0.6
+        )
+        if reward_boxes:
+            target = max(reward_boxes, key=lambda x: x.x)
+            self.draw_boxes(boxes=target)
+        return target
+
+    def claim_battle_pass_rewards(self):
+        """领取环期任务奖励"""
+        self.log_info("正在领取环期任务奖励")
+        self.openF2panel()
+        self.click(0.6934, 0.8229)
+        self.sleep(1)
+        self.click(0.0570, 0.3451)
+        self.wait_panel(Labels.f2_mission_panel)
+        self.click(0.8777, 0.8187)
+        self.sleep(1)
+        return True

@@ -8,7 +8,7 @@ import numpy as np  # noqa
 from ok import Config, Logger, Box  # noqa
 from src import text_white_color  # noqa
 from src.Labels import Labels
-from src.utils import image_utils as iu
+from src.utils import game_filters as gf
 
 from typing import TYPE_CHECKING
 
@@ -444,13 +444,13 @@ class BaseChar:
 
         box_ultimate = self.task.get_box_by_name(Labels.box_ultimate)
         snapshot = box_ultimate.crop_frame(self.task.frame)
-        processed_snapshot = iu.isolate_cd_to_black(snapshot)
+        processed_snapshot = gf.isolate_cd_to_black(snapshot)
         self.task.wait_until(
             lambda: (
                 not self.task.find_one(
                     template=processed_snapshot,
                     box=box_ultimate,
-                    frame_processor=iu.isolate_cd_to_black,
+                    frame_processor=gf.isolate_cd_to_black,
                     threshold=0.7,
                 )
             ),

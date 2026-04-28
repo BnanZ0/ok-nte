@@ -1,9 +1,9 @@
 from concurrent.futures import ThreadPoolExecutor
 from threading import Event
 
-import numpy as np
-from ok import Logger, communicate, og
 from PySide6.QtCore import QObject
+
+from ok import Logger
 
 logger = Logger.get_logger(__name__)
 
