@@ -1,3 +1,4 @@
+import time
 from ok import Logger, TriggerTask
 
 from src import text_white_color
@@ -19,6 +20,7 @@ class SkipDialogTask(TriggerTask, BaseNTETask):
         self.skip = None
         self.trigger_interval = 0.5
         self.skip_message_hold = False
+        self._check_confirm_timer = 0
         self.name = "任务跳过对话"
         self.description = "点击时将短暂控制物理鼠标"
         self.default_config.update(
@@ -50,16 +52,11 @@ class SkipDialogTask(TriggerTask, BaseNTETask):
             Labels.dialog_history, box=self.box_of_screen(0.6887, 0.5160, 0.7121, 0.7764),
             threshold=0.6
         ):
-            for i, box in enumerate(boxes):
-                new_box = box.scale(2)
-                new_box.name += f"_color_{i}"
-                color_percentage = self.calculate_color_percentage(option_pink_color, new_box)
-                # logger.info(f"option {i} color_percentage: {color_percentage}")
-                if color_percentage > 0.3:
-                    break
-            else:
-                return True
-            self.send_key("f", after_sleep=0.1)
+            boxes.sort(key=lambda b: b.y)
+            top_box = boxes[0]
+            bottom_box = boxes[-1]
+            if self.calculate_color_percentage(option_pink_color, top_box.scale(2)) > 0.3:
+                self.click(bottom_box, after_sleep=0.1)
             return True
         return False
 
@@ -105,13 +102,15 @@ class SkipDialogTask(TriggerTask, BaseNTETask):
     def skip_confirm(self):
         if skip_button := self.find_one(Labels.skip_quest_confirm, threshold=0.8):
             # sleep 0.2 to stable click skip button
+            now = time.time()
             self.wait_until(
                 lambda: self.calculate_color_percentage(skip_confirm_color, skip_button) > 0.4,
                 time_out=6,
             )
-            self.sleep(0.2)
-            self.click(0.4508, 0.5194, down_time=0.01, after_sleep=0.4)
-            self.click(skip_button, down_time=0.01, after_sleep=0.1)
+            if time.time() - now < 2.5:
+                self.sleep(0.2)
+                self.click(0.4508, 0.5194, down_time=0.01, after_sleep=0.4)
+            self.click(skip_button, down_time=0.01, after_sleep=0.5)
             if not self.find_one(Labels.skip_quest_confirm, threshold=0.8):
                 return True
         if self.is_in_team():
@@ -135,7 +134,11 @@ class SkipDialogTask(TriggerTask, BaseNTETask):
 
     def check_skip(self):
         if self.try_click_skip():
-            return self.wait_until(self.skip_confirm, time_out=5, raise_if_not_found=False)
+            self._check_confirm_timer = time.time() + 3
+        if self._check_confirm_timer > time.time():
+            return self.skip_confirm()
+        else:
+            self._check_confirm_timer = 0
 
 
 skip_confirm_color = {
