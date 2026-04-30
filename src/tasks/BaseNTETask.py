@@ -112,15 +112,7 @@ class BaseNTETask(BaseTask):
         if not self.is_in_team():
             return False, -1, 0
 
-        arr = self.multi_stage_char_match()
-        results = [
-            c.x < self.get_char_text_box(idx).x for idx, c in enumerate(arr) if c is not None
-        ]
-
-        if results:
-            self.char_ui_offset = sum(results) > (len(results) / 2)
-        else:
-            self.char_ui_offset = False
+        arr = self.update_char_ui_offset()
 
         # self.log_debug(f"in_team {arr}")
         current = -1
@@ -139,6 +131,20 @@ class BaseNTETask(BaseTask):
 
         self._logged_in = True
         return True, current, exist_count + 1
+
+    def update_char_ui_offset(self):
+        now = time.time()
+        arr = self.multi_stage_char_match()
+        results = [
+            c.x < self.get_char_text_box(idx).x for idx, c in enumerate(arr) if c is not None
+        ]
+
+        if results:
+            self.char_ui_offset = sum(results) > (len(results) / 2)
+        else:
+            self.char_ui_offset = False
+        logger.debug(f"update_char_ui_offset cost {time.time() - now:.3f}")
+        return arr
 
     @property
     def char_vertical_spacing(self):
@@ -200,6 +206,7 @@ class BaseNTETask(BaseTask):
 
     def is_char_at_index(self, index, threshold=0.3):
         """判断指定索引是否为当前角色"""
+        self.update_char_ui_offset()
         score = self.get_char_match_score(index)
         new = f"idx {index} conf {score:.3f}"
         if self.info_get("current char") != new:
