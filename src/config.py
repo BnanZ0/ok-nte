@@ -29,6 +29,23 @@ monthly_card_config_option = ConfigOption(
     },
 )
 
+sound_trigger_config_option = ConfigOption(
+    "Sound Trigger Config",
+    {
+        "Enable Sound Trigger": True,
+        "Dodge Threshold": 0.13,
+        "Counter Attack Threshold": 0.12,
+        "Thread Pool Size": 4,
+    },
+    description="Sound-based dodge and counter trigger settings",
+    config_description={
+        "Enable Sound Trigger": "Enable sound recognition for automatic dodge and counter attacks",
+        "Dodge Threshold": "Dodge sound recognition threshold (0.0-1.0, lower is more sensitive)",
+        "Counter Attack Threshold": "Counter attack sound recognition threshold (0.0-1.0, lower is more sensitive)",
+        "Thread Pool Size": "Thread pool size for processing sound trigger operations",
+    },
+)
+
 
 def make_bottom_left_black(frame):  # 可选. 某些游戏截图时遮挡UID使用
     """
@@ -72,7 +89,7 @@ config = {
     "debug": False,  # Optional, default: False
     "use_gui": True,  # 目前只支持True
     "config_folder": "configs",  # 最好不要修改
-    "global_configs": [key_config_option, monthly_card_config_option],
+    "global_configs": [key_config_option, monthly_card_config_option, sound_trigger_config_option],
     "screenshot_processor": make_bottom_left_black,  # 在截图的时候对frame进行修改, 可选
     "gui_icon": "icons/icon.png",  # 窗口图标, 最好不需要修改文件名
     "wait_until_before_delay": 0,
@@ -181,6 +198,7 @@ config = {
     ],
     "trigger_tasks": [  # 不断执行的触发式任务
         ["src.tasks.trigger.AutoCombatTask", "AutoCombatTask"],
+        ["src.tasks.trigger.SoundTriggerTask", "SoundTriggerTask"],
         ["src.tasks.trigger.SkipDialogTask", "SkipDialogTask"],
         ["src.tasks.trigger.FastTravelTask", "FastTravelTask"],
     ],

@@ -7,10 +7,10 @@ from qfluentwidgets import FluentIcon
 from src.char.CharFactory import get_char_feature_by_pos
 from src.char.custom.CustomCharManager import CustomCharManager
 from src.combat.BaseCombatTask import BaseCombatTask, CharDeadException, NotInCombatException
+from src.sound_trigger.SoundCombatContext import SoundCombatContext
 
 
 class ScannerSignals(QObject):
-    # Sends list of dicts: {"index": i, "feat_id": tmp_id, "mat": ndarray, "match": str|None}
     scan_done = Signal(list, str)
 
 
@@ -46,23 +46,36 @@ class AutoCombatTask(BaseCombatTask, TriggerTask):
             self.tr(self.txt_team_not_enough)
 
     def run(self):
+        logger.info("AutoCombatTask: run() called")
         ret = False
-        if not self.scene.is_in_team(self.is_in_team):
+        in_team = self.scene.is_in_team(self.is_in_team)
+        logger.info(f"AutoCombatTask: is_in_team={in_team}")
+        if not in_team:
+            logger.debug("AutoCombatTask: Not in team, returning early")
             return
 
+        logger.info("AutoCombatTask: In team, checking combat state")
         combat_start = time.time()
-        while self.in_combat():
-            ret = True
-            try:
-                self.get_current_char().perform()
-            except CharDeadException:
-                self.log_error("Characters dead", notify=True)
-                break
-            except NotInCombatException as e:
-                logger.info(f"auto_combat_task_out_of_combat {int(time.time() - combat_start)} {e}")
-                break
-        if ret:
-            self.combat_end()
+        
+        try:
+            in_combat = self.in_combat()
+            logger.info(f"AutoCombatTask: in_combat={in_combat}")
+            while in_combat:
+                ret = True
+                try:
+                    char = self.get_current_char()
+                    char.perform()
+                except CharDeadException:
+                    self.log_error("Characters dead", notify=True)
+                    break
+                except NotInCombatException as e:
+                    logger.info(f"auto_combat_task_out_of_combat {int(time.time() - combat_start)} {e}")
+                    break
+                in_combat = self.in_combat()
+            if ret:
+                self.combat_end()
+        finally:
+            pass
 
     def scan_team(self):
         self.log_info("开始扫描当前队伍...")
