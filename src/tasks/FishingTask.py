@@ -149,10 +149,15 @@ class FishingTask(BaseNTETask):
         self.clear_success_overlay_if_present()
 
         if not self.cast_rod():
-            raise TaskDisabledException("未检测到进入抛竿状态")
+            self.log_warning("抛竿失败，尝试恢复")
+            if not self._recover_to_fishing():
+                raise TaskDisabledException("恢复失败，任务终止")
+            if not self.cast_rod():
+                raise TaskDisabledException("恢复后重试抛竿仍失败，任务终止")
 
         if not self.wait_bite():
             self.screenshot(f"fishing_bite_timeout_{round_index}")
+            self._recover_to_fishing()
             return False
 
         if self.control_until_finish():
@@ -161,9 +166,62 @@ class FishingTask(BaseNTETask):
         return False
 
 
+
     # ------------------------------------------------------------------ #
     #  抛竿
     # ------------------------------------------------------------------ #
+    def _recover_to_fishing(self) -> bool:
+        self.log_info("开始恢复流程")
+        self._set_bar_key(None)
+        for attempt in range(4):
+            self.log_info(f"恢复尝试 {attempt + 1}/4：按 ESC")
+            self.send_key("esc")
+            self.sleep(2)
+            if self.in_team_and_world():
+                self.log_info("已回到主世界，尝试重新进入钓鱼场景")
+                if self._reenter_fishing():
+                    self.log_info("重新进入钓鱼场景成功")
+                    return True
+                else:
+                    self.log_error("重新进入钓鱼场景失败")
+                    return False
+            self.log_warning(f"第 {attempt + 1} 次 ESC 后未回到主世界，继续重试")
+        self.log_error("4 次恢复尝试全部失败")
+        return False
+        
+    def _reenter_fishing(self) -> bool:
+        box = self.box_of_screen(*self.ENTER_FISHING_PANEL_BOX)
+        if not self.wait_until(
+            lambda: self.find_one(Labels.skip_quest_confirm, box=box) is not None,
+            pre_action=lambda: self.send_key("f", interval=1.5),
+            time_out=self.OPEN_PANEL_TIMEOUT,
+        ):
+            self.log_error("未检测到钓鱼面板入口")
+            return False
+        self.click(box)
+        self.sleep(1.5)
+        if not self.wait_until(self.is_fish_start_exist, time_out=5):
+            self.log_error("重新进入后未检测到可抛竿状态")
+            return False
+        self.log_info("已进入可抛竿状态")
+        return True
+    
+    def _reenter_fishing(self) -> bool:
+        box = self.box_of_screen(*self.ENTER_FISHING_PANEL_BOX)
+        if not self.wait_until(
+            lambda: self.find_one(Labels.skip_quest_confirm, box=box) is not None,
+            pre_action=lambda: self.send_key("f", interval=1.5),
+            time_out=self.OPEN_PANEL_TIMEOUT,
+        ):
+            self.log_error("未检测到钓鱼面板入口")
+            return False
+        self.click(box)
+        self.sleep(1.5)
+        if not self.wait_until(self.is_fish_start_exist, time_out=5):
+            self.log_error("重新进入后未检测到可抛竿状态")
+            return False
+        self.log_info("已进入可抛竿状态")
+        return True
 
     def enter_fishing_scene(self) -> bool:
         if self.find_interac():
