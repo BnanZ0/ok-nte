@@ -20,6 +20,25 @@ class FishingTask(BaseNTETask):
     SUCCESS_TEXT_BOX = (0.4434, 0.8938, 0.5566, 0.9181)
     ENTER_FISHING_PANEL_BOX = (0.7113, 0.8247, 0.8089, 0.9111)
     SUCCESS_CLOSE_POS = (0.12, 0.88)
+
+    # 抛竿失败后点击的按钮位置（相对坐标）
+    CAST_RETRY_POS = (0.839, 0.875)
+
+    # 卖鱼操作相对坐标序列
+    SELL_FISH_STEP1 = (0.075, 0.391)   # 点击售鱼类别
+    SELL_FISH_STEP2 = (0.559, 0.9)     # 选择鱼
+    SELL_FISH_STEP3 = (0.609, 0.666)   # 确认数量
+    SELL_FISH_CONFIRM = (0.5, 0.889)   # 确认出售
+
+    # 买鱼饵操作相对坐标
+    BAIT_BUY_CONFIRM1 = (0.9523, 0.8784)  # 点击购买
+    BAIT_BUY_CONFIRM2 = (0.843, 0.951)    # 确认数量
+    BAIT_BUY_ok = (0.604,0.666)
+    BAIT_BUY_CONFIRM3 = (0.5, 0.908)      # 最终确认
+
+    # 鱼饵商店 OCR 框（左侧商品列表区域）
+    BAIT_SHOP_OCR_BOX = (0.0, 0.098, 0.35, 0.335)
+
     OPEN_PANEL_TIMEOUT = 5
     BITE_TIMEOUT = 20
     CONTROL_TIMEOUT = 30
@@ -35,7 +54,11 @@ class FishingTask(BaseNTETask):
                 "循环次数": 1,
                 "控条模式": "长按",
                 "点按时长倍率": 1.0,
-                "使用ESC": False
+                "使用ESC": False,
+                "自动卖鱼": False,
+                "自动续鱼饵": False,
+                "万能鱼饵位置": "1",      # 新增：1=第1个, 2=第2个, 3=第3个
+                "买饵钓鱼循环次数": 0,   # 0 表示无限循环
             }
         )
         self.config_description.update(
@@ -44,11 +67,18 @@ class FishingTask(BaseNTETask):
                 "点按时长倍率": "点按模式专用。用于微调每次按键的持续时间",
                 "使用ESC": "开启后优先通过 ESC 键关闭成功界面，避免后台抢占鼠标。\n"
                 "若游戏运行不流畅，可能因按键响应延迟导致误退出钓鱼场景",
+                "自动卖鱼": "每轮钓鱼结束后自动打开售鱼处并出售鱼获",
+                "自动续鱼饵": "钓鱼任务结束或鱼饵耗尽时，自动开启商店购买万能鱼饵并重新钓鱼",
+                "万能鱼饵位置": "商店中万能鱼饵所在的位置（从上往下数第几个）",
             }
         )
         self.config_type["控条模式"] = {
             "type": "drop_down",
             "options": ["长按", "点按"],
+        }
+        self.config_type["万能鱼饵位置"] = {
+            "type": "drop_down",
+            "options": ["1", "2", "3"],
         }
         self._fishing_started = False
         self._last_bar_log_time = 0.0
@@ -76,19 +106,44 @@ class FishingTask(BaseNTETask):
     def do_run(self):
         self.reset_runtime_state()
         self.enter_fishing_scene()
+    
         rounds = max(1, int(self.config.get("循环次数", 1)))
-        self.log_info(f"开始自动钓鱼，共 {rounds} 轮")
-        success_count = 0
-        for index in range(rounds):
-            self.log_info(f"开始第 {index + 1}/{rounds} 轮钓鱼")
-            if self.run_once(index + 1):
-                success_count += 1
+        outer_limit = int(self.config.get("买饵钓鱼循环次数", 0))  # 0 = 无限
+        outer_index = 0
+    
+        while True:
+            outer_index += 1
+            if outer_limit > 0:
+                self.log_info(f"【外层循环 {outer_index}/{outer_limit}】开始，共钓 {rounds} 轮")
             else:
-                self.log_error(f"第 {index + 1} 轮钓鱼失败")
-                # 失败后重置状态继续下一轮，避免“设置2轮只跑1轮”
-                self.reset_runtime_state()
-        self.info_set("Fishing Success Count", success_count)
-        self.log_info(f"自动钓鱼结束，成功 {success_count}/{rounds}", notify=True)
+                self.log_info(f"【外层循环 第{outer_index}次】开始，共钓 {rounds} 轮")
+    
+            success_count = 0
+            for index in range(rounds):
+                self.log_info(f"  开始第 {index + 1}/{rounds} 轮钓鱼")
+                if self.run_once(index + 1):
+                    success_count += 1
+                else:
+                    self.log_error(f"  第 {index + 1} 轮钓鱼失败")
+                    self.reset_runtime_state()
+    
+            self.info_set("Fishing Success Count", success_count)
+            self.log_info(f"本轮结束，成功 {success_count}/{rounds}")
+    
+            # 本轮 x 次钓完后，执行卖鱼/续饵
+            if self.config.get("自动卖鱼", False):
+                self._do_sell_fish()
+            if self.config.get("自动续鱼饵", False):
+                self._do_buy_bait()
+    
+            # 判断是否退出外层循环
+            if outer_limit > 0 and outer_index >= outer_limit:
+                self.log_info(f"已完成 {outer_limit} 次完整循环，任务结束", notify=True)
+                break
+    
+            # 继续下一轮前重新进入钓鱼场景
+            self.reset_runtime_state()
+            self.enter_fishing_scene()
 
     def run_once(self, round_index: int) -> bool:
         self.clear_success_overlay_if_present()
@@ -104,6 +159,11 @@ class FishingTask(BaseNTETask):
             return True
 
         return False
+
+
+    # ------------------------------------------------------------------ #
+    #  抛竿
+    # ------------------------------------------------------------------ #
 
     def enter_fishing_scene(self) -> bool:
         if self.find_interac():
@@ -138,6 +198,10 @@ class FishingTask(BaseNTETask):
             return False
         return True
 
+    # ------------------------------------------------------------------ #
+    #  等待咬钩
+    # ------------------------------------------------------------------ #
+
     def wait_bite(self) -> bool:
         self.log_info("等待鱼儿咬钩")
         if self.wait_until(self.is_fishing_bite, time_out=self.BITE_TIMEOUT):
@@ -154,6 +218,10 @@ class FishingTask(BaseNTETask):
         else:
             self.log_error("等待鱼儿咬钩超时")
             return False
+
+    # ------------------------------------------------------------------ #
+    #  控条
+    # ------------------------------------------------------------------ #
 
     def control_until_finish(self) -> bool:
         start_check_time = time.time() + 1
@@ -318,12 +386,16 @@ class FishingTask(BaseNTETask):
             return False
         return True
 
+    # ------------------------------------------------------------------ #
+    #  成功面板
+    # ------------------------------------------------------------------ #
+
     def is_fishing_entry(self) -> bool:
-        # TODO: 替换为非 OCR 方式检测“钓鱼”交互入口 (如图标匹配或特征颜色)
+        # TODO: 替换为非 OCR 方式检测"钓鱼"交互入口 (如图标匹配或特征颜色)
         return False
 
     def is_start_panel(self) -> bool:
-        # TODO: 替换为非 OCR 方式检测“钓鱼准备面板”或“开始钓鱼”按钮
+        # TODO: 替换为非 OCR 方式检测"钓鱼准备面板"或"开始钓鱼"按钮
         return False
 
     def is_success_overlay(self) -> bool:
@@ -359,12 +431,93 @@ class FishingTask(BaseNTETask):
             self.log_info("检测到成功面板")
             self.close_success_overlay()
 
+    # ------------------------------------------------------------------ #
+    #  钓鱼结束后处理（卖鱼 / 续饵）
+    # ------------------------------------------------------------------ #
+
+    def _handle_post_success(self):
+        """钓鱼成功后只关闭成功面板，卖鱼/续饵由外层循环统一处理"""
+        if not self.close_success_overlay():
+            self.log_warning("关闭成功面板失败，后续操作可能受影响")
+        self.sleep(1)
+        # 注意：不在这里调用 _do_sell_fish / _do_buy_bait
+
+    def _do_sell_fish(self):
+        """
+        自动卖鱼流程：
+        按 Q 打开售鱼处 → 点击类别 → 选鱼 → 确认数量 → 确认出售 → ESC 关闭
+        """
+        self.log_info("开始自动卖鱼")
+        # 确保成功面板已关闭（保险）
+        self.clear_success_overlay_if_present()
+        self.sleep(0.5)
+
+        self.send_key("q", interval=0)
+        self.sleep(1)
+        self.click(*self.SELL_FISH_STEP1)  # 点击售鱼类别
+        self.sleep(1)
+        self.click(*self.SELL_FISH_STEP2)  # 选择鱼
+        self.sleep(1)
+        self.click(*self.SELL_FISH_STEP3)  # 确认数量
+        self.sleep(2)
+        self.click(*self.SELL_FISH_CONFIRM)  # 确认出售
+        self.sleep(1)
+        self.send_key("esc", interval=0)
+        self.sleep(1)
+        self.log_info("卖鱼完成")
+
+    def _do_buy_bait(self):
+        """修改后的方法，使用配置的位置坐标"""
+        self.log_info("开始自动续鱼饵")
+        self.clear_success_overlay_if_present()
+        self.sleep(0.5)
+
+        self.send_key("r", interval=0)
+        self.sleep(1.5)
+
+        bait_position_str = self.config.get("万能鱼饵位置", "1")
+        try:
+            bait_position = int(bait_position_str)
+        except ValueError:
+            bait_position = 1
+            self.log_warning(f"无效的万能鱼饵位置配置: {bait_position_str}，使用默认位置1")
+        bait_coords = {
+            1: (0.0835, 0.211),
+            2: (0.1828, 0.211),
+            3: (0.291, 0.211),
+        }
+        click_pos = bait_coords.get(bait_position, (0.0835, 0.211))
+        self.log_info(f"点击万能鱼饵位置 {bait_position}，坐标 {click_pos}")
+        self.click(*click_pos)
+        self.sleep(1)
+
+        self.click(*self.BAIT_BUY_CONFIRM1)
+        self.sleep(1)
+        self.click(*self.BAIT_BUY_CONFIRM2)
+        self.sleep(1)
+        self.click(*self.BAIT_BUY_ok)
+        self.sleep(2)
+        self.click(*self.BAIT_BUY_CONFIRM3)
+        self.sleep(1)
+        self.send_key("esc", interval=0)
+        self.sleep(1)
+        self.log_info("续鱼饵完成")
+
+
+    # ------------------------------------------------------------------ #
+    #  状态重置
+    # ------------------------------------------------------------------ #
+
     def reset_runtime_state(self):
         self._set_bar_key(None)
         self._fishing_started = False
         self._last_bar_log_time = 0.0
         self._last_direction = None
         self._bar_active_key = None
+
+    # ------------------------------------------------------------------ #
+    #  拉力条检测
+    # ------------------------------------------------------------------ #
 
     def detect_fishing_bar_state(self):
         """
@@ -439,6 +592,10 @@ class FishingTask(BaseNTETask):
             "pointer_center": pointer_center,
             "in_zone": zone_left <= pointer_center <= zone_right,
         }
+
+    # ------------------------------------------------------------------ #
+    #  UI 检测辅助
+    # ------------------------------------------------------------------ #
 
     def is_fish_start_exist(self):
         """
