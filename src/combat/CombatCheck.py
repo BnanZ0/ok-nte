@@ -96,8 +96,8 @@ class CombatCheck(BaseNTETask):
             deadline = time.time() + self.target_enemy_time_out
             while time.time() < deadline:
                 self.middle_click()
-                self.sleep(0.2)
-                if self.combat_detect(lv=lv)[0] is True:
+                self.sleep(0.25)
+                if self.combat_detect(lv=lv)[0]:
                     return True
                 self.next_frame()
 
@@ -338,8 +338,9 @@ class CombatCheck(BaseNTETask):
                 return self.scene.set_in_combat()
             else:
                 if self._combat_detect_settle is None:
-                    self._combat_detect_settle = time.time() + 1
+                    self._combat_detect_settle = time.time() + 0.5
                 if self._combat_detect_settle > time.time():
+                    self.middle_click(interval=0.25)
                     return self.scene.set_in_combat()
 
             if self.target_enemy(wait=True):
@@ -417,25 +418,30 @@ class CombatCheck(BaseNTETask):
         return res
 
     def combat_detect(self, frame=None, target=True, lv=True, bg=False):
-        if frame is None:
-            frame = self.frame
-        if target and self.has_target(frame=frame):
-            return True, "target"
-        if lv and self.find_lv(frame=frame, bg=bg):
-            return True, "lv"
+        if target:
+            if self.openvino_detect_sync():
+                return True, "target"
+        if lv:
+            if self.find_lv(frame=frame, bg=bg):
+                return True, "lv"
         return False, None
 
     def async_combat_detect(self, target=True, lv=True):
+        if target and self.openvino_detect_async():
+            return True
+
+        if not lv:
+            return False
+
         if self.combat_detect_future and self.combat_detect_future.done():
-            ret, reason = self.combat_detect_future.result()
+            ret, _ = self.combat_detect_future.result()
             self.combat_detect_future = None
-            # self.logger.info(f"combat_detect_future result: {ret}, reason: {reason}")
             return ret
+
         if self.combat_detect_future is None:
-            # self.logger.info("combat_detect_future submit")
             frame = self.frame
             self.combat_detect_future = self.thread_pool_executor.submit(
-                self.combat_detect, frame=frame, target=target, lv=lv, bg=True
+                self.combat_detect, frame=frame, target=False, lv=lv, bg=True
             )
         return None
 

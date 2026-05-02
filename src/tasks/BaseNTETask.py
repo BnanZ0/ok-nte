@@ -42,15 +42,39 @@ class BaseNTETask(BaseTask):
             return None
         return og.my_app.get_thread_pool_executor()
 
+    def _openvino_detect(self, sync, box, threshold):
+        if og.my_app is None:
+            return []
+        if box is None:
+            box = self.box_of_screen(0.0840, 0.1326, 0.9176, 0.8694, name="openvino_box")
+        self.draw_boxes(boxes=box, color="blue")
+        if sync:
+            results = og.my_app.openvino_detect_sync(image=self.frame, box=box, threshold=threshold)
+        else:
+            results = og.my_app.openvino_detect_async(
+                image=self.frame, box=box, threshold=threshold
+            )
+        if results:
+            self.draw_boxes(boxes=results, color="red")
+        return results
+
+    def openvino_detect_async(self, box: Box = None, threshold=0.5) -> List[Box]:
+        return self._openvino_detect(False, box, threshold)
+
+    def openvino_detect_sync(self, box: Box = None, threshold=0.5) -> List[Box]:
+        return self._openvino_detect(True, box, threshold)
+
     @property
     def main_viewport(self):
         return self.box_of_screen(0.1543, 0.1021, 0.9070, 0.6389)
 
+    # fmt: off
     @overload
     def click(self, x: int | Box | List[Box] = -1, y=-1, move_back=False, name=None, interval=-1,
               move=False, down_time=0.02, after_sleep=0, key='left', hcenter=False,
               vcenter=False) -> Any:
         ...
+    # fmt: on
 
     def click(self, *args, **kwargs):
         is_top_level = not hasattr(self, "_current_move")
@@ -165,19 +189,19 @@ class BaseNTETask(BaseTask):
             feature = self.get_feature_by_name(Labels.is_current_char)
             mat = feature.mat  # 原始二值化模板
             white_pixels = cv2.countNonZero(mat)
-            
+
             # 仍然保留膨胀掩码用于过滤
             kernel = np.ones((5, 5), np.uint8)
             mask = cv2.dilate(feature.mat, kernel, iterations=1)
-            
+
             self._char_template_cache = {
                 "width": self.width,
                 "height": self.height,
                 "mat": mat,
                 "mask": mask,
-                "white_pixels": white_pixels
+                "white_pixels": white_pixels,
             }
-            
+
         cache = self._char_template_cache
         return cache["mat"], cache["mask"], cache["white_pixels"]
 
@@ -186,24 +210,24 @@ class BaseNTETask(BaseTask):
         template_mat, template_mask, template_white_count = self._get_char_template_data()
         if template_white_count == 0:
             return 1.0
-            
+
         base_box = self.get_box_by_name(Labels.is_current_char)
         if self.char_ui_offset:
             base_box = self.shift_char_ui_box(base_box)
         box = self.get_box_by_char_spacing(base_box, index)
         # self.draw_boxes(boxes=box, color="blue")
-        
+
         current_mat = gf.current_char_filter(box.crop_frame(self.frame), blur=True)
-        
+
         # 1. 掩码过滤并计算交集
         if current_mat.shape == template_mask.shape:
             current_mat = cv2.bitwise_and(current_mat, template_mask)
-            
+
             if current_mat.shape == template_mat.shape:
                 intersection = cv2.bitwise_and(current_mat, template_mat)
                 coverage = cv2.countNonZero(intersection) / template_white_count
                 return 1.0 - coverage
-            
+
         return 1.0
 
     def is_char_at_index(self, index, threshold=0.3):
@@ -220,13 +244,13 @@ class BaseNTETask(BaseTask):
         """扫描所有槽位，返回匹配度最高的索引"""
         best_score = 999
         best_idx = -1
-        
+
         for i in range(4):
             score = self.get_char_match_score(i)
             if score < best_score:
                 best_score = score
                 best_idx = i
-        
+
         if best_idx != -1:
             self.log_debug(f"current_char found at {best_idx} with score {best_score:.4f}")
         return best_idx

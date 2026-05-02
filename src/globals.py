@@ -1,9 +1,9 @@
+import os.path
 from concurrent.futures import ThreadPoolExecutor
 from threading import Event
 
-from PySide6.QtCore import QObject
-
 from ok import Logger
+from PySide6.QtCore import QObject
 
 logger = Logger.get_logger(__name__)
 
@@ -15,6 +15,7 @@ class Globals(QObject):
         self.thread_pool_executor = None
         self.thread_pool_exit_event = Event()
         exit_event.bind_stop(self)
+        self._openvino_model_async = None
 
     def stop(self):
         self.shutdown_thread_pool_executor()
@@ -29,7 +30,7 @@ class Globals(QObject):
             and max_workers > self._thread_pool_executor_max_workers
         ):
             logger.info(
-                "thread pool max_workers not enough, reset max_workers" \
+                "thread pool max_workers not enough, reset max_workers"
                 f" {self._thread_pool_executor_max_workers} -> {max_workers}"
             )
             self.shutdown_thread_pool_executor()
@@ -85,3 +86,30 @@ class Globals(QObject):
             logger.debug(f"Periodic task {task.__name__} stopped.")
 
         executor.submit(loop_wrapper)
+
+    @property
+    def openvino_model_async(self):
+        if self._openvino_model_async is None:
+            logger.info("openvino_model_async Using YOLO26OpenVINOAsyncDetector")
+            from src.YOLO26OpenVINOAsyncDetector import YOLO26OpenVINOAsyncDetector
+
+            self._openvino_model_async = YOLO26OpenVINOAsyncDetector(
+                xml_path=os.path.join("assets", "openvino", "best.xml")
+            )
+        return self._openvino_model_async
+
+    @property
+    def openvino_latency_async(self):
+        return self._openvino_model_async.latency
+
+    def openvino_detect_async(self, image, box=None, threshold=0.5):
+        ret = self.openvino_model_async.detect(image, box=box, threshold=threshold, label="target")
+        # logger.debug(f"openvino async: {ret}, cost {self.openvino_latency_async:.3f} s")
+        return ret
+
+    def openvino_detect_sync(self, image, box=None, threshold=0.5):
+        ret = self.openvino_model_async.detect_sync(
+            image, box=box, threshold=threshold, label="target"
+        )
+        # logger.debug(f"openvino sync: {ret}, cost {self.openvino_latency_async:.3f} s")
+        return ret
