@@ -205,10 +205,10 @@ class AutoBidAuctionTask(NTEOneTimeTask, BaseNTETask):
         box_bid = self.box_of_screen(*self.BOX_BID)
 
         re_match = re.compile(r"开始匹配|开始|匹配")
-        re_confirm = re.compile(r"确认|确|认")
-        re_bid = re.compile(r"出价|出|价")
-        re_skip = re.compile(r"跳过|跳|过")
-        re_exit = re.compile(r"退出|退|出")
+        re_confirm = re.compile(r"确\s*认")
+        re_bid = re.compile(r"出\s*价")
+        re_skip = re.compile(r"跳\s*过")
+        re_exit = re.compile(r"退\s*出")
 
         try:
             while self.has_remaining_rounds():
@@ -718,7 +718,7 @@ class AutoBidAuctionTask(NTEOneTimeTask, BaseNTETask):
                     self.log_info("主界面加载完成")
                 else:
                     self.log_warning("主界面加载标志未识别, 跳过本轮结算后处理")
-                    raise WaitFailedException("主界面加载未完成")
+                    return True
 
                 need_clear_collections = False
                 auto_clear = self.config.get(self.CONF_AUTO_CLEAR_COLLECTIONS, False)
@@ -757,7 +757,7 @@ class AutoBidAuctionTask(NTEOneTimeTask, BaseNTETask):
                             self.log_info(f"当前资产: {asset_value}")
                             if asset_value < 100000:
                                 self.log_info("资产低于100000, 执行低保金领取")
-                                self._try_claim_welfare()
+                                self._try_claim_welfare(result_deadline)
                             else:
                                 self.log_info("资产达到100000, 跳过低保金领取")
                         else:
@@ -769,7 +769,7 @@ class AutoBidAuctionTask(NTEOneTimeTask, BaseNTETask):
 
                 if need_clear_collections:
                     self.log_info("根据之前的标记, 现在执行自动清理藏品")
-                    self._sell_collections()
+                    self._sell_collections(result_deadline)
 
                 return True
 
@@ -792,6 +792,14 @@ class AutoBidAuctionTask(NTEOneTimeTask, BaseNTETask):
         if remaining <= 0:
             raise WaitFailedException("单轮拍卖超时")
         return min(limit, remaining)
+
+    def _bounded_timeout(self, deadline, limit: float) -> float:
+        """在兼容无 deadline 调用的同时, 限制有 deadline 调用的等待时间."""
+        return limit if deadline is None else self._remaining_timeout(deadline, limit)
+
+    def _bounded_sleep(self, deadline, delay: float):
+        """执行受 deadline 限制的短暂操作等待."""
+        self.sleep(self._bounded_timeout(deadline, delay))
 
     # --- 资产解析辅助方法 ---
     def _parse_asset_value(self, raw_text: str) -> int | None:
@@ -1004,8 +1012,8 @@ class AutoBidAuctionTask(NTEOneTimeTask, BaseNTETask):
         self.last_bid_price = price
         return True
 
-    def _try_claim_welfare(self) -> bool:
-        """尝试领取每日低保金。"""
+    def _try_claim_welfare(self, deadline=None) -> bool:
+        """尝试领取每日低保金, deadline 为空时保持原有独立超时行为."""
         box_welfare_btn = self.box_of_screen(*self.BOX_WELFARE_BTN)
         box_claim = self.box_of_screen(*self.BOX_CLAIM)
         box_cancel = self.box_of_screen(*self.BOX_CANCEL)
@@ -1015,37 +1023,40 @@ class AutoBidAuctionTask(NTEOneTimeTask, BaseNTETask):
             welfare_button = self.wait_click_ocr(
                 box=box_welfare_btn,
                 match=re.compile(r"低保金"),
-                time_out=5,
-                after_sleep=0.5,
+                time_out=self._bounded_timeout(deadline, 5),
+                after_sleep=0,
                 settle_time=0.5,
             )
             if not welfare_button:
                 raise WaitFailedException("低保金按钮未出现")
+            self._bounded_sleep(deadline, 0.5)
 
             claim_button = self.wait_click_ocr(
                 box=box_claim,
                 match=re.compile(r"领取"),
-                time_out=5,
-                after_sleep=0.5,
+                time_out=self._bounded_timeout(deadline, 5),
+                after_sleep=0,
                 settle_time=0.5,
             )
             if not claim_button:
                 raise WaitFailedException("领取按钮未出现")
+            self._bounded_sleep(deadline, 0.5)
 
             cancel_button = self.wait_click_ocr(
                 box=box_cancel,
                 match=re.compile(r"取消"),
-                time_out=5,
-                after_sleep=0.5,
+                time_out=self._bounded_timeout(deadline, 5),
+                after_sleep=0,
                 settle_time=0.5,
             )
 
             if not cancel_button:
                 raise WaitFailedException("取消按钮未出现")
+            self._bounded_sleep(deadline, 0.5)
 
             cancel_closed = self.wait_until(
                 lambda: not self.ocr(box=box_cancel, match=re.compile(r"取消")),
-                time_out=3,
+                time_out=self._bounded_timeout(deadline, 3),
                 settle_time=0.5,
                 raise_if_not_found=False,
             )
@@ -1056,12 +1067,14 @@ class AutoBidAuctionTask(NTEOneTimeTask, BaseNTETask):
             return True
         except TaskDisabledException:
             raise
+        except WaitFailedException:
+            raise
         except Exception as e:
             self.log_warning(f"低保金领取失败: {type(e).__name__}: {e}")
             return False
 
-    def _sell_collections(self) -> bool:
-        """尝试出售藏品仓库中的藏品。"""
+    def _sell_collections(self, deadline=None) -> bool:
+        """尝试出售藏品, deadline 为空时保持定期清理分支的原有行为."""
         self.log_info("开始执行藏品出售流程")
         box_warehouse_btn = self.box_of_screen(*self.BOX_WAREHOUSE_BTN)
         box_warehouse_title = self.box_of_screen(*self.BOX_WAREHOUSE_TITLE)
@@ -1070,19 +1083,20 @@ class AutoBidAuctionTask(NTEOneTimeTask, BaseNTETask):
             warehouse_button = self.wait_click_ocr(
                 box=box_warehouse_btn,
                 match=re.compile(r"藏品仓库"),
-                time_out=10,
-                after_sleep=1,
+                time_out=self._bounded_timeout(deadline, 10),
+                after_sleep=0,
                 raise_if_not_found=False,
             )
             if not warehouse_button:
                 self.log_warning("未点击藏品仓库入口, 取消出售流程")
                 return False
+            self._bounded_sleep(deadline, 1)
             self.log_info("藏品仓库入口已点击")
 
             if not self.wait_ocr(
                 box=box_warehouse_title,
                 match=re.compile(r"藏品仓库"),
-                time_out=10,
+                time_out=self._bounded_timeout(deadline, 10),
                 raise_if_not_found=False,
                 settle_time=0.5,
             ):
@@ -1098,7 +1112,8 @@ class AutoBidAuctionTask(NTEOneTimeTask, BaseNTETask):
             # 获取保留的品质列表
             keep_qualities = self.config.get(self.CONF_KEEP_QUALITIES, [])
 
-            self.operate_click(box_sell, after_sleep=1)
+            self.operate_click(box_sell, after_sleep=0)
+            self._bounded_sleep(deadline, 1)
 
             for i, quality_pos in enumerate(self.QUALITY_BOXES):
                 quality_name = self.QUALITY_KEYS[i]
@@ -1106,17 +1121,23 @@ class AutoBidAuctionTask(NTEOneTimeTask, BaseNTETask):
                     self.log_info(f"保留{quality_name}")
                     continue
                 box_quality = self.box_of_screen(*quality_pos)
-                self.operate_click(box_quality, after_sleep=0.5)
+                self.operate_click(box_quality, after_sleep=0)
+                self._bounded_sleep(deadline, 0.5)
                 self.log_info(f"选择{quality_name}")
 
-            self.operate_click(box_confirm_sell, after_sleep=1.5)
+            self.operate_click(box_confirm_sell, after_sleep=0)
+            self._bounded_sleep(deadline, 1.5)
             self.log_info("确认出售")
 
-            self.operate_click(box_blank, after_sleep=0.5)
-            self.operate_click(box_close, after_sleep=1)
+            self.operate_click(box_blank, after_sleep=0)
+            self._bounded_sleep(deadline, 0.5)
+            self.operate_click(box_close, after_sleep=0)
+            self._bounded_sleep(deadline, 1)
             self.log_info("藏品出售完成")
             return True
         except TaskDisabledException:
+            raise
+        except WaitFailedException:
             raise
         except Exception as e:
             self.log_warning(f"藏品出售失败: {type(e).__name__}: {e}")
