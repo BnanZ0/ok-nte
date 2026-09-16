@@ -10,6 +10,7 @@ from src.tasks.AnomalyTask import AnomalyTask
 from src.tasks.BaseNTETask import BaseNTETask
 from src.tasks.daily.CinemaDateTask import CinemaDateTask
 from src.tasks.daily.CoffeeTask import CoffeeTask
+from src.tasks.daily.DailyActivityTask import DailyActivityTask
 from src.tasks.daily.DailyClaimTask import DailyClaimTask
 from src.tasks.daily.FountainTask import FountainTask
 from src.tasks.daily.FurnitureTask import FurnitureTask
@@ -37,6 +38,7 @@ DAILY_ROUTINE_ENTRIES = (
     DailyRoutineEntry("fountain", FountainTask),
     DailyRoutineEntry("furniture", FurnitureTask),
     DailyRoutineEntry("gift", GiftTask),
+    DailyRoutineEntry("daily_activity", DailyActivityTask),
 )
 
 
