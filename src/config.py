@@ -215,6 +215,7 @@ config = {
         ["src.tasks.daily.FountainTask", "FountainTask"],
         ["src.tasks.daily.FurnitureTask", "FurnitureTask"],
         ["src.tasks.daily.CinemaDateTask", "CinemaDateTask"],
+        ["src.tasks.daily.DailyActivityTask", "DailyActivityTask"],
     ],
     "trigger_tasks": [  # 不断执行的触发式任务
         ["src.tasks.trigger.AutoCombatTask", "AutoCombatTask"],
