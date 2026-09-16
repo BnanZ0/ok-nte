@@ -71,6 +71,10 @@ ok-nte 是一款面向《异环》的 Windows 自动化工具，通过截图识�
 
 详细安装步骤和源码运行方式见[安装指南](docs/zh-CN/getting-started/installation.md)。
 
+## 🛠️ 配套启动器
+
+- **OK 游戏助手**：聚合启动器，支持 ok-nte / ok-ww / ok-end-field 的多游戏管理、版本更新与游戏扫描，按需安装。
+
 ## 🖥️ 运行环境
 
 - 操作系统：Windows。
