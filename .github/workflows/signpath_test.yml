@@ -106,7 +106,7 @@ jobs:
           if-no-files-found: error
 
       - name: Sign EXE
-        uses: signpath/github-action-submit-signing-request@b9d91eadd323de506c0c81cf0c7fe7438f3360fd
+        uses: signpath/github-action-submit-signing-request@f6d04783b4569d051e0c80105fe66e82819d0092
         with:
           api-token: '${{ secrets.SIGNPATH_API_TOKEN }}'
           organization-id: '30cc9397-0ebf-4584-8030-12f4b872ecdc'
@@ -140,7 +140,7 @@ jobs:
           if-no-files-found: error
 
       - name: Sign setup EXEs
-        uses: signpath/github-action-submit-signing-request@b9d91eadd323de506c0c81cf0c7fe7438f3360fd
+        uses: signpath/github-action-submit-signing-request@f6d04783b4569d051e0c80105fe66e82819d0092
         with:
           api-token: '${{ secrets.SIGNPATH_API_TOKEN }}'
           organization-id: '30cc9397-0ebf-4584-8030-12f4b872ecdc'
