@@ -136,7 +136,7 @@ jobs:
       - name: Sign EXE
         id: submit_executable_signing
         if: steps.release_version.outputs.is_release == 'true' && env.USE_RELEASE == '' && env.SIGN_BUILD == 'true'
-        uses: signpath/github-action-submit-signing-request@v2
+        uses: signpath/github-action-submit-signing-request@v3
         with:
           api-token: '${{ secrets.SIGNPATH_API_TOKEN }}'
           organization-id: '30cc9397-0ebf-4584-8030-12f4b872ecdc'
@@ -214,7 +214,7 @@ jobs:
 
       - name: Sign setup executables
         if: steps.release_version.outputs.is_release == 'true' && env.SIGN_SETUP == 'true'
-        uses: signpath/github-action-submit-signing-request@v2
+        uses: signpath/github-action-submit-signing-request@v3
         with:
           api-token: '${{ secrets.SIGNPATH_API_TOKEN }}'
           organization-id: '30cc9397-0ebf-4584-8030-12f4b872ecdc'
