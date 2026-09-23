@@ -476,10 +476,12 @@ class AutoBidAuctionTask(NTEOneTimeTask, BaseNTETask):
     # 因此从第一次读到有效数值起, 至少观察这么久才允许采用。
     ESTIMATE_MIN_OBSERVE_SECONDS = 4.0
     ESTIMATE_STABLE_TIMEOUT = 10
-    # 估价数字右端距裁框右边界小于这个像素数时, 认为末位可能已被裁掉。
+    # 估价数字右端距裁框右边界, 小于「屏幕宽度的这个比例」时认为末位可能已被裁掉。
     # 2026-09-23 的故障就是这个形态: 末位 "3" 只剩 4px 宽的一条竖边, OCR 直接丢弃,
     # 2,643 读成 ,643 / 1,912 读成 912。裁框宽度不是安全保证, 所以要在运行时盯住它。
-    ESTIMATE_EDGE_MARGIN_PX = 8
+    # 取 8/1920: 该故障在 1080p 下实测的临界宽度, 按分辨率等比换算, 避免 1440p/2160p
+    # 下 UI 与文字同步放大而阈值不变导致的漏判 (AGENTS.md: 坐标用相对比例, 不硬编码像素)。
+    ESTIMATE_EDGE_MARGIN_RATIO = 8 / 1920
 
     # --- 轮询与重试 ---
     POLL_INTERVAL = 0.5
@@ -918,11 +920,20 @@ class AutoBidAuctionTask(NTEOneTimeTask, BaseNTETask):
         掉线时不会有「网络异常」之类的提示弹窗(已确认), 所以不在这里兜弹窗;
         真要是有弹窗, ensure_main 里的月卡/登录处理也覆盖不到, 由整轮失败后的
         _recover_blocking_popup 兜底。
+
+        每一步都按「剩余预算」而不是各处写死的常量取超时: ensure_main 在登录态丢失时
+        会把 time_out 抬到 600 秒(见 BaseNTETask.ensure_main), 而 RECOVER_TIMEOUT 只有
+        90 秒 —— 不把剩余时间传进去, 这一步就能把整个回场预算连同本轮 deadline 一起耗光,
+        后面的 F5/入口/落槌根本轮不到执行. 剩余时间耗尽时直接判失败, 交给下一轮重来.
         """
 
         def action():
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                self.log_warning("回场预算已耗尽, 放弃本次回场")
+                return False
             try:
-                self.ensure_main(in_world=True)
+                self.ensure_main(in_world=True, time_out=remaining)
                 self.openF5panel()
             except TaskDisabledException:
                 raise
@@ -952,8 +963,19 @@ class AutoBidAuctionTask(NTEOneTimeTask, BaseNTETask):
                 )
             )
 
+        def reset():
+            """重试之间的状态复位, 同样受剩余预算约束。
+
+            原来是直接传 self.ensure_main, 即用默认 time_out(登录态丢失时被抬到 600 秒),
+            与 action 是同一个漏洞 —— 第二次重试前的复位就能把预算吃干净.
+            """
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                return
+            self.ensure_main(in_world=True, time_out=remaining)
+
         try:
-            return bool(self.retry_on_action(action, self.ensure_main, attempt=1))
+            return bool(self.retry_on_action(action, reset, attempt=1))
         except TaskDisabledException:
             raise
         except Exception as e:
@@ -2023,8 +2045,8 @@ class AutoBidAuctionTask(NTEOneTimeTask, BaseNTETask):
         0.8542~0.9010), 两者之间有明显空隙, 所以按 `x0 >= label_right` 过滤是稳定的。
 
         Returns:
-            (值, 是否贴边). 贴边表示数字右端距裁框右边界不足 EDGE_MARGIN_PX, 该读数
-            可能已被裁掉末位, 调用方应按不可信处理。
+            (值, 是否贴边). 贴边表示数字右端距裁框右边界不足 ESTIMATE_EDGE_MARGIN_RATIO
+            对应的像素数, 该读数可能已被裁掉末位, 调用方应按不可信处理。
         """
         all_boxes = self._read_estimate_texts(box, timeout)
         if not all_boxes:
@@ -2054,7 +2076,10 @@ class AutoBidAuctionTask(NTEOneTimeTask, BaseNTETask):
 
         value = self._parse_asset_value(raw_text)
         right_edge = max(b.x + b.width for b in digit_boxes)
-        tight = (box.x + box.width - right_edge) < self.ESTIMATE_EDGE_MARGIN_PX
+        # 阈值随分辨率等比放大, 至少 1px: 高 DPI 下框宽不变(本项目 resize_image 为默认 0,
+        # 截图不重采样)时小于 1px 的判定没有意义.
+        margin = max(1, round(self.width * self.ESTIMATE_EDGE_MARGIN_RATIO))
+        tight = (box.x + box.width - right_edge) < margin
         self.log_debug(f"{label} OCR: '{raw_text}', 解析值: {value}, 贴边: {tight}")
         return value, tight
 
@@ -2239,7 +2264,16 @@ class AutoBidAuctionTask(NTEOneTimeTask, BaseNTETask):
                 tight_seen = True
                 same = 0
                 first_seen = None
-                value = None
+                # last / valid_reads 必须一起作废. 只清 same 和 first_seen 会留下两个漏洞:
+                # last 仍在 -> 上面的提前稳判条件里 `last is not None` 恒为真, 而
+                # `first_seen is not None` 因为被清空而恒为假, 于是提前稳判**永远不会**触发;
+                # 循环只能走到超时兜底, 把贴边**之前**在旧帧上读到的值当稳定值返回.
+                # 更糟的是超时分支的 tight_seen 告警要求 `last is not None` 之外的路径,
+                # 一旦 last 非空就只报「未稳定, 使用最后一次读数」, 贴边这个关键信号被吞掉,
+                # 排查时看不出这个价格其实来自一帧已被裁掉末位的旧读数.
+                # valid_reads 同理: 它统计的是 last 那次读数的有效性, last 作废后计数也必须归零.
+                last = None
+                valid_reads = 0
             elif value is None:
                 # 未读出或残缺读数, 没有带来更完整的信息.
                 if last is not None:
@@ -2289,16 +2323,19 @@ class AutoBidAuctionTask(NTEOneTimeTask, BaseNTETask):
         if last is not None:
             self.log_warning(f"{label}在 {timeout} 秒内未稳定, 使用最后一次读数 {last}")
             if tight_seen:
-                # 中途出现过贴边帧: 这个 last 是在贴边之前的帧上读的, 只作参考.
+                # 中途出现过贴边帧, 说明这段读数是在「有帧被裁掉末位」的干扰下得到的:
+                # 贴边帧本身已被丢弃, 但同一屏的其它帧也可能同样不完整, 这个值只作参考.
                 self.log_warning(
-                    f"{label}期间有读数贴住识别区域边界, 末位可能已被裁掉; "
-                    f"若该值与实际不符, 请检查 "
+                    f"{label}观测期间出现过贴边读数, 该值可能不完整; "
+                    f"若与实际不符, 请检查 "
                     f"{self.__class__.__name__}.BOX_ESTIMATE 右边界"
                 )
         elif tight_seen:
+            # last 为空只有两种成因: 从头到尾没读到, 或读到之后又被贴边帧作废.
+            # 后者才是要提示用户去调裁框的情形, 文案要能同时覆盖.
             self.log_warning(
-                f"{label}读数始终贴住识别区域边界, 末位可能被裁掉, 视为未读出; "
-                f"请检查 {self.__class__.__name__}.BOX_ESTIMATE 右边界"
+                f"{label}读数贴住识别区域边界(或其后读数不可信), 末位可能被裁掉, "
+                f"视为未读出; 请检查 {self.__class__.__name__}.BOX_ESTIMATE 右边界"
             )
         elif zero_seen:
             self.log_warning(f"{label}在 {timeout} 秒内只读到 0, 视为未读出")
