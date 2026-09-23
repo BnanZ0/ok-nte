@@ -10,12 +10,19 @@ from ok.util.file import get_relative_path, read_json_file
 
 from src.tasks.BaseNTETask import BaseNTETask
 from src.tasks.NTEOneTimeTask import NTEOneTimeTask
+from src.utils.asset_history import AssetHistoryRecorder
 
 # --- 拍卖界面 OCR 正则 ---
 # 集中定义, 避免各阶段重复编译同一规则。
 RE_MATCH = re.compile(r"开始匹配|开始|匹配")
 RE_CONFIRM = re.compile(r"确\s*认")
 RE_BID = re.compile(r"出\s*价")
+# 数字键盘弹出后的出价界面判定。
+# 键盘弹窗会盖住 BOX_BID 所在区域(实测该框 all_boxes 全空), 此时界面上只剩弹窗自己的
+# 元素 —— 右下角的「出价」按钮和「放弃」都在弹窗外或不可见, 用 RE_BID 判定会永远为假,
+# 于是空转到 60 秒报「等待出价界面超时」(2026-09-23 18:44 实测一次)。这里收弹窗上的
+# 固定文案作为补充特征; 这些字串只出现在出价键盘/面板上, 放宽不会误命中其他界面。
+RE_BID_PANEL = re.compile(r"出\s*价|请输入你愿意出的价格|推荐出价参考|上轮出价|清空")
 RE_SKIP = re.compile(r"跳\s*过")
 RE_EXIT = re.compile(r"退\s*出")
 RE_BID_CONFIRM = re.compile(r"确认出价")
@@ -37,6 +44,10 @@ RE_ONE_CLICK_SELL = re.compile(r"一键出售|键出售")
 # 一键出售后弹出的「获得物品」提示条, 底部写着这句, 点提示条以外的空白区域即可关闭.
 # 只匹配前半句: 整句较长, 尾部被 OCR 认坏时仍要能命中.
 RE_POPUP_CLOSE_HINT = re.compile(r"点击空白")
+# 掉线回场路径上的两个标志: 「都市闲趣」MENU 面板标题, 以及拍卖入口卡片「即刻落槌」。
+RE_CITY_FUN = re.compile(r"都市闲趣")
+# 拍卖主界面右侧的会场文字, 形如「当前：海贝场」。回场后用它核对会场有没有被重置。
+RE_CURRENT_VENUE = re.compile(r"当前")
 
 # 全角数字转半角, 用于统一资产与价格的 OCR 文本。
 FULLWIDTH_DIGITS = str.maketrans("０１２３４５６７８９", "0123456789")
@@ -51,6 +62,8 @@ class AuctionState(Enum):
     CONFIRM = "confirm"
     BID = "bid"
     SKIP = "skip"
+    # 掉线被踢回大世界: 界面既不在拍卖流程里, 也不在主界面上, 需要先回场再继续。
+    WORLD = "world"
 
 
 @dataclass(frozen=True)
@@ -60,6 +73,7 @@ class AuctionBoxes:
     match: Box
     confirm: Box
     bid: Box
+    bid_keypad: Box
     skip_area: Box
     exit: Box
     bid_confirm: Box
@@ -70,6 +84,7 @@ class AuctionBoxes:
     last_bid: Box
     clear: Box
     price_result: Box
+    price_result_keypad: Box
     exception_area: Box
     main_title: Box
     main_asset: Box
@@ -132,6 +147,7 @@ INST = "<br>".join(
     [
         _inst_line("📍 使用前提", "#FF5555", bold=True),
         _inst_line("在拍卖主界面选「低级会场」后启动; 「循环次数」填 0 = 一直运行", indent=1),
+        _inst_line("掉线被踢回大世界时会自动回场(F5 都市大亨 → 都市闲趣 → 即刻落槌)", indent=1),
         _inst_line("💰 「出价模式」三选一", "#FF5555", bold=True),
         _inst_line(
             "按系统估价: 估价 x「估价倍率」, 读不出时回退「基础价」", "#FE821D", bold=True, indent=1
@@ -285,6 +301,10 @@ class AutoBidAuctionTask(NTEOneTimeTask, BaseNTETask):
     BOX_MATCH = (0.7427, 0.8972, 0.8360, 0.9472)  # 开始匹配
     BOX_CONFIRM = (0.535, 0.633, 0.666, 0.681)  # 确认按钮
     BOX_BID = (0.882, 0.913, 0.930, 0.953)  # 出价按钮
+    # 数字键盘弹窗的文字区。键盘弹窗整体覆盖约 0.30~0.90 / 0.44~0.80, 会盖住 BOX_BID,
+    # 导致「是否已进入出价界面」判定永远为假。这个区域只取弹窗右侧的文字部分
+    # (「请输入你愿意出的价格」等), 避开数字键, 用于键盘态下的界面判定。
+    BOX_BID_KEYPAD = (0.578, 0.560, 0.800, 0.720)  # 键盘弹窗文字区
     BOX_SKIP_AREA = (0.703, 0.902, 0.807, 0.953)  # 跳过区域
     BOX_EXIT = (0.853, 0.900, 0.961, 0.949)  # 退出拍卖
     BOX_BID_CONFIRM = (0.649, 0.868, 0.726, 0.911)  # 确认出价
@@ -293,10 +313,21 @@ class AutoBidAuctionTask(NTEOneTimeTask, BaseNTETask):
     BOX_ABANDON = (0.7276, 0.9083, 0.7833, 0.9583)  # 放弃按钮
     BOX_ABANDON_CONFIRM = (0.5474, 0.6389, 0.6714, 0.6861)  # 放弃确认
     BOX_ASSET_VALUE = (0.8583, 0.0426, 0.9870, 0.0806)  # 出价面板资产
-    BOX_ESTIMATE = (0.7780, 0.1380, 0.9550, 0.1760)  # 出价面板当前估价
+    # 出价面板当前估价.
+    # 右边界与「我的资产」数值(右端实测 0.9594)只差 0.0106, 是脆弱点:
+    #   - 不能 < 0.9052: price_result.png 的 "22,684" 右端会伸到这里, 裁掉末位数字.
+    #   - 不能 > 0.9594: 会把「我的资产」数值一起命中, RE_NUMBER 拼接成大数.
+    # 安全窗口只有 54px, 所以宽度本身不够可靠 —— 数字的实际筛选靠「估价」标签右边沿
+    # (见 _read_estimate_value), 右边界只负责让数字完整落在区域内.
+    BOX_ESTIMATE = (0.7780, 0.1330, 0.9700, 0.1820)  # 出价面板当前估价
+
     BOX_LAST_BID = (0.473, 0.733, 0.546, 0.807)  # 上轮出价
     BOX_CLEAR = (0.488, 0.859, 0.533, 0.917)  # 清除按钮
+    # 键盘未弹出时的「可输入范围0~N」提示区, 用于判断价格是否尚未输入.
     BOX_PRICE_RESULT = (0.588, 0.685, 0.783, 0.747)  # 输入价格结果
+    # 键盘弹出后价格输入框移到键盘右侧, 上面那个矩形会落在提示文案「可输入范围0~N」上,
+    # 导致校验永远读到提示文案而报「未输入」。这个区域是键盘态的输入框本体, 校验优先用它。
+    BOX_PRICE_RESULT_KEYPAD = (0.588, 0.665, 0.790, 0.700)  # 键盘弹出后的输入价格结果
     BOX_EXCEPTION_AREA = (0.579, 0.641, 0.634, 0.681)  # 异常确认框
 
     # 主界面 / 结算.
@@ -305,6 +336,19 @@ class AutoBidAuctionTask(NTEOneTimeTask, BaseNTETask):
     BOX_MAIN_TITLE = (0.058, 0.032, 0.130, 0.081)  # 主界面标题: 即刻落槌
     BOX_MAIN_ASSET = (0.670, 0.025, 0.830, 0.095)  # 主界面资产数值
     BOX_INSUFFICIENT = (0.240, 0.467, 0.747, 0.536)  # 库存不足提示
+
+    # --- 掉线回场 (大世界 → 拍卖主界面) ---
+    # 「即刻落槌」是「都市闲趣」里的一个玩法卡片, 入口路径固定:
+    # 大世界按 F5 打开「都市大亨」面板 → 点「都市闲趣」→ 在 MENU 面板里找「即刻落槌」卡片。
+    # 「都市闲趣」是 3D 透视面板上的斜体标签, 整图 OCR 读不出, 只能按光环位置点击
+    # (光环中心由实机截图 1920x1080 标定: 文字中心 (0.5197,0.4292), 光环中心约 (0.5145,0.492))。
+    POS_CITY_FUN_ENTRY = (0.5145, 0.492)
+    POS_CITY_FUN_SCROLL = (0.500, 0.550)  # 都市闲趣面板内容区中部, 滚动落点
+    # 都市闲趣 MENU 面板的标题「MENU 都市闲趣」。它和都市大亨面板上的「都市闲趣」入口
+    # 同名, 但位置不重叠(入口在 0.48~0.56/0.39~0.47), 用区域就能区分两个界面。
+    BOX_CITY_FUN_TITLE = (0.10, 0.09, 0.42, 0.20)
+    BOX_CITY_FUN_CARDS = (0.08, 0.22, 0.87, 0.88)  # 卡片区, 「即刻落槌」在最后一页
+    BOX_CURRENT_VENUE = (0.630, 0.550, 0.800, 0.598)  # 主界面「当前：XXX场」
 
     # 低保金.
     BOX_WELFARE_BTN = (0.8266, 0.0398, 0.8984, 0.0778)
@@ -421,6 +465,8 @@ class AutoBidAuctionTask(NTEOneTimeTask, BaseNTETask):
     # 结算画面存在跳过动画已出现而退出按钮尚未渲染的中间态, 等待不能太短.
     EXIT_BUTTON_TIMEOUT = 10
     ASSET_OCR_TIMEOUT = 15
+    # 主界面资产观测的单次超时。观测每轮都要做, 给太长会拖累单轮总预算。
+    ASSET_OBSERVE_TIMEOUT = 5
     # 出价面板的当前估价在界面刚出现时会跳动几次, 第一次识别到的不是最终值;
     # 连续读到相同值才采用, 最多等 ESTIMATE_STABLE_TIMEOUT 秒.
     ESTIMATE_STABLE_READS = 3
@@ -430,6 +476,10 @@ class AutoBidAuctionTask(NTEOneTimeTask, BaseNTETask):
     # 因此从第一次读到有效数值起, 至少观察这么久才允许采用。
     ESTIMATE_MIN_OBSERVE_SECONDS = 4.0
     ESTIMATE_STABLE_TIMEOUT = 10
+    # 估价数字右端距裁框右边界小于这个像素数时, 认为末位可能已被裁掉。
+    # 2026-09-23 的故障就是这个形态: 末位 "3" 只剩 4px 宽的一条竖边, OCR 直接丢弃,
+    # 2,643 读成 ,643 / 1,912 读成 912。裁框宽度不是安全保证, 所以要在运行时盯住它。
+    ESTIMATE_EDGE_MARGIN_PX = 8
 
     # --- 轮询与重试 ---
     POLL_INTERVAL = 0.5
@@ -450,6 +500,17 @@ class AutoBidAuctionTask(NTEOneTimeTask, BaseNTETask):
     # 低保金弹窗关闭重试次数, 每日次数用尽时弹窗没有领取按钮, 只能靠取消关闭.
     WELFARE_CLOSE_RETRIES = 3
 
+    # --- 掉线回场 (秒/次) ---
+    # 网络不稳时匹配阶段会被踢回大世界, 界面状态全不命中, 只能空转到 MATCH_TIMEOUT。
+    # 回场是异常路径, 预算给足但只做一次: 失败就按本轮失败处理, 交给下一轮重试。
+    RECOVER_TIMEOUT = 90  # 单次回场总预算
+    RECOVER_STEP_TIMEOUT = 12  # 回场各步骤的等待上限
+    RECOVER_SCROLL_STEPS = 4  # 「都市闲趣」面板最多滚动几次去找「即刻落槌」
+    RECOVER_SCROLL_WHEEL = -8  # 每次滚动的滚轮格数
+    # 匹配阶段每 N 次轮询探一次大世界(约 2 秒): in_world 是旋转模板匹配, 比 OCR 贵,
+    # 不能每 0.5 秒调一次; 探测只在点击「开始匹配」之后、界面迟迟不变化时才开始.
+    WORLD_PROBE_INTERVAL = 4
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.supported_languages = ["zh_CN"]
@@ -459,6 +520,9 @@ class AutoBidAuctionTask(NTEOneTimeTask, BaseNTETask):
         # 任务卡上的「说明」按钮只在 instructions 非空时出现, 内容是富文本 HTML.
         self.instructions = INST
         self.add_rounds_config()
+        # 资产历史落盘器: 每轮回主界面读到资产值后追加一条 JSONL 记录。
+        # 读取侧的路径见 src/utils/asset_history.py, 报告脚本见 tools/asset_report.py。
+        self._asset_history = AssetHistoryRecorder()
 
         self.default_config.update(
             {
@@ -803,6 +867,133 @@ class AutoBidAuctionTask(NTEOneTimeTask, BaseNTETask):
         except Exception as e:
             self.log_warning(f"弹窗兜底处理失败: {type(e).__name__}: {e}")
 
+    # --- 掉线回场 (大世界 → 拍卖主界面) ---
+    def _is_world_screen(self) -> bool:
+        """是否被踢回大世界, 复用基类的小地图箭头模板匹配。"""
+        try:
+            return bool(self.in_world())
+        except TaskDisabledException:
+            raise
+        except Exception as e:
+            self.log_debug(f"大世界判定失败: {type(e).__name__}: {e}")
+            return False
+
+    def _resume_after_world_drop(
+        self, boxes: AuctionBoxes, deadline: float, allow_recover: bool
+    ) -> AuctionState:
+        """掉线后的统一出口: 允许回场就回场并重跑匹配阶段, 否则按本轮失败结束。"""
+        if not allow_recover:
+            raise WaitFailedException("被踢回大世界后再次掉线, 本轮放弃")
+        return self._recover_from_world(boxes, deadline)
+
+    def _recover_from_world(self, boxes: AuctionBoxes, deadline: float) -> AuctionState:
+        """掉线回场: 大世界 → 拍卖主界面, 成功后重新进入匹配阶段。
+
+        网络不稳时点「开始匹配」后会被踢回大世界, 此时拍卖界面的四种状态判定全不命中,
+        原逻辑只能空转到 MATCH_TIMEOUT(120 秒) 再按本轮失败处理, 每轮白等两分钟,
+        轮次很快就被耗尽。回场成功后重跑 _stage_match, 让本轮接着走完。
+
+        只回场一次: 重跑时传 allow_recover=False, 再次被踢说明网络仍然不通,
+        继续重试只会把整轮 deadline 耗光, 留给下一轮更合适(轮次之间本来就有间隔)。
+        """
+        self.log_warning("检测到被踢回大世界, 尝试自动回到拍卖界面")
+        self.info_set("当前阶段", "回场中")
+        recover_deadline = min(deadline, time.monotonic() + self.RECOVER_TIMEOUT)
+        if not self._return_to_auction(boxes, recover_deadline):
+            raise WaitFailedException("被踢回大世界后未能回到拍卖界面")
+
+        venue = self._read_current_venue()
+        self.log_info(f"已回到拍卖主界面, 当前会场: {venue or '未识别'}")
+        self.info_set("当前阶段", "匹配中")
+        return self._stage_match(boxes, deadline, allow_recover=False)
+
+    def _return_to_auction(self, boxes: AuctionBoxes, deadline: float) -> bool:
+        """按「大世界 → F5 都市大亨 → 都市闲趣 → 即刻落槌」的顺序打开拍卖界面。
+
+        整条路径重试一次: 网络抖动时 F5 或入口点击都可能落空, 重试一次比直接判失败划算,
+        但不再多试 —— 每次失败都要重新走一遍面板动画, 会把整轮 deadline 耗光。
+        注意 retry_on_action 的 attempt 是「额外重试次数」, 实际执行 attempt + 1 次,
+        所以这里传 1 才是「总共两次」。
+
+        掉线时不会有「网络异常」之类的提示弹窗(已确认), 所以不在这里兜弹窗;
+        真要是有弹窗, ensure_main 里的月卡/登录处理也覆盖不到, 由整轮失败后的
+        _recover_blocking_popup 兜底。
+        """
+
+        def action():
+            try:
+                self.ensure_main(in_world=True)
+                self.openF5panel()
+            except TaskDisabledException:
+                raise
+            except Exception as e:
+                self.log_warning(f"打开都市大亨面板失败: {type(e).__name__}: {e}")
+                return False
+
+            self.operate_click(*self.POS_CITY_FUN_ENTRY)
+            if not self.wait_ocr(
+                box=self.box_of_screen(*self.BOX_CITY_FUN_TITLE),
+                match=RE_CITY_FUN,
+                time_out=self._timeout_or_zero(deadline, self.RECOVER_STEP_TIMEOUT),
+                raise_if_not_found=False,
+                settle_time=0.5,
+            ):
+                self.log_warning("未检测到「都市闲趣」面板")
+                return False
+            if not self._click_instant_lot(deadline):
+                return False
+            return bool(
+                self.wait_ocr(
+                    box=boxes.main_title,
+                    match=RE_MAIN_TITLE,
+                    time_out=self._timeout_or_zero(deadline, self.RECOVER_STEP_TIMEOUT),
+                    raise_if_not_found=False,
+                    settle_time=0.5,
+                )
+            )
+
+        try:
+            return bool(self.retry_on_action(action, self.ensure_main, attempt=1))
+        except TaskDisabledException:
+            raise
+        except Exception as e:
+            self.log_warning(f"回场流程异常: {type(e).__name__}: {e}")
+            return False
+
+    def _click_instant_lot(self, deadline: float) -> bool:
+        """在「都市闲趣」面板里找「即刻落槌」卡片并点击。
+
+        「即刻落槌」在面板最后一页, 刚打开时看不到, 所以边滚边找。
+        命中后直接点 OCR 框中心 —— 卡片是「上图下标题」, 标题本身就在卡片的点击热区内。
+        复用 RE_MAIN_TITLE 是因为卡片名与拍卖主界面标题是同一个词「即刻落槌」。
+        """
+        cards = self.box_of_screen(*self.BOX_CITY_FUN_CARDS)
+        for _ in range(self.RECOVER_SCROLL_STEPS):
+            if self._wait_operate_click(
+                cards,
+                RE_MAIN_TITLE,
+                self._timeout_or_zero(deadline, 3),
+                after_sleep=1,
+            ):
+                return True
+            self.scroll(*self.POS_CITY_FUN_SCROLL, self.RECOVER_SCROLL_WHEEL)
+            self.sleep(0.5)
+        self.log_warning("都市闲趣面板里未找到「即刻落槌」入口")
+        return False
+
+    def _read_current_venue(self) -> str:
+        """读拍卖主界面右侧的「当前：XXX场」, 只用于在日志里留痕, 读不出返回空串。"""
+        try:
+            results = self.ocr(
+                box=self.box_of_screen(*self.BOX_CURRENT_VENUE), match=RE_CURRENT_VENUE
+            )
+        except TaskDisabledException:
+            raise
+        except Exception as e:
+            self.log_debug(f"会场文字读取失败: {type(e).__name__}: {e}")
+            return ""
+        return "".join(box.name for box in results or []).strip()
+
     def _build_boxes(self) -> AuctionBoxes:
         """按相对比例一次性构建本轮拍卖使用的全部 UI 区域。"""
         screen = self.box_of_screen
@@ -810,6 +1001,7 @@ class AutoBidAuctionTask(NTEOneTimeTask, BaseNTETask):
             match=screen(*self.BOX_MATCH),
             confirm=screen(*self.BOX_CONFIRM),
             bid=screen(*self.BOX_BID),
+            bid_keypad=screen(*self.BOX_BID_KEYPAD),
             skip_area=screen(*self.BOX_SKIP_AREA),
             exit=screen(*self.BOX_EXIT),
             bid_confirm=screen(*self.BOX_BID_CONFIRM),
@@ -820,6 +1012,7 @@ class AutoBidAuctionTask(NTEOneTimeTask, BaseNTETask):
             last_bid=screen(*self.BOX_LAST_BID),
             clear=screen(*self.BOX_CLEAR),
             price_result=screen(*self.BOX_PRICE_RESULT),
+            price_result_keypad=screen(*self.BOX_PRICE_RESULT_KEYPAD),
             exception_area=screen(*self.BOX_EXCEPTION_AREA),
             main_title=screen(*self.BOX_MAIN_TITLE),
             main_asset=screen(*self.BOX_MAIN_ASSET),
@@ -935,7 +1128,9 @@ class AutoBidAuctionTask(NTEOneTimeTask, BaseNTETask):
             raise WaitFailedException("等待出价界面超时")
 
     # --- 各阶段实现 ---
-    def _stage_match(self, boxes: AuctionBoxes, deadline: float) -> AuctionState:
+    def _stage_match(
+        self, boxes: AuctionBoxes, deadline: float, *, allow_recover: bool = True
+    ) -> AuctionState:
         """匹配阶段: 等待进入确认或出价状态。
 
         仅在检测到"开始匹配"按钮时才尝试点击, 避免界面过渡期无谓的阻塞。
@@ -945,6 +1140,9 @@ class AutoBidAuctionTask(NTEOneTimeTask, BaseNTETask):
         失败后会再调一次本方法, 所以匹配阶段累计上限是 2 x MATCH_TIMEOUT, 只由整轮
         deadline 兜底。另外循环退出条件有两个(MATCH_MAX_LOOPS 与 stage_deadline),
         循环体耗时不等于 POLL_INTERVAL 时两者谁先生效不确定, 都保留。
+
+        allow_recover 为 False 表示本次是掉线回场后的重跑: 再掉线就按本轮失败结束,
+        不能再次回场, 否则会一直回场重跑下去。
         """
         self.log_info("匹配阶段开始, 等待确认或出价界面")
         stage_deadline = min(deadline, time.monotonic() + self.MATCH_TIMEOUT)
@@ -970,10 +1168,17 @@ class AutoBidAuctionTask(NTEOneTimeTask, BaseNTETask):
             # 点击后界面未变化时返回 None 继续轮询; 单轮 deadline 到期由内部抛出超时.
             if self._is_match_screen(boxes):
                 result = self._handle_match_click(boxes, stage_deadline)
+                if result is AuctionState.WORLD:
+                    return self._resume_after_world_drop(boxes, deadline, allow_recover)
                 if result is not None:
                     return result
 
             self.sleep(self.POLL_INTERVAL)
+
+        # 空转到超时前判一次大世界: 网络抖动掉线时四种界面状态全不命中, 直接抛超时会让
+        # 本轮白等两分钟。命中大世界就回场后重跑本阶段, 仍在整轮 deadline 内。
+        if self._is_world_screen():
+            return self._resume_after_world_drop(boxes, deadline, allow_recover)
 
         raise WaitFailedException("匹配阶段超时, 未进入确认或出价界面")
 
@@ -1000,7 +1205,9 @@ class AutoBidAuctionTask(NTEOneTimeTask, BaseNTETask):
 
         click_deadline = min(stage_deadline, time.monotonic() + self.MATCH_CLICK_TIMEOUT)
         probe_deadline = min(click_deadline, time.monotonic() + self.MATCH_PROBE_TIMEOUT)
+        loop_count = 0
         while time.monotonic() < click_deadline:
+            loop_count += 1
             self.next_frame()
             if self._is_confirm_screen(boxes):
                 self.log_info("匹配成功, 进入确认阶段")
@@ -1014,12 +1221,18 @@ class AutoBidAuctionTask(NTEOneTimeTask, BaseNTETask):
 
             # 界面切换时按钮会消失, 这种情况继续等加载动画;
             # 按钮还在原地说明点击没生效, 交回上层立刻重新点击.
-            if time.monotonic() >= probe_deadline and self._is_match_screen(boxes):
-                self.log_warning(
-                    f"点击开始匹配后 {self.MATCH_PROBE_TIMEOUT} 秒界面无变化, "
-                    f"判定点击未生效, 立即重新点击"
-                )
-                return None
+            if time.monotonic() >= probe_deadline:
+                if self._is_match_screen(boxes):
+                    self.log_warning(
+                        f"点击开始匹配后 {self.MATCH_PROBE_TIMEOUT} 秒界面无变化, "
+                        f"判定点击未生效, 立即重新点击"
+                    )
+                    return None
+                # 按钮已消失却没进后续界面: 正常是加载动画, 也可能是掉线被踢回大世界。
+                # in_world 是旋转模板匹配, 比 OCR 贵, 按 WORLD_PROBE_INTERVAL 节流探测。
+                if loop_count % self.WORLD_PROBE_INTERVAL == 0 and self._is_world_screen():
+                    self.log_warning("匹配阶段界面长时间无变化且检测到大世界, 判定为掉线")
+                    return AuctionState.WORLD
 
             self.sleep(self.POLL_INTERVAL)
 
@@ -1375,10 +1588,14 @@ class AutoBidAuctionTask(NTEOneTimeTask, BaseNTETask):
                 boxes, self._timeout_or_zero(deadline, self.INVENTORY_FULL_TIMEOUT)
             )
 
+        # 资产观测无条件执行, 与低保金开关无关: 这是独立的长期记录功能。
+        # 观测失败(未读出)只返回 None, 不影响后续低保金与出售流程。
+        asset_value = self._observe_main_asset(boxes, deadline)
+
         welfare_claimed = False
         if self._assist_enabled(self.ASSIST_WELFARE):
             try:
-                welfare_claimed = self._claim_welfare_if_needed(boxes, deadline)
+                welfare_claimed = self._claim_welfare_if_needed(boxes, deadline, asset_value)
             except TaskDisabledException:
                 raise
             except WaitFailedException as e:
@@ -1445,31 +1662,72 @@ class AutoBidAuctionTask(NTEOneTimeTask, BaseNTETask):
             self.log_info("检测到库存不足提示, 当前处于满仓状态")
         return bool(found)
 
-    def _claim_welfare_if_needed(self, boxes: AuctionBoxes, deadline: float) -> bool:
-        """主界面资产低于阈值时领取低保金, 返回是否成功领取。
+    def _observe_main_asset(self, boxes: AuctionBoxes, deadline: float) -> int | None:
+        """读取主界面资产值, 记录到本地历史, 返回数值(未读出时 None)。
+
+        独立于低保金领取: 资产历史记录是用户要的长期观测, 不依赖「启用辅助功能」里
+        是否勾选低保金。两者合在一个方法里时, 用户取消勾选低保金会让整个资产记录
+        静默停摆 —— 任务运行完全正常, 只是数据一条都不写, 极难发现。
 
         资产读取属于可选的观测步骤, 和 _detect_inventory_full 一样用 _timeout_or_zero:
         单轮时间用尽时只表示这次没测到, 不该抛 WaitFailedException —— 那会把已经成功
         结算的轮次判成失败, 而且调用方写回观测结果的那一步会被跳过, 连出售也一并丢失。
         """
-        timeout = self._timeout_or_zero(deadline, 5)
+        timeout = self._timeout_or_zero(deadline, self.ASSET_OBSERVE_TIMEOUT)
         if timeout <= 0:
-            self.log_debug("低保金检测没有可用时间, 跳过本次领取")
-            return False
+            self.log_debug("资产观测没有可用时间, 跳过本次读取")
+            return None
 
         # 使用数字 match, 避免漏识别单字符数值 0.
         asset_value = self._read_asset_value(boxes.main_asset, timeout)
         if asset_value is None:
+            self.log_warning("资产值识别失败, 跳过本次观测")
+            return None
+
+        self.log_info(f"当前资产: {asset_value}")
+        self._record_asset_value(asset_value)
+        return asset_value
+
+    def _claim_welfare_if_needed(
+        self, boxes: AuctionBoxes, deadline: float, asset_value: int | None
+    ) -> bool:
+        """主界面资产低于阈值时领取低保金, 返回是否成功领取。
+
+        asset_value 由调用方通过 _observe_main_asset 读出后传入: 资产观测与低保金领取
+        拆开后, 两者的可用时间互相独立, 一次 OCR 的读数也只采信一次。
+        """
+        if asset_value is None:
             self.log_warning("资产值识别失败, 跳过本次低保金领取")
             return False
 
-        self.log_info(f"当前资产: {asset_value}")
         if asset_value >= self.WELFARE_ASSET_THRESHOLD:
             self.log_info(f"资产达到{self.WELFARE_ASSET_THRESHOLD}, 跳过低保金领取")
             return False
 
         self.log_info(f"资产低于{self.WELFARE_ASSET_THRESHOLD}, 执行低保金领取")
         return self._try_claim_welfare(boxes, deadline)
+
+    def _record_asset_value(self, asset_value: int) -> None:
+        """把本轮读到的主界面资产值追加到本地历史文件。
+
+        记录失败(磁盘满、目录只读等)只写 warn 日志, 绝不向上抛: 已经成功结算的轮次
+        不能因为写不进一个统计文件被判成失败。
+        """
+        try:
+            record = self._asset_history.record(
+                asset_value, round_index=self.current_round
+            )
+        except Exception as e:
+            self.log_warning(f"资产记录写入异常: {type(e).__name__}: {e}")
+            return
+
+        if record is None:
+            self.log_warning("资产记录写入失败, 本轮资产未落盘")
+            return
+
+        if record.delta is not None:
+            sign = "+" if record.delta >= 0 else ""
+            self.log_info(f"资产变化: {sign}{record.delta} (上次 {record.value - record.delta})")
 
     # --- 界面状态判定 ---
     def _is_match_screen(self, boxes: AuctionBoxes) -> bool:
@@ -1479,6 +1737,13 @@ class AutoBidAuctionTask(NTEOneTimeTask, BaseNTETask):
         return bool(self.ocr(box=boxes.confirm, match=RE_CONFIRM))
 
     def _is_bid_screen(self, boxes: AuctionBoxes) -> bool:
+        """判断是否已在出价界面(含数字键盘已弹出的状态)。
+
+        键盘弹窗会盖住 BOX_BID, 那时只能靠弹窗上的文案认出界面, 否则会空等到超时。
+        键盘态优先判定: 它是更具体的形态, 命中就不必再读 BOX_BID。
+        """
+        if self.ocr(box=boxes.bid_keypad, match=RE_BID_PANEL):
+            return True
         return bool(self.ocr(box=boxes.bid, match=RE_BID))
 
     def _is_skip_screen(self, boxes: AuctionBoxes) -> bool:
@@ -1699,6 +1964,100 @@ class AutoBidAuctionTask(NTEOneTimeTask, BaseNTETask):
         digits_and_commas = re.sub(r"[^\d,]", "", normalized)
         return digits_and_commas.startswith(",")
 
+    @staticmethod
+    def _has_inconsistent_grouping(raw_text: str) -> bool:
+        """判断带千位分隔符的读数是否「位数与逗号不自洽」。
+
+        千位分隔的合法形式只有 `1,234` / `12,345` / `123,456` 这几种: 去掉逗号后
+        长度必须满足 (len - 1) % 3 == 0 且首位分组不为空。`1,23` / `12,3,456` 这类
+        不合法, 说明 OCR 丢了或多了字符。
+
+        注意这条拦不住 `643`(无逗号, 天然自洽), 所以它只是辅助防线; 末位丢失主要靠
+        `_read_estimate_value` 的「数字右端贴裁框边界」告警来发现。
+        """
+        normalized = raw_text.translate(FULLWIDTH_DIGITS)
+        digits_and_commas = re.sub(r"[^\d,]", "", normalized)
+        if "," not in digits_and_commas:
+            return False
+        groups = digits_and_commas.split(",")
+        if groups[0] == "" or len(groups[0]) > 3:
+            return False  # 首位分组缺失或超长, 由 _is_partial_number_text 或调用方处理
+        return any(len(group) != 3 for group in groups[1:])
+
+    def _read_estimate_texts(self, box: Box, timeout: float) -> list:
+        """读区域内**全部**文本, 不做 match 过滤。
+
+        必须用 `self.ocr(match=None)` 而不是 `wait_ocr(match=RE_NUMBER)`:
+        框架 `OCR.wait_ocr` 的 `match` 不只是「找到了没有」的判定条件 —— `onnx_ocr` 里
+        `detected_boxes = find_boxes_by_name(detected_boxes, match)` 会把返回值**过滤成
+        只含命中的框**, 非命中文本(如「当前估价：」标签)在返回列表里根本不存在。
+
+        2026-09-23 21:49 线上的故障正是这个: 日志里 `all_boxes: [当前估价：_0.99,
+        20,930_1.00]` 说明区域内两个框都在, 但 `wait_ocr(match=RE_NUMBER)` 只返回
+        `[20,930]`, 标签被过滤掉 -> `label_right is None` -> 每一帧都判「标签未读到」,
+        估价永远读不出, 出价一直回退基础价 1。
+
+        这里改用 `ocr()`(不是 wait)并传 `match=None` 拿全量结果, 标签和数字都在里面。
+        取一帧即可: 调用方的稳定判定循环本来就会反复重读。
+        """
+        deadline = time.monotonic() + timeout
+        while True:
+            boxes = self.ocr(box=box, match=None, log=False)
+            texts = [b for b in boxes if b.name] if boxes else []
+            if texts or time.monotonic() >= deadline:
+                return texts
+            self.sleep(0.2)
+
+    def _read_estimate_value(
+        self, box: Box, timeout: float, label: str = "当前估价"
+    ) -> tuple[int | None, bool]:
+        """读估价数字: 先按「估价」标签定位, 再取标签右侧的数字。
+
+        必须按标签过滤而不能只靠裁框宽度。拿到的框里有多个文本时, 只把「估价」标签
+        右侧的接起来 —— 区域内混进第二个数字栏(如「我的资产」数值)时, 直接 `"".join()`
+        会把两串数字粘成一个。线上证据: `BOX_ESTIMATE` 右边界 0.9550 落在「我的资产」
+        数值(右端实测 0.9594)之内, 资产数字被截尾后与估价拼接, 表现为「估价少了一位」
+        (2026-09-23 截图: 2,643 读成 ,643、1,912 读成 912)。
+
+        实测「估价」标签右边沿在 0.8438~0.8464, 数字在 0.8484~0.9052 (另一局 13,875 在
+        0.8542~0.9010), 两者之间有明显空隙, 所以按 `x0 >= label_right` 过滤是稳定的。
+
+        Returns:
+            (值, 是否贴边). 贴边表示数字右端距裁框右边界不足 EDGE_MARGIN_PX, 该读数
+            可能已被裁掉末位, 调用方应按不可信处理。
+        """
+        all_boxes = self._read_estimate_texts(box, timeout)
+        if not all_boxes:
+            return None, False
+
+        label_right = max(
+            (b.x + b.width for b in all_boxes if "估价" in b.name.replace("：", "")),
+            default=None,
+        )
+        if label_right is None:
+            # 标签没读出来: 不猜, 交给调用方重读一帧.
+            self.log_debug(f"{label} 标签未读到, 本帧数字不可靠")
+            return None, False
+
+        candidates = [b for b in all_boxes if b.x >= label_right and RE_NUMBER.search(b.name)]
+        if not candidates:
+            return None, False
+
+        digit_boxes = sorted(candidates, key=lambda b: b.x)
+        raw_text = "".join(b.name for b in digit_boxes)
+        if self._is_partial_number_text(raw_text):
+            self.log_debug(f"{label} OCR: '{raw_text}', 千位分隔符前缺数字, 视为残缺读数")
+            return None, False
+        if self._has_inconsistent_grouping(raw_text):
+            self.log_debug(f"{label} OCR: '{raw_text}', 千位分组不自洽, 视为残缺读数")
+            return None, False
+
+        value = self._parse_asset_value(raw_text)
+        right_edge = max(b.x + b.width for b in digit_boxes)
+        tight = (box.x + box.width - right_edge) < self.ESTIMATE_EDGE_MARGIN_PX
+        self.log_debug(f"{label} OCR: '{raw_text}', 解析值: {value}, 贴边: {tight}")
+        return value, tight
+
     def _read_asset_value(
         self, box: Box, timeout: float, label: str = "资产", *, reject_partial: bool = False
     ) -> int | None:
@@ -1835,11 +2194,15 @@ class AutoBidAuctionTask(NTEOneTimeTask, BaseNTETask):
         skip_zero 用于把 0 当作「面板还没滚出数值」的占位读数: 估价面板在数字滚动前会先
         显示 0, 把它当结果会算出 0 元出价, 所以这类读数不计入稳定判定, 继续等真值。
 
-        估价数字右对齐, OCR 对最左侧首位数字的识别不稳定: 线上日志里 `6,486` 被读成
-        `486`、`22,778` 被读成 `2,778`、`6,544` 被读成 `,544`, 而且画面静止时残缺读数会
-        连续出现多次 (18:56 那局 `,544` 连着 9 次), 只比「值是否相同」会把它当成稳定值,
-        按低一个数量级的价格出价。漏读只会让位数变少, 所以只在位数不减少的读数里取最新值,
-        位数更少的读数按漏读忽略; 未读出同样不带来新信息, 只累计稳定次数。
+        读数走 `_read_estimate_value`, 即「按估价标签右边沿取数字」。这解决的是本函数
+        原来修不掉的那类残缺: 末位数字被裁框切掉时位数不变 (`2,643` 读成 `,643`,
+        连逗号一起丢就成 `643`), 「位数不减少」这条防线对它完全无效。附带地, 按标签
+        过滤也杜绝了「我的资产」数值被 `RE_NUMBER` 拼进来的污染。
+
+        原有的「位数不减少」判定保留: 它对「数字滚动中途读到更短的值」仍然有效。
+        贴边的读数按「可能被裁掉末位」处理 —— 不采信, 并**重置**已攒的连续计数,
+        因为末位丢失后位数可能不变, 只有贴边这个几何信号能发现它; 连续观察到的贴边
+        不能反过来抬高更早那次读数的可信度。
 
         数字滚动本身也要时间: 实测中间值可以稳定停留到面板打开后 2.6 秒 (19:16 那局),
         所以「连续相同」还要叠加 ESTIMATE_MIN_OBSERVE_SECONDS 的最短观察窗口,
@@ -1854,16 +2217,30 @@ class AutoBidAuctionTask(NTEOneTimeTask, BaseNTETask):
         first_seen: float | None = None
         zero_seen = False
         valid_reads = 0
+        tight_seen = False
 
         while time.monotonic() < deadline:
-            value = self._read_asset_value(
+            value, tight = self._read_estimate_value(
                 box,
                 min(deadline - time.monotonic(), self.ASSET_OCR_TIMEOUT),
                 label,
-                reject_partial=True,
             )
             now = time.monotonic()
-            if value is None:
+            if tight:
+                # 数字右端贴住裁框边界: 末位可能已被切掉且位数不变, 无法与正常读数区分,
+                # 只能整帧判为不可信. 记下来, 超时时用它解释为什么没读到.
+                #
+                # 这类帧**不能**按「未读出」处理: 未读出只是没拿到新信息, 之前那次读数
+                # 仍然成立, 所以可以继续累积 same; 而贴边是「当前帧的裁框已经不够用」的
+                # 证据, 之前那个值是在旧帧上读的, 它的可信度不会因为又观察到几次贴边而上升.
+                # 若按未读出累积 same, 连续贴边反倒会把旧值攒成「稳定值」返回 —— 正是本
+                # 次要防的末位被裁故障, 而且 tight_seen 的告警分支(只在 last is None 时
+                # 才走)永远不会触发, 贴边信号被静默吞掉.
+                tight_seen = True
+                same = 0
+                first_seen = None
+                value = None
+            elif value is None:
                 # 未读出或残缺读数, 没有带来更完整的信息.
                 if last is not None:
                     same += 1
@@ -1878,7 +2255,7 @@ class AutoBidAuctionTask(NTEOneTimeTask, BaseNTETask):
                 same = 1
                 valid_reads += 1
             else:
-                # 与当前读数相同, 或首位被漏读导致位数更少.
+                # 与当前读数相同, 或位数更少(数字滚动中途读到更短的值).
                 same += 1
                 if value == last:
                     # 同一个完整数值被再次读到, 才是真正意义上的「有效读数」.
@@ -1899,7 +2276,7 @@ class AutoBidAuctionTask(NTEOneTimeTask, BaseNTETask):
                 else:
                     self.log_warning(
                         f"{label}仅 {valid_reads} 次有效读数(其余帧未读出或为残缺值), "
-                        f"采用 {last}, 该值可能是漏读首位的结果"
+                        f"采用 {last}, 该值可能不完整"
                     )
                 return last
 
@@ -1911,6 +2288,18 @@ class AutoBidAuctionTask(NTEOneTimeTask, BaseNTETask):
 
         if last is not None:
             self.log_warning(f"{label}在 {timeout} 秒内未稳定, 使用最后一次读数 {last}")
+            if tight_seen:
+                # 中途出现过贴边帧: 这个 last 是在贴边之前的帧上读的, 只作参考.
+                self.log_warning(
+                    f"{label}期间有读数贴住识别区域边界, 末位可能已被裁掉; "
+                    f"若该值与实际不符, 请检查 "
+                    f"{self.__class__.__name__}.BOX_ESTIMATE 右边界"
+                )
+        elif tight_seen:
+            self.log_warning(
+                f"{label}读数始终贴住识别区域边界, 末位可能被裁掉, 视为未读出; "
+                f"请检查 {self.__class__.__name__}.BOX_ESTIMATE 右边界"
+            )
         elif zero_seen:
             self.log_warning(f"{label}在 {timeout} 秒内只读到 0, 视为未读出")
         return last
@@ -2077,19 +2466,23 @@ class AutoBidAuctionTask(NTEOneTimeTask, BaseNTETask):
         """校验数字面板显示的价格与目标价格一致, 不一致时抛出异常。
 
         价格区未输入时显示 "可输入范围0~<资产>" 提示文本, 视为未识别处理。
+
+        键盘弹出后价格输入框移到了键盘右侧, BOX_PRICE_RESULT 那个矩形会落在提示文案
+        「可输入范围0~<资产>」上, 于是键盘态下**永远**读到提示文案、永远判「未输入」
+        (2026-09-23 实测)。所以两个区域都读: 命中提示文案或读不出时, 换用键盘态的
+        输入框区域再试一次, 两个位置都没得到数字才算未输入。
         """
-        price_boxes = self.wait_ocr(
-            box=boxes.price_result,
-            match=RE_NUMBER,
-            time_out=3 if deadline is None else self._remaining_timeout(deadline, 3),
-            settle_time=0.5,
-            raise_if_not_found=False,
-        )
-        if not price_boxes:
+        raw_price = self._read_price_text(boxes.price_result, deadline)
+        if not raw_price or RE_PRICE_HINT.search(raw_price):
+            # 只有一种情况需要换区域重读: 读到的是提示文案。此时键盘态的实际输入框
+            # 在别处。若两个区域都读到提示文案, 说明价格确实还没输入。
+            keypad_text = self._read_price_text(boxes.price_result_keypad, deadline)
+            if keypad_text and not RE_PRICE_HINT.search(keypad_text):
+                raw_price = keypad_text
+
+        if not raw_price:
             self.log_warning("输入价格结果未识别, 取消确认并重试当前出价")
             raise WaitFailedException("输入价格结果未识别")
-
-        raw_price = "".join(text_box.name for text_box in price_boxes)
         if RE_PRICE_HINT.search(raw_price):
             self.log_warning("价格区仍显示可输入范围提示, 视为未输入, 取消确认并重试当前出价")
             raise WaitFailedException("输入价格结果未识别")
@@ -2102,6 +2495,17 @@ class AutoBidAuctionTask(NTEOneTimeTask, BaseNTETask):
                 "取消确认并重试当前出价"
             )
             raise WaitFailedException("输入价格校验失败")
+
+    def _read_price_text(self, box: Box, deadline: float | None) -> str:
+        """读取价格区文本, 未识别时返回空串。"""
+        price_boxes = self.wait_ocr(
+            box=box,
+            match=RE_NUMBER,
+            time_out=3 if deadline is None else self._remaining_timeout(deadline, 3),
+            settle_time=0.5,
+            raise_if_not_found=False,
+        )
+        return "".join(text_box.name for text_box in price_boxes) if price_boxes else ""
 
     def _confirm_bid_price(self, boxes: AuctionBoxes, deadline: float | None) -> None:
         """点击确认出价, 并处理可能出现的异常确认框。"""
