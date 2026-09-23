@@ -314,12 +314,15 @@ class AutoBidAuctionTask(NTEOneTimeTask, BaseNTETask):
     BOX_ABANDON_CONFIRM = (0.5474, 0.6389, 0.6714, 0.6861)  # 放弃确认
     BOX_ASSET_VALUE = (0.8583, 0.0426, 0.9870, 0.0806)  # 出价面板资产
     # 出价面板当前估价.
-    # 右边界与「我的资产」数值(右端实测 0.9594)只差 0.0106, 是脆弱点:
-    #   - 不能 < 0.9052: price_result.png 的 "22,684" 右端会伸到这里, 裁掉末位数字.
-    #   - 不能 > 0.9594: 会把「我的资产」数值一起命中, RE_NUMBER 拼接成大数.
-    # 安全窗口只有 54px, 所以宽度本身不够可靠 —— 数字的实际筛选靠「估价」标签右边沿
-    # (见 _read_estimate_value), 右边界只负责让数字完整落在区域内.
-    BOX_ESTIMATE = (0.7780, 0.1330, 0.9700, 0.1820)  # 出价面板当前估价
+    # 实测数字右端最靠右的一局是 0.9052 (price_result.png 的 "22,684"), 另一局 13,875 在
+    # 0.9010; 再往右的「我的资产」数值右端在 0.9594。右边界放在 0.9200, 即在估价数字右端
+    # 外留出约 0.015 (1080p 约 28px, 2160p 约 57px) 的余量, 同时与资产数值左端保持距离.
+    #   - 不能 < 0.9052: 会把估价末位数字裁掉 (2026-09-23 的 "2,643 读成 ,643").
+    #   - 不能 > 0.9594: 会把「我的资产」数值一起圈进来.
+    # 缩到 0.9200 的意义: 即使「估价」标签这一帧没读出来, 区域里也只剩估价一个数字,
+    # `_read_estimate_value` 按标签过滤失败时不会退化成「拼接整段数字」.
+    # 数字的实际筛选仍以「估价」标签右边沿为准 (见 _read_estimate_value).
+    BOX_ESTIMATE = (0.7780, 0.1330, 0.9200, 0.1820)  # 出价面板当前估价, 不覆盖我的资产
 
     BOX_LAST_BID = (0.473, 0.733, 0.546, 0.807)  # 上轮出价
     BOX_CLEAR = (0.488, 0.859, 0.533, 0.917)  # 清除按钮
@@ -504,11 +507,16 @@ class AutoBidAuctionTask(NTEOneTimeTask, BaseNTETask):
 
     # --- 掉线回场 (秒/次) ---
     # 网络不稳时匹配阶段会被踢回大世界, 界面状态全不命中, 只能空转到 MATCH_TIMEOUT。
-    # 回场是异常路径, 预算给足但只做一次: 失败就按本轮失败处理, 交给下一轮重试。
+    # 回场是一次性的异常路径: 失败就按本轮失败处理, 交给下一轮重试。
     RECOVER_TIMEOUT = 90  # 单次回场总预算
     RECOVER_STEP_TIMEOUT = 12  # 回场各步骤的等待上限
     RECOVER_SCROLL_STEPS = 4  # 「都市闲趣」面板最多滚动几次去找「即刻落槌」
     RECOVER_SCROLL_WHEEL = -8  # 每次滚动的滚轮格数
+    # 单轮回场次数上限, 由 _exec_auction_round 写进 self._recover_quota 并扣减。
+    # 挂在轮次而不是调用参数上的原因见 _exec_auction_round: 参数会在「确认失败后重跑
+    # _stage_match」的路径上被默认值恢复, 使同一轮可以反复回场, 每次都重走一遍面板动画
+    # 把整轮 deadline 耗光, 并且让「本轮只回场一次」这个约定形同虚设。
+    RECOVER_MAX_PER_ROUND = 1
     # 匹配阶段每 N 次轮询探一次大世界(约 2 秒): in_world 是旋转模板匹配, 比 OCR 贵,
     # 不能每 0.5 秒调一次; 探测只在点击「开始匹配」之后、界面迟迟不变化时才开始.
     WORLD_PROBE_INTERVAL = 4
@@ -525,6 +533,10 @@ class AutoBidAuctionTask(NTEOneTimeTask, BaseNTETask):
         # 资产历史落盘器: 每轮回主界面读到资产值后追加一条 JSONL 记录。
         # 读取侧的路径见 src/utils/asset_history.py, 报告脚本见 tools/asset_report.py。
         self._asset_history = AssetHistoryRecorder()
+        # 本轮回场配额, 由 _exec_auction_round 每轮重置。这里先给初值, 使任务实例在任何
+        # 入口(包括测试直接调 _stage_match)下都有确定行为 —— 缺省视为「本轮回场机会已用完」,
+        # 不会因为没有轮次上下文而无限回场。
+        self._recover_quota = 0
 
         self.default_config.update(
             {
@@ -880,12 +892,16 @@ class AutoBidAuctionTask(NTEOneTimeTask, BaseNTETask):
             self.log_debug(f"大世界判定失败: {type(e).__name__}: {e}")
             return False
 
-    def _resume_after_world_drop(
-        self, boxes: AuctionBoxes, deadline: float, allow_recover: bool
-    ) -> AuctionState:
-        """掉线后的统一出口: 允许回场就回场并重跑匹配阶段, 否则按本轮失败结束。"""
-        if not allow_recover:
+    def _resume_after_world_drop(self, boxes: AuctionBoxes, deadline: float) -> AuctionState:
+        """掉线后的统一出口: 本轮回场配额还有就回场并重跑匹配阶段, 否则按本轮失败结束。
+
+        配额由 `_exec_auction_round` 创建(见 `_recover_quota`), 不通过参数逐层传递 ——
+        参数会在「确认失败后重新调 `_stage_match`」这条路径上被默认值重置, 使同一轮能反复
+        回场。这里扣减配额, 扣完就抛「本轮放弃」。
+        """
+        if self._recover_quota <= 0:
             raise WaitFailedException("被踢回大世界后再次掉线, 本轮放弃")
+        self._recover_quota -= 1
         return self._recover_from_world(boxes, deadline)
 
     def _recover_from_world(self, boxes: AuctionBoxes, deadline: float) -> AuctionState:
@@ -895,8 +911,9 @@ class AutoBidAuctionTask(NTEOneTimeTask, BaseNTETask):
         原逻辑只能空转到 MATCH_TIMEOUT(120 秒) 再按本轮失败处理, 每轮白等两分钟,
         轮次很快就被耗尽。回场成功后重跑 _stage_match, 让本轮接着走完。
 
-        只回场一次: 重跑时传 allow_recover=False, 再次被踢说明网络仍然不通,
-        继续重试只会把整轮 deadline 耗光, 留给下一轮更合适(轮次之间本来就有间隔)。
+        只回场 `RECOVER_MAX_PER_ROUND` 次: 配额在 `_resume_after_world_drop` 里扣减,
+        配额用完再掉线就按本轮失败结束 —— 继续重试只会把整轮 deadline 耗光, 留给下一轮
+        更合适(轮次之间本来就有间隔)。
         """
         self.log_warning("检测到被踢回大世界, 尝试自动回到拍卖界面")
         self.info_set("当前阶段", "回场中")
@@ -907,7 +924,7 @@ class AutoBidAuctionTask(NTEOneTimeTask, BaseNTETask):
         venue = self._read_current_venue()
         self.log_info(f"已回到拍卖主界面, 当前会场: {venue or '未识别'}")
         self.info_set("当前阶段", "匹配中")
-        return self._stage_match(boxes, deadline, allow_recover=False)
+        return self._stage_match(boxes, deadline)
 
     def _return_to_auction(self, boxes: AuctionBoxes, deadline: float) -> bool:
         """按「大世界 → F5 都市大亨 → 都市闲趣 → 即刻落槌」的顺序打开拍卖界面。
@@ -1093,6 +1110,12 @@ class AutoBidAuctionTask(NTEOneTimeTask, BaseNTETask):
             bool: 拍卖是否顺利进入结算(进入下一轮出价时返回 False)。
         """
         deadline = time.monotonic() + self.ROUND_TIMEOUT
+        # 本轮回场配额, 由整轮创建、所有匹配重跑共享。原来把这个状态放在
+        # `allow_recover` 参数上逐层传递, 但 `_ensure_confirm_stage` 的确认失败分支会重新
+        # 调 `_stage_match(boxes, deadline)`, 默认值 `True` 把配额悄悄恢复 —— 于是一轮里可以
+        # 回场多次, 每次都要重走一遍「F5 → 都市闲趣 → 即刻落槌」的动画, 把整轮 deadline
+        # 耗光。配额属于「这一轮」而不是「这一次匹配调用」, 所以只能挂在轮次上。
+        self._recover_quota = self.RECOVER_MAX_PER_ROUND
         self.info_set("当前阶段", "匹配中")
         self.log_info(f"拍卖开始, 单轮最长运行 {self.ROUND_TIMEOUT} 秒")
         self.sleep(0.5)
@@ -1150,9 +1173,7 @@ class AutoBidAuctionTask(NTEOneTimeTask, BaseNTETask):
             raise WaitFailedException("等待出价界面超时")
 
     # --- 各阶段实现 ---
-    def _stage_match(
-        self, boxes: AuctionBoxes, deadline: float, *, allow_recover: bool = True
-    ) -> AuctionState:
+    def _stage_match(self, boxes: AuctionBoxes, deadline: float) -> AuctionState:
         """匹配阶段: 等待进入确认或出价状态。
 
         仅在检测到"开始匹配"按钮时才尝试点击, 避免界面过渡期无谓的阻塞。
@@ -1163,8 +1184,8 @@ class AutoBidAuctionTask(NTEOneTimeTask, BaseNTETask):
         deadline 兜底。另外循环退出条件有两个(MATCH_MAX_LOOPS 与 stage_deadline),
         循环体耗时不等于 POLL_INTERVAL 时两者谁先生效不确定, 都保留。
 
-        allow_recover 为 False 表示本次是掉线回场后的重跑: 再掉线就按本轮失败结束,
-        不能再次回场, 否则会一直回场重跑下去。
+        掉线是否还能回场由轮次配额 `_recover_quota` 决定, 不再用参数传递: 参数会在
+        「确认失败后重跑本方法」这条路径上被默认值恢复, 让同一轮反复回场。
         """
         self.log_info("匹配阶段开始, 等待确认或出价界面")
         stage_deadline = min(deadline, time.monotonic() + self.MATCH_TIMEOUT)
@@ -1191,7 +1212,7 @@ class AutoBidAuctionTask(NTEOneTimeTask, BaseNTETask):
             if self._is_match_screen(boxes):
                 result = self._handle_match_click(boxes, stage_deadline)
                 if result is AuctionState.WORLD:
-                    return self._resume_after_world_drop(boxes, deadline, allow_recover)
+                    return self._resume_after_world_drop(boxes, deadline)
                 if result is not None:
                     return result
 
@@ -1200,7 +1221,7 @@ class AutoBidAuctionTask(NTEOneTimeTask, BaseNTETask):
         # 空转到超时前判一次大世界: 网络抖动掉线时四种界面状态全不命中, 直接抛超时会让
         # 本轮白等两分钟。命中大世界就回场后重跑本阶段, 仍在整轮 deadline 内。
         if self._is_world_screen():
-            return self._resume_after_world_drop(boxes, deadline, allow_recover)
+            return self._resume_after_world_drop(boxes, deadline)
 
         raise WaitFailedException("匹配阶段超时, 未进入确认或出价界面")
 
@@ -2037,9 +2058,10 @@ class AutoBidAuctionTask(NTEOneTimeTask, BaseNTETask):
 
         必须按标签过滤而不能只靠裁框宽度。拿到的框里有多个文本时, 只把「估价」标签
         右侧的接起来 —— 区域内混进第二个数字栏(如「我的资产」数值)时, 直接 `"".join()`
-        会把两串数字粘成一个。线上证据: `BOX_ESTIMATE` 右边界 0.9550 落在「我的资产」
-        数值(右端实测 0.9594)之内, 资产数字被截尾后与估价拼接, 表现为「估价少了一位」
-        (2026-09-23 截图: 2,643 读成 ,643、1,912 读成 912)。
+        会把两串数字粘成一个, 表现为「估价少了一位」(2026-09-23 截图: 2,643 读成 ,643、
+        1,912 读成 912)。`BOX_ESTIMATE` 的右边界现在收到 0.9200, 已经把「我的资产」数值
+        排除在区域外(见该常量注释), 但标签过滤仍是最后一道防线: 界面过渡帧里数字位置会
+        偏移, 也可能混进别的小字。
 
         实测「估价」标签右边沿在 0.8438~0.8464, 数字在 0.8484~0.9052 (另一局 13,875 在
         0.8542~0.9010), 两者之间有明显空隙, 所以按 `x0 >= label_right` 过滤是稳定的。
