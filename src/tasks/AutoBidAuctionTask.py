@@ -842,6 +842,16 @@ class AutoBidAuctionTask(NTEOneTimeTask, BaseNTETask):
                     break
                 try:
                     self._run_single_round(boxes)
+                    if self._is_warehouse_open(boxes):
+                        # 关窗失败时 _close_warehouse 只告警, 整轮照样「正常返回」。此时界面
+                        # 还压在藏品仓库上, 下一轮所有拍卖控件的等待只能空转, 每轮都把
+                        # ROUND_TIMEOUT 烧光, 日志里看起来却只是「每轮都失败」。这里直接收尾:
+                        # 关不掉的仓库不需要另做状态标记 —— _try_sell_collections 只记录出售
+                        # 结果, 被中断的「满仓清理」不会把它算成失败, 于是
+                        # _inventory_stuck 仍停在 False, 下次启动会照常走完整流程重试,
+                        # 不会因为这次中断而跳过出价。
+                        self.log_error("藏品仓库未关闭且无法自动收起, 停止后续轮次")
+                        break
                 except TaskDisabledException:
                     raise
                 except Exception as e:
@@ -2301,6 +2311,13 @@ class AutoBidAuctionTask(NTEOneTimeTask, BaseNTETask):
         因为末位丢失后位数可能不变, 只有贴边这个几何信号能发现它; 连续观察到的贴边
         不能反过来抬高更早那次读数的可信度。
 
+        `same` 统计的是「连续几帧没有带来新信息」, 其中可能**一帧有效读数都没有**(画面
+        静止时 OCR 一直读不出), 所以它只能用来确认「画面不再变化」, 不能确认「读到的是
+        完整数值」。返回值另加 `valid_reads >= required` 一道门槛: `valid_reads` 是
+        「连续读到同一个完整数值」的最长连续帧数, 任何一个 `value is None` 的缺失帧
+        都会把它归零。少了这道门槛, 单次有效读数后再来两帧 OCR 失败就能凑满 `same >= 3`,
+        在 10 秒超时之前把那次未必是终值的读数当「稳定值」采信, 并直接拿去算出价。
+
         数字滚动本身也要时间: 实测中间值可以稳定停留到面板打开后 2.6 秒 (19:16 那局),
         所以「连续相同」还要叠加 ESTIMATE_MIN_OBSERVE_SECONDS 的最短观察窗口,
         否则会在滚动结束前就采信 (19:18 那局 2.63 秒返回, 拿到了残缺的 197)。
@@ -2347,43 +2364,39 @@ class AutoBidAuctionTask(NTEOneTimeTask, BaseNTETask):
                 last = None
                 valid_reads = 0
             elif value is None:
-                # 未读出或残缺读数, 没有带来更完整的信息.
-                if last is not None:
-                    same += 1
+                # 未读出或残缺读数, 没有带来更完整的信息. 画面算「没变化」(same 继续累积),
+                # 但它证明不了 last 是终值, 所以「连续有效读数」的计数到此为止.
+                same += 1
+                valid_reads = 0
             elif skip_zero and value == 0:
                 # 面板加载中的占位读数, 不计入稳定判定.
                 zero_seen = True
+                valid_reads = 0
             elif last is None or (len(str(value)) >= len(str(last)) and value != last):
                 # 位数变多或数值更新: 之前攒的连续次数作废, 以这次为准.
                 if first_seen is None:
                     first_seen = now
                 last = value
                 same = 1
-                valid_reads += 1
+                valid_reads = 1
             else:
                 # 与当前读数相同, 或位数更少(数字滚动中途读到更短的值).
                 same += 1
                 if value == last:
                     # 同一个完整数值被再次读到, 才是真正意义上的「有效读数」.
                     valid_reads += 1
+                else:
+                    # 位数更少的残缺值: 同样是一次「没读全」, 连续有效读数的计数归零.
+                    valid_reads = 0
 
             if (
                 last is not None
                 and same >= required
+                and valid_reads >= required
                 and first_seen is not None
                 and now - first_seen >= observe
             ):
-                # 「连续 same 次没有新信息」里可能一次有效读数都没有(画面静止时 OCR 一直
-                # 读不出或只读到残缺值), 此时 last 只是唯一一次成功读数, 未必是终值.
-                # 必须与「连续多次读到同一个完整数值」区分开, 否则日志会把一次可疑读数
-                # 说成「读数稳定」, 排查时看不出这个价格是猜的.
-                if valid_reads >= required:
-                    self.log_info(f"{label}读数稳定: {last} (连续 {same} 次)")
-                else:
-                    self.log_warning(
-                        f"{label}仅 {valid_reads} 次有效读数(其余帧未读出或为残缺值), "
-                        f"采用 {last}, 该值可能不完整"
-                    )
+                self.log_info(f"{label}读数稳定: {last} (连续 {same} 次)")
                 return last
 
             # 必须换一帧再读, 否则两次读取会落在同一帧上, 读到同样的中间值.
