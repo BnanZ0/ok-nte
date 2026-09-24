@@ -3,11 +3,12 @@ from ok import CannotFindException, TaskDisabledException, find_color_rectangles
 from src import text_white_color
 from src.Labels import Labels
 from src.tasks.BaseNTETask import BaseNTETask
+from src.tasks.daily.ActivityPanelMixin import ActivityPanelMixin
 from src.tasks.NTEOneTimeTask import NTEOneTimeTask
 from src.utils import image_utils as iu
 
 
-class DailyClaimTask(NTEOneTimeTask, BaseNTETask):
+class DailyClaimTask(ActivityPanelMixin, NTEOneTimeTask, BaseNTETask):
     CONF_CLAIM_MAIL = "邮件"
     CONF_CLAIM_ACTIVITY = "活跃度奖励"
     CONF_CLAIM_BATTLE_PASS = "环期任务奖励"
@@ -68,20 +69,6 @@ class DailyClaimTask(NTEOneTimeTask, BaseNTETask):
         self.open_mail_panel()
         self.operate_click(0.1289, 0.9299)
         self.sleep(1)
-        return True
-
-    def open_activity_panel(self):
-        def action():
-            self.openF1panel()
-            self.operate_click(0.0551, 0.3833)
-            self.sleep(0.5)
-            return self.wait_panel(Labels.f1_activity_panel)
-
-        self.log_info("开启活跃度面板")
-        result = self.retry_on_action(action, self.ensure_main)
-        if not result:
-            self.log_error("无法找到活跃度面板")
-            return False
         return True
 
     def claim_activity_rewards(self):
