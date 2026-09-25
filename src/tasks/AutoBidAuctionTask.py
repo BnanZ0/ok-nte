@@ -1964,6 +1964,18 @@ class AutoBidAuctionTask(NTEOneTimeTask, BaseNTETask):
         except (TypeError, ValueError):
             return default
 
+    def _config_decimal(self, key: str, default: str = "0") -> Decimal:
+        """读取十进制配置, 非法时回退到默认值。
+
+        用于参与 Decimal 运算的配置(加价数值): 配置原值本身就是文本框里的字符串,
+        直接解析能保留用户填的全部精度, 而先经 float 中转再 str() 只剩 17 位有效数字。
+        非法值一律回退默认值, 与 _config_float 一样不抛异常 —— 调用方另有兜底。
+        """
+        try:
+            return Decimal(str(self.config.get(key, default)))
+        except (ArithmeticError, ValueError):
+            return Decimal(default)
+
     def _config_int_list(self, key: str) -> list[int]:
         """读取整数列表配置, 任一项非法时返回空列表。"""
         try:
@@ -2525,7 +2537,7 @@ class AutoBidAuctionTask(NTEOneTimeTask, BaseNTETask):
         价格永远算不出来, 却看不到真正的原因。
         """
         mode = self._raise_mode()
-        value = self._config_float(self.CONF_RAISE_VALUE, 0.0)
+        value = self._config_decimal(self.CONF_RAISE_VALUE, "0")
         raise_round = self._config_int(self.CONF_RAISE_ROUND, 0)
 
         # 在达到配置的加价回合前使用基础价.
@@ -2538,16 +2550,15 @@ class AutoBidAuctionTask(NTEOneTimeTask, BaseNTETask):
         # 根据所选方式计算价格.
         try:
             base = Decimal(str(base_price))
-            factor = Decimal(str(value))
             if mode == self.RAISE_MODE_MULTIPLE:
                 # 指数增长: 基础价 * (倍率 ^ offset).
-                result = base * (factor**offset)
+                result = base * (value**offset)
             elif mode == self.RAISE_MODE_PERCENT:
                 # 线性增长: 基础价 * (1 + 百分比 / 100 * offset).
-                result = base * (Decimal(1) + factor / 100 * offset)
+                result = base * (Decimal(1) + value / 100 * offset)
             else:  # 自定义
                 # 线性增长: 基础价 + 自定义值 * offset.
-                result = base + factor * offset
+                result = base + value * offset
             # 量化必须留在 try 内: Decimal 的指数范围极大, `10 ** 400` 仍是有限值,
             # is_finite() 拦不住; 但它有 405 位有效数字, 超过默认上下文精度 28,
             # 到这一步 quantize 才抛 InvalidOperation。放在 try 外等于把
