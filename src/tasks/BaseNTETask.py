@@ -939,7 +939,7 @@ class BaseNTETask(
             self.sleep(0.1)
         result = self.wait_until(
             lambda: not self.find_confirm(box=box),
-            pre_action=lambda: self.operate_click(button, interval=1),
+            pre_action=lambda: self.operate_click(button, interval=2),
             time_out=time_out,
             settle_time=settle_time,
             raise_if_not_found=raise_if_not_found,
