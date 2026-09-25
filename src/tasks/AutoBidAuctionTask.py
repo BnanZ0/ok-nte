@@ -3076,9 +3076,15 @@ class AutoBidAuctionTask(NTEOneTimeTask, BaseNTETask):
         第一次失败就立刻放宽, 把用户明确保留的品质一起卖掉(实测: 非满仓失败 5 次后,
         紧接一次满仓失败即触发, escalated 集合是 6 个品质全卖)。
 
-        出售超时(预算耗尽, _sell_collections 抛 WaitFailedException)与「读数为 0」
-        一样算一次满仓失败: 不计数时满仓每轮都超时, 放宽阈值永远到不了。计数到阈值
-        后也要能直接以放宽集合开局, 否则第一次调用就超时, 放宽分支永远走不到。
+        出售超时(预算耗尽, _sell_collections 抛 WaitFailedException)**不**计入失败:
+        超时点无法区分是在「确认出售」之前还是之后 —— 收尾的 _bounded_sleep 在点完
+        confirm_sell 之后也会抛, 那次出售可能已经生效。把这种「结果未知」当成满仓失败
+        会连累两处: 放宽品质(可能卖掉用户明确保留的品质)被提前触发, 且 _inventory_stuck
+        一旦被误置, 下一轮会直接跳过拍卖并记一次失败(见 _run_single_round), 仓库其实
+        已空时还会反复触发。所以只有拿到「读数为 0 / 未勾选」这类明确失败证据才累积计数。
+
+        计数达到阈值后以放宽集合开局(use_escalated): 否则第一次调用就超时的话,
+        放宽分支永远走不到。
         """
         escalated = sorted(set(extra_sell) | set(self.QUALITY_KEYS))
         # 已经达到放宽阈值时直接用放宽集合开局: 满仓耗尽 SELL_TIMEOUT 会让第一次调用就抛
@@ -3094,12 +3100,11 @@ class AutoBidAuctionTask(NTEOneTimeTask, BaseNTETask):
                 escalated if use_escalated else extra_sell,
                 require_sale=inventory_full,
             )
-        except WaitFailedException:
-            if inventory_full:
-                # 预算耗尽和「读数为 0」一样是满仓没卖掉: 不记这一次失败, 放宽品质的阈值
-                # 永远到不了, 下一轮仍会在满仓下出价失败.
-                self._sell_failures += 1
-                self._inventory_stuck = True
+        except WaitFailedException as e:
+            # 结果未知, 不动计数也不置 _inventory_stuck: 收尾的 _bounded_sleep 在点完
+            # confirm_sell 之后也会抛, 那次出售可能已经生效. 误置 _inventory_stuck 会让
+            # 下一轮跳过拍卖并记一次失败, 而仓库其实已空时还会反复触发.
+            self.log_warning(f"藏品出售超出预算, 结果未知, 不计入放宽计数: {e}")
             raise
         if sold:
             self._sell_failures = 0
@@ -3124,8 +3129,10 @@ class AutoBidAuctionTask(NTEOneTimeTask, BaseNTETask):
             escalated_sold = self._sell_collections(
                 boxes, deadline, escalated, require_sale=True
             )
-        except WaitFailedException:
-            self._inventory_stuck = inventory_full
+        except WaitFailedException as e:
+            # 同上一处: 放宽后的这次出售是否生效同样无法确认, 保持计数与 _inventory_stuck
+            # 不变, 交给下一轮的实测结论决定.
+            self.log_warning(f"放宽保留品质后的出售超出预算, 结果未知: {e}")
             raise
         if escalated_sold:
             self.log_info("放宽保留品质后出售成功")
