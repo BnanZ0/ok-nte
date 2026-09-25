@@ -342,12 +342,11 @@ class AutoBidAuctionTask(NTEOneTimeTask, BaseNTETask):
     # --- 掉线回场 (大世界 → 拍卖主界面) ---
     # 「即刻落槌」是「都市闲趣」里的一个玩法卡片, 入口路径固定:
     # 大世界按 F5 打开「都市大亨」面板 → 点「都市闲趣」→ 在 MENU 面板里找「即刻落槌」卡片。
-    # 「都市闲趣」是 3D 透视面板上的斜体标签, 整图 OCR 读不出, 只能按光环位置点击
-    # (光环中心由实机截图 1920x1080 标定: 文字中心 (0.5197,0.4292), 光环中心约 (0.5145,0.492))。
-    POS_CITY_FUN_ENTRY = (0.5145, 0.492)
-    POS_CITY_FUN_SCROLL = (0.500, 0.550)  # 都市闲趣面板内容区中部, 滚动落点
-    # 都市闲趣 MENU 面板的标题「MENU 都市闲趣」。它和都市大亨面板上的「都市闲趣」入口
-    # 同名, 但位置不重叠(入口在 0.48~0.56/0.39~0.47), 用区域就能区分两个界面。
+    # 「都市闲趣」入口坐标走位置表 self.pos.panels.f5.hobbies (光环中心, 见 PanelPosition);
+    # 下面是「都市闲趣」MENU 子面板内部的区域, 属任务私有, 不进位置表。
+    POS_CITY_FUN_SCROLL = (0.500, 0.550)  # 子面板内容区中部, 滚动落点
+    # 子面板标题「MENU 都市闲趣」。它和都市大亨面板上的「都市闲趣」入口同名, 但位置不重叠
+    # (入口文字在 0.48~0.56/0.39~0.47), 用区域就能区分两个界面。
     BOX_CITY_FUN_TITLE = (0.10, 0.09, 0.42, 0.20)
     BOX_CITY_FUN_CARDS = (0.08, 0.22, 0.87, 0.88)  # 卡片区, 「即刻落槌」在最后一页
     BOX_CURRENT_VENUE = (0.630, 0.550, 0.800, 0.598)  # 主界面「当前：XXX场」
@@ -535,8 +534,9 @@ class AutoBidAuctionTask(NTEOneTimeTask, BaseNTETask):
     # 以及一次性回场预算。预算与 RECOVER_TIMEOUT 一致, 两者走的是同一条路径。
     ENTRY_PROBE_TIMEOUT = 3
     ENTRY_RECOVER_TIMEOUT = 90
-    # 匹配阶段每 N 次轮询探一次大世界(约 2 秒): in_world 是旋转模板匹配, 比 OCR 贵,
-    # 不能每 0.5 秒调一次; 探测只在点击「开始匹配」之后、界面迟迟不变化时才开始.
+    # 匹配阶段每 N 次轮询探一次大世界(约 2 秒): 判定要跑一次旋转模板匹配 + 一次血条模板
+    # 匹配, 比 OCR 贵, 不能每 0.5 秒调一次; 探测只在点击「开始匹配」之后、界面迟迟不变化时
+    # 才开始.
     WORLD_PROBE_INTERVAL = 4
 
     def __init__(self, *args, **kwargs):
@@ -836,11 +836,15 @@ class AutoBidAuctionTask(NTEOneTimeTask, BaseNTETask):
             self._warn_if_no_sellable_quality()
             self._warn_if_extra_sell_is_redundant()
             boxes = self._build_boxes()
-            self._ensure_auction_entry(boxes)
             while self.has_remaining_rounds():
                 if not self.begin_round():
                     break
                 try:
+                    # 每轮都重新确认一次入口, 与 AutoHeistTask._run_loop「每轮先
+                    # ensure_main + 入口判断」保持一致: 上一轮掉线或异常退出时人可能已经
+                    # 不在拍卖界面, 只在循环外确认一次的话, 后续每轮都要在 _stage_match
+                    # 里空转到 MATCH_TIMEOUT(120 秒) 才由末尾的大世界兜底触发回场。
+                    self._ensure_auction_entry(boxes)
                     self._run_single_round(boxes)
                     if self._is_warehouse_open(boxes):
                         # 关窗失败时 _close_warehouse 只告警, 整轮照样「正常返回」。此时界面
@@ -909,9 +913,22 @@ class AutoBidAuctionTask(NTEOneTimeTask, BaseNTETask):
 
     # --- 掉线回场 (大世界 → 拍卖主界面) ---
     def _is_world_screen(self) -> bool:
-        """是否被踢回大世界, 复用基类的小地图箭头模板匹配。"""
+        """是否被踢回大世界, 复用基类的 in_team_and_world()。
+
+        不能只用 in_world() 判: 小地图箭头走的是 chamfer 打分
+        (`0.7*coverage + 0.3*(1 - avg_distance/max_distance)`), 没有「场景饱和」惩罚 ——
+        搜索区整片偏亮时每个模板像素的最近亮像素距离都是 0, coverage 与 distance_score
+        双双为 1, 纯白画面直接得满分。实测「都市大亨」面板得 1.000、「仪器组合」面板得
+        0.841, 都越过 0.75 的阈值, 与真箭头(0.997)分不开; 匹配中的亮色加载帧同理。
+        误判的代价很实在: 匹配阶段会被当成掉线, 白白耗掉本轮唯一的回场配额。
+
+        加上 is_in_team() 的组队血条判定就能分开: 真大世界命中(0.939), 都市大亨/仪器组合/
+        竞拍结束/黑屏全不命中。这也正是框架自己的定义(见 is_main(in_world=True)), 而
+        _return_to_auction 第一步的 ensure_main(in_world=True) 本来就要求 is_in_team() ——
+        两边保持一致, 才不会出现「判定在大世界, 但 ensure_main 认为不在」。
+        """
         try:
-            return bool(self.in_world())
+            return bool(self.in_team_and_world())
         except TaskDisabledException:
             raise
         except Exception as e:
@@ -984,7 +1001,7 @@ class AutoBidAuctionTask(NTEOneTimeTask, BaseNTETask):
                 self.log_warning(f"打开都市大亨面板失败: {type(e).__name__}: {e}")
                 return False
 
-            self.operate_click(*self.POS_CITY_FUN_ENTRY)
+            self.operate_click(*self.pos.panels.f5.hobbies)
             if not self.wait_ocr(
                 box=self.box_of_screen(*self.BOX_CITY_FUN_TITLE),
                 match=RE_CITY_FUN,
@@ -1101,7 +1118,7 @@ class AutoBidAuctionTask(NTEOneTimeTask, BaseNTETask):
 
     # --- 任务入口回场 (大世界 → 拍卖主界面) ---
     def _ensure_auction_entry(self, boxes: AuctionBoxes) -> None:
-        """启动时若人在大世界, 先按「大世界 → 即刻落槌」进入拍卖界面。
+        """每轮开始时确认人已站在拍卖主界面, 不在就按「大世界 → 即刻落槌」补上入口。
 
         复用掉线回场的同一条路径(_return_to_auction), 不新增识别或导航代码:
         用户从大世界直接启动时, 原来的第一轮只能在 _stage_match 里空转到
@@ -1111,7 +1128,12 @@ class AutoBidAuctionTask(NTEOneTimeTask, BaseNTETask):
         未命中再判大世界 —— 不在大世界就不接管, 交给原有流程按界面异常报错,
         避免在登录页/加载页等未知界面上误触发 F5 流程.
 
-        本方法在 start_rounds 之后、begin_round 之前执行, 不消耗轮次内的
+        挂在每轮而不是只在启动时调一次, 与 AutoHeistTask._run_loop 的
+        「每轮先 ensure_main + 入口判断」一致: 上一轮掉线或异常退出时人可能已经不在
+        拍卖界面, 那时后续每轮都要白等 MATCH_TIMEOUT 才由 _stage_match 末尾兜底.
+        已在拍卖界面时本方法只多花一次标题 OCR(命中即返回), 正常路径开销可忽略.
+
+        执行位置在 begin_round 之后、_run_single_round 之前, 不消耗轮次内的
         `_recover_quota`(该配额每轮由 _exec_auction_round 重置), 因此不影响
         「每轮掉线可回场一次」的既有约定.
         """
@@ -1348,7 +1370,7 @@ class AutoBidAuctionTask(NTEOneTimeTask, BaseNTETask):
                     )
                     return None
                 # 按钮已消失却没进后续界面: 正常是加载动画, 也可能是掉线被踢回大世界。
-                # in_world 是旋转模板匹配, 比 OCR 贵, 按 WORLD_PROBE_INTERVAL 节流探测。
+                # 大世界判定比 OCR 贵, 按 WORLD_PROBE_INTERVAL 节流探测。
                 if loop_count % self.WORLD_PROBE_INTERVAL == 0 and self._is_world_screen():
                     self.log_warning("匹配阶段界面长时间无变化且检测到大世界, 判定为掉线")
                     return AuctionState.WORLD
