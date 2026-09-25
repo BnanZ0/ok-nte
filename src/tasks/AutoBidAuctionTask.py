@@ -1519,12 +1519,20 @@ class AutoBidAuctionTask(NTEOneTimeTask, BaseNTETask):
 
         self.log_debug(f"当前资产值为 {asset_value}, 继续执行出价")
 
-        self.log_info("等待出价按钮")
-        found = self._wait_operate_click(
-            boxes.bid,
-            RE_BID,
-            self._remaining_timeout(deadline, 10),
-        )
+        # 数字键盘已经弹出时 BOX_BID 被弹窗盖住(实测该框 all_boxes 全空), 在 boxes.bid 上
+        # 等 RE_BID 只会等到超时, 于是 _input_fixed_price 永远走不到. 面板已就绪时直接跳过
+        # 出价按钮, 否则保持原有等待与点击路径.
+        keypad_open = bool(self.ocr(box=boxes.bid_keypad, match=RE_BID_PANEL))
+        if keypad_open:
+            self.log_info("数字面板已打开, 跳过出价按钮")
+            found = True
+        else:
+            self.log_info("等待出价按钮")
+            found = self._wait_operate_click(
+                boxes.bid,
+                RE_BID,
+                self._remaining_timeout(deadline, 10),
+            )
         if not found:
             self.log_warning("出价按钮未出现, 准备重试本次出价")
             raise WaitFailedException("出价按钮未出现")
@@ -3056,8 +3064,33 @@ class AutoBidAuctionTask(NTEOneTimeTask, BaseNTETask):
         几次后放宽」, 若非满仓的抖动也计入, 阈值会被历史抖动提前填满, 之后满仓的
         第一次失败就立刻放宽, 把用户明确保留的品质一起卖掉(实测: 非满仓失败 5 次后,
         紧接一次满仓失败即触发, escalated 集合是 6 个品质全卖)。
+
+        出售超时(预算耗尽, _sell_collections 抛 WaitFailedException)与「读数为 0」
+        一样算一次满仓失败: 不计数时满仓每轮都超时, 放宽阈值永远到不了。计数到阈值
+        后也要能直接以放宽集合开局, 否则第一次调用就超时, 放宽分支永远走不到。
         """
-        if self._sell_collections(boxes, deadline, extra_sell, require_sale=inventory_full):
+        escalated = sorted(set(extra_sell) | set(self.QUALITY_KEYS))
+        # 已经达到放宽阈值时直接用放宽集合开局: 满仓耗尽 SELL_TIMEOUT 会让第一次调用就抛
+        # 异常, 永远走不到下面的放宽分支, 计数累到阈值也没有用.
+        use_escalated = inventory_full and self._sell_failures >= self.SELL_FAILURE_ESCALATE_AFTER
+        if use_escalated:
+            self.log_warning(f"藏品出售已连续 {self._sell_failures} 次未完成, 直接放宽保留品质")
+
+        try:
+            sold = self._sell_collections(
+                boxes,
+                deadline,
+                escalated if use_escalated else extra_sell,
+                require_sale=inventory_full,
+            )
+        except WaitFailedException:
+            if inventory_full:
+                # 预算耗尽和「读数为 0」一样是满仓没卖掉: 不记这一次失败, 放宽品质的阈值
+                # 永远到不了, 下一轮仍会在满仓下出价失败.
+                self._sell_failures += 1
+                self._inventory_stuck = True
+            raise
+        if sold:
             self._sell_failures = 0
             self._inventory_stuck = False
             return True
@@ -3069,14 +3102,21 @@ class AutoBidAuctionTask(NTEOneTimeTask, BaseNTETask):
             return False
 
         self._sell_failures += 1
-        if self._sell_failures < self.SELL_FAILURE_ESCALATE_AFTER:
+        if self._sell_failures < self.SELL_FAILURE_ESCALATE_AFTER or use_escalated:
+            # 本次已经是放宽后的尝试, 不再重复放宽一次.
             self.log_warning(f"藏品出售未完成 (满仓连续 {self._sell_failures} 次)")
             self._inventory_stuck = inventory_full
             return False
 
         self.log_warning(f"藏品出售连续 {self._sell_failures} 次未完成, 放宽保留品质重试一次")
-        escalated = sorted(set(extra_sell) | set(self.QUALITY_KEYS))
-        if self._sell_collections(boxes, deadline, escalated, require_sale=True):
+        try:
+            escalated_sold = self._sell_collections(
+                boxes, deadline, escalated, require_sale=True
+            )
+        except WaitFailedException:
+            self._inventory_stuck = inventory_full
+            raise
+        if escalated_sold:
             self.log_info("放宽保留品质后出售成功")
             self._sell_failures = 0
             self._inventory_stuck = False

@@ -28,7 +28,9 @@ class F2PanelPosition:
 class F5PanelPosition:
     coffee = ScreenRatio(0.335, 0.675)
     house = ScreenRatio(0.272, 0.392)
-    hobbies = ScreenRatio(0.529, 0.472)
+    # 「都市闲趣」入口是 3D 透视面板上的斜体标签, 整图 OCR 读不出, 只能按黄色光环中心点击
+    # (实机 1920x1080 截图标定: 文字中心 (0.5197,0.4292), 光环中心 (0.5145,0.492)).
+    hobbies = ScreenRatio(0.5145, 0.492)
 
     def __init__(self, parent):
         self._parent = parent
