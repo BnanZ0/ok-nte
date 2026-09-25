@@ -125,6 +125,7 @@ class Blackbird(BaseChar):
         self.in_ult = None
         self.claim_after_skill = False
         self.no_dps_teammate = False
+        self.switch_other_char()
 
     def _wait_ultimate_unfreeze(self, start, click=True):
         if self.in_ult:
