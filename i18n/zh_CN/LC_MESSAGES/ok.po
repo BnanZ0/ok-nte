@@ -1467,3 +1467,9 @@ msgstr "手动修改 Python 代码后, 需点击 [{refresh}] 生效"
 
 msgid "编写指南"
 msgstr "编写指南"
+
+msgid "噗卡乐园 - 命中幸运星"
+msgstr ""
+
+msgid "在可进行NPC交互的位置启动任务"
+msgstr ""

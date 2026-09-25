@@ -1485,3 +1485,9 @@ msgstr "Python コードを手動で変更した後は、[{refresh}] をクリ�
 
 msgid "编写指南"
 msgstr "作成ガイド"
+
+msgid "噗卡乐园 - 命中幸运星"
+msgstr "プカランド - ラッキーHIT"
+
+msgid "在可进行NPC交互的位置启动任务"
+msgstr "NPCと対話可能な位置でタスクを開始してください"

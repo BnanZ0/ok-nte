@@ -1219,3 +1219,9 @@ msgstr "Depois de modificar o código Python manualmente, clique em [{refresh}] 
 
 msgid "编写指南"
 msgstr "Guia de Criação"
+
+msgid "噗卡乐园 - 命中幸运星"
+msgstr "Puka Land - Acertar a Estrela da Sorte"
+
+msgid "在可进行NPC交互的位置启动任务"
+msgstr "Inicie a tarefa em um local onde a interação com NPC esteja disponível"

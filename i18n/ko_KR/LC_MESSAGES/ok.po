@@ -1485,3 +1485,9 @@ msgstr "Python 코드를 수동으로 수정한 후에는 [{refresh}] 버튼을 
 
 msgid "编写指南"
 msgstr "작성 가이드"
+
+msgid "噗卡乐园 - 命中幸运星"
+msgstr "푸카랜드 - 행운의 별 명중"
+
+msgid "在可进行NPC交互的位置启动任务"
+msgstr "NPC와 상호작용할 수 있는 위치에서 작업을 시작하세요"

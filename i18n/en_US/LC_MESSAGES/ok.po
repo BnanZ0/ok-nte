@@ -1485,3 +1485,9 @@ msgstr "After manually modifying Python code, click [{refresh}] to take effect."
 
 msgid "编写指南"
 msgstr "Writing Guide"
+
+msgid "噗卡乐园 - 命中幸运星"
+msgstr "Puka Land - Hit the Lucky Star"
+
+msgid "在可进行NPC交互的位置启动任务"
+msgstr "Start the task at a location where NPC interaction is available"
