@@ -465,25 +465,7 @@ class AutoHeistTask(NTEOneTimeTask, BaseCombatTask):
         coin = self.ocr(
             0.654, 0.595, 0.789, 0.641, frame_processor=gf.isolate_black_text, name="coin"
         )
-        return self._parse_reward_number(cash, "earnfcash"), self._parse_reward_number(
-            coin, "earnpcoin"
-        )
-
-    def _parse_reward_number(self, ocr_result, log_name):
-        if not ocr_result:
-            return 0
-
-        result = "".join(item.name for item in ocr_result)
-        result = re.sub(r"[,.]", "", result)
-        match = re.search(r"(\d+)", result)
-        if not match:
-            return 0
-
-        try:
-            return int(match.group(1))
-        except ValueError:
-            self.log_warning(f"{log_name} error {result}")
-            return 0
+        return self.parse_ocr_number(cash), self.parse_ocr_number(coin)
 
     def abort_heist(self):
         self.log_round_info("出现异常，将退出粉爪副本")

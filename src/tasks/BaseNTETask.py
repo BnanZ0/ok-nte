@@ -168,6 +168,22 @@ class BaseNTETask(
     def openvino_available(self):
         return getattr(og.my_app, "openvino_available", None)
 
+    def parse_ocr_number(self, ocr_result) -> int:
+        if not ocr_result:
+            return 0
+
+        result = "".join(item.name for item in ocr_result)
+        result = re.sub(r"[,.]", "", result)
+        match = re.search(r"(\d+)", result)
+        if not match:
+            return 0
+
+        try:
+            return int(match.group(1))
+        except ValueError:
+            self.log_warning(f"OCR number parse error: {result}")
+            return 0
+
     # fmt: off
     def click(self, x: int | Box | List[Box] = -1, y=-1, move_back=None, name=None,
               interval=-1, move=None, down_time=0.02, after_sleep=0, key='left',

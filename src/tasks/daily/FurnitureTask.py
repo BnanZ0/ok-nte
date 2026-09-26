@@ -1,5 +1,3 @@
-import re
-
 from ok import TaskDisabledException
 
 from src.combat.BaseCombatTask import BaseCombatTask
@@ -288,7 +286,7 @@ class FurnitureTask(NTEOneTimeTask, BaseCombatTask):
 
         def check_record():
             mammon_record = self.ocr(0.634, 0.609, 0.762, 0.674, name="mammon_record")
-            if self._parse_reward_number(mammon_record, "mammon_record") > 0:
+            if self.parse_ocr_number(mammon_record) > 0:
                 raise Exception(exc_msg)
 
         def action():
@@ -323,19 +321,3 @@ class FurnitureTask(NTEOneTimeTask, BaseCombatTask):
             self.exit_anomaly()
         self.ensure_main()
         return ret
-
-    def _parse_reward_number(self, ocr_result, log_name):
-        if not ocr_result:
-            return 0
-
-        result = "".join(item.name for item in ocr_result)
-        result = re.sub(r"[,.]", "", result)
-        match = re.search(r"(\d+)", result)
-        if not match:
-            return 0
-
-        try:
-            return int(match.group(1))
-        except ValueError:
-            self.log_warning(f"{log_name} error {result}")
-            return 0
