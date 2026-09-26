@@ -9,12 +9,14 @@ class RoundState:
     index: int = 0
     success_count: int = 0
     failed_count: int = 0
+    stop_requested: bool = False
 
     def reset(self, total: int):
         self.total = total
         self.index = 0
         self.success_count = 0
         self.failed_count = 0
+        self.stop_requested = False
 
     @property
     def completed_count(self) -> int:
@@ -26,7 +28,9 @@ class RoundState:
 
     @property
     def has_remaining_rounds(self) -> bool:
-        return self.has_active_round or self.total == 0 or self.completed_count < self.total
+        return not self.stop_requested and (
+            self.has_active_round or self.total == 0 or self.completed_count < self.total
+        )
 
     @property
     def total_text(self) -> str:
@@ -49,6 +53,7 @@ class RoundMixin(BaseTask):
     INFO_SUCCESS_COUNT = "成功次数"
     INFO_FAILED_COUNT = "失败次数"
     INFO_FAILED_REASON = "失败原因"
+    INFO_STOP_REASON = "停止原因"
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -75,6 +80,7 @@ class RoundMixin(BaseTask):
         self.info_set(self.INFO_SUCCESS_COUNT, 0)
         self.info_set(self.INFO_FAILED_COUNT, 0)
         self.info_set(self.INFO_FAILED_REASON, None)
+        self.info_set(self.INFO_STOP_REASON, None)
         self.log_info(f"开始{self.name}, 共 {self._round_state.total_text} 轮")
 
     def begin_round(self) -> bool:
@@ -82,6 +88,8 @@ class RoundMixin(BaseTask):
         state = self._round_state
         previous_total = state.total
         state.total = self.configured_rounds()
+        if state.stop_requested:
+            return False
         if state.has_active_round:
             if state.total != previous_total:
                 self.info_set(self.INFO_ROUND, state.info_text)
@@ -94,8 +102,18 @@ class RoundMixin(BaseTask):
 
     def has_remaining_rounds(self) -> bool:
         """判断当前轮次完成后是否仍可继续运行。"""
-        self._round_state.total = self.configured_rounds()
-        return self._round_state.has_remaining_rounds
+        state = self._round_state
+        if state.stop_requested:
+            return False
+        state.total = self.configured_rounds()
+        return state.has_remaining_rounds
+
+    def stop_rounds(self, reason: str | None = None) -> None:
+        """请求停止轮次任务, 后续轮次检查会立即返回 False。"""
+        self._round_state.stop_requested = True
+        if reason:
+            self.info_set(self.INFO_STOP_REASON, reason)
+            self.log_round_info(f"收到停止请求: {reason}")
 
     @property
     def current_round(self) -> int:
