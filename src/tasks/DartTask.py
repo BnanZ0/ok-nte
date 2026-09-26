@@ -29,7 +29,6 @@ class DartTask(NTEOneTimeTask, BaseNTETask):
         self.interact_with_npc()
         while self.begin_round():  # 返回 False 表示达到循环次数
             self.play()
-            self.add_success()  # 记录本轮成功
 
         self.finish_rounds()
 
@@ -61,6 +60,7 @@ class DartTask(NTEOneTimeTask, BaseNTETask):
             self.click()
             self.sleep(0.15)
         self.sleep(0.5)
+        self.add_success()
         if self.has_remaining_rounds():
             if self.wait_click_confirm(range=self.RETRY, time_out=4, raise_if_not_found=False):
                 self.sleep(3.5)
