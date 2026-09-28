@@ -1,3 +1,4 @@
+import re
 import time
 
 from ok import TaskDisabledException
@@ -5,6 +6,7 @@ from ok import TaskDisabledException
 from src.combat.BaseCombatTask import BaseCombatTask
 from src.Labels import Labels
 from src.tasks.BaseNTETask import Box
+from src.tasks.dsd_refresh import RefreshIcon, classify_refresh_icon
 from src.tasks.NTEOneTimeTask import NTEOneTimeTask
 
 SPACE = "&nbsp;" * 4 + "-"
@@ -98,18 +100,7 @@ class DSDFarmTask(NTEOneTimeTask, BaseCombatTask):
         self.deside_map_zoom()
         self.start_rounds()
         while self.begin_round():
-            self.wait_until(
-                self.find_interac,
-                time_out=10,
-                raise_if_not_found=True,
-            )
-            self.wait_until(
-                lambda: not self.is_in_team(),
-                pre_action=lambda: self.send_interac(handle_claim=False),
-                time_out=10,
-                raise_if_not_found=True,
-            )
-            self.sleep(2)
+            self.open_bonfire()
             self.refresh_monster()
             self.ensure_main()
             if self.do_teleport_on_spot:
@@ -121,32 +112,100 @@ class DSDFarmTask(NTEOneTimeTask, BaseCombatTask):
             self.add_success()
         self.finish_rounds()
 
+    def open_bonfire(self):
+        self.wait_until(self.find_interac, time_out=10, raise_if_not_found=True)
+        self.wait_until(
+            lambda: not self.is_in_team(),
+            pre_action=lambda: self.send_interac(handle_claim=False),
+            time_out=10,
+            raise_if_not_found=True,
+        )
+        self.sleep(2)
+
     def sleep_check(self):
         super().sleep_check()
         if self.check_monthly_card():
             self.handle_monthly_card()
 
     def refresh_monster(self):
-        box = self.box_of_screen(0.470, 0.869, 0.534, 0.928)
-        if not self.run_and_check_changed(
-            lambda: self.operate_click(0.057, 0.218),
-            snap_box=box,
-            check_box=box.scale(1.1, 1.1),
-            after_sleep=0.5,
-        ):
-            return
+        unknown_retries = 0
 
         def click_no_remind():
             box = self.wait_until(
                 lambda: self.find_one(Labels.no_remind_today, horizontal_variance=0.1), time_out=3
             )
-            self.operate_click(box, after_sleep=0.5)
+            if box:
+                self.operate_click(box, after_sleep=0.5)
 
-        self.wait_click_confirm(
-            range=(0.650, 0.611, 0.707, 0.708),
-            on_found=click_no_remind,
-            time_out=3,
+        def try_refresh():
+            nonlocal unknown_retries
+            cooldown = self.monster_refresh_cooldown()
+            if cooldown is None:
+                self.sleep(0.5)
+                self.next_frame()
+                cooldown = self.monster_refresh_cooldown()
+            ready = cooldown is None and self.monster_refresh_icon() is RefreshIcon.READY
+            if not ready:
+                if cooldown is None:
+                    if unknown_retries >= 1:
+                        raise TimeoutError("Cannot identify bonfire refresh button after retry")
+                    unknown_retries += 1
+                # 篝火界面的冷却数字不会实时更新, 退出等待后重新进入。
+                self.ensure_main()
+                wait_seconds = cooldown + 1 if cooldown is not None else 61
+                reason = "刷新怪物冷却中" if cooldown is not None else "刷新按钮状态不确定"
+                message = f"{reason}, 原地等待 {wait_seconds} 秒后重新进入篝火"
+                self.log_info(message)
+                self.info_set("current task", message)
+                try:
+                    self.sleep(wait_seconds)
+                finally:
+                    self.info_set("current task", None)
+                self.log_info("冷却等待结束, 重新进入篝火检查刷新")
+                self.open_bonfire()
+                return False
+
+            self.operate_click(0.057, 0.218, after_sleep=0.5)
+            self.next_frame()
+            confirm_box = self.box_of_screen(0.650, 0.611, 0.707, 0.708, hcenter=True)
+            if self.find_confirm(box=confirm_box):
+                self.wait_click_confirm(
+                    range=confirm_box,
+                    on_found=click_no_remind,
+                    time_out=3,
+                )
+
+            # 成功刷新后按钮开始新的 60 秒冷却, 无弹窗时也以此为准。
+            def refreshed():
+                cooldown = self.monster_refresh_cooldown()
+                if cooldown is not None:
+                    return 55 <= cooldown <= 60
+                if self.monster_refresh_icon() is not RefreshIcon.COOLDOWN:
+                    return False
+                self.sleep(0.25)
+                self.next_frame()
+                return self.monster_refresh_icon() is RefreshIcon.COOLDOWN
+
+            return self.wait_until(refreshed, time_out=3, settle_time=0)
+
+        self.wait_until(
+            try_refresh,
+            post_action=lambda: self.sleep(2),
+            settle_time=0,
+            time_out=120,
+            raise_if_not_found=True,
         )
+
+    def monster_refresh_icon(self):
+        box = self.box_of_screen(0.042, 0.199, 0.074, 0.245)
+        return classify_refresh_icon(box.crop_frame(self.frame))
+
+    def monster_refresh_cooldown(self):
+        for box in self.ocr(0.035, 0.195, 0.082, 0.248):
+            match = re.fullmatch(r"\s*(\d{1,2})\s*[sS秒]?\s*", box.name)
+            if match and 0 <= int(match[1]) <= 60:
+                return int(match[1])
+        return None
 
     def deside_map_zoom(self):
         location = self.config.get(self.CONF_LOCATION, None)
