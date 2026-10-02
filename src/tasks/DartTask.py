@@ -12,6 +12,7 @@ class DartTask(NTEOneTimeTask, BaseNTETask):
         super().__init__(*args, **kwargs)
         self.name = "噗卡乐园 - 命中幸运星"
         self.description = "在可进行NPC交互的位置启动任务"
+        self.ticket = -1
         self.add_rounds_config(default=0)
 
     def run(self):
@@ -25,6 +26,7 @@ class DartTask(NTEOneTimeTask, BaseNTETask):
             raise
 
     def do_run(self):
+        self.ticket = -1
         self.start_rounds()
         self.interact_with_npc()
         while self.begin_round():  # 返回 False 表示达到循环次数
@@ -70,11 +72,15 @@ class DartTask(NTEOneTimeTask, BaseNTETask):
             self.wait_click_confirm(range=self.QUIT, time_out=4, raise_if_not_found=False)
             self.log_info("已完成全部循环，点击撤离")
 
-    def check_ticket(self):
+    def check_ticket(self) -> bool:
         from src.utils import game_filters as gf
 
         ticket = self.ocr(
-            0.813, 0.040, 0.875, 0.082, frame_processor=gf.isolate_black_text, name="cash"
+            0.813, 0.040, 0.875, 0.082, frame_processor=gf.isolate_black_text, name="ticket"
         )
-        if self.parse_ocr_number(ticket) > 52600:
+        current = self.parse_ocr_number(ticket)
+        if current <= 0:
+            return
+        if self.ticket == current:
             return True
+        self.ticket = current
