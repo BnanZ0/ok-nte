@@ -277,7 +277,7 @@ requires-dist = [
     { name = "comtypes", specifier = ">=1.4.16" },
     { name = "librosa", specifier = ">=1.0.0" },
     { name = "mido", specifier = ">=1.3.3" },
-    { name = "ok-script", extras = ["ocr", "qt"], specifier = ">=2.0.4" },
+    { name = "ok-script", extras = ["ocr", "qt"], specifier = ">=2.0.8" },
     { name = "onnxocr-ppocrv5", specifier = ">=0.0.20" },
     { name = "opencc", specifier = ">=1.4.1" },
     { name = "opencv-python", specifier = ">=5.0.0.93" },
@@ -299,7 +299,7 @@ dev = [
 
 [[package]]
 name = "ok-script"
-version = "2.0.4"
+version = "2.0.8"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "mouse" },
@@ -312,9 +312,9 @@ dependencies = [
     { name = "requests" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/c7/e6/f9fbac76aca85f38dc8e1464701d7a22b9e653ec8e1e2bf50d2577522f8b/ok_script-2.0.4.tar.gz", hash = "sha256:5dc3a90a12e374d72dafef8415952bcfa76035f0f5aab831de7ad8b06c2265cb", size = 1082937, upload-time = "2026-08-20T17:09:35.206Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/81/46/3c7f35522e9428ad4f3424ae6f022213be0699a4e3e3217996a30c690d10/ok_script-2.0.8.tar.gz", hash = "sha256:3c54cf2f125230663eafe6a4b2e3ea6a93f1e9c1a0f6fc6ca216ffc1ed7e7a1e", size = 1121349, upload-time = "2026-10-01T13:28:11.72Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/d4/2f/211fd57e153057ab58756e1aa59489fca1f81c991e43fc360c765ddf5dc6/ok_script-2.0.4-py3-none-any.whl", hash = "sha256:425dcc023f8000a610bbf8de38c454e0f940e2cf3f92e67ea1d6eae2078016da", size = 1113286, upload-time = "2026-08-20T17:09:33.67Z" },
+    { url = "https://files.pythonhosted.org/packages/be/fc/ed8fca32b9f9dcffa68747ff9e019c3267d9473b1605d8588dd5cc80698b/ok_script-2.0.8-py3-none-any.whl", hash = "sha256:3ffbd6683bbf364136d5a9612351cdb19ba8c1612fc98a9eb14d54ae2a48ddc4", size = 1139734, upload-time = "2026-10-01T13:28:10.031Z" },
 ]
 
 [package.optional-dependencies]
@@ -776,9 +776,9 @@ wheels = [
 
 [[package]]
 name = "urllib3"
-version = "2.7.0"
+version = "2.8.0"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/53/0c/06f8b233b8fd13b9e5ee11424ef85419ba0d8ba0b3138bf360be2ff56953/urllib3-2.7.0.tar.gz", hash = "sha256:231e0ec3b63ceb14667c67be60f2f2c40a518cb38b03af60abc813da26505f4c", size = 433602, upload-time = "2026-05-07T16:13:18.596Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/e3/05/b17359e1cefb4f909b5e40b1b90a496d987258916dbbf88e842c729f510e/urllib3-2.8.0.tar.gz", hash = "sha256:63bf2ead4c879426ebf22ef2a781eeb4aa3b4ae798a0435506f8687fd5bb9b63", size = 458972, upload-time = "2026-09-15T19:29:36.253Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/7f/3e/5db95bcf282c52709639744ca2a8b149baccf648e39c8cc87553df9eae0c/urllib3-2.7.0-py3-none-any.whl", hash = "sha256:9fb4c81ebbb1ce9531cce37674bbc6f1360472bc18ca9a553ede278ef7276897", size = 131087, upload-time = "2026-05-07T16:13:17.151Z" },
+    { url = "https://files.pythonhosted.org/packages/92/9d/c4e665119135114480843e7ab388fa94d8480650450e6f8e26b70d323a4c/urllib3-2.8.0-py3-none-any.whl", hash = "sha256:0cf3cae568d36aa9576b28dfb35f11328f1cb974ca7647d9475ebb86c75ac6e3", size = 135717, upload-time = "2026-09-15T19:29:34.577Z" },
 ]

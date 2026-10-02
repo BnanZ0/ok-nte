@@ -62,7 +62,7 @@ numpy==2.4.6 ; sys_platform == 'win32'
     #   soundfile
     #   soxr
     #   tifffile
-ok-script==2.0.4 ; sys_platform == 'win32'
+ok-script==2.0.8 ; sys_platform == 'win32'
     # via ok-nte
 onnxocr-ppocrv5==0.0.20 ; sys_platform == 'win32'
     # via
@@ -164,5 +164,5 @@ typing-extensions==4.16.0 ; sys_platform == 'win32'
     # via
     #   ok-script
     #   soundfile
-urllib3==2.7.0 ; sys_platform == 'win32'
+urllib3==2.8.0 ; sys_platform == 'win32'
     # via requests
