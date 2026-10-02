@@ -109,7 +109,7 @@ class DailyRoutineTask(NTEOneTimeTask, BaseNTETask):
         self.name = "日常任务"
         self.support_schedule_task = True
         self.show_in_task_tab = False
-        self.visible = True
+        self.visible = False
         self.task_status = {"success": [], "failed": [], "skipped": [], "pending": []}
         self.current_task_key = None
         self._active_routine_task = None
