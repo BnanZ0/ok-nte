@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import asyncio
 import atexit
-import multiprocessing
 import os
 from concurrent.futures import Future, ProcessPoolExecutor
 from dataclasses import dataclass
@@ -192,7 +191,6 @@ def midi_process_executor() -> ProcessPoolExecutor:
     global _PROCESS_POOL
     with _PROCESS_POOL_LOCK:
         if _PROCESS_POOL is None:
-            multiprocessing.freeze_support()
             worker_count = max(1, min(2, (os.cpu_count() or 2) - 1))
             _PROCESS_POOL = ProcessPoolExecutor(
                 max_workers=worker_count,
