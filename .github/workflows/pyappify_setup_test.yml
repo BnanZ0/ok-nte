@@ -1,10 +1,31 @@
-name: Test PyAppify Setup
+name: Test PyAppify Packages
 
 on:
   workflow_dispatch:
     inputs:
+      build_target:
+        description: Choose which packages to build.
+        type: choice
+        required: true
+        default: mirror
+        options:
+          - mirror
+          - setup
+          - all
+      app_ref:
+        description: OK-NTE branch, tag or commit to build.
+        required: true
+        default: test-mirro-zip
+      pyappify_ref:
+        description: Published BnanZ0/pyappify ref containing the mirror-zip command.
+        required: true
+        default: codex/mirrorchyan-zip
+      mirror_resource_id:
+        description: Mirror RID; the default is only for local package testing.
+        required: true
+        default: local-test-ok-nte
       version_tag:
-        description: Version string used by inline_ok_requirements for the test build.
+        description: Application version for the test package.
         required: true
         default: v0.0.0-pyappify-test
 
@@ -12,8 +33,8 @@ permissions:
   contents: read
 
 jobs:
-  build-setup:
-    name: Build setup executables
+  build-packages:
+    name: Build packages with PyAppify Action
     runs-on: windows-latest
 
     env:
@@ -34,6 +55,7 @@ jobs:
       - name: Check out source
         uses: actions/checkout@v7
         with:
+          ref: ${{ inputs.app_ref }}
           submodules: true
           lfs: true
           fetch-depth: 0
@@ -51,22 +73,57 @@ jobs:
           cache-dependency-glob: uv.lock
 
       - name: Install dependencies
+        if: inputs.build_target != 'mirror'
         run: uv pip install --system -r requirements.txt
 
       - name: Prepare release requirements
+        if: inputs.build_target != 'mirror'
         env:
           RELEASE_TAG: ${{ inputs.version_tag }}
         run: python -m ok.update.inline_ok_requirements --tag "$env:RELEASE_TAG"
 
-      - name: Build setup with BnanZ0 PyAppify Action
+      - name: Build packages with BnanZ0 PyAppify Action
         uses: BnanZ0/pyappify-action@master
+        with:
+          package_mode: ${{ inputs.build_target }}
+          pyappify_ref: ${{ inputs.pyappify_ref }}
+          application_version: ${{ inputs.version_tag }}
+          mirror_resource_id: ${{ inputs.mirror_resource_id }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Upload setup executables
+      - name: Upload China setup executable
+        if: inputs.build_target != 'mirror'
         uses: actions/upload-artifact@v7
         with:
-          name: pyappify-setup-${{ github.run_number }}
-          path: pyappify_dist/*setup.exe
+          name: setup-China-${{ github.run_number }}
+          path: pyappify_dist/ok-nte-win32-China-setup.exe
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Upload Global setup executable
+        if: inputs.build_target != 'mirror'
+        uses: actions/upload-artifact@v7
+        with:
+          name: setup-Global-${{ github.run_number }}
+          path: pyappify_dist/ok-nte-win32-Global-setup.exe
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Upload online setup executable
+        if: inputs.build_target != 'mirror'
+        uses: actions/upload-artifact@v7
+        with:
+          name: setup-online-${{ github.run_number }}
+          path: pyappify_dist/ok-nte-win32-online-setup.exe
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Upload complete Mirror ZIP separately
+        if: inputs.build_target != 'setup'
+        uses: actions/upload-artifact@v7
+        with:
+          path: pyappify_dist/ok-nte-win32-mirror-full.zip
+          archive: false
           if-no-files-found: error
           retention-days: 7
