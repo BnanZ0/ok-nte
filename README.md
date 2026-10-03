@@ -65,7 +65,7 @@ ok-nte 是一款面向《异环》的 Windows 自动化工具，通过截图识�
 推荐使用支持自动更新的安装包：
 
 - **[GitHub](https://github.com/BnanZ0/ok-nte/releases)**: 官方发布页，全球访问速度快。
-- **[Mirror酱](https://mirrorchyan.com/zh/projects?rid=ok-nte&channel=stable)**: 国内镜像，下载可能需要购买其平台的 CD-KEY。
+- **[Mirror酱](https://mirrorchyan.com/zh/projects?rid=ok-nte-zip&channel=stable)**: 国内镜像，下载可能需要购买其平台的 CD-KEY。
 - **[百度网盘](https://pan.baidu.com/s/102Mh1djq2B1T-cIJhct9Gg?pwd=okww)**: 免费下载。
 - **[夸克网盘](https://pan.quark.cn/s/24433f3febc1)**: 免费下载。
 
