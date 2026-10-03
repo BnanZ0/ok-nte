@@ -1,19 +1,24 @@
-name: Test PyAppify Setup
+name: Test PyAppify Packages
 
 on:
   workflow_dispatch:
     inputs:
-      version_tag:
-        description: Version string used by inline_ok_requirements for the test build.
+      build_target:
+        description: Choose which packages to build.
+        type: choice
         required: true
-        default: v0.0.0-pyappify-test
+        default: mirror
+        options:
+          - mirror
+          - setup
+          - all
 
 permissions:
   contents: read
 
 jobs:
-  build-setup:
-    name: Build setup executables
+  build-packages:
+    name: Build packages with PyAppify Action
     runs-on: windows-latest
 
     env:
@@ -51,22 +56,63 @@ jobs:
           cache-dependency-glob: uv.lock
 
       - name: Install dependencies
+        if: inputs.build_target != 'mirror'
         run: uv pip install --system -r requirements.txt
 
       - name: Prepare release requirements
+        if: inputs.build_target != 'mirror'
         env:
-          RELEASE_TAG: ${{ inputs.version_tag }}
+          RELEASE_TAG: ${{ github.ref_name }}
         run: python -m ok.update.inline_ok_requirements --tag "$env:RELEASE_TAG"
 
-      - name: Build setup with BnanZ0 PyAppify Action
+      - name: Build packages with BnanZ0 PyAppify Action
         uses: BnanZ0/pyappify-action@master
+        with:
+          package_mode: ${{ inputs.build_target }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Upload setup executables
+      - name: Upload China setup executable
+        if: inputs.build_target != 'mirror'
         uses: actions/upload-artifact@v7
         with:
-          name: pyappify-setup-${{ github.run_number }}
-          path: pyappify_dist/*setup.exe
+          name: setup-China-${{ github.run_number }}
+          path: pyappify_dist/ok-nte-win32-China-setup.exe
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Upload Global setup executable
+        if: inputs.build_target != 'mirror'
+        uses: actions/upload-artifact@v7
+        with:
+          name: setup-Global-${{ github.run_number }}
+          path: pyappify_dist/ok-nte-win32-Global-setup.exe
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Upload online setup executable
+        if: inputs.build_target != 'mirror'
+        uses: actions/upload-artifact@v7
+        with:
+          name: setup-online-${{ github.run_number }}
+          path: pyappify_dist/ok-nte-win32-online-setup.exe
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Upload complete Mirror ZIP separately
+        if: inputs.build_target != 'setup'
+        uses: actions/upload-artifact@v7
+        with:
+          path: pyappify_dist/*-full*.zip
+          archive: false
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Upload Mirror body ZIP separately
+        if: inputs.build_target != 'setup'
+        uses: actions/upload-artifact@v7
+        with:
+          path: pyappify_dist/*-body*.zip
+          archive: false
           if-no-files-found: error
           retention-days: 7

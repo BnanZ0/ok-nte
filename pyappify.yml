@@ -3,6 +3,11 @@ uac: true
 icon: "icons/icon.png"
 website: "https://ok-script.com/ok-nte"
 
+mirrorchyan:
+  resource_id: ok-nte
+  stable_channel: stable
+  packaging: packaging
+
 profiles:
   - name: "China"
     git_url: "https://cnb.cool/BnanZ0/ok-nte-update.git"
