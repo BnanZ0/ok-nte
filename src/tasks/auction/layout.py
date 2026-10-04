@@ -67,7 +67,7 @@ RE_INSTRUMENT = re.compile(r"仪\s*器")
 
 # 全角数字与全角逗号统一转半角, 用于统一资产与价格的 OCR 文本。
 # 逗号必须一起转, 否则残缺读数的两条防线同时失效 (见 auction-notes 2.4)。
-FULLWIDTH_NUMERIC = str.maketrans("０１２３４５６７８９，", "0123456789,")
+FULLWIDTH_NUMERIC = str.maketrans("０１２３４５６７８９\uff0c", "0123456789,")
 
 # 数字键盘上一次点击即可输入的快捷键, 需优先于逐位输入。
 PAD_SHORTCUTS = ("0000", "00")
