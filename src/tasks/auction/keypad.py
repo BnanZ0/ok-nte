@@ -40,6 +40,9 @@ class KeypadActions:
     operate_click: Callable[..., object]
     box_of_screen: Callable[..., Box]
     wait_ocr: Callable[..., list]
+    # 放大裁剪后的区域全量 OCR (match=None): 孤立单位数字在原尺寸稀疏裁剪里
+    # 检测不到, 原尺寸读不到价格时的补拍通道 (实测见 auction-notes 5.1)。
+    ocr_upscaled: Callable[[Box], list]
     auto_raise_enabled: bool
     bid_notice_popup_timeout: float
     log_info: Callable[[str], None]
@@ -150,7 +153,13 @@ def verify_input_price(
 
 
 def read_price_text(actions: KeypadActions, box: Box, deadline: float | None) -> str:
-    """读取价格区文本, 未识别时返回空串。"""
+    """读取价格区文本, 未识别时返回空串。
+
+    原尺寸裁剪对多位数字可靠 (标定帧与实机数据见 auction-notes 3); 孤立单位
+    数字(一位价格)在这个宽稀疏裁剪里检测器整帧漏检 (2026-10-05 实测: 大字 6
+    在 BOX_PRICE_RESULT 内, 原尺寸 0 命中, 放大 3 倍后置信度 0.99+, 见
+    auction-notes 5.1), 原尺寸读不到时用放大裁剪补拍一拍。
+    """
     price_boxes = actions.wait_ocr(
         box=box,
         match=RE_NUMBER,
@@ -158,7 +167,23 @@ def read_price_text(actions: KeypadActions, box: Box, deadline: float | None) ->
         settle_time=0.5,
         raise_if_not_found=False,
     )
-    return "".join(text_box.name for text_box in price_boxes) if price_boxes else ""
+    if price_boxes:
+        return "".join(text_box.name for text_box in price_boxes)
+    return _read_upscaled_price_text(actions, box)
+
+
+def _read_upscaled_price_text(actions: KeypadActions, box: Box) -> str:
+    """放大裁剪补拍价格区: 返回数字拼接文本, 仍读不到时留痕检测器全量读数。
+
+    全量读数取自 match=None 的放大补拍, 是排查「输入价格结果未识别」时能拿到的
+    最接近检测器原文的证据 (诊断惯例见 auction-notes 1.1)。
+    """
+    boxes = actions.ocr_upscaled(box)
+    texts = [b.name for b in boxes if b.name] if boxes else []
+    digits = "".join(text for text in texts if RE_NUMBER.search(text))
+    if not digits:
+        actions.log_warning(f"价格区放大回读仍无数字, 检测器全量读数: {texts}")
+    return digits
 
 
 def confirm_bid_price(

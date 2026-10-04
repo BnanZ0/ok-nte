@@ -62,6 +62,7 @@ from src.tasks.auction.options import (
 )
 from src.tasks.BaseNTETask import BaseNTETask
 from src.tasks.NTEOneTimeTask import NTEOneTimeTask
+from src.utils.image_utils import crop_upscaled
 
 
 class AutoBidAuctionTask(NTEOneTimeTask, BaseNTETask):
@@ -1239,6 +1240,17 @@ class AutoBidAuctionTask(NTEOneTimeTask, BaseNTETask):
         return auction_bid_price.raise_price(self, base_price, bid_count)
 
     # --- 价格输入 ---
+    def _ocr_upscaled(self, box: Box) -> list:
+        """放大裁剪 box 区域后做全量 OCR (match=None), 实现见 image_utils.crop_upscaled。
+
+        供键盘价格回读在原尺寸读不到时补拍孤立单位数字; 返回检测器全部文本框,
+        数字过滤由调用方完成。
+        """
+        crop = crop_upscaled(self.frame, box)
+        if crop is None:
+            return []
+        return self.ocr(frame=crop, match=None)
+
     def _input_fixed_price(
         self, boxes: AuctionBoxes, price: int | None = None, deadline: float | None = None
     ) -> None:
@@ -1268,6 +1280,7 @@ class AutoBidAuctionTask(NTEOneTimeTask, BaseNTETask):
             operate_click=self.operate_click,
             box_of_screen=self.box_of_screen,
             wait_ocr=self.wait_ocr,
+            ocr_upscaled=self._ocr_upscaled,
             auto_raise_enabled=bool(self.config.get(CONF_AUTO_RAISE, False)),
             bid_notice_popup_timeout=auction_keypad.BID_NOTICE_POPUP_TIMEOUT,
             log_info=self.log_info,

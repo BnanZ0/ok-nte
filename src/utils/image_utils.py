@@ -503,5 +503,34 @@ def find_color_enriched_regions(
     return result_boxes
 
 
+def crop_upscaled(frame: np.ndarray, box: Box, factor: float = 3) -> np.ndarray | None:
+    """
+    裁剪 box 区域并等比放大, 供孤立小字的 OCR 补拍使用.
+
+    检测模型对宽稀疏裁剪中的孤立单个字符(如输入框里的一位价格)可能整帧漏检,
+    放大后可检出 (2026-10-05 实测见 auction-notes 5.1). 坐标只用于取文本,
+    不做还原.
+
+    Args:
+        frame (np.ndarray): 输入的 BGR 帧图像.
+        box (Box): 要裁剪的区域 (帧内像素坐标).
+        factor (float): 放大倍数, 默认 3.
+
+    Returns:
+        np.ndarray | None: 放大后的 BGR 裁剪; 帧缺失或区域在帧内退化(宽高<=0)时
+        返回 None.
+    """
+    if not isinstance(frame, np.ndarray) or frame.size == 0:
+        return None
+    frame_height, frame_width = frame.shape[:2]
+    x1, y1 = max(0, int(box.x)), max(0, int(box.y))
+    x2 = min(frame_width, int(box.x + box.width))
+    y2 = min(frame_height, int(box.y + box.height))
+    if x2 - x1 <= 0 or y2 - y1 <= 0:
+        return None
+    crop = frame[y1:y2, x1:x2]
+    return cv2.resize(crop, None, fx=factor, fy=factor, interpolation=cv2.INTER_CUBIC)
+
+
 def apply_mask(image, mask):
     return cv2.bitwise_and(image, image, mask=mask)
