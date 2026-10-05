@@ -133,7 +133,8 @@ class AutoBidAuctionTask(NTEOneTimeTask, BaseNTETask):
         #   / _instrument_group(「仪器组」配置的缓存组名, 由入口校验填充) /
         #   _instrument_remaining(仪器队列: 尚未使用的满列表槽位号, 按当前视觉顺序) /
         #   _instrument_group_ready。
-        # 会话级: _session_result_total / _session_result_rounds / _welfare_state。
+        # 会话级: _session_result_total / _session_result_rounds / _welfare_state
+        #   / _asset_routed_mode(资产路由的模式覆盖, 见 _observe_main_asset)。
         # 轮次级: 归 _reset_round_state 唯一入口, 含 _instrument_seq(仪器槽位序列
         #   游标, 每件拍品从序列第 1 项开始; 序列内容变化时也归零, 见
         #   _refresh_instrument_slots) / _inventory_hint_seen(满仓横幅落账, 见
@@ -166,6 +167,10 @@ class AutoBidAuctionTask(NTEOneTimeTask, BaseNTETask):
         # 次数：N/5」读回(领取前读一次, 领取后再重读一次), 不做本地推算 —— 点击
         # 领取不等于领取生效, 依据见 auction_welfare.read_counter 与 auction-notes 5.3。
         self._welfare_state = auction_welfare.WelfareState()
+        # 资产路由的运行时出价模式覆盖(见 _observe_main_asset 与 auction-notes 7):
+        # 结算后资产跌破门槛时置为路由目标模式, 本次运行内单向锁存, 不写回用户
+        # 配置, 也不随轮次重置 —— _reset_round_state 不得清它。
+        self._asset_routed_mode: str | None = None
         # 轮次级状态的初始值与每轮重置共用同一入口; 必须在 _welfare_state 之后调用,
         # 切日逻辑要读它。
         self._reset_round_state()
@@ -891,8 +896,34 @@ class AutoBidAuctionTask(NTEOneTimeTask, BaseNTETask):
             self._record_inventory_hint()
 
     def _observe_main_asset(self, boxes: AuctionBoxes, deadline: float) -> int | None:
-        """读取主界面资产值, 实现见 auction_welfare.observe_main_asset。"""
-        return auction_welfare.observe_main_asset(self, boxes, deadline)
+        """读取主界面资产值并做资产路由检查, 读取实现见 auction_welfare.observe_main_asset。
+
+        资产只在结算扣款与出售回款后变化, 结算后观测是每轮唯一必经的新读数点,
+        路由检查挂在这里; 出价面板的资产读取在 bid 契约内, 不另挂回调。
+        """
+        value = auction_welfare.observe_main_asset(self, boxes, deadline)
+        self._route_mode_on_asset(value)
+        return value
+
+    def _route_mode_on_asset(self, value: int | None) -> None:
+        """资产跌破门槛时把出价模式路由到目标模式, 本次运行内单向锁存。
+
+        规则表与门槛在 auction_price.route_mode_on_asset; 判断基于用户配置的
+        模式, 命中后写 _asset_routed_mode 供 _bid_mode 覆盖, 不改写配置。
+        已锁存时直接返回: 资产回升不切回, 也不再触发。
+        """
+        if self._asset_routed_mode is not None:
+            return
+        config_mode = self.config.get(CONF_BID_MODE, BID_MODE_CUSTOM)
+        routed = auction_price.route_mode_on_asset(config_mode, value)
+        if routed is None:
+            return
+        self._asset_routed_mode = routed
+        self.info_set("出价模式(生效)", routed)
+        self.log_info(
+            f"资产 {value} 低于 {auction_price.ASSET_MODE_ROUTE_THRESHOLD}, "
+            f"本次运行出价模式路由到「{routed}」(配置「{config_mode}」不变)"
+        )
 
     def _claim_welfare_if_needed(
         self, boxes: AuctionBoxes, deadline: float, asset_value: int | None
@@ -1220,12 +1251,17 @@ class AutoBidAuctionTask(NTEOneTimeTask, BaseNTETask):
 
     # --- 自动加价计算 ---
     def _bid_mode(self) -> str:
-        """读取出价模式, 默认「自定义价格」。
+        """读取出价模式, 默认「自定义价格」; 资产路由触发时本次运行覆盖为路由目标。
 
         模式分发唯一实现在 auction_bid_price 的注册表, 运行时算价与入口校验
         共用同一张表, 新增模式只需在注册表加一项; 取值非法时由注册表抛
         带可选值的 ValueError(见 auction-notes 4), 本方法只负责读取。
+        运行时覆盖来自 _observe_main_asset 的资产路由(单向锁存, 不写回配置,
+        见 auction-notes 7); 入口校验发生在 do_run 开头、锁存置位之前,
+        校验的始终是用户配置的模式。
         """
+        if self._asset_routed_mode is not None:
+            return self._asset_routed_mode
         return self.config.get(CONF_BID_MODE, BID_MODE_CUSTOM)
 
     def _calculate_auction_price(
