@@ -1,7 +1,7 @@
 import re
 import time
 import traceback
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from decimal import Decimal
 
 from ok import Box, TaskDisabledException, WaitFailedException
@@ -136,7 +136,8 @@ class AutoBidAuctionTask(NTEOneTimeTask, BaseNTETask):
         # 会话级: _session_result_total / _session_result_rounds / _welfare_state。
         # 轮次级: 归 _reset_round_state 唯一入口, 含 _instrument_seq(仪器槽位序列
         #   游标, 每件拍品从序列第 1 项开始; 序列内容变化时也归零, 见
-        #   _refresh_instrument_slots); 本轮回场配额 _recover_quota 由
+        #   _refresh_instrument_slots) / _inventory_hint_seen(满仓横幅落账, 见
+        #   auction-notes 5.2); 本轮回场配额 _recover_quota 由
         #   _exec_auction_round 每轮赋值, 检查与扣减只发生在任务编排层
         #   (_resume_after_world_drop), 能力模块不读写。
         self.last_bid_price = None
@@ -317,6 +318,10 @@ class AutoBidAuctionTask(NTEOneTimeTask, BaseNTETask):
         self._smart_state = auction_price.SmartRoundState()
         # 结算成交价值观测: 本轮读数由 welfare.run_post_round_actions 写入 PostRoundState.
         self._current_result_value = None
+        # 满仓横幅落账: 横幅在拍卖结束回到主界面时一闪而过(见 auction-notes 5.2),
+        # settle 标题确认后的探针与弹窗轮询探到即置位, 结算后观测直接采信为满仓;
+        # 每轮复位, 不跨轮.
+        self._inventory_hint_seen = False
         # 永恒之心检测与仪器使用都是辅助状态: 心按「每场」复位; 仪器按「每口」
         # 消费, 本场已服务的出价序号随轮复位 (_instrument_served_bid); 序列游标
         # 也随轮归零 —— 队列由每场补全恢复满列表, 每件拍品从序列第 1 项开始
@@ -779,6 +784,7 @@ class AutoBidAuctionTask(NTEOneTimeTask, BaseNTETask):
             observe_post_round=self._observe_post_round_on_main_screen,
             run_post_round=self._run_post_round_actions,
             dismiss_notice=self._dismiss_notice_popup,
+            note_inventory_hint=self._note_inventory_banner,
             finish_auction=self._finish_auction,
             poll_interval=self.POLL_INTERVAL,
             log_info=self.log_info,
@@ -816,7 +822,16 @@ class AutoBidAuctionTask(NTEOneTimeTask, BaseNTETask):
                     settle_time=0.5,
                 )
             ),
-            dismiss_notice=self._dismiss_notice_popup,
+            # 结算后主界面的弹窗探测开启横幅监视: 横幅一闪而过(见 auction-notes 5.2),
+            # 轮询期间出现也要当场落账, 供 inventory_hint 分支直接采信。
+            dismiss_notice=lambda boxes, deadline, reason: self._dismiss_notice_popup(
+                boxes,
+                deadline,
+                reason,
+                watch_inventory=True,
+                on_inventory_hint=self._record_inventory_hint,
+            ),
+            inventory_hint=lambda: self._inventory_hint_seen,
             uses_collection_sell=self._uses_collection_sell,
             detect_inventory_full=self._detect_inventory_full,
             observe_asset=self._observe_main_asset,
@@ -858,6 +873,22 @@ class AutoBidAuctionTask(NTEOneTimeTask, BaseNTETask):
     def _detect_inventory_full(self, boxes: AuctionBoxes, timeout: float) -> bool | None:
         """检测主界面的库存不足提示, 实现见 auction_sell.detect_inventory_full。"""
         return auction_sell.detect_inventory_full(self, boxes, timeout)
+
+    def _record_inventory_hint(self) -> None:
+        """落账本轮满仓横幅信号, 供结算后观测直接采信(横幅一闪而过, 见 auction-notes 5.2)。
+
+        弹窗轮询在横幅存续的每一帧都会回调, 幂等由置位判断保证; 首次落账记一条
+        INFO, 文案与 detect_inventory_full 命中时保持同一口径。
+        """
+        if self._inventory_hint_seen:
+            return
+        self._inventory_hint_seen = True
+        self.log_info("检测到库存不足提示, 当前处于满仓状态")
+
+    def _note_inventory_banner(self, boxes: AuctionBoxes) -> None:
+        """主界面标题确认后单帧探一次满仓横幅, 命中即落账, 见 auction_sell 的探针。"""
+        if auction_sell.probe_inventory_banner(self, boxes):
+            self._record_inventory_hint()
 
     def _observe_main_asset(self, boxes: AuctionBoxes, deadline: float) -> int | None:
         """读取主界面资产值, 实现见 auction_welfare.observe_main_asset。"""
@@ -902,9 +933,20 @@ class AutoBidAuctionTask(NTEOneTimeTask, BaseNTETask):
         reason: str,
         *,
         timeout: float | None = None,
+        watch_inventory: bool = False,
+        on_inventory_hint: Callable[[], None] | None = None,
     ) -> bool:
-        """点掉挡在流程前面的弹窗, 两类弹窗的识别与关闭见 auction_popup。"""
-        return auction_popup.dismiss_notice_popup(self, boxes, deadline, reason, timeout=timeout)
+        """点掉挡在流程前面的弹窗, 两类弹窗的识别与关闭见 auction_popup;
+        watch_inventory 开启时轮询中顺带探满仓横幅并经 on_inventory_hint 落账。"""
+        return auction_popup.dismiss_notice_popup(
+            self,
+            boxes,
+            deadline,
+            reason,
+            timeout=timeout,
+            watch_inventory=watch_inventory,
+            on_inventory_hint=on_inventory_hint,
+        )
 
     # --- 超时辅助 ---
     @staticmethod

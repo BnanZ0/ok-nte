@@ -138,6 +138,18 @@ def detect_inventory_full(
     return bool(found)
 
 
+def probe_inventory_banner(task: AuctionSellOps, boxes: AuctionBoxes) -> bool:
+    """单帧探测主界面的库存不足横幅, 命中表示此刻满仓信号在屏上。
+
+    横幅在拍卖结束回到主界面时一闪而过(2026-10-05 用户实测, 见 auction-notes
+    5.2), detect_inventory_full 的等待窗口开始时可能已经消失; 探针供标题确认后
+    与弹窗轮询中按帧调用, 命中结论由调用方落账, 本函数不做记录也不打日志。
+    """
+    return bool(
+        task.ocr(box=boxes.insufficient, match=RE_COLLECTION_INSUFFICIENT, log=False)
+    )
+
+
 def _sell_red_enabled(task: AuctionSellOps) -> bool:
     """「拍卖成功出售红」是否勾选; 脏配置(非列表)按未勾选处理。
 

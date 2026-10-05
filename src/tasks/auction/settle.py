@@ -55,6 +55,8 @@ class SettleActions:
     observe_post_round: Callable[[AuctionBoxes, float], None]
     run_post_round: Callable[[AuctionBoxes, float], None]
     dismiss_notice: Callable[..., bool]
+    # 主界面标题确认后单帧探一次满仓横幅并落账(横幅一闪而过, 见 auction-notes 5.2)。
+    note_inventory_hint: Callable[[AuctionBoxes], None]
     finish_auction: Callable[[AuctionBoxes, list, float], None]
     poll_interval: float
     log_info: Callable[[str], None]
@@ -161,6 +163,10 @@ def finish_auction(
     if not main_title:
         actions.log_warning("主界面「即刻落槌」标题未识别, 跳过本轮结算后处理")
         return
+
+    # 满仓横幅在回到主界面的头几秒一闪而过(见 auction-notes 5.2): 标题确认后
+    # 立即探一次并落账, 结算后观测直接采信, 不依赖其后才开始的检测窗口。
+    actions.note_inventory_hint(boxes)
 
     actions.log_info("退出拍卖后回到主界面, 开始结算后处理")
     actions.run_post_round(boxes, deadline)
