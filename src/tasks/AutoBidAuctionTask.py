@@ -4,6 +4,7 @@ import traceback
 from collections.abc import Callable, Iterable
 from decimal import Decimal
 
+import cv2
 from ok import Box, TaskDisabledException, WaitFailedException
 
 from src.tasks.auction import assist as auction_assist
@@ -62,7 +63,6 @@ from src.tasks.auction.options import (
 )
 from src.tasks.BaseNTETask import BaseNTETask
 from src.tasks.NTEOneTimeTask import NTEOneTimeTask
-from src.utils.image_utils import crop_upscaled
 
 
 class AutoBidAuctionTask(NTEOneTimeTask, BaseNTETask):
@@ -1319,14 +1319,15 @@ class AutoBidAuctionTask(NTEOneTimeTask, BaseNTETask):
 
     # --- 价格输入 ---
     def _ocr_upscaled(self, box: Box) -> list:
-        """放大裁剪 box 区域后做全量 OCR (match=None), 实现见 image_utils.crop_upscaled。
+        """放大裁剪 box 区域后做全量 OCR (match=None)。
 
-        供键盘价格回读在原尺寸读不到时补拍孤立单位数字; 返回检测器全部文本框,
-        数字过滤由调用方完成。
+        供键盘价格回读在原尺寸读不到时补拍孤立单位数字, 检测模型对宽稀疏
+        裁剪里的孤立单字符整帧漏检, 3 倍放大可检出 (2026-10-05 实测见
+        auction-notes 5.1); 坐标只用于取文本, 不做还原。返回检测器全部
+        文本框, 数字过滤由调用方完成。
         """
-        crop = crop_upscaled(self.frame, box)
-        if crop is None:
-            return []
+        crop = box.crop_frame(self.frame)
+        crop = cv2.resize(crop, None, fx=3, fy=3, interpolation=cv2.INTER_CUBIC)
         return self.ocr(frame=crop, match=None)
 
     def _input_fixed_price(
