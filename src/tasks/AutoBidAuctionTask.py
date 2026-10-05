@@ -91,6 +91,9 @@ class AutoBidAuctionTask(NTEOneTimeTask, BaseNTETask):
     # 仪器组校验前的主界面标题探测预算: 只为「不在主界面就不点装备卡片」的守卫服务,
     # 命中时第一帧即返回 (见 auction-notes 7)。
     INSTRUMENT_GROUP_PROBE_TIMEOUT = 2
+    # 资产路由前的复核读数预算: 路由是本次运行单向锁存的高后果决定, 低于门槛的
+    # 读数要重读一次确认才采信 (见 _confirm_route_asset 与 auction-notes 7)。
+    ASSET_ROUTE_CONFIRM_TIMEOUT = 3
 
     # --- 轮询与重试 ---
     # 匹配/出价/结算共用的轮询节奏; 估价读取的节奏常量见 auction_reading。
@@ -171,6 +174,10 @@ class AutoBidAuctionTask(NTEOneTimeTask, BaseNTETask):
         # 结算后资产跌破门槛时置为路由目标模式, 本次运行内单向锁存, 不写回用户
         # 配置, 也不随轮次重置 —— _reset_round_state 不得清它。
         self._asset_routed_mode: str | None = None
+        # 首轮出价前的资产路由预检标记(会话级, 与 _asset_routed_mode 同样不复位):
+        # 结算后观测最早在首轮结算后才跑, 带低资产直接进场时首轮仍会按原模式
+        # 出价, 预检在入场确认后补一次读数 (见 _route_mode_before_first_bid)。
+        self._asset_route_prechecked = False
         # 轮次级状态的初始值与每轮重置共用同一入口; 必须在 _welfare_state 之后调用,
         # 切日逻辑要读它。
         self._reset_round_state()
@@ -218,6 +225,7 @@ class AutoBidAuctionTask(NTEOneTimeTask, BaseNTETask):
                     # 每轮都重新确认一次入口: 上一轮掉线或异常退出时人可能已经
                     # 不在拍卖界面 (见 auction_recovery.ensure_auction_entry)。
                     self._ensure_auction_entry(boxes)
+                    self._route_mode_before_first_bid(boxes)
                     self._ensure_instrument_group(boxes)
                     self._run_single_round(boxes)
                     if self._is_warehouse_open(boxes):
@@ -520,6 +528,11 @@ class AutoBidAuctionTask(NTEOneTimeTask, BaseNTETask):
                 bid_placed = self._attempt_bid(boxes, deadline)
             except TaskDisabledException:
                 raise
+            except auction_bid_price.BidPriceUnavailable as e:
+                # 资产路由模式下算不出可输入的价格(估价读不出且不回退基础价):
+                # 与弃局同路处理, 不计重试, 等待拍卖结果(整轮 deadline 兜底)。
+                self.log_info(f"{e}, 放弃本次出价, 等待拍卖结果")
+                bid_placed = False
             except Exception as e:
                 retry += 1
                 self.log_warning(
@@ -788,7 +801,17 @@ class AutoBidAuctionTask(NTEOneTimeTask, BaseNTETask):
             sell_on_settlement=self._sell_on_settlement_screen,
             observe_post_round=self._observe_post_round_on_main_screen,
             run_post_round=self._run_post_round_actions,
-            dismiss_notice=self._dismiss_notice_popup,
+            # 结算阶段「回主界面后」的弹窗探测同样开启横幅监视: 满仓横幅叠在
+            # 「获得物品」弹窗上时会随关闭一起消失(见 auction-notes 5.2), 轮询
+            # 每帧先探横幅再点关闭, 必须在关闭动作前落账, 否则标题确认后的
+            # 单帧探针必然落空。
+            dismiss_notice=lambda boxes, deadline, reason: self._dismiss_notice_popup(
+                boxes,
+                deadline,
+                reason,
+                watch_inventory=True,
+                on_inventory_hint=self._record_inventory_hint,
+            ),
             note_inventory_hint=self._note_inventory_banner,
             finish_auction=self._finish_auction,
             poll_interval=self.POLL_INTERVAL,
@@ -900,10 +923,53 @@ class AutoBidAuctionTask(NTEOneTimeTask, BaseNTETask):
 
         资产只在结算扣款与出售回款后变化, 结算后观测是每轮唯一必经的新读数点,
         路由检查挂在这里; 出价面板的资产读取在 bid 契约内, 不另挂回调。
+        路由是单向锁存的高后果决定, 低于门槛的读数先经 _confirm_route_asset
+        复核, 低保金等消费方拿到的仍是原读数。
         """
         value = auction_welfare.observe_main_asset(self, boxes, deadline)
-        self._route_mode_on_asset(value)
+        self._route_mode_on_asset(self._confirm_route_asset(boxes, deadline, value))
         return value
+
+    def _confirm_route_asset(
+        self, boxes: AuctionBoxes, deadline: float | None, value: int | None
+    ) -> int | None:
+        """低于路由门槛的读数复核一次再采信, 返回交给路由判定的值(不通过时 None)。
+
+        主界面资产读数存在首位数字连逗号一起丢的残缺形态(1,234,567 洗成
+        234,567, 分组防线全部放行, 见 auction-notes 2.3), 单帧读数不足以支撑
+        单向锁存; 复核读数(带残缺拦截)仍低于门槛才把原值交给路由。复核读不出
+        或不支持时返回 None, 本轮不路由, 下轮结算后观测重新评估。
+        """
+        if value is None or value >= auction_price.ASSET_MODE_ROUTE_THRESHOLD:
+            return value
+        timeout = self._optional_timeout(deadline, self.ASSET_ROUTE_CONFIRM_TIMEOUT)
+        if timeout is None:
+            self.log_warning(f"资产 {value} 低于门槛但复核没有可用时间, 本次不路由")
+            return None
+        confirm = self._read_asset_value(boxes.main_asset, timeout, reject_partial=True)
+        if confirm is None or confirm >= auction_price.ASSET_MODE_ROUTE_THRESHOLD:
+            self.log_warning(
+                f"资产 {value} 低于门槛但复核读数为 {confirm}, 按残缺读数处理, 本次不路由"
+            )
+            return None
+        return value
+
+    def _route_mode_before_first_bid(self, boxes: AuctionBoxes) -> None:
+        """首轮出价前补一次资产路由检查, 会话内至多执行一次。
+
+        结算后观测(_observe_main_asset)最早在首轮结算后才跑, 用户带着低于
+        门槛的资产直接进场时, 首轮会按原模式(高级场固定表)出价; 这里在入场
+        确认后、首轮出价前读一次资产提前锁存。配置模式不在路由表内时本次
+        运行永远不可能路由, 直接返回不做无谓读数; 读不出(None)不触发,
+        首轮结算后的常规观测仍会兜住。
+        """
+        if self._asset_route_prechecked:
+            return
+        self._asset_route_prechecked = True
+        if self.config.get(CONF_BID_MODE, BID_MODE_CUSTOM) not in auction_price.ASSET_MODE_ROUTES:
+            return
+        deadline = time.monotonic() + auction_welfare.ASSET_OBSERVE_TIMEOUT
+        self._observe_main_asset(boxes, deadline)
 
     def _route_mode_on_asset(self, value: int | None) -> None:
         """资产跌破门槛时把出价模式路由到目标模式, 本次运行内单向锁存。

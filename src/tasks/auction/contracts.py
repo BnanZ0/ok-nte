@@ -56,6 +56,9 @@ class AuctionBidPriceOps(Protocol):
     current_bid_count: int
     _smart_state: Any
     _heart_present: bool
+    # 资产路由的运行时出价模式覆盖(非 None 表示本次运行已路由, 估价模式
+    # 据此不继承「基础价」下限, 见 bid_price.estimate_bid_price)。
+    _asset_routed_mode: str | None
 
     # --- 日志 ---
     def log_info(self, message: str) -> None: ...
