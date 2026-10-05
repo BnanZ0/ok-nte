@@ -200,6 +200,10 @@ class AutoBidAuctionTask(NTEOneTimeTask, BaseNTETask):
     def do_run(self):
         """主执行逻辑, 使用基类的轮次管理框架。"""
         self.start_rounds()
+        # 会话成交累计按「本次运行」归零: 任务实例在 App 内复用, 不清零会把上一
+        # 次运行的累计带进本次汇总 (实测见 auction-notes 5.1)。
+        self._session_result_rounds = 0
+        self._session_result_total = 0
         try:
             # 入场校验放在 try 内: 配置非法时也要走到 finally 的 finish_rounds,
             # 否则任务抛错退出后连轮次汇总日志和结束通知都不会发出。
@@ -1305,8 +1309,14 @@ class AutoBidAuctionTask(NTEOneTimeTask, BaseNTETask):
         screenshot_min = self._config_int(CONF_RESULT_SCREENSHOT_MIN, 0)
         if screenshot_min <= 0 or value < screenshot_min:
             return
+        # Task.screenshot 保存的是缓存 _frame: 游戏窗口被遮挡停止渲染时, 捕获会
+        # 持续「成功」地返回旧画面, 不抓新帧可能存出过期内容 (见 auction-notes 5.1)。
+        frame = self.next_frame()
+        if frame is None:
+            self.log_warning("成交价值截图前无法获取新帧, 跳过截图保存")
+            return
         try:
-            self.screenshot(name=f"auction_result_{value}")
+            self.screenshot(name=f"auction_result_{value}", frame=frame)
         except TaskDisabledException:
             raise
         except Exception as e:
