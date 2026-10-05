@@ -168,11 +168,16 @@ def _recover_truncated_value(
     """残缺/无逗号读数的放大补读: 位数严格更多才采信, 残缺读数救不回按未读出。
 
     采信走 log_info: 这是金额相关读数被纠正的时刻, 要在日志里可观测。
+    value 为 None 仅见于纯逗号残缺文本(残缺防线必拦的形态), 此时补读出数字
+    即按救回采信; 非 None 基线必须位数严格更多, 不给同位数读数翻案空间。
     """
     up_boxes = task._ocr_upscaled(box)
     up_text = "".join(b.name for b in up_boxes if RE_NUMBER.search(b.name)) if up_boxes else ""
     up_value = parse_asset_value(up_text) if up_text else None
-    if up_value is not None and (value is None or len(str(up_value)) > len(str(value))):
+    rescued = up_value is not None and (
+        partial if value is None else len(str(up_value)) > len(str(value))
+    )
+    if rescued:
         task.log_info(
             f"{label} 原尺寸读数 '{raw_text}' 残缺, 放大补读 '{up_text}', 采信 {up_value}"
         )
