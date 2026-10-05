@@ -939,10 +939,10 @@ class AutoBidAuctionTask(NTEOneTimeTask, BaseNTETask):
     ) -> int | None:
         """低于路由门槛的读数复核一次再采信, 返回交给路由判定的值(不通过时 None)。
 
-        主界面资产读数存在首位数字连逗号一起丢的残缺形态(1,234,567 洗成
-        234,567, 分组防线全部放行, 见 auction-notes 2.3), 单帧读数不足以支撑
-        单向锁存; 复核读数(带残缺拦截)仍低于门槛才把原值交给路由。复核读不出
-        或不支持时返回 None, 本轮不路由, 下轮结算后观测重新评估。
+        主界面资产读数存在首位漏读的残缺形态(7,284 读成 ,284/284, 见
+        auction-notes 2.3/5.1), 单帧读数不足以支撑单向锁存; 复核读数(读数层
+        带残缺放大补拍)仍低于门槛才把原值交给路由。复核读不出或不支持时返回
+        None, 本轮不路由, 下轮结算后观测重新评估。
         """
         if value is None or value >= auction_price.ASSET_MODE_ROUTE_THRESHOLD:
             return value
@@ -950,7 +950,7 @@ class AutoBidAuctionTask(NTEOneTimeTask, BaseNTETask):
         if timeout is None:
             self.log_warning(f"资产 {value} 低于门槛但复核没有可用时间, 本次不路由")
             return None
-        confirm = self._read_asset_value(boxes.main_asset, timeout, reject_partial=True)
+        confirm = self._read_asset_value(boxes.main_asset, timeout)
         if confirm is None or confirm >= auction_price.ASSET_MODE_ROUTE_THRESHOLD:
             self.log_warning(
                 f"资产 {value} 低于门槛但复核读数为 {confirm}, 按残缺读数处理, 本次不路由"
@@ -1224,13 +1224,9 @@ class AutoBidAuctionTask(NTEOneTimeTask, BaseNTETask):
         """读估价数字: 按标签定位, 取标签右侧数字, 实现见 auction_reading.read_estimate_value。"""
         return auction_reading.read_estimate_value(self, box, timeout, label, label_keywords)
 
-    def _read_asset_value(
-        self, box: Box, timeout: float, label: str = "资产", *, reject_partial: bool = False
-    ) -> int | None:
+    def _read_asset_value(self, box: Box, timeout: float, label: str = "资产") -> int | None:
         """OCR 解析资产数值, 实现见 auction_reading.read_asset_value。"""
-        return auction_reading.read_asset_value(
-            self, box, timeout, label, reject_partial=reject_partial
-        )
+        return auction_reading.read_asset_value(self, box, timeout, label)
 
     def _read_input_range_cap(self, box: Box, timeout: float) -> int | None:
         """读「可输入范围0~N」提示的输入上限, 实现见 auction_reading.read_input_range_cap。"""

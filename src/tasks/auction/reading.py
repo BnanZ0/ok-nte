@@ -16,7 +16,7 @@ from collections.abc import Iterable
 from ok import Box
 
 from src.tasks.auction.contracts import AuctionReadingOps
-from src.tasks.auction.layout import RE_NUMBER
+from src.tasks.auction.layout import FULLWIDTH_NUMERIC, RE_NUMBER
 from src.tasks.auction.price import (
     has_inconsistent_grouping,
     is_partial_number_text,
@@ -125,14 +125,17 @@ def read_asset_value(
     box: Box,
     timeout: float,
     label: str = "资产",
-    *,
-    reject_partial: bool = False,
 ) -> int | None:
     """对指定区域做 OCR 并解析资产数值, 未识别或解析失败时返回 None。
 
-    reject_partial 目前只有测试直调启用, 生产调用方都走默认 False; 估价区域的
-    同类防线(会跳动、首位可能被漏读)内建在 read_estimate_value, 不经过本参数。
-    传入 True 时, 千位分隔符前面空着的残缺读数按未读出处理, 交给调用方重读。
+    残缺读数(逗号前空, 如 7,284 漏读首位成 ,284)与无逗号读数(首位连逗号
+    一起丢, 或真实值 < 1000)先做一次 3 倍放大补读: 补读位数严格更多才采信
+    (截断只丢前导位不会增值, 采信依据与出价钳制的三源取最大一致, 见
+    auction-notes 5.1); 残缺读数补读仍救不回时按未读出返回 None, 不把残缺
+    文本洗成错值 —— 无逗号且非残缺的读数可能是真实的小值, 补读无改善时
+    保持原读数。
+    残余: 带逗号的整组前导丢失(16,155,238 洗成 155,238)从文本上不可检测,
+    不触发补读; 出价钳制路径由键盘「可输入范围0~N」上限兜住(见 5.1)。
     """
     boxes = task.wait_ocr(
         box=box,
@@ -145,12 +148,39 @@ def read_asset_value(
         return None
 
     raw_text = "".join(text_box.name for text_box in boxes)
-    if reject_partial and is_partial_number_text(raw_text):
-        task.log_debug(f"{label} OCR: '{raw_text}', 千位分隔符前缺数字, 视为残缺读数")
-        return None
-
     value = parse_asset_value(raw_text)
+    partial = is_partial_number_text(raw_text)
+    commaless = "," not in raw_text.translate(FULLWIDTH_NUMERIC)
+    if partial or commaless:
+        value = _recover_truncated_value(task, box, label, raw_text, value, partial)
     task.log_debug(f"{label} OCR: '{raw_text}', 解析值: {value}")
+    return value
+
+
+def _recover_truncated_value(
+    task: AuctionReadingOps,
+    box: Box,
+    label: str,
+    raw_text: str,
+    value: int | None,
+    partial: bool,
+) -> int | None:
+    """残缺/无逗号读数的放大补读: 位数严格更多才采信, 残缺读数救不回按未读出。
+
+    采信走 log_info: 这是金额相关读数被纠正的时刻, 要在日志里可观测。
+    """
+    up_boxes = task._ocr_upscaled(box)
+    up_text = "".join(b.name for b in up_boxes if RE_NUMBER.search(b.name)) if up_boxes else ""
+    up_value = parse_asset_value(up_text) if up_text else None
+    if up_value is not None and (value is None or len(str(up_value)) > len(str(value))):
+        task.log_info(
+            f"{label} 原尺寸读数 '{raw_text}' 残缺, 放大补读 '{up_text}', 采信 {up_value}"
+        )
+        return up_value
+    if partial:
+        task.log_warning(f"{label} OCR: '{raw_text}', 残缺读数放大补读未救回, 按未读出处理")
+        return None
+    task.log_debug(f"{label} 无逗号读数放大补读无改善, 保持原读数 {value}")
     return value
 
 
