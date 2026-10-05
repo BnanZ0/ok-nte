@@ -133,7 +133,9 @@ def cap_price_to_asset(
     首位截断影响 (7,284 被截成 284 后两读一致放行的事故即靠它纠正)。
     截断只丢前导位不会增值, 正读数取最大是最完整读数; 多源一致偏高的误读
     会被输入校验的回显比对打回, 方向是响亮失败不是静默不足额。复核为 0 或
-    读出 None 的源不采纳; 复核修正后价格变为可负担则按原算出价出。
+    读出 None 的源不采纳; 复核修正后价格变为可负担则按原算出价出。两个复核
+    源都不可用时仍沿用首次读数钳制(不阻断出价), 告警留痕, 取舍见
+    auction-notes 5.1。
     """
     if price <= asset_value:
         return price
@@ -145,6 +147,11 @@ def cap_price_to_asset(
         boxes.price_result,
         task._remaining_timeout(deadline, auction_reading.INPUT_RANGE_CAP_OCR_TIMEOUT),
     )
+    if not confirm_value and not hint_cap:
+        task.log_warning(
+            f"资产复核读数 {confirm_value} 与输入范围提示 {hint_cap} 均不可用, "
+            f"按未复核的首次读数 {asset_value} 钳制"
+        )
     reads = [value for value in (asset_value, confirm_value, hint_cap) if value]
     best = max(reads) if reads else asset_value
     if best != asset_value:
