@@ -220,7 +220,7 @@ class AuctionBidOps(Protocol):
     """bid.py 允许访问的任务面 (仅注解, 无运行时检查)。
 
     成员按 attempt_bid 的实际访问面逐条声明: 单次出价尝试需要的资产读取、
-    放弃/仪器等辅助入口与屏幕判定都留在任务侧, 它们同时
+    价格计算、放弃/仪器等辅助入口与屏幕判定都留在任务侧, 它们同时
     是测试的实例级 mock 锚点。出价序号与上轮出价的落账不在协议内 ——
     键盘确认价经任务侧 _input_fixed_price 落账, 出价循环维护 current_bid_count。
     """
@@ -236,6 +236,9 @@ class AuctionBidOps(Protocol):
 
     # --- 任务侧适配器入口 ---
     def _read_asset_value(self, *args: Any, **kwargs: Any) -> int | None: ...
+    def _calculate_auction_price(
+        self, boxes: AuctionBoxes | None = None, deadline: float | None = None
+    ) -> int: ...
     def _remaining_timeout(
         self, deadline: float | None, limit: float, message: str = "单轮拍卖超时"
     ) -> float: ...
