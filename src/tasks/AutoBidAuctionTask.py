@@ -1232,6 +1232,10 @@ class AutoBidAuctionTask(NTEOneTimeTask, BaseNTETask):
             self, box, timeout, label, reject_partial=reject_partial
         )
 
+    def _read_input_range_cap(self, box: Box, timeout: float) -> int | None:
+        """读「可输入范围0~N」提示的输入上限, 实现见 auction_reading.read_input_range_cap。"""
+        return auction_reading.read_input_range_cap(self, box, timeout)
+
     def _read_result_value(self, boxes: AuctionBoxes, deadline: float) -> int | None:
         """读结算面板的成交价值: 读取预算内反复重读, 读不出返回 None。
 

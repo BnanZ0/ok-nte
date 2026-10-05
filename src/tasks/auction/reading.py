@@ -21,10 +21,14 @@ from src.tasks.auction.price import (
     has_inconsistent_grouping,
     is_partial_number_text,
     parse_asset_value,
+    parse_price_hint_cap,
 )
 
 # 资产读取的单次 OCR 等待上限: 出价路径每次出价都要读一遍资产, 给太长会拖慢单轮。
 ASSET_OCR_TIMEOUT = 15
+# 键盘「可输入范围0~N」提示是面板就绪即在场的静态文案, 预算给小: 读不到时
+# (区域为空/已是输入回显)尽快返回 None, 交回钳制路径落到资产框复核。
+INPUT_RANGE_CAP_OCR_TIMEOUT = 5
 # 出价面板的当前估价在界面刚出现时会跳动几次, 第一次识别到的不是最终值;
 # 连续读到相同值才采用, 最多等 ESTIMATE_STABLE_TIMEOUT 秒.
 ESTIMATE_STABLE_READS = 3
@@ -148,6 +152,21 @@ def read_asset_value(
     value = parse_asset_value(raw_text)
     task.log_debug(f"{label} OCR: '{raw_text}', 解析值: {value}")
     return value
+
+
+def read_input_range_cap(task: AuctionReadingOps, box: Box, timeout: float) -> int | None:
+    """读「可输入范围0~N」提示里的输入上限 N, 读不到返回 None。
+
+    必须全量读文本再解析: 走 wait_ocr(match=RE_NUMBER) 会把 ~ 连同中文过滤掉,
+    上限与前导 0 的分界无从定位 (match 过滤丢非命中文本的框架行为见
+    auction-notes 1.1)。拼出整行后由 parse_price_hint_cap 取最后一个 ~ 后的
+    数字组; 无 ~ 时(输入框已有回显的重试帧)按提示不可用返回 None, 不猜。
+    """
+    texts = read_estimate_texts(task, box, timeout)
+    raw_text = "".join(text_box.name for text_box in texts)
+    cap = parse_price_hint_cap(raw_text)
+    task.log_debug(f"输入范围提示 OCR: '{raw_text}', 上限: {cap}")
+    return cap
 
 
 def read_stable_asset_value(

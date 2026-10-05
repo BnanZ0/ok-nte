@@ -127,9 +127,13 @@ def cap_price_to_asset(
 
     键盘校验重读的是被钳制后的显示值, 拿超限价格进输入只会以相同价格重试到
     整轮失败 (见 auction-notes 5.1), 所以在输入前钳到资产改出全部资产。
-    钳制前复核一次资产读数 (与资产为 0 的二次确认同型): 首位漏读类低位误读
-    会让 all-in 不足额, 复核为正数且与首次不一致时改用复核读数; 复核为 0 或
-    读不出时不采纳, 沿用首次读数。复核修正后价格变为可负担则按原算出价出。
+    钳制前三源复核资产读数 (见 auction-notes 5.1): 首次读数之外, 复读资产框
+    一次, 并读键盘未输入时「可输入范围0~N」提示的上限 N —— N 是游戏实时
+    给出的可输入上限, 与资产框互为独立读数源, 不在裁框边缘, 不受资产框
+    首位截断影响 (7,284 被截成 284 后两读一致放行的事故即靠它纠正)。
+    截断只丢前导位不会增值, 正读数取最大是最完整读数; 多源一致偏高的误读
+    会被输入校验的回显比对打回, 方向是响亮失败不是静默不足额。复核为 0 或
+    读出 None 的源不采纳; 复核修正后价格变为可负担则按原算出价出。
     """
     if price <= asset_value:
         return price
@@ -137,11 +141,17 @@ def cap_price_to_asset(
         boxes.asset_value,
         task._remaining_timeout(deadline, auction_reading.ASSET_OCR_TIMEOUT),
     )
-    if confirm_value is not None and confirm_value > 0 and confirm_value != asset_value:
+    hint_cap = task._read_input_range_cap(
+        boxes.price_result,
+        task._remaining_timeout(deadline, auction_reading.INPUT_RANGE_CAP_OCR_TIMEOUT),
+    )
+    reads = [value for value in (asset_value, confirm_value, hint_cap) if value]
+    best = max(reads) if reads else asset_value
+    if best != asset_value:
         task.log_info(
-            f"资产复核读数 {confirm_value} 与首次读数 {asset_value} 不一致, 改用复核读数"
+            f"资产复核读数 {best} 与首次读数 {asset_value} 不一致, 改用复核读数"
         )
-        asset_value = confirm_value
+        asset_value = best
         if price <= asset_value:
             return price
     task.log_info(

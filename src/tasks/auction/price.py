@@ -11,7 +11,7 @@ from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
 from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 
-from src.tasks.auction.layout import FULLWIDTH_NUMERIC, PAD_SHORTCUTS
+from src.tasks.auction.layout import FULLWIDTH_NUMERIC, PAD_SHORTCUTS, RE_INPUT_RANGE
 from src.tasks.auction.options import (
     BID_MODE_ESTIMATE,
     BID_MODE_SMART,
@@ -41,6 +41,20 @@ def parse_asset_value(raw_text: str) -> int | None:
         return int(digits)
     except ValueError:
         return None
+
+
+def parse_price_hint_cap(raw_text: str) -> int | None:
+    """从「可输入范围0~N」提示文本解析输入上限 N, 返回整数或 None。
+
+    N 是键盘未输入时游戏实时给出的可输入上限(即当前资产), 出价钳制用它作
+    与资产框独立的复核读数源 (背景见 auction-notes 5.1)。取最后一个 ~ 后的
+    数字组; 没有任何 ~(如输入框回显)或 ~ 后没有数字(~ 被 OCR 丢掉、前后
+    数字粘连)时返回 None, 调用方按「提示不可用」回退, 不猜。
+    """
+    matches = RE_INPUT_RANGE.findall(raw_text)
+    if not matches:
+        return None
+    return parse_asset_value(matches[-1])
 
 
 def is_partial_number_text(raw_text: str) -> bool:

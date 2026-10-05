@@ -29,6 +29,12 @@ RE_NUMBER = re.compile(r"[0-9\uff10-\uff19,]+")
 RESULT_VALUE_LABELS = ("估价", "价值", "成交")
 # 价格输入区未输入时显示 "可输入范围0~<资产>" 提示, 同样能被 RE_NUMBER 命中, 不能当作价格.
 RE_PRICE_HINT = re.compile(r"[~\uff5e\u4e00-\u9fff]")
+# 从提示文本提取输入上限 N: 取 ~(含全角)后的数字组。N 是游戏实时给出的可输入
+# 上限(即当前资产), 与资产框读数互为独立读数源, 供出价钳制交叉复核 (见
+# auction-notes 5.1); 提示本身仍按 RE_PRICE_HINT 排除在价格读数之外。
+# 数字组必须连全角逗号一起捕: 截断在 ~ 后第一段就断了, parse_asset_value 的
+# 全角归一化没有机会处理捕不到的字符 (同 2.4 全角逗号洗掉防线的教训)。
+RE_INPUT_RANGE = re.compile(r"[~\uff5e]\s*([0-9\uff10-\uff19,\uff0c]+)")
 RE_MAIN_TITLE = re.compile(r"即刻落槌")
 RE_COLLECTION_INSUFFICIENT = re.compile(r"少于200格")
 RE_WELFARE = re.compile(r"低保金")
