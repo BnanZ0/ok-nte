@@ -41,7 +41,7 @@ pyz = PYZ(a.pure)
 exe = EXE(
     pyz,
     a.scripts,
-    [],
+    [('X utf8', None, 'OPTION')],
     exclude_binaries=True,
     name="ok-nte",
     debug=False,
