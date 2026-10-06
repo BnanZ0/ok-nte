@@ -41,6 +41,7 @@ class BagelAITools(NTEOneTimeTask, BaseNTETask):
     CONF_AUTO_AICONFIG = "智能体模式选项"
     CONF_MODEL_URL = "模型调用地址"
     CONF_MODEL_TIMEOUT = "模型调用超时时间(s)"
+    CONF_MODEL_MAX_TOKENS = "模型生成Token上限"
     CONF_MODEL_API = "模型调用API_Key"
     CONF_MODEL_NAME = "所调用模型名称"
     CONF_PROMPT_REPLY = "回复生成提示词"
@@ -80,6 +81,7 @@ class BagelAITools(NTEOneTimeTask, BaseNTETask):
                 self.CONF_MODEL: False,
                 self.CONF_MODEL_URL: "",
                 self.CONF_MODEL_TIMEOUT: 30,
+                self.CONF_MODEL_MAX_TOKENS: 150,
                 self.CONF_MODEL_API: "",
                 self.CONF_MODEL_NAME: "qwen/qwen3-vl-4b",
                 self.CONF_PROMPT_REPLY: self.model_prompt.get("REPLY", ""),
@@ -95,6 +97,7 @@ class BagelAITools(NTEOneTimeTask, BaseNTETask):
                 self.CONF_AUTO_AICONFIG: "自动回帖会同时点赞",
                 self.CONF_MODEL_URL: "文案生成模型调用地址, 需兼容OpenAI接口请求格式",
                 self.CONF_MODEL_TIMEOUT: "文案生成调用模型的超时时间, 超时将回退使用本地词库, 留空使用30s",
+                self.CONF_MODEL_MAX_TOKENS: "模型生成的最大Token数量",
                 self.CONF_MODEL_API: "未设置请留空, 请勿泄露API_Key!",
                 self.CONF_MODEL_NAME: "需要支持视觉输入的视觉语言模型",
                 self.CONF_PROMPT_REPLY: "回复生成提示词, 请先调试好提示词再使用",
@@ -124,6 +127,7 @@ class BagelAITools(NTEOneTimeTask, BaseNTETask):
                         True: [
                             self.CONF_MODEL_URL,
                             self.CONF_MODEL_TIMEOUT,
+                            self.CONF_MODEL_MAX_TOKENS,
                             self.CONF_MODEL_API,
                             self.CONF_MODEL_NAME,
                             self.CONF_PROMPT_REPLY,
@@ -1314,7 +1318,7 @@ class BagelAITools(NTEOneTimeTask, BaseNTETask):
                 }
             ],
             "temperature": 0.7,
-            "max_tokens": 150,
+            "max_tokens": self.config.get(self.CONF_MODEL_MAX_TOKENS, 150),
         }
 
         self.log_info("正在向后端发送推理请求...")
