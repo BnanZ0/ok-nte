@@ -1,14 +1,16 @@
 from ok.ui.qt.common.design_system import DesignToken, configure_page_layout
 from ok.ui.qt.common.style_sheet import StyleSheet
 from ok.ui.qt.tasks.TaskCard import TaskCard
+from ok.ui.qt.tasks.TaskTab import TaskTab
 from ok.ui.qt.widget.CustomTab import CustomTab
-from PySide6.QtCore import QEasingCurve, QPointF, QPropertyAnimation, Qt, Signal
+from PySide6.QtCore import QCoreApplication, QEasingCurve, QPointF, QPropertyAnimation, Qt, Signal
 from PySide6.QtGui import QColor, QPainter
 from PySide6.QtWidgets import (
     QGraphicsOpacityEffect,
     QHBoxLayout,
     QLabel,
     QSizePolicy,
+    QVBoxLayout,
     QWidget,
     QWidgetItem,
 )
@@ -197,6 +199,24 @@ class _DailyRoutineCard(TaskCard):
         self._drag_effect = None
 
 
+class _DailyRoutineTaskInfo(TaskTab):
+    """Keep framework task-info behavior while its container lives in the daily tab."""
+
+    def __init__(self, routine_tab):
+        self.routine_tab = routine_tab
+        super().__init__()
+        self.keep_info_when_done = True
+        self.setParent(routine_tab)
+        self.hide()
+        self.timer.setParent(self)
+
+    def tr(self, message):  # type: ignore
+        return QCoreApplication.translate("TaskTab", message)
+
+    def in_current_list(self, task):  # type: ignore
+        return task is self.routine_tab.task
+
+
 class DailyRoutineTab(CustomTab):
     ACTION_BAR_HEIGHT = 72
 
@@ -217,11 +237,9 @@ class DailyRoutineTab(CustomTab):
         self.vBoxLayout.setContentsMargins(0, 0, 0, 0)
         self.vBoxLayout.setSpacing(0)
 
-        self.routine_settings_view = QWidget(self.view)
-        self.routine_settings_view.setObjectName("view")
-        self.routine_settings_layout = ExpandLayout(self.routine_settings_view)
-        configure_page_layout(self.routine_settings_layout)
-        self.vBoxLayout.addWidget(self.routine_settings_view)
+        self._task_info_tab = _DailyRoutineTaskInfo(self)
+        self.task_info_container = self._task_info_tab.task_info_container
+        self.task_info_table = self._task_info_tab.task_info_table
 
         self.routine_scroll_area = ScrollArea(self.view)
         self.routine_scroll_area.setObjectName("view")
@@ -231,8 +249,23 @@ class DailyRoutineTab(CustomTab):
 
         self.routine_view = QWidget(self.routine_scroll_area)
         self.routine_view.setObjectName("view")
-        self.routine_layout = DailyRoutineCardLayout(self.routine_view)
-        configure_page_layout(self.routine_layout)
+        self.routine_content_layout = QVBoxLayout(self.routine_view)
+        configure_page_layout(self.routine_content_layout)
+        self.routine_content_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
+        self.routine_content_layout.addWidget(self.task_info_container)
+
+        self.routine_settings_view = QWidget(self.routine_view)
+        self.routine_settings_view.setObjectName("view")
+        self.routine_settings_layout = ExpandLayout(self.routine_settings_view)
+        self.routine_settings_layout.setContentsMargins(0, 0, 0, 0)
+        self.routine_settings_layout.setSpacing(DesignToken.PAGE_SPACING)
+        self.routine_content_layout.addWidget(self.routine_settings_view)
+
+        self.routine_layout = DailyRoutineCardLayout()
+        self.routine_layout.setContentsMargins(0, 0, 0, 0)
+        self.routine_layout.setSpacing(DesignToken.PAGE_SPACING)
+        self.routine_content_layout.addLayout(self.routine_layout)
+        self.routine_content_layout.addStretch(1)
         self.routine_scroll_area.setWidget(self.routine_view)
         self.vBoxLayout.addWidget(self.routine_scroll_area, 1)
 
@@ -290,7 +323,7 @@ class DailyRoutineTab(CustomTab):
             self.routine_settings_layout.addWidget(self._routine_settings_card)
             self._routine_settings_card.show()
 
-            self.routine_separator = HorizontalSeparator(self.view)
+            self.routine_separator = HorizontalSeparator(self.routine_settings_view)
             self.routine_settings_layout.addWidget(self.routine_separator)
 
     def _render_routine(self):
