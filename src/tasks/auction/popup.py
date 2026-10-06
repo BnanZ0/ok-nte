@@ -6,9 +6,11 @@ API 经它访问, 本模块不持有任务对象。出价、出售、结算后�
 """
 
 import time
+from collections.abc import Callable
 
 from src.tasks.auction.contracts import AuctionPopupOps
 from src.tasks.auction.layout import RE_CONFIRM, RE_POPUP_CLOSE_HINT, AuctionBoxes
+from src.tasks.auction.sell import probe_inventory_banner
 
 # 结算/出价路径上有两类弹窗, 关闭方式不同:
 # - 提示类(入场费确认 / 异常出价 / 购买仪器组确认): 标题「提示」在屏幕中部,
@@ -27,6 +29,8 @@ def dismiss_notice_popup(
     reason: str,
     *,
     timeout: float | None = None,
+    watch_inventory: bool = False,
+    on_inventory_hint: Callable[[], None] | None = None,
 ) -> bool:
     """点掉挡在流程前面的弹窗, 命中返回 True。
 
@@ -40,6 +44,11 @@ def dismiss_notice_popup(
 
     单帧 ocr 会漏掉刚出现的弹窗(之后整条流程卡在弹窗上), 所以带短超时轮询;
     每次出价都要走一遍的热路径用 timeout 调小预算, 避免固定白等。
+
+    watch_inventory 供结算后主界面使用: 满仓横幅单独出现时一闪而过(见
+    auction-notes 5.2), 轮询每帧先探一次横幅区, 命中即调 on_inventory_hint
+    落账本轮满仓信号 —— 横幅可能叠在被关闭的弹窗上随其一起消失, 必须先于
+    关闭动作记录。落账回调需自行保证幂等: 横幅存续的每一帧都会命中。
     """
     budget = NOTICE_POPUP_TIMEOUT if timeout is None else timeout
     budget = task._optional_timeout(deadline, budget)
@@ -47,6 +56,9 @@ def dismiss_notice_popup(
         return False
     probe_deadline = time.monotonic() + budget
     while True:
+        if watch_inventory and probe_inventory_banner(task, boxes):
+            if on_inventory_hint is not None:
+                on_inventory_hint()
         if task.ocr(box=boxes.popup_close_hint, match=RE_POPUP_CLOSE_HINT, log=False):
             task.log_info(f"检测到获得物品弹窗({reason}), 点击空白关闭")
             task.operate_click(boxes.popup_blank, after_sleep=0.5)

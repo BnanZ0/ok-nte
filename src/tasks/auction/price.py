@@ -11,8 +11,10 @@ from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
 from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 
-from src.tasks.auction.layout import FULLWIDTH_NUMERIC, PAD_SHORTCUTS
+from src.tasks.auction.layout import FULLWIDTH_NUMERIC, PAD_SHORTCUTS, RE_INPUT_RANGE
 from src.tasks.auction.options import (
+    BID_MODE_ESTIMATE,
+    BID_MODE_SMART,
     CONF_BID_PRICES,
     MAX_BID_ROUNDS,
     RAISE_MODE_MULTIPLE,
@@ -39,6 +41,20 @@ def parse_asset_value(raw_text: str) -> int | None:
         return int(digits)
     except ValueError:
         return None
+
+
+def parse_price_hint_cap(raw_text: str) -> int | None:
+    """从「可输入范围0~N」提示文本解析输入上限 N, 返回整数或 None。
+
+    N 是键盘未输入时游戏实时给出的可输入上限(即当前资产), 出价钳制用它作
+    与资产框独立的复核读数源 (背景见 auction-notes 5.1)。取最后一个 ~ 后的
+    数字组; 没有任何 ~(如输入框回显)或 ~ 后没有数字(~ 被 OCR 丢掉、前后
+    数字粘连)时返回 None, 调用方按「提示不可用」回退, 不猜。
+    """
+    matches = RE_INPUT_RANGE.findall(raw_text)
+    if not matches:
+        return None
+    return parse_asset_value(matches[-1])
 
 
 def is_partial_number_text(raw_text: str) -> bool:
@@ -484,3 +500,28 @@ def _smart_low_value_bid(state: SmartRoundState, round_no: int, estimate: int) -
         else:
             bonus = 120_000 if high_potential else 80_000 if potential else 0
     return estimate + reserve + bonus
+
+
+# --- 资产路由: 资产跌破门槛时按表把出价模式切到低风险模式 ---
+
+# 「巨物小吱4123」的固定出价表按高级场贵重拍品设计, 账号在高级场亏损掉到低级场后,
+# 固定表底价远高于低级场藏品价值, 会持续亏损; 资产跌破该线时按 ASSET_MODE_ROUTES
+# 把出价模式路由到低风险模式 (门槛取值与单向锁存决策见 auction-notes 7)。
+ASSET_MODE_ROUTE_THRESHOLD = 1_000_000
+
+# 资产跌破门槛时的模式路由表; 其他模式需要同等保护时在这里加一项。
+ASSET_MODE_ROUTES: dict[str, str] = {
+    BID_MODE_SMART: BID_MODE_ESTIMATE,
+}
+
+
+def route_mode_on_asset(mode: str, asset_value: int | None) -> str | None:
+    """资产跌破门槛时返回 mode 应路由到的出价模式, 其余情况返回 None。
+
+    asset_value 为 None(未读出)或不低于门槛时不触发; 「低于」不含等于,
+    恰好等于门槛视为仍安全。mode 不在 ASSET_MODE_ROUTES 内时返回 None,
+    维持原模式。
+    """
+    if asset_value is None or asset_value >= ASSET_MODE_ROUTE_THRESHOLD:
+        return None
+    return ASSET_MODE_ROUTES.get(mode)

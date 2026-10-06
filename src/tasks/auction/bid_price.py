@@ -38,6 +38,14 @@ from src.tasks.auction.options import (
 )
 
 
+class BidPriceUnavailable(Exception):
+    """算价模块给不出可输入的价格: 资产路由模式下估价读不出, 又不回退「基础价」。
+
+    出价循环(_stage_bid_loop)按「放弃本次出价」处理, 不计重试; 其他调用方
+    未捕获时会向上传播, 由整轮失败路径兜住。
+    """
+
+
 def apply_heart_increment(task: AuctionBidPriceOps, price: int) -> int:
     """检测到永恒之心时在算出的价格上追加固定加价。
 
@@ -98,12 +106,21 @@ def estimate_bid_price(
     稳定读取而不是单次 OCR。面板在滚出数字前会先显示 0, 所以用 skip_zero
     把 0 当占位读数继续等, 否则 0 会被 `is None` 之外的假值判断当成
     「识别失败」, 直接回退到基础价。
+
+    资产路由到本模式的场合(见 auction_price.route_mode_on_asset)不继承
+    「基础价」: 路由的原因就是固定底价远高于当前场次的藏品价值, 再拿它当
+    出价下限会把路由保护完全抵消(估价 1 万也可能出 50 万)。路由后估价
+    读不出或算出非正数时抛 BidPriceUnavailable, 由出价循环放弃该口等待
+    拍卖结果, 而不是按基础价出高价。
     """
-    base_price = task._config_int(
-        CONF_FIXED_PRICE,
-        1,
-        warn=f"「{CONF_FIXED_PRICE}」不是整数, 出价下限与估价读不出时的回退值按 1 计算",
-    )
+    routed = task._asset_routed_mode is not None
+    base_price = 1
+    if not routed:
+        base_price = task._config_int(
+            CONF_FIXED_PRICE,
+            1,
+            warn=f"「{CONF_FIXED_PRICE}」不是整数, 出价下限与估价读不出时的回退值按 1 计算",
+        )
     estimate = None
     if boxes is not None:
         estimate = task._read_stable_asset_value(
@@ -113,12 +130,21 @@ def estimate_bid_price(
             skip_zero=True,
         )
     if estimate is None:
+        if routed:
+            raise BidPriceUnavailable(
+                f"资产路由模式下第 {bid_count} 口估价识别失败, 不回退「基础价」"
+            )
         task.log_warning(f"当前估价识别失败, 第 {bid_count} 次出价回退到基础价 {base_price}")
         return base_price
 
     ratio = estimate_ratio(task, estimate)
     final_price = auction_price.estimate_price(estimate, ratio)
     if final_price <= 0:
+        if routed:
+            raise BidPriceUnavailable(
+                f"资产路由模式下第 {bid_count} 口按估价 {estimate} 与倍率 {ratio} "
+                f"算出无效价格 {final_price}, 不回退「基础价」"
+            )
         task.log_warning(
             f"按估价 {estimate} 与倍率 {ratio} 计算出的价格 {final_price} 无效, "
             f"回退到基础价 {base_price}"

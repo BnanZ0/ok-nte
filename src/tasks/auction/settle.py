@@ -25,6 +25,9 @@ RESULT_MAX_LOOPS = 180
 EXIT_BUTTON_TIMEOUT = 10
 # 主界面「即刻落槌」标题的等待上限: 等控件出现, 与其他阶段的同类等待语义独立。
 MAIN_TITLE_TIMEOUT = 15
+# 结算面板锚点(退出按钮)的等待预算: 点跳过后面板随即出现, 命中即返回, 上限只防
+# 动画长于预期; 未命中说明当前画面不是结算面板, 读数会读到别界面的数字。
+SETTLE_PANEL_TIMEOUT = 3
 # 标题被弹窗遮罩压住时, 关掉弹窗后重探标题的等待上限: 弹窗关闭后标题立即可读,
 # 上限只防渲染卡顿。
 MAIN_TITLE_REPROBE_TIMEOUT = 5
@@ -55,6 +58,8 @@ class SettleActions:
     observe_post_round: Callable[[AuctionBoxes, float], None]
     run_post_round: Callable[[AuctionBoxes, float], None]
     dismiss_notice: Callable[..., bool]
+    # 主界面标题确认后单帧探一次满仓横幅并落账(横幅一闪而过, 见 auction-notes 5.2)。
+    note_inventory_hint: Callable[[AuctionBoxes], None]
     finish_auction: Callable[[AuctionBoxes, list, float], None]
     poll_interval: float
     log_info: Callable[[str], None]
@@ -108,16 +113,30 @@ def finish_auction(
     actions.log_info("检测到跳过动画")
     actions.operate_click(skip_results, after_sleep=0.5)
 
-    # 结算价值在点跳过后、一键出售前读: 面板此刻完整可见, 一键出售后面板可能
-    # 随藏品被卖掉而变化。读不出只少一条记录, 不影响后续流程。
-    result_value = actions.read_result_value(boxes, deadline)
-    if result_value is not None:
-        # 成交判据是「一键出售」按钮 OCR 命中(= 拍卖成功), 不是结算读数本身:
-        # 流拍的结算面板也可能读出非零数字, 只凭数值会误计成交并误触发截图
-        # (见 auction-notes 4)。检测排在读数之后: 读数预算已让面板渲染稳定;
-        # 读不出时不检测, 不给流拍轮次白增等待。
-        sold = bool(actions.detect_one_click_sell(boxes, deadline))
-        actions.record_result_value(result_value, sold)
+    # 结算面板锚点: 退出按钮只在结算面板常驻 (实机布局见 auction-notes 5.1)。
+    # 读数区与出价面板估价区是同一块屏幕位置, 不先确认面板就在读, 界面过渡帧里
+    # 的出价界面「当前估价」会被读成结算价值, 把读数防线前移到读数之前。
+    settle_panel = actions.wait_ocr(
+        box=boxes.exit,
+        match=RE_EXIT,
+        time_out=actions.remaining_timeout(deadline, SETTLE_PANEL_TIMEOUT),
+        raise_if_not_found=False,
+        settle_time=0.5,
+    )
+    result_value = None
+    if settle_panel:
+        # 结算价值在点跳过后、一键出售前读: 面板此刻完整可见, 一键出售后面板可能
+        # 随藏品被卖掉而变化。读不出只少一条记录, 不影响后续流程。
+        result_value = actions.read_result_value(boxes, deadline)
+        if result_value is not None:
+            # 成交判据是「一键出售」按钮 OCR 命中(= 拍卖成功), 不是结算读数本身:
+            # 流拍的结算面板也可能读出非零数字, 只凭数值会误计成交并误触发截图
+            # (见 auction-notes 4)。检测排在读数之后: 读数预算已让面板渲染稳定;
+            # 读不出时不检测, 不给流拍轮次白增等待。
+            sold = bool(actions.detect_one_click_sell(boxes, deadline))
+            actions.record_result_value(result_value, sold)
+    else:
+        actions.log_warning("未识别到结算面板, 跳过成交价值读取与记录")
 
     # 「拍卖成功一键出售」必须在退出拍卖之前完成: 一键出售按钮只在结算界面存在,
     # 且只由出售模式驱动 (「成交价值出售上限」已删除, 见 auction-notes 4)。
@@ -161,6 +180,10 @@ def finish_auction(
     if not main_title:
         actions.log_warning("主界面「即刻落槌」标题未识别, 跳过本轮结算后处理")
         return
+
+    # 满仓横幅在回到主界面的头几秒一闪而过(见 auction-notes 5.2): 标题确认后
+    # 立即探一次并落账, 结算后观测直接采信, 不依赖其后才开始的检测窗口。
+    actions.note_inventory_hint(boxes)
 
     actions.log_info("退出拍卖后回到主界面, 开始结算后处理")
     actions.run_post_round(boxes, deadline)

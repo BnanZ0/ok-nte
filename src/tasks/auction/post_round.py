@@ -15,6 +15,8 @@ class PostRoundActions:
     remaining_timeout: Callable[[float | None, float], float | None]
     confirm_main_screen: Callable[[AuctionBoxes, float], bool]
     dismiss_notice: Callable[[AuctionBoxes, float, str], bool]
+    # 本轮是否已探到满仓横幅(标题确认后探针与弹窗轮询落账, 见 auction-notes 5.2)。
+    inventory_hint: Callable[[], bool]
     uses_collection_sell: Callable[[], bool]
     detect_inventory_full: Callable[[AuctionBoxes, float], bool | None]
     observe_asset: Callable[[AuctionBoxes, float], int | None]
@@ -51,18 +53,25 @@ class AuctionPostRoundCoordinator:
     def run(self, boxes: AuctionBoxes, deadline: float, *, inventory_full_timeout: float) -> None:
         """观测满仓与资产, 按需领取低保金, 然后写回本轮状态。"""
         # 库存不足提示条位于屏幕中部, 会被低保金弹窗和满仓提示遮挡, 必须先兜掉弹窗
-        # 再做满仓观测, 否则满仓永远检测不到; 这里的顺序不能调换.
+        # 再做满仓观测, 否则满仓永远检测不到; 这里的顺序不能调换. 装配侧给这次
+        # dismiss_notice 开了横幅监视(watch_inventory): 横幅一闪而过(见 auction-notes
+        # 5.2), 轮询期间出现也会当场落账, 供下面的消费分支采用.
         self.actions.dismiss_notice(boxes, deadline, "结算后主界面")
 
-        # 未检测到一律保持 None(而不是 False): None 表示「本轮未测出结论」, 轮次末尾
-        # 的出售流程会在时间充裕时补测一次; 写成 False 等于宣称「确定没满仓」,
-        # 会把满仓静默漏掉.
+        # 本轮已探到横幅(标题确认后探针或上面轮询落账)时直接采信为满仓, 不再跑
+        # 必然落空的检测 —— 横幅消失后 detect_inventory_full 只会白等一个预算然后
+        # 返回 False. 未落账才走原检测: 未检测到一律保持 None(而不是 False), None
+        # 表示「本轮未测出结论」, 轮次末尾的出售流程会在时间充裕时补测一次; 写成
+        # False 等于宣称「确定没满仓」, 会把满仓静默漏掉.
         inventory_full: bool | None = None
         if self.actions.uses_collection_sell():
-            budget = self.actions.remaining_timeout(deadline, inventory_full_timeout)
-            inventory_full = (
-                None if budget is None else self.actions.detect_inventory_full(boxes, budget)
-            )
+            if self.actions.inventory_hint():
+                inventory_full = True
+            else:
+                budget = self.actions.remaining_timeout(deadline, inventory_full_timeout)
+                inventory_full = (
+                    None if budget is None else self.actions.detect_inventory_full(boxes, budget)
+                )
 
         asset_value = self.actions.observe_asset(boxes, deadline)
         # 领取结果不参与出售决策: 出售看的是「今日低保是否领完」(弹窗读数维护的

@@ -56,6 +56,9 @@ class AuctionBidPriceOps(Protocol):
     current_bid_count: int
     _smart_state: Any
     _heart_present: bool
+    # 资产路由的运行时出价模式覆盖(非 None 表示本次运行已路由, 估价模式
+    # 据此不继承「基础价」下限, 见 bid_price.estimate_bid_price)。
+    _asset_routed_mode: str | None
 
     # --- 日志 ---
     def log_info(self, message: str) -> None: ...
@@ -184,6 +187,7 @@ class AuctionReadingOps(Protocol):
     def log_debug(self, message: str) -> None: ...
 
     # --- 任务侧适配器入口 ---
+    def _ocr_upscaled(self, box: Box) -> list: ...
     def _read_estimate_value(
         self, *args: Any, **kwargs: Any
     ) -> tuple[int | None, bool]: ...
@@ -217,7 +221,7 @@ class AuctionBidOps(Protocol):
     """bid.py 允许访问的任务面 (仅注解, 无运行时检查)。
 
     成员按 attempt_bid 的实际访问面逐条声明: 单次出价尝试需要的资产读取、
-    放弃/仪器等辅助入口与屏幕判定都留在任务侧, 它们同时
+    价格计算、放弃/仪器等辅助入口与屏幕判定都留在任务侧, 它们同时
     是测试的实例级 mock 锚点。出价序号与上轮出价的落账不在协议内 ——
     键盘确认价经任务侧 _input_fixed_price 落账, 出价循环维护 current_bid_count。
     """
@@ -233,6 +237,10 @@ class AuctionBidOps(Protocol):
 
     # --- 任务侧适配器入口 ---
     def _read_asset_value(self, *args: Any, **kwargs: Any) -> int | None: ...
+    def _read_input_range_cap(self, *args: Any, **kwargs: Any) -> int | None: ...
+    def _calculate_auction_price(
+        self, boxes: AuctionBoxes | None = None, deadline: float | None = None
+    ) -> int: ...
     def _remaining_timeout(
         self, deadline: float | None, limit: float, message: str = "单轮拍卖超时"
     ) -> float: ...

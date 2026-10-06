@@ -4,7 +4,8 @@
 放弃与仪器等能力都经任务侧适配器访问, 允许访问面由 contracts.AuctionBidOps
 窄协议声明。出价循环与结果等待属阶段协调, 留在任务类 (_stage_bid_loop /
 _wait_bid_outcome); 本模块只承载「一次竞价动作」的领域规则: 资产为零的
-二次确认、无心弃局、仪器先于出价按钮使用、键盘弹出判定与价格输入的先后顺序。
+二次确认、出价高于资产的钳制、无心弃局、仪器先于出价按钮使用、键盘弹出
+判定与价格输入的先后顺序。
 出价序号与上轮出价的落账不在本模块: 键盘确认价经任务侧 _input_fixed_price
 落账 last_bid_price, current_bid_count 由出价循环维护。
 """
@@ -99,7 +100,9 @@ def attempt_bid(task: AuctionBidOps, boxes: AuctionBoxes, deadline: float) -> bo
         raise WaitFailedException("数字面板未出现")
 
     task.log_debug("数字面板加载完成")
-    task._input_fixed_price(boxes, deadline=deadline)
+    price = task._calculate_auction_price(boxes, deadline)
+    price = cap_price_to_asset(task, price, asset_value, boxes, deadline)
+    task._input_fixed_price(boxes, price=price, deadline=deadline)
 
     bid_confirmed = task.wait_until(
         lambda: not task._is_bid_screen(boxes),
@@ -111,3 +114,54 @@ def attempt_bid(task: AuctionBidOps, boxes: AuctionBoxes, deadline: float) -> bo
         raise WaitFailedException("出价确认失败: 出价按钮仍存在")
 
     return True
+
+
+def cap_price_to_asset(
+    task: AuctionBidOps,
+    price: int,
+    asset_value: int,
+    boxes: AuctionBoxes,
+    deadline: float,
+) -> int:
+    """算出价高于当前资产时钳到资产: 游戏输入上限就是资产, 超限输入必被钳制。
+
+    键盘校验重读的是被钳制后的显示值, 拿超限价格进输入只会以相同价格重试到
+    整轮失败 (见 auction-notes 5.1), 所以在输入前钳到资产改出全部资产。
+    钳制前三源复核资产读数 (见 auction-notes 5.1): 首次读数之外, 复读资产框
+    一次, 并读键盘未输入时「可输入范围0~N」提示的上限 N —— N 是游戏实时
+    给出的可输入上限, 与资产框互为独立读数源, 不在裁框边缘, 不受资产框
+    首位截断影响 (7,284 被截成 284 后两读一致放行的事故即靠它纠正)。
+    截断只丢前导位不会增值, 正读数取最大是最完整读数; 多源一致偏高的误读
+    会被输入校验的回显比对打回, 方向是响亮失败不是静默不足额。复核为 0 或
+    读出 None 的源不采纳; 复核修正后价格变为可负担则按原算出价出。两个复核
+    源都不可用时仍沿用首次读数钳制(不阻断出价), 告警留痕, 取舍见
+    auction-notes 5.1。
+    """
+    if price <= asset_value:
+        return price
+    confirm_value = task._read_asset_value(
+        boxes.asset_value,
+        task._remaining_timeout(deadline, auction_reading.ASSET_OCR_TIMEOUT),
+    )
+    hint_cap = task._read_input_range_cap(
+        boxes.price_result,
+        task._remaining_timeout(deadline, auction_reading.INPUT_RANGE_CAP_OCR_TIMEOUT),
+    )
+    if not confirm_value and not hint_cap:
+        task.log_warning(
+            f"资产复核读数 {confirm_value} 与输入范围提示 {hint_cap} 均不可用, "
+            f"按未复核的首次读数 {asset_value} 钳制"
+        )
+    reads = [value for value in (asset_value, confirm_value, hint_cap) if value]
+    best = max(reads) if reads else asset_value
+    if best != asset_value:
+        task.log_info(
+            f"资产复核读数 {best} 与首次读数 {asset_value} 不一致, 改用复核读数"
+        )
+        asset_value = best
+        if price <= asset_value:
+            return price
+    task.log_info(
+        f"算出出价 {price} 高于当前资产 {asset_value}, 游戏输入上限为资产, 改出全部资产"
+    )
+    return asset_value
