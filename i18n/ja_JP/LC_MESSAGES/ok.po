@@ -1514,3 +1514,9 @@ msgstr "プリセットとバージョンを選択し、名前、説明、作者
 
 msgid "填入信息"
 msgstr "情報を入力"
+
+msgid "模型生成的最大Token数量"
+msgstr "モデルが生成する最大トークン数"
+
+msgid "模型生成Token上限"
+msgstr "モデル生成トークン上限"

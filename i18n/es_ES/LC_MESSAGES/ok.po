@@ -1514,3 +1514,9 @@ msgstr "Selecciona el preset y la versión, completa el nombre, descripción, au
 
 msgid "填入信息"
 msgstr "Completar información"
+
+msgid "模型生成的最大Token数量"
+msgstr "Número máximo de tokens generados por el modelo"
+
+msgid "模型生成Token上限"
+msgstr "Límite de tokens de generación del modelo"

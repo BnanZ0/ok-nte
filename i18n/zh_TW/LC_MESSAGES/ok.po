@@ -1515,3 +1515,9 @@ msgstr "選擇方案與版本, 填入名稱、描述、作者和版本."
 
 msgid "填入信息"
 msgstr "填入資訊"
+
+msgid "模型生成的最大Token数量"
+msgstr "模型生成的最大Token數量"
+
+msgid "模型生成Token上限"
+msgstr "模型生成Token上限"

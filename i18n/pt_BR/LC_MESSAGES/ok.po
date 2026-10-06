@@ -1248,3 +1248,9 @@ msgstr "Selecione a predefinição e versão, preencha o nome, descrição, auto
 
 msgid "填入信息"
 msgstr "Preencher Informações"
+
+msgid "模型生成的最大Token数量"
+msgstr "Número máximo de tokens gerados pelo modelo"
+
+msgid "模型生成Token上限"
+msgstr "Limite de tokens de geração do modelo"

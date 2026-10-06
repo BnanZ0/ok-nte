@@ -1514,3 +1514,9 @@ msgstr "프리셋과 버전을 선택하고 이름, 설명, 작성자 및 버전
 
 msgid "填入信息"
 msgstr "정보 입력"
+
+msgid "模型生成的最大Token数量"
+msgstr "모델이 생성하는 최대 토큰 수"
+
+msgid "模型生成Token上限"
+msgstr "모델 생성 토큰 상한"

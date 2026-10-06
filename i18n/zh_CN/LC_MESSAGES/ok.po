@@ -1491,3 +1491,9 @@ msgstr ""
 
 msgid "填入信息"
 msgstr ""
+
+msgid "模型生成的最大Token数量"
+msgstr ""
+
+msgid "模型生成Token上限"
+msgstr ""
