@@ -59,8 +59,8 @@ class CoffeeTask(NTEOneTimeTask, BaseNTETask):
             }
         )
         options = [self.MODE_CLAIM_AND_RESTOCK]
-        if self.is_chinese():
-            options.append(self.MODE_AUTO)
+        # if self.is_chinese():
+        #     options.append(self.MODE_AUTO)
         self.config_type.update(
             {
                 self.CONF_MODE: {
