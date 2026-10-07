@@ -12,6 +12,11 @@ on:
           - mirror
           - setup
           - all
+      push_full_to_mirror_beta:
+        description: Upload the full ZIP to MirrorChyan beta (mirror or all only).
+        type: boolean
+        required: false
+        default: false
 
 permissions:
   contents: read
@@ -116,3 +121,42 @@ jobs:
           archive: false
           if-no-files-found: error
           retention-days: 7
+
+      - name: Prepare MirrorChyan beta upload
+        if: inputs.push_full_to_mirror_beta && inputs.build_target != 'setup'
+        id: mirror-beta
+        shell: pwsh
+        run: |
+          $fullPackages = @(Get-ChildItem -Path 'pyappify_dist/*-full*.zip' -File)
+          if ($fullPackages.Count -ne 1) {
+            throw "Expected exactly one full ZIP, found $($fullPackages.Count)"
+          }
+          "filename=pyappify_dist/$($fullPackages[0].Name)" >> $env:GITHUB_OUTPUT
+          # Preload the Action scripts with PowerShell so Windows does not need wget.
+          Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/MirrorChyan/uploading-action/refs/heads/v1/python/upload.py' -OutFile 'mirrorchyan_uploading.py'
+          Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/MirrorChyan/release-note-action/refs/heads/v1/python/upload.py' -OutFile 'mirrorchyan_release_note.py'
+          uv pip install --system requests aiohttp
+
+      - name: Upload full package to MirrorChyan beta
+        if: inputs.push_full_to_mirror_beta && inputs.build_target != 'setup'
+        uses: MirrorChyan/uploading-action@v1
+        with:
+          filetype: local
+          filename: ${{ steps.mirror-beta.outputs.filename }}
+          mirrorchyan_rid: ok-nte
+          version_name: ${{ github.ref_name }}
+          channel: beta
+          upload_token: ${{ secrets.MirrorChyanUploadToken }}
+
+      - name: Upload MirrorChyan beta release note
+        if: inputs.push_full_to_mirror_beta && inputs.build_target != 'setup'
+        uses: MirrorChyan/release-note-action@v1
+        with:
+          mirrorchyan_rid: ok-nte
+          version_name: ${{ github.ref_name }}
+          channel: beta
+          release_note: |
+            PyAppify full test build: ${{ github.ref_name }}
+            Commit: ${{ github.sha }}
+            Build: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          upload_token: ${{ secrets.MirrorChyanUploadToken }}
