@@ -2,11 +2,11 @@ name: "ok-nte"
 uac: true
 icon: "icons/icon.png"
 website: "https://ok-script.com/ok-nte"
+packaging: packaging
 
 mirrorchyan:
   resource_id: ok-nte
   stable_channel: stable
-  packaging: packaging
 
 profiles:
   - name: "China"

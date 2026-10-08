@@ -7,13 +7,13 @@ on:
         description: Choose which packages to build.
         type: choice
         required: true
-        default: mirror
+        default: frozen
         options:
-          - mirror
+          - frozen
           - setup
           - all
       push_full_to_mirror_beta:
-        description: Upload the full ZIP to MirrorChyan beta (mirror or all only).
+        description: Upload the full ZIP to MirrorChyan beta (frozen or all only).
         type: boolean
         required: false
         default: false
@@ -61,11 +61,11 @@ jobs:
           cache-dependency-glob: uv.lock
 
       - name: Install dependencies
-        if: inputs.build_target != 'mirror'
+        if: inputs.build_target != 'frozen'
         run: uv pip install --system -r requirements.txt
 
       - name: Prepare release requirements
-        if: inputs.build_target != 'mirror'
+        if: inputs.build_target != 'frozen'
         env:
           RELEASE_TAG: ${{ github.ref_name }}
         run: python -m ok.update.inline_ok_requirements --tag "$env:RELEASE_TAG"
@@ -78,7 +78,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload China setup executable
-        if: inputs.build_target != 'mirror'
+        if: inputs.build_target != 'frozen'
         uses: actions/upload-artifact@v7
         with:
           name: setup-China-${{ github.run_number }}
@@ -87,7 +87,7 @@ jobs:
           retention-days: 7
 
       - name: Upload Global setup executable
-        if: inputs.build_target != 'mirror'
+        if: inputs.build_target != 'frozen'
         uses: actions/upload-artifact@v7
         with:
           name: setup-Global-${{ github.run_number }}
@@ -96,7 +96,7 @@ jobs:
           retention-days: 7
 
       - name: Upload online setup executable
-        if: inputs.build_target != 'mirror'
+        if: inputs.build_target != 'frozen'
         uses: actions/upload-artifact@v7
         with:
           name: setup-online-${{ github.run_number }}

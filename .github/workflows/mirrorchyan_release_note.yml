@@ -6,6 +6,10 @@ on:
       tag:
         default: ''
         required: false
+      release_note:
+        type: string
+        default: ''
+        required: false
   release:
     types: [edited]
 
@@ -20,6 +24,7 @@ jobs:
         with:
           mirrorchyan_rid: ok-nte
           version_name: ${{ inputs.tag }}
+          release_note: ${{ inputs.release_note }}
 
           owner: BnanZ0
           repo: ok-nte

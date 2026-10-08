@@ -18,7 +18,7 @@ env:
   SIGN_BUILD: 'true'
   SIGN_SETUP: 'false'
   # Non-empty reuses an existing release EXE; empty builds a new EXE.
-  USE_RELEASE: 'https://api.github.com/repos/BnanZ0/ok-nte/releases/tags/v1.3.5'
+  USE_RELEASE: ''
   SYNC_GITHUB_REPO: 'true'
 
 defaults:
@@ -119,18 +119,19 @@ jobs:
       - name: Build portable executable
         id: build_executable
         if: steps.release_version.outputs.is_release == 'true' && env.USE_RELEASE == ''
-        uses: ok-oldking/pyappify-action@master
+        uses: BnanZ0/pyappify-action@master
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           build_exe_only: true
+          package_mode: frozen
 
       - name: Upload unsigned EXE artifact
         id: upload_executable
         if: steps.release_version.outputs.is_release == 'true' && env.USE_RELEASE == '' && env.SIGN_BUILD == 'true'
         uses: actions/upload-artifact@v7
         with:
-          name: to-sign
+          name: to-sign-${{ github.run_attempt }}
           path: ${{ steps.build_executable.outputs.exe-path }}
           if-no-files-found: error
 
@@ -190,26 +191,52 @@ jobs:
           Invoke-WebRequest -Uri "$baseUrl/SignedArtifact" -Headers $headers -OutFile $archivePath -ErrorAction Stop
           Expand-Archive -LiteralPath $archivePath -DestinationPath $env:OUTPUT_DIRECTORY -Force
 
-      - name: Build setup executable from release
-        if: steps.release_version.outputs.is_release == 'true' && env.USE_RELEASE != ''
-        uses: ok-oldking/pyappify-action@master
+      - name: Build frozen full and body packages
+        if: steps.release_version.outputs.is_release == 'true'
+        uses: BnanZ0/pyappify-action@master
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
+          package_mode: frozen
           use_release: ${{ env.USE_RELEASE }}
 
+      - name: Publish frozen full package
+        if: steps.release_version.outputs.is_release == 'true'
+        uses: softprops/action-gh-release@v3
+        with:
+          body: |
+            frozen full 包已上传, 安装器将在构建完成后补充。
+          draft: false
+          prerelease: true
+          make_latest: false
+          files: pyappify_dist/*-full.zip
+          fail_on_unmatched_files: true
+
+      - name: Trigger MirrorChyan workflows
+        if: steps.release_version.outputs.is_release == 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ github.ref_name }}
+          RELEASE_NOTE: ${{ steps.sync.outputs.changes_with_asterisk }}
+        run: |
+          gh workflow run --repo "$GITHUB_REPOSITORY" mirrorchyan_release.yml -f "tag=$RELEASE_TAG"
+          gh workflow run --repo "$GITHUB_REPOSITORY" mirrorchyan_release_note.yml -f "tag=$RELEASE_TAG" -f "release_note=$RELEASE_NOTE"
+
       - name: Build setup executable
-        if: steps.release_version.outputs.is_release == 'true' && env.USE_RELEASE == ''
-        uses: ok-oldking/pyappify-action@master
+        if: steps.release_version.outputs.is_release == 'true'
+        uses: BnanZ0/pyappify-action@master
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          package_mode: setup
 
       - name: Upload unsigned setup executable
         id: upload_setup
         if: steps.release_version.outputs.is_release == 'true' && env.SIGN_SETUP == 'true'
         uses: actions/upload-artifact@v7
         with:
-          name: setup-to-sign
+          name: setup-to-sign-${{ github.run_attempt }}
           path: pyappify_dist/*setup.exe
           if-no-files-found: error
 
@@ -249,12 +276,3 @@ jobs:
           prerelease: false
           make_latest: true
           files: pyappify_dist/*
-
-      - name: Trigger MirrorChyan workflows
-        if: steps.release_version.outputs.is_release == 'true' && startsWith(github.ref, 'refs/tags/')
-        shell: bash
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          gh workflow run --repo "$GITHUB_REPOSITORY" mirrorchyan_release.yml -f tag=${{ github.ref_name }}
-          gh workflow run --repo "$GITHUB_REPOSITORY" mirrorchyan_release_note.yml -f tag=${{ github.ref_name }}
