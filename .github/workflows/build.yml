@@ -135,61 +135,13 @@ jobs:
           path: ${{ steps.build_executable.outputs.exe-path }}
           if-no-files-found: error
 
-      - name: Sign EXE
-        id: submit_executable_signing
+      - name: Sign and approve EXE
         if: steps.release_version.outputs.is_release == 'true' && env.USE_RELEASE == '' && env.SIGN_BUILD == 'true'
-        uses: signpath/github-action-submit-signing-request@v3
+        uses: ./.github/actions/sign
         with:
-          api-token: '${{ secrets.SIGNPATH_API_TOKEN }}'
-          organization-id: '30cc9397-0ebf-4584-8030-12f4b872ecdc'
-          project-slug: 'ok-nte'
-          signing-policy-slug: 'release-signing'
-          artifact-configuration-slug: 'single-exe'
-          github-artifact-id: '${{ steps.upload_executable.outputs.artifact-id }}'
-          wait-for-completion: false
-
-      - name: Approve portable executable signing
-        if: steps.release_version.outputs.is_release == 'true' && env.USE_RELEASE == '' && env.SIGN_BUILD == 'true'
-        env:
-          SIGNING_REQUEST_ID: ${{ steps.submit_executable_signing.outputs.signing-request-id }}
-          SIGNPATH_API_TOKEN: ${{ secrets.SIGNPATH_API_TOKEN }}
-        run: |
-          $baseUrl = "https://app.signpath.io/API/v1/30cc9397-0ebf-4584-8030-12f4b872ecdc/SigningRequests/$env:SIGNING_REQUEST_ID"
-          $headers = @{ Authorization = "Bearer $env:SIGNPATH_API_TOKEN" }
-
-          Invoke-RestMethod -Method Post -Uri "$baseUrl/Approve" -Headers $headers -ContentType 'application/json' -Body '{}' -ErrorAction Stop
-
-      - name: Download signed EXE
-        if: steps.release_version.outputs.is_release == 'true' && env.USE_RELEASE == '' && env.SIGN_BUILD == 'true'
-        env:
-          SIGNING_REQUEST_ID: ${{ steps.submit_executable_signing.outputs.signing-request-id }}
-          SIGNPATH_API_TOKEN: ${{ secrets.SIGNPATH_API_TOKEN }}
-          OUTPUT_DIRECTORY: ${{ steps.build_executable.outputs.exe-folder }}
-        run: |
-          $baseUrl = "https://app.signpath.io/API/v1/30cc9397-0ebf-4584-8030-12f4b872ecdc/SigningRequests/$env:SIGNING_REQUEST_ID"
-          $headers = @{ Authorization = "Bearer $env:SIGNPATH_API_TOKEN" }
-
-          $deadline = (Get-Date).AddSeconds(60000)
-          do {
-            $status = Invoke-RestMethod -Uri "$baseUrl/Status" -Headers $headers -ErrorAction Stop
-            Write-Host "SignPath status: $($status.status) ($($status.workflowStatus))"
-
-            if ($status.status -eq 'Completed') {
-              break
-            }
-            if ($status.isFinalStatus) {
-              throw "SignPath request ended with status '$($status.status)' ($($status.workflowStatus))."
-            }
-            if ((Get-Date) -ge $deadline) {
-              throw 'Timed out waiting for SignPath to sign the EXE.'
-            }
-
-            Start-Sleep -Seconds 10
-          } while ($true)
-
-          $archivePath = Join-Path $env:RUNNER_TEMP 'signed-executable.zip'
-          Invoke-WebRequest -Uri "$baseUrl/SignedArtifact" -Headers $headers -OutFile $archivePath -ErrorAction Stop
-          Expand-Archive -LiteralPath $archivePath -DestinationPath $env:OUTPUT_DIRECTORY -Force
+          artifact_id: ${{ steps.upload_executable.outputs.artifact-id }}
+          api_token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          output_directory: ${{ steps.build_executable.outputs.exe-folder }}
 
       - name: Build frozen full and body packages
         if: steps.release_version.outputs.is_release == 'true'
@@ -242,17 +194,13 @@ jobs:
 
       - name: Sign setup executables
         if: steps.release_version.outputs.is_release == 'true' && env.SIGN_SETUP == 'true'
-        uses: signpath/github-action-submit-signing-request@v3
+        uses: ./.github/actions/sign
         with:
-          api-token: '${{ secrets.SIGNPATH_API_TOKEN }}'
-          organization-id: '30cc9397-0ebf-4584-8030-12f4b872ecdc'
-          project-slug: 'ok-nte'
-          signing-policy-slug: 'release-signing'
-          artifact-configuration-slug: 'setupexe'
-          github-artifact-id: '${{ steps.upload_setup.outputs.artifact-id }}'
-          wait-for-completion: true
-          wait-for-completion-timeout-in-seconds: 60000
-          output-artifact-directory: pyappify_dist
+          artifact_id: ${{ steps.upload_setup.outputs.artifact-id }}
+          api_token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          artifact_configuration: setupexe
+          approve: 'false'
+          output_directory: pyappify_dist
 
       - name: Release
         if: steps.release_version.outputs.is_release == 'true' && startsWith(github.ref, 'refs/tags/')

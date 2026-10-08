@@ -1,0 +1,70 @@
+name: SignPath Sign and Approve
+description: Sign an uploaded GitHub artifact and replace the unsigned files.
+
+inputs:
+  artifact_id:
+    description: GitHub artifact ID containing the unsigned files.
+    required: true
+  api_token:
+    description: SignPath API token.
+    required: true
+  output_directory:
+    description: Directory where signed files replace the unsigned files.
+    required: true
+  artifact_configuration:
+    description: SignPath artifact configuration slug.
+    default: single-exe
+  signing_policy:
+    description: SignPath signing policy slug.
+    default: release-signing
+  approve:
+    description: Explicitly approve the signing request.
+    default: 'true'
+
+runs:
+  using: composite
+  steps:
+    - name: Sign
+      id: sign
+      uses: signpath/github-action-submit-signing-request@v3
+      with:
+        api-token: ${{ inputs.api_token }}
+        organization-id: '30cc9397-0ebf-4584-8030-12f4b872ecdc'
+        project-slug: 'ok-nte'
+        signing-policy-slug: ${{ inputs.signing_policy }}
+        artifact-configuration-slug: ${{ inputs.artifact_configuration }}
+        github-artifact-id: ${{ inputs.artifact_id }}
+        wait-for-completion: false
+
+    - name: Approve
+      if: inputs.approve == 'true'
+      shell: pwsh
+      env:
+        SIGNING_REQUEST_ID: ${{ steps.sign.outputs.signing-request-id }}
+        SIGNPATH_API_TOKEN: ${{ inputs.api_token }}
+      run: |
+        $baseUrl = "https://app.signpath.io/API/v1/30cc9397-0ebf-4584-8030-12f4b872ecdc/SigningRequests/$env:SIGNING_REQUEST_ID"
+        $headers = @{ Authorization = "Bearer $env:SIGNPATH_API_TOKEN" }
+        Invoke-RestMethod -Method Post -Uri "$baseUrl/Approve" -Headers $headers -ContentType 'application/json' -Body '{}' -ErrorAction Stop
+
+    - name: Download signed files
+      shell: pwsh
+      env:
+        SIGNING_REQUEST_ID: ${{ steps.sign.outputs.signing-request-id }}
+        SIGNPATH_API_TOKEN: ${{ inputs.api_token }}
+        OUTPUT_DIRECTORY: ${{ inputs.output_directory }}
+      run: |
+        $baseUrl = "https://app.signpath.io/API/v1/30cc9397-0ebf-4584-8030-12f4b872ecdc/SigningRequests/$env:SIGNING_REQUEST_ID"
+        $headers = @{ Authorization = "Bearer $env:SIGNPATH_API_TOKEN" }
+        $deadline = (Get-Date).AddSeconds(60000)
+        do {
+          $status = Invoke-RestMethod -Uri "$baseUrl/Status" -Headers $headers -ErrorAction Stop
+          Write-Host "SignPath status: $($status.status) ($($status.workflowStatus))"
+          if ($status.status -eq 'Completed') { break }
+          if ($status.isFinalStatus) { throw "SignPath request ended with status '$($status.status)'." }
+          if ((Get-Date) -ge $deadline) { throw 'Timed out waiting for signing.' }
+          Start-Sleep -Seconds 10
+        } while ($true)
+        $archivePath = Join-Path $env:RUNNER_TEMP "signed-$env:SIGNING_REQUEST_ID.zip"
+        Invoke-WebRequest -Uri "$baseUrl/SignedArtifact" -Headers $headers -OutFile $archivePath -ErrorAction Stop
+        Expand-Archive -LiteralPath $archivePath -DestinationPath $env:OUTPUT_DIRECTORY -Force

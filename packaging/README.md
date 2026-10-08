@@ -63,6 +63,20 @@ Mirror 的包发布、启动器适配和运行时更新需另外接入; 仅添�
 构建完成后仍需验证实际桌面显示、游戏窗口交互和声音设备。
 
 参考: [PyInstaller 官方 hook 机制](https://pyinstaller.org/en/stable/hooks.html)、[隐藏导入说明](https://pyinstaller.org/en/stable/when-things-go-wrong.html#listing-hidden-imports)。自定义 hook 是本项目针对依赖库补齐运行资源的配置, 并非这些库的上游官方 hook。
+
+## 通用 SignPath 签名
+
+签名实现放在 `.github/actions/sign/action.yml`, 是在调用方当前 runner 上执行的
+composite action。`build.yml` 保持原来的单个 build job, 通过
+`uses: ./.github/actions/sign` 调用, 签名结果直接覆盖原 EXE, 然后继续打包和发布。
+`SIGN_BUILD`、`SIGN_SETUP` 和 `USE_RELEASE` 保持原有行为; 签名失败会停止 build。
+
+调用方先上传未签名文件, 再提供 `artifact_id`、`api_token` 和 `output_directory`。
+action 执行 Sign、可选 Approve, 等待签名完成并下载结果到指定目录。
+默认使用 `single-exe` 和 `release-signing`; 安装器传 `artifact_configuration: setupexe`,
+并沿用原先不显式 Approve 的策略, 传 `approve: 'false'`。
+仓库需要配置 `SIGNPATH_API_TOKEN`。
+
 ## PyAppify Action
 
 在项目根目录的 `pyappify.yml` 中配置:
