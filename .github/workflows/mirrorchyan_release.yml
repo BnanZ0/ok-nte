@@ -14,6 +14,7 @@ permissions:
 
 jobs:
   mirrorchyan:
+    if: ${{ github.repository_owner == 'BnanZ0' }}
     runs-on: macos-latest
     steps:
       - name: Upload frozen full package from release
@@ -21,7 +22,7 @@ jobs:
         with:
           filetype: latest-release
           filename: 'ok-nte-win-x86_64-*-full.zip'
-          mirrorchyan_rid: ok-nte
+          mirrorchyan_rid: ok-nte-zip
           tag: ${{ inputs.tag }}
           channel: stable
           owner: BnanZ0

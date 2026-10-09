@@ -5,7 +5,7 @@ website: "https://ok-script.com/ok-nte"
 packaging: packaging
 
 mirrorchyan:
-  resource_id: ok-nte
+  resource_id: ok-nte-zip
   stable_channel: stable
 
 profiles:

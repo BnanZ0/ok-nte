@@ -15,14 +15,14 @@ on:
 
 jobs:
   mirrorchyan:
+    if: ${{ github.repository_owner == 'BnanZ0' }}
     runs-on: macos-latest
-    # if: ${{ github.repository_owner == 'BnanZ0' }}
 
     steps:
       - id: uploading
         uses: MirrorChyan/release-note-action@v1
         with:
-          mirrorchyan_rid: ok-nte
+          mirrorchyan_rid: ok-nte-zip
           version_name: ${{ inputs.tag }}
           release_note: ${{ inputs.release_note }}
 
