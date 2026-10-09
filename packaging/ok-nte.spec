@@ -18,6 +18,11 @@ def python_modules(directory):
 hiddenimports = python_modules(PROJECT_ROOT / "src")
 # pywin32 imports this module from native code when converting COM dates.
 hiddenimports.add("win32timezone")
+# Keep concrete characters as source for discovery, execution and source copying.
+module_collection_mode = {"src": "pyz"}
+for path in (PROJECT_ROOT / "src" / "char").glob("*.py"):
+    if path.stem not in {"BaseChar", "Support", "__init__"} and path.stem.isidentifier():
+        module_collection_mode[f"src.char.{path.stem}"] = "py"
 datas = []
 binaries = []
 
@@ -32,8 +37,7 @@ a = Analysis(
     hookspath=[str(PROJECT_ROOT / "packaging" / "hooks")],
     runtime_hooks=[],
     excludes=[],
-    # CharRegistry scans source filenames to discover built-in characters.
-    module_collection_mode={"src": "pyz+py"},
+    module_collection_mode=module_collection_mode,
     noarchive=False,
 )
 
@@ -43,6 +47,7 @@ exe = EXE(
     a.scripts,
     [('X utf8', None, 'OPTION')],
     exclude_binaries=True,
+    append_pkg=False,
     name="ok-nte",
     debug=False,
     bootloader_ignore_signals=False,
