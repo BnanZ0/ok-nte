@@ -98,6 +98,7 @@ config = {
             "auto_simplify": True,
             "params": {
                 "use_openvino": True,
+                "use_npu": False,
             },
         },
     },
