@@ -47,7 +47,6 @@ exe = EXE(
     a.scripts,
     [('X utf8', None, 'OPTION')],
     exclude_binaries=True,
-    append_pkg=False,
     name="ok-nte",
     debug=False,
     bootloader_ignore_signals=False,
