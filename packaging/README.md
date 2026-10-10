@@ -42,7 +42,7 @@ dist/ok-nte/
 
 ## 配置说明
 
-- `ok-nte.spec`: 全量收集应用 `src` 的动态导入, 具体内置角色以 `.py` 源码放在 `_internal/src/char/`, 不进入 PYZ, 供角色发现、执行、查看和复制使用。`BaseChar`、`Support` 和其余应用模块只收集到 PYZ。修改内置角色源码后需重启程序才能重新加载。使用 PyInstaller 原生 `_internal` 布局收集依赖; 应用模型、图标、翻译和公开 MIDI 由构建脚本放到 EXE 旁。
+- `ok-nte.spec`: 全量收集应用 `src` 的动态导入, 内置角色及 `BaseChar`、`Support` 以 `.py` 源码放在 `_internal/src/char/`, 不进入 PYZ, 供源码加载和读取使用; 具体内置角色支持发现、查看和复制。`src/tasks/` 全部任务模块及子目录也以源码放在 `_internal/src/tasks/`, 从源码加载执行。`src/char/core/`、`src/char/custom/`、`src/char/workshop/` 和其余应用模块只收集到 PYZ。修改角色或任务源码后需重启程序才能重新加载。使用 PyInstaller 原生 `_internal` 布局收集依赖; 应用模型、图标、翻译和公开 MIDI 由构建脚本放到 EXE 旁。
 - 启动入口统一使用项目根目录的 `main.py`。它在加载应用之前调用 `multiprocessing.freeze_support()`, 让 MIDI 进程池工作进程进入正确入口; 普通源码运行时该调用没有作用。
 - EXE 图标使用 `icons/icon.png`, 构建时由 PyInstaller 通过 Pillow 转换为 Windows 图标格式。应用窗口图标仍由应用配置加载同一 PNG。
 - EXE 使用无控制台窗口模式 (`console=False`), 对应源码通过 `pythonw.exe main.py` 启动的效果。冻结 EXE 使用 PyInstaller 窗口版启动器, 不依赖外部 `pythonw.exe`; 构建脚本使用 `python.exe` 显示构建日志。

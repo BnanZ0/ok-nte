@@ -18,11 +18,15 @@ def python_modules(directory):
 hiddenimports = python_modules(PROJECT_ROOT / "src")
 # pywin32 imports this module from native code when converting COM dates.
 hiddenimports.add("win32timezone")
-# Keep concrete characters as source for discovery, execution and source copying.
-module_collection_mode = {"src": "pyz"}
-for path in (PROJECT_ROOT / "src" / "char").glob("*.py"):
-    if path.stem not in {"BaseChar", "Support", "__init__"} and path.stem.isidentifier():
-        module_collection_mode[f"src.char.{path.stem}"] = "py"
+# Keep tasks and character modules as source for execution and source access.
+module_collection_mode = {
+    "src": "pyz",
+    "src.tasks": "py",
+    "src.char": "py",
+    "src.char.core": "pyz",
+    "src.char.custom": "pyz",
+    "src.char.workshop": "pyz",
+}
 datas = []
 binaries = []
 
