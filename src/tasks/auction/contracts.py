@@ -1,8 +1,8 @@
 """能力模块允许访问的任务面。
 
-直持任务实例的 8 个能力模块各有声明协议: bid / bid_price / recovery / sell /
-reading / welfare / assist / popup 已迁到各自的窄协议 (AuctionBidOps /
-AuctionBidPriceOps / AuctionRecoveryOps / AuctionSellOps / AuctionReadingOps /
+直持任务实例的能力模块各有声明协议: bid / bid_price / recovery / sell /
+routing / welfare / assist / popup 已迁到各自的窄协议 (AuctionBidOps /
+AuctionBidPriceOps / AuctionRecoveryOps / AuctionSellOps / AuctionRoutingOps /
 AuctionWelfareOps / AuctionAssistOps / AuctionPopupOps),
 模块只访问协议声明的成员。
 声明均不为运行时检查, 而是把「模块能碰什么」写进类型系统: 新增跨模块调用
@@ -17,6 +17,7 @@ from ok import Box
 
 from src.scene.PositionMap import PositionMap
 from src.tasks.auction.layout import AuctionBoxes
+from src.tasks.auction.reading import LotInfo, ReadingOps
 
 
 class AuctionPopupOps(Protocol):
@@ -45,8 +46,8 @@ class AuctionBidPriceOps(Protocol):
 
     成员按合并了模式注册后的 bid_price.py 实际访问面逐条声明: 出价模式的
     分发、价格实现与估价模式的配置校验都在本模块内完成, 直调同模块函数,
-    不经任务转发器 —— 任务侧保留的 _apply_heart_increment 等价格转发方法
-    是测试直接调用的入口, 不在本协议内。逐口追踪的上轮出价下界读
+    不经任务转发器 —— 叶级价格转发方法(_apply_heart_increment 等)已删除,
+    测试直调本模块函数。逐口追踪的上轮出价下界读
     last_bid_price, 出价序号读 current_bid_count。
     """
 
@@ -68,10 +69,12 @@ class AuctionBidPriceOps(Protocol):
     def _remaining_timeout(
         self, deadline: float | None, limit: float, message: str = "单轮拍卖超时"
     ) -> float: ...
-    def _read_stable_asset_value(self, *args: Any, **kwargs: Any) -> int | None: ...
-    def _config_int(self, *args: Any, **kwargs: Any) -> int: ...
-    def _config_decimal(self, *args: Any, **kwargs: Any) -> Any: ...
-    def _config_int_list(self, *args: Any, **kwargs: Any) -> list[int]: ...
+    def _reading_ops(self) -> ReadingOps: ...
+    # 期望价值模式的情报快照: 每口补读直到读全, 读写点在任务侧 _ensure_lot_info
+    # (出价前用完整预算, 等待期补采用短预算, 见任务侧 INFO_SAMPLE_* 常量)。
+    def _ensure_lot_info(
+        self, boxes: AuctionBoxes, timeout: float = ...
+    ) -> LotInfo: ...
     def _bid_mode(self) -> str: ...
     def _raise_mode(self) -> str: ...
 
@@ -157,40 +160,8 @@ class AuctionSellOps(Protocol):
     def _bounded_sleep(self, deadline: float | None, delay: float) -> None: ...
     def _wait_operate_click(self, *args: Any, **kwargs: Any) -> bool: ...
     def _dismiss_notice_popup(self, *args: Any, **kwargs: Any) -> bool: ...
-    def _config_int(self, *args: Any, **kwargs: Any) -> int: ...
-    def _sell_qualities(self) -> list[str]: ...
-    def _read_asset_value(self, *args: Any, **kwargs: Any) -> int | None: ...
+    def _reading_ops(self) -> ReadingOps: ...
     def _log_aux_error(self, where: str, e: Exception) -> None: ...
-
-
-class AuctionReadingOps(Protocol):
-    """reading.py 允许访问的任务面 (仅注解, 无运行时检查)。
-
-    成员按 reading.py 的实际访问面逐条声明; POLL_INTERVAL 的所有者仍是
-    任务类(匹配/出价/结算共用的轮询节奏)。稳定读取经 _read_estimate_value
-    取数, 这是测试的实例级 mock 锚点, 因此保留在协议内。
-    """
-
-    # --- 状态与配置 ---
-    width: int
-    POLL_INTERVAL: float
-
-    # --- 框架 API ---
-    def ocr(self, *args: Any, **kwargs: Any) -> list: ...
-    def wait_ocr(self, *args: Any, **kwargs: Any) -> list: ...
-    def sleep(self, timeout: float) -> Any: ...
-    def next_frame(self) -> Any: ...
-
-    # --- 日志 ---
-    def log_info(self, message: str) -> None: ...
-    def log_warning(self, message: str) -> None: ...
-    def log_debug(self, message: str) -> None: ...
-
-    # --- 任务侧适配器入口 ---
-    def _ocr_upscaled(self, box: Box) -> list: ...
-    def _read_estimate_value(
-        self, *args: Any, **kwargs: Any
-    ) -> tuple[int | None, bool]: ...
 
 
 class AuctionWelfareOps(Protocol):
@@ -198,6 +169,7 @@ class AuctionWelfareOps(Protocol):
 
     成员按 welfare.py 的实际访问面逐条声明; 当日领取记录不在任务面上 ——
     WelfareState 状态对象由任务实例持有, 更新只经本模块函数完成。
+    资产读数经 _reading_ops 的注入式依赖束 (口径见 auction-notes 8)。
     """
 
     # --- 框架 API ---
@@ -213,16 +185,17 @@ class AuctionWelfareOps(Protocol):
     def _optional_timeout(self, deadline: float | None, limit: float) -> float | None: ...
     def _bounded_sleep(self, deadline: float | None, delay: float) -> None: ...
     def _wait_click_optional(self, *args: Any, **kwargs: Any) -> bool: ...
-    def _read_asset_value(self, *args: Any, **kwargs: Any) -> int | None: ...
+    def _reading_ops(self) -> ReadingOps: ...
     def _log_aux_error(self, where: str, e: Exception) -> None: ...
 
 
 class AuctionBidOps(Protocol):
     """bid.py 允许访问的任务面 (仅注解, 无运行时检查)。
 
-    成员按 attempt_bid 的实际访问面逐条声明: 单次出价尝试需要的资产读取、
-    价格计算、放弃/仪器等辅助入口与屏幕判定都留在任务侧, 它们同时
-    是测试的实例级 mock 锚点。出价序号与上轮出价的落账不在协议内 ——
+    成员按 attempt_bid 的实际访问面逐条声明: 价格计算、放弃/仪器等辅助入口
+    与屏幕判定留在任务侧, _calculate_auction_price 同时是测试的实例级 mock
+    锚点; 资产读取与输入范围读数经 _reading_ops 的注入式依赖束 (口径见
+    auction-notes 8)。出价序号与上轮出价的落账不在协议内 ——
     键盘确认价经任务侧 _input_fixed_price 落账, 出价循环维护 current_bid_count。
     """
 
@@ -236,8 +209,7 @@ class AuctionBidOps(Protocol):
     def log_debug(self, message: str) -> None: ...
 
     # --- 任务侧适配器入口 ---
-    def _read_asset_value(self, *args: Any, **kwargs: Any) -> int | None: ...
-    def _read_input_range_cap(self, *args: Any, **kwargs: Any) -> int | None: ...
+    def _reading_ops(self) -> ReadingOps: ...
     def _calculate_auction_price(
         self, boxes: AuctionBoxes | None = None, deadline: float | None = None
     ) -> int: ...
@@ -254,6 +226,21 @@ class AuctionBidOps(Protocol):
         self, boxes: AuctionBoxes, price: int | None = None, deadline: float | None = None
     ) -> None: ...
     def _is_bid_screen(self, boxes: AuctionBoxes) -> bool: ...
+    def _send_emote_once(self) -> None: ...
+
+
+class AuctionEmoteOps(Protocol):
+    """emote.py 允许访问的任务面 (仅注解, 无运行时检查)。
+
+    表情发送只有两击与一条落账日志, 勾选判定留在任务侧 _send_emote_once,
+    不进协议 —— 本协议只声明动作序列本身用到的框架面。
+    """
+
+    # --- 框架 API ---
+    def operate_click(self, *args: Any, **kwargs: Any) -> Any: ...
+
+    # --- 日志 ---
+    def log_info(self, message: str) -> None: ...
 
 
 class AuctionAssistOps(Protocol):
@@ -279,3 +266,27 @@ class AuctionAssistOps(Protocol):
 
     # --- 任务侧适配器入口 ---
     def _optional_timeout(self, deadline: float | None, limit: float) -> float | None: ...
+
+
+class AuctionRoutingOps(Protocol):
+    """routing.py 允许访问的任务面 (仅注解, 无运行时检查)。
+
+    成员按 routing.py 的实际访问面逐条声明; 路由锁存状态由任务实例持有
+    (_asset_routed_mode / _asset_route_prechecked 会话级单向, 不随轮复位),
+    本协议只声明读写点。资产复核读数经 _reading_ops 的注入式依赖束
+    (口径见 auction-notes 8), 规则表与门槛在 auction_price, 不在本协议内。
+    """
+
+    # --- 状态与配置 ---
+    config: dict
+    _asset_routed_mode: str | None
+    _asset_route_prechecked: bool
+
+    # --- 面板与日志 ---
+    def info_set(self, key: str, value: object) -> None: ...
+    def log_info(self, message: str) -> None: ...
+    def log_warning(self, message: str) -> None: ...
+
+    # --- 任务侧适配器入口 ---
+    def _optional_timeout(self, deadline: float | None, limit: float) -> float | None: ...
+    def _reading_ops(self) -> ReadingOps: ...

@@ -1,23 +1,29 @@
 """拍卖任务领域包。
 
-只承载拍卖域的纯声明与领域能力 (配置声明, 界面契约, 价格, OCR 读数,
-出价价格决策, 单次出价执行, 键盘输入, 单轮控制, 匹配与确认, 结算阶段,
-结算后协调, 弹窗关闭, 出售, 低保, 回场, 出价面板辅助), 依赖方向: 本包只依赖
-stdlib、ok 框架与 src/utils 工具层, 不反向 import 任务模块;
-`AutoBidAuctionTask` 管理任务和轮次生命周期, 直接从这里导入常量与纯函数。
+只承载拍卖域的纯声明与领域能力 (配置声明, 通用配置读取, 界面契约, 价格,
+OCR 读数, 资产路由, 出价价格决策, 单次出价执行, 键盘输入, 单轮控制, 匹配
+与确认, 结算阶段, 结算后协调, 弹窗关闭, 出售, 低保, 回场, 出价面板辅助),
+依赖方向: 本包只依赖 stdlib、ok 框架与 src/utils 工具层, 不反向 import 任务
+模块; `AutoBidAuctionTask` 管理任务和轮次生命周期, 直接从这里导入常量与
+纯函数。
 模块协作约定: `round.py` 持有单轮状态机, `match.py`/`settle.py`/
 `post_round.py`/`keypad.py` 分别承载匹配确认、结算收尾、结算后观测与
 键盘输入 —— 五者都经冻结的窄动作接口 (AuctionRoundActions / MatchActions /
 SettleActions / KeypadActions / PostRoundActions) 拿到所需动作, 不持有任务
-对象; 直持任务实例的 8 个能力模块 (`bid.py`/`bid_price.py`/`recovery.py`/
-`sell.py`/`reading.py`/`welfare.py`/`assist.py`/`popup.py`) 已各自
+对象; `reading.py` 同样不持任务对象, 依赖经冻结数据类 ReadingOps 由任务侧
+`_reading_ops()` 装配注入 (读数原语缺省填充为本模块同名函数, 调用时首参
+显式传 ops, 测试覆盖字段注入假读数); 直持任务实例的能力模块
+(`bid.py`/`bid_price.py`/`recovery.py`/
+`routing.py`/`sell.py`/`welfare.py`/`assist.py`/`popup.py`) 已各自
 迁到窄协议 (contracts.AuctionBidOps / AuctionBidPriceOps / AuctionRecoveryOps /
-AuctionSellOps / AuctionReadingOps / AuctionWelfareOps / AuctionAssistOps /
-AuctionPopupOps, 模块只访问协议声明的成员) —— 新增跨模块
+AuctionRoutingOps / AuctionSellOps / AuctionWelfareOps /
+AuctionAssistOps / AuctionPopupOps, 模块只访问协议声明的成员) —— 新增跨模块
 调用必须先在对应协议加一行, 并受 TestAuctionContracts 反射与 AST 扫描
 用例守卫;
 `bid_price.py` 内含出价模式的注册表: 模式声明、入口校验与运行时算价
-共用同一张表, 新增模式只需在注册表加一项; `interaction.py` 收口原子点击
+共用同一张表, 新增模式只需在注册表加一项; `config_read.py` 收口通用配置
+读取(类型解析与非法回退), 能力模块直调, 不经任务转发;
+`interaction.py` 收口原子点击
 序列 (挂起 sleep_check 钩子)与滚动坐标换算。跨领域调用直接调用对方模块的公开函数
 (如 recovery 兜底弹窗直调 auction_welfare), 低保的当日领取记录经
 WelfareState 状态对象传递, 出售模块经三态返回值报告满仓结论, 跨轮标记由

@@ -55,8 +55,8 @@ RE_POPUP_CLOSE_HINT = re.compile(r"点击空白")
 RE_CITY_FUN = re.compile(r"都市闲趣")
 # 拍卖主界面右侧的会场文字, 形如「当前：海贝场」。回场后用它核对会场有没有被重置。
 RE_CURRENT_VENUE = re.compile(r"当前")
-# 从「当前：XXX场」整行里提取会场名(如「海贝场」「珊瑚场」), 供期望会场校验与
-# 切换会场后的留痕使用。读不出场名时回落 RE_CURRENT_VENUE 保留旧行为(原文留痕)。
+# 从「当前：XXX场」整行里提取会场名(如「海贝场」「珊瑚场」), 供期望会场校验
+# 留痕使用。读不出场名时回落 RE_CURRENT_VENUE 保留旧行为(原文留痕)。
 RE_VENUE_NAME = re.compile(r"当前\s*[：:]\s*([\u4e00-\u9fff]{1,6}场)")
 
 # --- 仪器组 ---
@@ -141,6 +141,8 @@ class AuctionBoxes:
     instrument_entry: Box
     instrument_list_title: Box
     instrument_list_rows: tuple[Box, ...]
+    # 拍卖主界面中央情报窗口 (期望价值模式的读数来源).
+    info_window: Box
 
 
 @dataclass(frozen=True)
@@ -191,6 +193,12 @@ BOX_PRICE_RESULT = (0.588, 0.685, 0.783, 0.747)  # 输入价格结果
 # 而报「未输入」(见 auction-notes 5.1)。
 BOX_PRICE_RESULT_KEYPAD = (0.588, 0.665, 0.790, 0.700)  # 键盘弹出后的输入价格结果
 
+# --- 情报窗口 ---
+# 拍卖主界面中央的情报窗口: 逐条滚动展示本局紫/金品质藏品的总数量、平均价值、
+# 所占格数与紫金红总件数。坐标移植自达芙计算器 ocr_reader.BASE_REGIONS["info"]
+# (1080p 基准 px(625,245)-(1245,875), 2026-10-07), 未经实机验证, 偏差按日志微调。
+BOX_INFO_WINDOW = (0.3255, 0.2269, 0.6484, 0.8102)  # 中央情报窗口
+
 # 主界面 / 结算.
 # 主界面左上角标题「即刻落槌」, 与藏品仓库标题同一个槽位(界面切换后文字才变),
 # 因此坐标与 BOX_WAREHOUSE_TITLE 一致.
@@ -205,7 +213,7 @@ BOX_RESULT_VALUE = (0.7780, 0.1330, 0.9520, 0.1820)
 
 # --- 永恒之心 ---
 # 出价面板展柜区域, 换算自参考实现 px(1302,196)-(1891,787): 心形道具出现时
-# 该区域内会有一块深紫红色高亮, 用颜色像素占比判定(阈值见 auction/assist.py)。
+# 该区域内会有一块深紫色高亮, 用颜色像素占比判定(阈值见 auction/assist.py)。
 BOX_HEART_AREA = (0.678, 0.181, 0.985, 0.729)
 
 # --- 仪器组 (实机截图标定, 来源见 auction-notes 3) ---
@@ -325,6 +333,11 @@ PAD_MAP = {
     "0000": (0.383, 0.855, 0.449, 0.932),
 }
 
+# 表情包点击坐标 (相对坐标, 非 Box): 出价界面的表情按钮与表情菜单第一格.
+# 沿用删除前原坐标, 未经实机复验, 沿革见 auction-notes 4。
+EMOTE_BTN = (0.036, 0.910)
+EMOTE_FIRST = (0.164, 0.516)
+
 
 def build_boxes(screen: Callable[..., Box]) -> AuctionBoxes:
     """按相对比例一次性构建单轮拍卖使用的全部 UI 区域。
@@ -377,4 +390,5 @@ def build_boxes(screen: Callable[..., Box]) -> AuctionBoxes:
         instrument_entry=screen(*BOX_INSTRUMENT_ENTRY),
         instrument_list_title=screen(*BOX_INSTRUMENT_LIST_TITLE),
         instrument_list_rows=tuple(screen(*row) for row in BOX_INSTRUMENT_LIST_ROWS),
+        info_window=screen(*BOX_INFO_WINDOW),
     )

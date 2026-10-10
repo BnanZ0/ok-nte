@@ -1,8 +1,9 @@
 """拍卖藏品出售能力: 模式判定, 间隔与满仓触发, 仓库流程, 品质筛选。
 
 模块函数的第一个参数 task 是 AutoBidAuctionTask 实例: OCR/输入/日志等框架
-API 经它访问; 允许访问面由 contracts.AuctionSellOps 窄协议声明, 配置读取
-(出售模式/间隔/品质清单)仍经任务侧, 属任务适配器职责。出售域的行为常量
+API 经它访问; 允许访问面由 contracts.AuctionSellOps 窄协议声明。配置读取
+(出售模式/间隔/品质清单)直接经 task.config 走 config_read / 本模块函数,
+不经任务转发。出售域的行为常量
 由本模块定义, 不再挂回任务类。模块内部的自家函数直接调用, 不再绕道任务
 私有方法转发; 品质勾选会把 task 转手给
 auction_interaction.atomic_sequence, 转手后的访问面由对方模块自己的契约
@@ -15,6 +16,7 @@ auction_interaction.atomic_sequence, 转手后的访问面由对方模块自己�
 
 from ok import TaskDisabledException, WaitFailedException
 
+from src.tasks.auction import config_read as auction_config_read
 from src.tasks.auction import interaction as auction_interaction
 from src.tasks.auction.contracts import AuctionSellOps
 from src.tasks.auction.layout import (
@@ -33,6 +35,7 @@ from src.tasks.auction.options import (
     CONF_ASSIST_FEATURES,
     CONF_SELL_INTERVAL,
     CONF_SELL_MODE,
+    CONF_SELL_QUALITIES,
     CONF_SELL_RED_MAX,
     QUALITY_KEYS,
     SELL_MODE_INTERVAL,
@@ -83,6 +86,23 @@ def uses_collection_sell(mode: str) -> bool:
     因此不算这条流程 —— 见 sell_on_settlement_screen。
     """
     return mode not in (SELL_MODE_OFF, SELL_MODE_ONE_CLICK)
+
+
+def read_quality_list(config: dict, key: str) -> list[str]:
+    """读取某个出售品质清单, 值不是列表时按空清单处理。"""
+    raw = config.get(key, [])
+    if not isinstance(raw, (list, tuple)):
+        return []
+    return [name for name in QUALITY_KEYS if name in raw]
+
+
+def read_sell_qualities(config: dict) -> list[str]:
+    """读取本轮要出售的品质清单(勾选即出售, 清洗规则见 read_quality_list)。
+
+    曾按当日低保阶段在双清单间自动切换, 已合并为单一「出售品质」配置;
+    低保与资产的联动说明见配置项描述与 auction-notes 4。
+    """
+    return read_quality_list(config, CONF_SELL_QUALITIES)
 
 
 def is_selection_confirmed(
@@ -240,8 +260,11 @@ def sell_on_settlement_screen(
         task.log_info("结算界面未出现「一键出售」, 跳过(流拍时没有可出售的藏品)")
         return
     if _sell_red_enabled(task):
-        sell_limit = task._config_int(
-            CONF_SELL_RED_MAX, 0, warn="「低于此价才卖红」配置无效, 按不限处理"
+        cfg = auction_config_read.ConfigReader(task.config, task.log_warning)
+        sell_limit = cfg.read_int(
+            CONF_SELL_RED_MAX,
+            0,
+            warn="「低于此价才卖红」配置无效, 按不限处理",
         )
         if sell_limit > 0 and not _sell_red_allowed(task, result_value, sell_limit):
             return
@@ -297,8 +320,11 @@ def run_round_end_sell(
 
     sell_interval = 0
     if mode == SELL_MODE_INTERVAL:
-        sell_interval = task._config_int(
-            CONF_SELL_INTERVAL, 0, warn="出售间隔次数配置无效, 按满仓清理处理"
+        cfg = auction_config_read.ConfigReader(task.config, task.log_warning)
+        sell_interval = cfg.read_int(
+            CONF_SELL_INTERVAL,
+            0,
+            warn="出售间隔次数配置无效, 按满仓清理处理",
         )
         if sell_interval <= 0:
             # 间隔无效时退化成「满仓时清理」, 而不是直接不出售.
@@ -334,7 +360,7 @@ def run_round_end_sell(
     #   _run_single_round)会用库存提示重新裁决, 不会靠卖掉保留品质脱困。
     # 满仓现状(True/False/None)原样返回: None(未测出)由任务侧按「无新结论」
     # 不落账, 不得压成 False 把「未测出」落账成「已清掉」。
-    qualities = task._sell_qualities()
+    qualities = read_sell_qualities(task.config)
     try:
         sold = run_collections(
             task,
@@ -510,7 +536,7 @@ def select_quality_filters(
     """勾选要出售的品质按钮, 返回实际点击次数。
 
     勾选即出售: sell_qualities 里的品质点选, 其余一律保留。清单由调用方读
-    「出售品质」配置算好(见任务侧 _sell_qualities), 这里不再读配置。
+    「出售品质」配置算好(read_sell_qualities), 这里不再读配置。
 
     本函数是「无条件点击」: 对同一个品质调用两次会把刚勾上的状态点掉, 常规
     读数校验失败只能换帧重读; 唯一的例外是出售价值换帧重读仍为 0 的「残留
@@ -599,4 +625,5 @@ def ensure_sell_value(
 
 def read_sell_value(task: AuctionSellOps, boxes: AuctionBoxes, timeout: float) -> int | None:
     """读取出售模式下的「出售价值」数值, 未识别或解析失败时返回 None。"""
-    return task._read_asset_value(boxes.sell_value, timeout, "出售价值")
+    ops = task._reading_ops()
+    return ops.asset_once(ops, boxes.sell_value, timeout, "出售价值")

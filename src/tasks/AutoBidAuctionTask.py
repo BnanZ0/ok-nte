@@ -1,8 +1,7 @@
 import re
 import time
 import traceback
-from collections.abc import Callable, Iterable
-from decimal import Decimal
+from collections.abc import Callable
 
 import cv2
 from ok import Box, TaskDisabledException, WaitFailedException
@@ -10,6 +9,8 @@ from ok import Box, TaskDisabledException, WaitFailedException
 from src.tasks.auction import assist as auction_assist
 from src.tasks.auction import bid as auction_bid
 from src.tasks.auction import bid_price as auction_bid_price
+from src.tasks.auction import config_read as auction_config_read
+from src.tasks.auction import emote as auction_emote
 from src.tasks.auction import interaction as auction_interaction
 from src.tasks.auction import keypad as auction_keypad
 from src.tasks.auction import layout as auction_layout
@@ -21,6 +22,7 @@ from src.tasks.auction import price as auction_price
 from src.tasks.auction import reading as auction_reading
 from src.tasks.auction import recovery as auction_recovery
 from src.tasks.auction import round as auction_round
+from src.tasks.auction import routing as auction_routing
 from src.tasks.auction import sell as auction_sell
 from src.tasks.auction import settle as auction_settle
 from src.tasks.auction import welfare as auction_welfare
@@ -37,10 +39,12 @@ from src.tasks.auction.layout import (
     PostRoundState,
 )
 from src.tasks.auction.options import (
+    ASSIST_EMOTE,
     ASSIST_HEART,
     ASSIST_INSTRUMENT,
     ASSIST_WELFARE,
     BID_MODE_CUSTOM,
+    BID_MODE_EV,
     BID_MODE_SMART,
     CONF_ASSIST_FEATURES,
     CONF_AUTO_RAISE,
@@ -56,7 +60,6 @@ from src.tasks.auction.options import (
     INST,
     INSTRUMENT_GROUP_SUPREME,
     INSTRUMENT_GROUPS,
-    QUALITY_KEYS,
     RAISE_MODE_MULTIPLE,
     RAISE_MODES,
     SELL_MODE_OFF,
@@ -68,7 +71,7 @@ from src.tasks.NTEOneTimeTask import NTEOneTimeTask
 class AutoBidAuctionTask(NTEOneTimeTask, BaseNTETask):
     """自动完成游戏内拍卖流程。
 
-    功能包括: 匹配, 确认, 出价, 出价重试, 结算, 低保金领取, 藏品出售。
+    功能包括: 匹配, 确认, 出价, 出价重试, 结算, 低保金领取, 表情包发送, 藏品出售。
     需要在拍卖主界面选择低级会场后开始执行。
 
     配置键 / UI 区域 / 纯函数的唯一来源在 `src/tasks/auction/` 子包
@@ -91,9 +94,6 @@ class AutoBidAuctionTask(NTEOneTimeTask, BaseNTETask):
     # 仪器组校验前的主界面标题探测预算: 只为「不在主界面就不点装备卡片」的守卫服务,
     # 命中时第一帧即返回 (见 auction-notes 7)。
     INSTRUMENT_GROUP_PROBE_TIMEOUT = 2
-    # 资产路由前的复核读数预算: 路由是本次运行单向锁存的高后果决定, 低于门槛的
-    # 读数要重读一次确认才采信 (见 _confirm_route_asset 与 auction-notes 7)。
-    ASSET_ROUTE_CONFIRM_TIMEOUT = 3
 
     # --- 轮询与重试 ---
     # 匹配/出价/结算共用的轮询节奏; 估价读取的节奏常量见 auction_reading。
@@ -104,6 +104,11 @@ class AutoBidAuctionTask(NTEOneTimeTask, BaseNTETask):
     # 都实际发生过, 见 auction-notes 3)对匹配阶段同样成立, 匹配侧的
     # MATCH_MAX_LOOPS 见 auction_match。
     BID_MAX_RETRIES = 3
+    # 出价结果等待期间的情报补采节奏与单次预算: 快照不全时每 4 秒顺手读一次,
+    # 短预算避免拖慢轮询 (情报条目随回合推进逐条出现, 只在出价时读会整场漏采,
+    # 实机证据见 auction-notes 7)。
+    INFO_SAMPLE_INTERVAL = 4.0
+    INFO_SAMPLE_TIMEOUT = 1.5
     # 辅助路径单轮累计异常的升级阈值: 单轮内达到即按疑似代码缺陷升级为 error,
     # 避免「告警后继续」把编程错误静默吞掉 (见 auction-notes 5.9)。
     AUX_ERROR_ESCALATE_AFTER = 3
@@ -160,8 +165,8 @@ class AutoBidAuctionTask(NTEOneTimeTask, BaseNTETask):
         # 默认取 INSTRUMENT_GROUP_SUPREME, 老配置缺该键时回落到这里。
         self._instrument_group: str = INSTRUMENT_GROUP_SUPREME
         # 仪器队列: 尚未使用的满列表槽位号, 按当前视觉顺序 (用一场出一个, 下方
-        # 上移)。跨场持续; 装备/补全动作成功后由 _ensure_instrument_group 重置
-        # 为满列表 (见 auction-notes 7 队列模型)。
+        # 上移)。跨场持续; 确认仪器列表已满(执行了装备/补全, 或已装备且无需
+        # 补全)后由 _ensure_instrument_group 重置为满列表 (见 auction-notes 7)。
         self._instrument_remaining: list[int] = list(auction_assist.DEFAULT_SLOT_CYCLE)
         # 本轮仪器组校验结论, 由 do_run 每轮在主界面上重新赋值; 未就绪时
         # _use_instrument_once 直接跳过 (组不对时仪器列表的槽位坐标点的是别的仪器).
@@ -176,7 +181,7 @@ class AutoBidAuctionTask(NTEOneTimeTask, BaseNTETask):
         self._asset_routed_mode: str | None = None
         # 首轮出价前的资产路由预检标记(会话级, 与 _asset_routed_mode 同样不复位):
         # 结算后观测最早在首轮结算后才跑, 带低资产直接进场时首轮仍会按原模式
-        # 出价, 预检在入场确认后补一次读数 (见 _route_mode_before_first_bid)。
+        # 出价, 预检在入场确认后补一次读数 (见 auction_routing.route_before_first_bid)。
         self._asset_route_prechecked = False
         # 轮次级状态的初始值与每轮重置共用同一入口; 必须在 _welfare_state 之后调用,
         # 切日逻辑要读它。
@@ -229,7 +234,7 @@ class AutoBidAuctionTask(NTEOneTimeTask, BaseNTETask):
                     # 每轮都重新确认一次入口: 上一轮掉线或异常退出时人可能已经
                     # 不在拍卖界面 (见 auction_recovery.ensure_auction_entry)。
                     self._ensure_auction_entry(boxes)
-                    self._route_mode_before_first_bid(boxes)
+                    auction_routing.route_before_first_bid(self, boxes)
                     self._ensure_instrument_group(boxes)
                     self._run_single_round(boxes)
                     if self._is_warehouse_open(boxes):
@@ -341,12 +346,17 @@ class AutoBidAuctionTask(NTEOneTimeTask, BaseNTETask):
         self._inventory_hint_seen = False
         # 永恒之心检测与仪器使用都是辅助状态: 心按「每场」复位; 仪器按「每口」
         # 消费, 本场已服务的出价序号随轮复位 (_instrument_served_bid); 序列游标
-        # 也随轮归零 —— 队列由每场补全恢复满列表, 每件拍品从序列第 1 项开始
-        # (见 auction-notes 7)。
+        # 也随轮归零 —— 队列由每场开始的仪器组校验恢复满列表(列表已满即恢复,
+        # 含无需补全), 每件拍品从序列第 1 项开始 (见 auction-notes 7)。
         self._heart_checked = False
         self._heart_present = False
         self._instrument_served_bid = 0
         self._instrument_seq = 0
+        # 期望价值模式的情报快照按件重置: 上一件拍品的紫金均价不能泄进这一件,
+        # 每口由 _ensure_lot_info 按需补读直到读全 (见 auction_reading.LotInfo);
+        # 补采时间戳随件归零, 让等待期的第一次补采立刻发生。
+        self._lot_info = auction_reading.LotInfo()
+        self._last_info_sample = 0.0
         # 跨过每日刷新时刻(5 点)时清空当日低保领取记录, 否则昨天领满的记录会让今天
         # 一开局就按「已领完」放开出售.
         self._rollover_welfare_day()
@@ -478,12 +488,6 @@ class AutoBidAuctionTask(NTEOneTimeTask, BaseNTETask):
         """匹配阶段: 等待进入确认或出价状态, 编排见 auction_match.run_match。"""
         return auction_match.run_match(self._match_actions(), boxes, deadline)
 
-    def _handle_match_click(
-        self, boxes: AuctionBoxes, stage_deadline: float
-    ) -> AuctionState | None:
-        """点击开始匹配并等待界面变化, 编排见 auction_match.handle_match_click。"""
-        return auction_match.handle_match_click(self._match_actions(), boxes, stage_deadline)
-
     def _stage_confirm(self, boxes: AuctionBoxes, deadline: float) -> bool:
         """确认阶段: 等待并点击确认按钮, 编排见 auction_match.run_confirm。"""
         return auction_match.run_confirm(self._match_actions(), boxes, deadline)
@@ -533,8 +537,9 @@ class AutoBidAuctionTask(NTEOneTimeTask, BaseNTETask):
             except TaskDisabledException:
                 raise
             except auction_bid_price.BidPriceUnavailable as e:
-                # 资产路由模式下算不出可输入的价格(估价读不出且不回退基础价):
-                # 与弃局同路处理, 不计重试, 等待拍卖结果(整轮 deadline 兜底)。
+                # 算不出可输入的价格 (资产路由模式下估价读不出且不回退基础价),
+                # 或期望价值模式到口数上限放弃本场: 与弃局同路处理, 不计重试,
+                # 等待拍卖结果(整轮 deadline 兜底)。
                 self.log_info(f"{e}, 放弃本次出价, 等待拍卖结果")
                 bid_placed = False
             except Exception as e:
@@ -561,39 +566,39 @@ class AutoBidAuctionTask(NTEOneTimeTask, BaseNTETask):
     def _wait_bid_outcome(self, boxes: AuctionBoxes, deadline: float) -> bool:
         """等待本次出价的结果。
 
-        逐口追踪到顶(current_bid_count >= 5)时跳过「出价界面出现即有人加价」的
-        判定, 只等跳过动画/匹配界面; 到顶后等待窗口耗尽时出价界面仍在, 说明
-        拍卖并未结束, 继续轮询而不是按结束处理 —— 否则 settle 会以「下一轮出价」
-        结束本轮, 下一轮重置口数后绕过「只出前 5 口」的上限 (见 auction-notes
-        5.7)。守卫必须放在本方法内而不是调用方循环里, 否则会形成忙循环。
+        整场策略到顶 (逐口追踪 current_bid_count >= 5 / 期望价值 >= 4) 时跳过
+        「出价界面出现即有人加价」的判定, 只等跳过动画/匹配界面; 到顶后等待
+        窗口耗尽时出价界面仍在, 说明拍卖并未结束, 继续轮询而不是按结束处理
+        —— 否则 settle 会以「下一轮出价」结束本轮, 下一轮重置口数后绕过
+        「只出前 N 口」的上限 (见 auction-notes 5.7)。守卫必须放在本方法内
+        而不是调用方循环里, 否则会形成忙循环。
 
         Returns:
             bool: True 表示拍卖已结束(界面状态未知时按结束兜底);
             False 表示有人加价, 需要继续下一次出价。
         """
-        cap_active = self._smart_bid_cap_reached()
-        if cap_active:
-            self.log_info(
-                f"已达{BID_MODE_SMART}模式的 {auction_price.SMART_MAX_BIDS} 口上限, 等待拍卖结束"
-            )
+        cap_reason = self._bid_cap_reason()
+        if cap_reason:
+            self.log_info(cap_reason)
         while True:
             wait_deadline = min(deadline, time.monotonic() + self.BID_RESULT_TIMEOUT)
             while time.monotonic() < wait_deadline:
                 self.next_frame()
+                self._sample_lot_info_during_wait(boxes)
                 if self._is_skip_screen(boxes):
                     self.log_info("检测到跳过动画, 拍卖结束")
                     return True
                 if self._is_match_screen(boxes):
                     self.log_info("返回匹配界面, 拍卖结束")
                     return True
-                if not cap_active and self._is_bid_screen(boxes):
+                if not cap_reason and self._is_bid_screen(boxes):
                     self.log_info("检测到有人加价, 准备再次出价")
                     return False
                 self.sleep(self.POLL_INTERVAL)
 
             if time.monotonic() >= deadline:
                 raise WaitFailedException("单轮拍卖超时")
-            if cap_active and self._is_bid_screen(boxes):
+            if cap_reason and self._is_bid_screen(boxes):
                 # 到顶后出价界面仍在 = 有人加价, 拍卖未结束; 不能按结束处理返回
                 # True, 否则 settle 以「下一轮出价」结束本轮, 下一轮重置口数后
                 # 绕过上限 (见 auction-notes 5.7)。继续等到真正结束, 整轮
@@ -609,6 +614,32 @@ class AutoBidAuctionTask(NTEOneTimeTask, BaseNTETask):
             self._bid_mode() == BID_MODE_SMART
             and self.current_bid_count >= auction_price.SMART_MAX_BIDS
         )
+
+    def _ev_bid_cap_reached(self) -> bool:
+        """期望价值模式是否已到出价口数上限; 其他模式恒为 False。"""
+        return (
+            self._bid_mode() == BID_MODE_EV
+            and self.current_bid_count >= auction_price.EV_MAX_BIDS
+        )
+
+    def _bid_cap_reason(self) -> str | None:
+        """当前模式是否已到出价口数上限, 到顶返回提示文案, 未到返回 None。
+
+        逐口追踪与期望价值都有「只出前 N 口」的整场上限: 到顶后「出价界面
+        出现即有人加价」的判定必须让位给「继续等待结束」, 否则会以下一口
+        策略重新出价, 绕过上限 (见 auction-notes 5.7)。
+        """
+        if self._smart_bid_cap_reached():
+            return (
+                f"已达{BID_MODE_SMART}模式的 {auction_price.SMART_MAX_BIDS} 回合上限, "
+                "等待拍卖结束"
+            )
+        if self._ev_bid_cap_reached():
+            return (
+                f"已达{BID_MODE_EV}模式的 {auction_price.EV_MAX_BIDS} 次出价上限, "
+                "放弃本场, 等待拍卖结束"
+            )
+        return None
 
     def _attempt_bid(self, boxes: AuctionBoxes, deadline: float) -> bool:
         """单次出价尝试: 包含资产识别和出价面板确认, 实现见 auction_bid.attempt_bid。
@@ -681,8 +712,9 @@ class AutoBidAuctionTask(NTEOneTimeTask, BaseNTETask):
         消费单位是出价序号 ordinal = current_bid_count + 1: 同一口的出价重试
         (attempt_bid 抛 WaitFailedException 后由 _stage_bid_loop 重试) 不重复
         消耗; 成功出价后序号推进, 下一口取序列下一项。序列游标随拍品复位
-        (_reset_round_state): 队列由每场补全恢复满列表, 每件拍品从序列第 1 项
-        开始 (见 auction-notes 7)。序列每口经
+        (_reset_round_state): 队列由每场开始的仪器组校验恢复满列表(列表已满
+        即恢复, 含无需补全), 每件拍品从序列第 1 项开始 (见 auction-notes 7)。
+        序列每口经
         _refresh_instrument_slots 重读, 运行中改动即时生效(沿革见 auction-notes 7);
         序列未配置时按 1→5 轮换;
         序列项为 0 表示该口跳过, 但同样消耗一次并推进游标。前置是本轮的仪器组
@@ -691,7 +723,7 @@ class AutoBidAuctionTask(NTEOneTimeTask, BaseNTETask):
 
         队列模型 (auction-notes 7): 数字是满列表时的槽位号(仪器身份), 使用后
         下方仪器上移, 先按 _instrument_remaining 换算当前行; 仪器已用掉则该口
-        跳过(等下一件拍品开始时的补全恢复); 使用成功才把该槽位号出队。
+        跳过(等下一件拍品开始时的队列恢复); 使用成功才把该槽位号出队。
         """
         if not self._assist_enabled(ASSIST_INSTRUMENT):
             return
@@ -700,7 +732,7 @@ class AutoBidAuctionTask(NTEOneTimeTask, BaseNTETask):
             return
         self._refresh_instrument_slots()
         if not self._instrument_group_ready:
-            self.log_info("仪器组未就绪, 本口跳过仪器使用")
+            self.log_info("仪器组未就绪, 本回合跳过仪器使用")
             self._instrument_served_bid = ordinal
             return
         self._instrument_served_bid = ordinal
@@ -708,18 +740,18 @@ class AutoBidAuctionTask(NTEOneTimeTask, BaseNTETask):
         slot = slots[self._instrument_seq % len(slots)]
         self._instrument_seq += 1
         if slot == 0:
-            self.log_info(f"第 {ordinal} 口: 仪器槽位序列当前项为 0, 跳过仪器使用")
+            self.log_info(f"第 {ordinal} 回合: 仪器槽位序列当前项为 0, 跳过仪器使用")
             return
         row = auction_assist.instrument_row_for_slot(slot, self._instrument_remaining)
         if row is None:
             self.log_warning(
-                f"第 {ordinal} 口: 序列槽位 {slot} 的仪器已用掉, 跳过(等补全后恢复)"
+                f"第 {ordinal} 回合: 序列槽位 {slot} 的仪器已用掉, 跳过(等补全后恢复)"
             )
             return
         # 使用侧的入口/弹窗/行校验 OCR 区域都由 boxes 传入, 它同时是出价侧
         # 调用面(协议与测试桩)的一部分 (见 auction-notes 7)。
         if auction_assist.use_instrument(self, boxes, deadline, row):
-            self.log_info(f"第 {ordinal} 口出价前使用 {slot} 号槽位的竞拍仪器(点击第 {row} 行)")
+            self.log_info(f"第 {ordinal} 回合出价前使用 {slot} 号槽位的竞拍仪器(点击第 {row} 行)")
             self._instrument_remaining.remove(slot)
 
     def _ensure_instrument_group(self, boxes: AuctionBoxes) -> None:
@@ -754,8 +786,11 @@ class AutoBidAuctionTask(NTEOneTimeTask, BaseNTETask):
             equip_deadline,
             self._instrument_group,
         )
-        if state == auction_assist.INSTRUMENT_GROUP_ACTIONED:
-            # 装备/补全动作执行过, 仪器列表恢复满, 队列重置 (队列模型见 auction-notes 7)。
+        if state == auction_assist.INSTRUMENT_GROUP_FULL:
+            # 仪器列表已满(执行了装备/补全, 或确认已装备且无需补全), 队列重置为
+            # 满列表 (队列模型见 auction-notes 7)。只看「是否满」不看「是否做了
+            # 动作」: 「无需补全」同样是实机已满的事实, 队列据此对齐才不会残留
+            # 已用掉的槽位(2026-10-06 事故, 见 auction-notes 7)。
             self._instrument_remaining = list(auction_assist.DEFAULT_SLOT_CYCLE)
         self._gate_instrument_ready(boxes)
 
@@ -898,6 +933,11 @@ class AutoBidAuctionTask(NTEOneTimeTask, BaseNTETask):
             return False
         return feature in selected
 
+    def _send_emote_once(self) -> None:
+        """出价确认成功后按「表情包」勾选发送表情, 实现见 auction_emote.send_first_emote。"""
+        if self._assist_enabled(ASSIST_EMOTE):
+            auction_emote.send_first_emote(self)
+
     def _uses_collection_sell(self) -> bool:
         """本轮是否需要走「藏品仓库」出售流程, 判定见 auction_sell.uses_collection_sell。"""
         return auction_sell.uses_collection_sell(self._sell_mode())
@@ -923,77 +963,14 @@ class AutoBidAuctionTask(NTEOneTimeTask, BaseNTETask):
             self._record_inventory_hint()
 
     def _observe_main_asset(self, boxes: AuctionBoxes, deadline: float) -> int | None:
-        """读取主界面资产值并做资产路由检查, 读取实现见 auction_welfare.observe_main_asset。
+        """读取主界面资产值并做资产路由检查, 编排见 auction_routing.observe_and_route。
 
         资产只在结算扣款与出售回款后变化, 结算后观测是每轮唯一必经的新读数点,
         路由检查挂在这里; 出价面板的资产读取在 bid 契约内, 不另挂回调。
-        路由是单向锁存的高后果决定, 低于门槛的读数先经 _confirm_route_asset
-        复核, 低保金等消费方拿到的仍是原读数。
+        路由锁存状态 (_asset_routed_mode / _asset_route_prechecked) 由任务实例
+        持有, 会话级单向锁存, 规则见 auction_routing。
         """
-        value = auction_welfare.observe_main_asset(self, boxes, deadline)
-        self._route_mode_on_asset(self._confirm_route_asset(boxes, deadline, value))
-        return value
-
-    def _confirm_route_asset(
-        self, boxes: AuctionBoxes, deadline: float | None, value: int | None
-    ) -> int | None:
-        """低于路由门槛的读数复核一次再采信, 返回交给路由判定的值(不通过时 None)。
-
-        主界面资产读数存在首位漏读的残缺形态(7,284 读成 ,284/284, 见
-        auction-notes 2.3/5.1), 单帧读数不足以支撑单向锁存; 复核读数(读数层
-        带残缺放大补拍)仍低于门槛才把原值交给路由。复核读不出或不支持时返回
-        None, 本轮不路由, 下轮结算后观测重新评估。
-        """
-        if value is None or value >= auction_price.ASSET_MODE_ROUTE_THRESHOLD:
-            return value
-        timeout = self._optional_timeout(deadline, self.ASSET_ROUTE_CONFIRM_TIMEOUT)
-        if timeout is None:
-            self.log_warning(f"资产 {value} 低于门槛但复核没有可用时间, 本次不路由")
-            return None
-        confirm = self._read_asset_value(boxes.main_asset, timeout)
-        if confirm is None or confirm >= auction_price.ASSET_MODE_ROUTE_THRESHOLD:
-            self.log_warning(
-                f"资产 {value} 低于门槛但复核读数为 {confirm}, 按残缺读数处理, 本次不路由"
-            )
-            return None
-        return value
-
-    def _route_mode_before_first_bid(self, boxes: AuctionBoxes) -> None:
-        """首轮出价前补一次资产路由检查, 会话内至多执行一次。
-
-        结算后观测(_observe_main_asset)最早在首轮结算后才跑, 用户带着低于
-        门槛的资产直接进场时, 首轮会按原模式(高级场固定表)出价; 这里在入场
-        确认后、首轮出价前读一次资产提前锁存。配置模式不在路由表内时本次
-        运行永远不可能路由, 直接返回不做无谓读数; 读不出(None)不触发,
-        首轮结算后的常规观测仍会兜住。
-        """
-        if self._asset_route_prechecked:
-            return
-        self._asset_route_prechecked = True
-        if self.config.get(CONF_BID_MODE, BID_MODE_CUSTOM) not in auction_price.ASSET_MODE_ROUTES:
-            return
-        deadline = time.monotonic() + auction_welfare.ASSET_OBSERVE_TIMEOUT
-        self._observe_main_asset(boxes, deadline)
-
-    def _route_mode_on_asset(self, value: int | None) -> None:
-        """资产跌破门槛时把出价模式路由到目标模式, 本次运行内单向锁存。
-
-        规则表与门槛在 auction_price.route_mode_on_asset; 判断基于用户配置的
-        模式, 命中后写 _asset_routed_mode 供 _bid_mode 覆盖, 不改写配置。
-        已锁存时直接返回: 资产回升不切回, 也不再触发。
-        """
-        if self._asset_routed_mode is not None:
-            return
-        config_mode = self.config.get(CONF_BID_MODE, BID_MODE_CUSTOM)
-        routed = auction_price.route_mode_on_asset(config_mode, value)
-        if routed is None:
-            return
-        self._asset_routed_mode = routed
-        self.info_set("出价模式(生效)", routed)
-        self.log_info(
-            f"资产 {value} 低于 {auction_price.ASSET_MODE_ROUTE_THRESHOLD}, "
-            f"本次运行出价模式路由到「{routed}」(配置「{config_mode}」不变)"
-        )
+        return auction_routing.observe_and_route(self, boxes, deadline)
 
     def _claim_welfare_if_needed(
         self, boxes: AuctionBoxes, deadline: float, asset_value: int | None
@@ -1086,52 +1063,6 @@ class AutoBidAuctionTask(NTEOneTimeTask, BaseNTETask):
         """执行受 deadline 限制的短暂操作等待。"""
         self.sleep(self._remaining_timeout(deadline, delay))
 
-    # --- 配置读取辅助 ---
-    def _config_int(self, key: str, default: int = 0, *, warn: str | None = None) -> int:
-        """读取整数配置, 非法时回退到默认值并可选输出告警。"""
-        try:
-            return int(self.config.get(key, default))
-        except (TypeError, ValueError):
-            if warn:
-                self.log_warning(warn)
-            return default
-
-    def _config_decimal(self, key: str, default: str = "0") -> Decimal:
-        """读取十进制配置, 非法时回退到默认值。
-
-        用于参与 Decimal 运算的配置(加价数值): 配置原值本身就是文本框里的字符串,
-        直接解析能保留用户填的全部精度, 而先经 float 中转再 str() 只剩 17 位有效数字。
-        非法值一律回退默认值, 与 _config_int 一样不抛异常 —— 调用方另有兜底。
-        """
-        try:
-            return Decimal(str(self.config.get(key, default)))
-        except (ArithmeticError, ValueError):
-            return Decimal(default)
-
-    def _config_int_list(self, key: str, *, warn: str | None = None) -> list[int]:
-        """读取整数列表配置, 任一项非法时返回空列表并可选输出告警。"""
-        try:
-            return [int(item) for item in self.config.get(key, [])]
-        except (TypeError, ValueError):
-            if warn:
-                self.log_warning(warn)
-            return []
-
-    def _quality_list(self, key: str) -> list[str]:
-        """读取某个出售品质清单, 值不是列表时按空清单处理。"""
-        raw = self.config.get(key, [])
-        if not isinstance(raw, (list, tuple)):
-            return []
-        return [name for name in QUALITY_KEYS if name in raw]
-
-    def _sell_qualities(self) -> list[str]:
-        """读取本轮要出售的品质清单(勾选即出售, 清洗规则见 _quality_list)。
-
-        曾按当日低保阶段在双清单间自动切换, 已合并为单一「出售品质」配置;
-        低保与资产的联动说明见配置项描述与 auction-notes 4。
-        """
-        return self._quality_list(CONF_SELL_QUALITIES)
-
     def _validate_price_config(self) -> None:
         """任务开始前校验价格相关配置, 非法时直接终止任务。
 
@@ -1208,29 +1139,76 @@ class AutoBidAuctionTask(NTEOneTimeTask, BaseNTETask):
         if not self._uses_collection_sell():
             return
 
-        if self._quality_list(CONF_SELL_QUALITIES):
+        if auction_sell.read_sell_qualities(self.config):
             return
         self.log_warning(
             f"「{CONF_SELL_QUALITIES}」没有勾选品质, 本次运行不会清掉任何藏品"
         )
 
-    def _read_estimate_value(
-        self,
-        box: Box,
-        timeout: float,
-        label: str = "当前估价",
-        label_keywords: Iterable[str] = ("估价",),
-    ) -> tuple[int | None, bool]:
-        """读估价数字: 按标签定位, 取标签右侧数字, 实现见 auction_reading.read_estimate_value。"""
-        return auction_reading.read_estimate_value(self, box, timeout, label, label_keywords)
+    def _reading_ops(self) -> auction_reading.ReadingOps:
+        """装配读取层的显式依赖束, 见 auction_reading.ReadingOps。
 
-    def _read_asset_value(self, box: Box, timeout: float, label: str = "资产") -> int | None:
-        """OCR 解析资产数值, 实现见 auction_reading.read_asset_value。"""
-        return auction_reading.read_asset_value(self, box, timeout, label)
+        读数 delegate(_read_estimate_value 等)已删除: 模块内组合与跨模块调用
+        一律经 ops 的读数原语字段, 测试注入假读数覆盖字段而不是 patch 任务
+        实例方法 (口径见 auction-notes 8)。
+        """
+        return auction_reading.ReadingOps(
+            ocr=self.ocr,
+            wait_ocr=self.wait_ocr,
+            next_frame=self.next_frame,
+            sleep=self.sleep,
+            upscaled_ocr=self._ocr_upscaled,
+            log_info=self.log_info,
+            log_warning=self.log_warning,
+            log_debug=self.log_debug,
+            width=self.width,
+            poll_interval=self.POLL_INTERVAL,
+        )
 
-    def _read_input_range_cap(self, box: Box, timeout: float) -> int | None:
-        """读「可输入范围0~N」提示的输入上限, 实现见 auction_reading.read_input_range_cap。"""
-        return auction_reading.read_input_range_cap(self, box, timeout)
+    def _ensure_lot_info(
+        self, boxes: AuctionBoxes, timeout: float = auction_reading.INFO_OCR_TIMEOUT
+    ) -> auction_reading.LotInfo:
+        """确保本件拍品的情报快照尽量完整并返回当前快照 (期望价值模式的输入)。
+
+        情报条目在窗口里随回合推进逐条出现、轮换展示, 单次读取经常只看到部分
+        条目, 所以快照不全时补读, 用 merged 只补缺不降级, 读全即停; 出价前
+        (_price_ev) 用完整预算读, 出价结果等待期间由 _sample_lot_info_during_wait
+        按短预算高频补采 (实机证据见 auction-notes 7)。读取失败按当前快照返回,
+        异常按辅助降级处理 (quiet), 不中断出价。快照的完整度由调用方决定走
+        期望价值还是降级口径。
+        """
+        if self._lot_info.complete:
+            return self._lot_info
+        ops = self._reading_ops()
+        self._last_info_sample = time.monotonic()
+        try:
+            observed = ops.info_once(
+                ops,
+                boxes.info_window,
+                timeout,
+            )
+        except TaskDisabledException:
+            raise
+        except Exception as e:
+            self._log_aux_error("情报窗口读取异常, 按当前快照继续", e, quiet=True)
+            return self._lot_info
+        if observed is not None and not observed.empty:
+            self._lot_info = self._lot_info.merged(observed)
+            self.log_info(f"情报窗口读数: {self._lot_info}")
+        return self._lot_info
+
+    def _sample_lot_info_during_wait(self, boxes: AuctionBoxes) -> None:
+        """出价结果等待期间按节奏补采情报窗口 (期望价值模式专用, 其余模式零开销)。
+
+        数字情报条目随回合推进逐条出现, 只在出价时读会整场漏采 (2026-10-07
+        实机 4 次读取只采到 1 个字段, 见 auction-notes 7); 等待窗口每
+        INFO_SAMPLE_INTERVAL 秒补采一次, 快照读全即停。
+        """
+        if self._lot_info.complete or self._bid_mode() != BID_MODE_EV:
+            return
+        if time.monotonic() - self._last_info_sample < self.INFO_SAMPLE_INTERVAL:
+            return
+        self._ensure_lot_info(boxes, self.INFO_SAMPLE_TIMEOUT)
 
     def _read_result_value(self, boxes: AuctionBoxes, deadline: float) -> int | None:
         """读结算面板的成交价值: 读取预算内反复重读, 读不出返回 None。
@@ -1241,15 +1219,17 @@ class AutoBidAuctionTask(NTEOneTimeTask, BaseNTETask):
         不出的代价从少一条记录变成整件不卖, 所以在预算内重读, 命中可解析且不
         贴边的帧即返回(沿革见 auction-notes 7)。贴边读数可能缺末位, 一律按未读
         出处理, 不因重读放宽; 仍读不出时留一帧 OCR 原文供校准(标签词与识别区域
-        均未实机验证, 见 auction-notes 3)。
+        均未实机验证, 见 auction-notes 2.8 与 5.1)。
         """
         timeout = self._optional_timeout(deadline, self.RESULT_VALUE_READ_TIMEOUT)
         if timeout is None:
             return None
+        ops = self._reading_ops()
         try:
             inner_deadline = time.monotonic() + timeout
             while True:
-                value, tight = self._read_estimate_value(
+                value, tight = ops.estimate_once(
+                    ops,
                     boxes.result_value,
                     max(0.1, inner_deadline - time.monotonic()),
                     "结算价值",
@@ -1306,7 +1286,7 @@ class AutoBidAuctionTask(NTEOneTimeTask, BaseNTETask):
 
         self._session_result_rounds += 1
         self._session_result_total += value
-        screenshot_min = self._config_int(CONF_RESULT_SCREENSHOT_MIN, 0)
+        screenshot_min = auction_config_read.read_int(self.config, CONF_RESULT_SCREENSHOT_MIN, 0)
         if screenshot_min <= 0 or value < screenshot_min:
             return
         # Task.screenshot 保存的是缓存 _frame: 游戏窗口被遮挡停止渲染时, 捕获会
@@ -1343,39 +1323,14 @@ class AutoBidAuctionTask(NTEOneTimeTask, BaseNTETask):
     def _calculate_auction_price(
         self, boxes: AuctionBoxes | None = None, deadline: float | None = None
     ) -> int:
-        """计算当前出价应输入的价格, 模式分发的单一来源在 auction_bid_price。"""
+        """计算当前出价应输入的价格, 模式分发的单一来源在 auction_bid_price。
+
+        这是任务侧保留的 seam 转发器: AuctionBidOps 协议成员(bid.py 经它算价)
+        与 KeypadActions 的 calculate_price 装配点, 同时是出价流程测试的实例级
+        mock 锚点; 叶级价格转发(_estimate_bid_price 等)已删除, 测试直调
+        auction_bid_price 的模块函数 (口径见 auction-notes 8)。
+        """
         return auction_bid_price.calculate_price(self, boxes, deadline)
-
-    def _apply_heart_increment(self, price: int) -> int:
-        """检测到永恒之心时追加固定加价, 实现见 auction_bid_price.apply_heart_increment。"""
-        return auction_bid_price.apply_heart_increment(self, price)
-
-    def _resolve_bid_prices(self) -> list[int]:
-        """读取并解析 6 个每轮指定价格, 实现见 auction_bid_price.resolve_bid_prices。"""
-        return auction_bid_price.resolve_bid_prices(self)
-
-    def _read_stable_asset_value(
-        self,
-        box: Box,
-        timeout: float,
-        label: str,
-        *,
-        skip_zero: bool = False,
-    ) -> int | None:
-        """连续读到相同值才采用的稳定读取, 实现见 auction_reading.read_stable_asset_value。"""
-        return auction_reading.read_stable_asset_value(
-            self, box, timeout, label, skip_zero=skip_zero
-        )
-
-    def _estimate_bid_price(
-        self, boxes: AuctionBoxes | None, deadline: float | None, bid_count: int
-    ) -> int:
-        """按出价面板估价乘倍率出价, 回退规则见 auction_bid_price.estimate_bid_price。"""
-        return auction_bid_price.estimate_bid_price(self, boxes, deadline, bid_count)
-
-    def _smart_bid_price(self, boxes: AuctionBoxes | None, deadline: float | None) -> int:
-        """逐口追踪模式出价, 策略与回退见 auction_bid_price.smart_bid_price。"""
-        return auction_bid_price.smart_bid_price(self, boxes, deadline)
 
     def _raise_mode(self) -> str:
         """读取加价方式, 无效值按默认「倍率」处理。
@@ -1386,13 +1341,6 @@ class AutoBidAuctionTask(NTEOneTimeTask, BaseNTETask):
         mode = self.config.get(CONF_RAISE_MODE, RAISE_MODE_MULTIPLE)
         return mode if mode in RAISE_MODES else RAISE_MODE_MULTIPLE
 
-    def _raise_price(self, base_price: int, bid_count: int) -> int:
-        """按配置的加价方式计算第 bid_count 次出价的价格。
-
-        实现见 auction_bid_price.raise_price。
-        """
-        return auction_bid_price.raise_price(self, base_price, bid_count)
-
     # --- 价格输入 ---
     def _ocr_upscaled(self, box: Box) -> list:
         """放大裁剪 box 区域后做全量 OCR (match=None)。
@@ -1400,9 +1348,15 @@ class AutoBidAuctionTask(NTEOneTimeTask, BaseNTETask):
         供键盘价格回读在原尺寸读不到时补拍孤立单位数字, 检测模型对宽稀疏
         裁剪里的孤立单字符整帧漏检, 3 倍放大可检出 (2026-10-05 实测见
         auction-notes 5.1); 坐标只用于取文本, 不做还原。返回检测器全部
-        文本框, 数字过滤由调用方完成。
+        文本框, 数字过滤由调用方完成。帧未就绪(执行器尚未捕获到任何帧)或
+        裁剪区域完全出帧时返回空列表 (判空背景见 auction-notes 5.1)。
         """
-        crop = box.crop_frame(self.frame)
+        frame = self.frame
+        if frame is None:
+            return []
+        crop = box.crop_frame(frame)
+        if crop.size == 0:
+            return []
         crop = cv2.resize(crop, None, fx=3, fy=3, interpolation=cv2.INTER_CUBIC)
         return self.ocr(frame=crop, match=None)
 
