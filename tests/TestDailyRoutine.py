@@ -255,6 +255,7 @@ class TestDailyRoutineStart(unittest.TestCase):
     def test_daily_routine_do_run_executes_selected_tasks_in_order_and_records_results(self):
         task = object.__new__(DailyRoutineTask)
         task.scene = Mock()
+        task.is_chinese = Mock(return_value=False)
         task.normalize_items = Mock(
             return_value=[
                 {"id": "daily_claim", "enabled": True},

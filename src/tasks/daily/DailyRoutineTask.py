@@ -40,6 +40,47 @@ DAILY_ROUTINE_ENTRIES = (
 )
 
 
+DAILY_RESULT_TEMPLATE_ZH = """【ok-nte · 日常任务报告】
+
+状态: {state}
+成功 {success_count} 项 | 失败 {failed_count} 项 | 跳过 {skipped_count} 项
+
+❌ 失败
+{failed}
+
+✅ 成功
+{success}
+
+⏭️ 跳过
+{skipped}"""
+
+DAILY_RESULT_TEMPLATE_EN = """[ok-nte · Daily Routine Report]
+
+Status: {state}
+Succeeded: {success_count} | Failed: {failed_count} | Skipped: {skipped_count}
+
+❌ Failed
+{failed}
+
+✅ Succeeded
+{success}
+
+⏭️ Skipped
+{skipped}"""
+
+REPORT_STATES_ZH = {
+    "completed": "✅ 执行完成",
+    "completed_with_failures": "⚠️ 执行结束, 存在失败",
+    "interrupted": "❌ 异常中断",
+}
+
+REPORT_STATES_EN = {
+    "completed": "✅ Completed",
+    "completed_with_failures": "⚠️ Finished with failures",
+    "interrupted": "❌ Interrupted",
+}
+
+
 def selection_is_complete(items, entries) -> bool:
     if not items:
         return False
@@ -102,6 +143,7 @@ class _DailyTaskConfig(Config):
 
 class DailyRoutineTask(NTEOneTimeTask, BaseNTETask):
     CONF_ITEMS = "Routine Items"
+    CONF_BOT_ON_FAILURE = "存在失败时发送 BOT 通知"
     TASK_CONFIGS_FILE_NAME = "DailyRoutineTaskConfigs"
 
     def __init__(self, *args, **kwargs):
@@ -115,7 +157,17 @@ class DailyRoutineTask(NTEOneTimeTask, BaseNTETask):
         self._active_routine_task = None
         self.routine_task_configs = None
         self.default_config[self.CONF_ITEMS] = self.default_items()
-        self.config_description[self.CONF_ITEMS] = "日常任务中的任务顺序和启用状态"
+        self.default_config.update(
+            {
+                self.CONF_ITEMS: self.default_items(),
+                self.CONF_BOT_ON_FAILURE: True,
+            }
+        )
+        self.config_description.update(
+            {
+                self.CONF_BOT_ON_FAILURE: "开启仅失败或中断时通知, 关闭每次都通知。\n需在通知设置中启用接收渠道。"  # noqa: E501
+            }
+        )
         self.config_type[self.CONF_ITEMS] = {"hidden": True}
         self.add_exit_after_config()
 
@@ -302,7 +354,7 @@ class DailyRoutineTask(NTEOneTimeTask, BaseNTETask):
             self.screenshot("daily_routine_unexpected_exception")
             if self.current_task_key:
                 self.info_set("当前失败任务", self.current_task_key)
-            self._print_result()
+            self._print_result(interrupted=True)
             self.log_error("DailyRoutineTask error", error)
             raise
 
@@ -372,7 +424,7 @@ class DailyRoutineTask(NTEOneTimeTask, BaseNTETask):
             "pending": [item["id"] for item in items],
         }
 
-    def _print_result(self):
+    def _print_result(self, interrupted=False):
         results = {
             status: [self._task_display_name(task_id) for task_id in task_ids]
             for status, task_ids in self.task_status.items()
@@ -381,14 +433,31 @@ class DailyRoutineTask(NTEOneTimeTask, BaseNTETask):
         self.info_set("success", f"{results['success']}")
         self.info_set("failed", f"{results['failed']}")
         self.info_set("skipped", f"{results['skipped']}")
-        result = "\n".join(
-            (
-                f"success: {results['success']}",
-                f"failed: {results['failed']}",
-                f"skipped: {results['skipped']}",
-            )
+        chinese = self.is_chinese()
+        template = DAILY_RESULT_TEMPLATE_ZH if chinese else DAILY_RESULT_TEMPLATE_EN
+        if interrupted:
+            status = "interrupted"
+        elif results["failed"]:
+            status = "completed_with_failures"
+        else:
+            status = "completed"
+        state_texts = REPORT_STATES_ZH if chinese else REPORT_STATES_EN
+        sections = {
+            status: "\n".join(f"• {name}" for name in names) or ("无" if chinese else "None")
+            for status, names in results.items()
+        }
+        report = template.format(
+            state=state_texts[status],
+            success_count=len(results["success"]),
+            failed_count=len(results["failed"]),
+            skipped_count=len(results["skipped"]),
+            **sections,
         )
-        self.log_info(result, notify=True)
+
+        if not self.config.get(self.CONF_BOT_ON_FAILURE, True) or results["failed"] or interrupted:
+            self.log_bot_info(report)
+        else:
+            self.log_info(report)
 
     def _task_display_name(self, task_id):
         task = self.task_for_id(task_id)
