@@ -17,7 +17,7 @@ from ok import (
 )
 
 from src import text_black_color
-from src.events import ConfirmationRequested, communicate
+from src.events import BotNotificationMessage, ConfirmationRequested, communicate
 from src.Labels import Labels
 from src.scene.NTEScene import NTEScene
 from src.scene.PositionMap import PositionMap
@@ -74,6 +74,10 @@ class BaseNTETask( # pyright: ignore[reportIncompatibleMethodOverride]
         self._last_interval_action_time = {}
         self._action_interval_lock = threading.Lock()
         self.scene_flow.interrupt(self.check_monthly_card, self.handle_monthly_card)
+
+    def log_bot_info(self, message: str, **kwargs) -> None:
+        """Log and notify locally and through the enabled external providers."""
+        self.log_info(BotNotificationMessage(message), notify=True, **kwargs)
 
     def add_claim_reward_count_config(self, default=0):
         self.default_config.update({self.CONF_CLAIM_REWARD_COUNT: default})

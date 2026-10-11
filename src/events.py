@@ -31,6 +31,10 @@ def _install_project_events() -> None:
 _install_project_events()
 
 
+class BotNotificationMessage(str):
+    """Plain notification text explicitly allowed to reach external providers."""
+
+
 @dataclass(frozen=True)
 class RecordingMarker:
     index: int

@@ -1,13 +1,46 @@
 import threading
 from concurrent.futures import ThreadPoolExecutor
+from contextvars import ContextVar
 from threading import Event
+from types import MethodType
 
 from ok import Logger
 
-from src.events import communicate
+from src.events import BotNotificationMessage, communicate
 from src.runtime.services import RuntimeServices
 
 logger = Logger.get_logger(__name__)
+
+
+def _install_bot_notification_filter(main_window) -> None:
+    """Forward external delivery only while handling an explicitly marked message."""
+    if getattr(main_window, "_bot_notification_filter", None) is not None:
+        return
+    allowed = ContextVar("bot_notification_allowed", default=False)
+    manager = main_window.notification_manager
+    original_submit = manager.submit
+    original_show = main_window.show_notification
+
+    def submit(*args, **kwargs):
+        if allowed.get():
+            return original_submit(*args, **kwargs)
+        return None
+
+    def show_notification(_window, *args, **kwargs):
+        message = args[0] if args else kwargs.get("message")
+        token = allowed.set(isinstance(message, BotNotificationMessage))
+        try:
+            return original_show(*args, **kwargs)
+        finally:
+            allowed.reset(token)
+
+    handler = MethodType(show_notification, main_window)
+    manager.submit = submit
+    communicate.notification.disconnect(original_show)
+    main_window.show_notification = handler
+    communicate.notification.connect(handler)
+    main_window.destroyed.connect(lambda *_: communicate.notification.disconnect(handler))
+    main_window._bot_notification_filter = handler
 
 
 class Globals:
@@ -28,6 +61,7 @@ class Globals:
         from src.ui.foundation.dialogs import install_confirmation_handler
         from src.ui.foundation.overlay import install_overlay_window
 
+        _install_bot_notification_filter(main_window)
         main_window.setMinimumSize(1200, 800)
         main_window._confirmation_handler = install_confirmation_handler(main_window)
         install_overlay_window(main_window)
