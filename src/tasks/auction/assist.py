@@ -32,11 +32,13 @@ from src.tasks.auction.layout import (
 from src.utils import image_utils as iu
 
 # --- 永恒之心 ---
-# 展柜主色范围: 色相不符时只需改这一处 (取值来源见 auction-notes 7)。
+# 展柜主色范围: 参考实现主色 290D7B, 按按键精灵 RRGGBB 序解读为 RGB(41,13,123)
+# 深紫罗兰, 每通道 ±22 容差; 色序依据(同脚本品质色验证 + 解包源码 L9384)见
+# auction-notes 7, 色相不符时也只需改这一处。
 HEART_COLOR_RANGE = {
-    "r": (100, 145),
+    "r": (19, 63),
     "g": (0, 35),
-    "b": (20, 65),
+    "b": (101, 145),
 }
 # 命中像素占比达到该值判定展柜里有永恒之心; 待实机帧标定 (见 auction-notes 7)。
 HEART_RATIO_THRESHOLD = 0.004
@@ -90,10 +92,10 @@ INSTRUMENT_STEP_TIMEOUT = 3.0
 DEFAULT_SLOT_CYCLE = tuple(range(1, len(BOX_INSTRUMENT_LIST_ROWS) + 1))
 
 # ensure_instrument_group 的结论, 任务层据此落账仪器队列 (_instrument_remaining):
-# INTACT = 已装备且无需补全(未做动作, 队列保持); ACTIONED = 执行了装备或补全
-# (仪器列表恢复满, 队列重置); FAILED = 失败, 本轮不用仪器。
+# FULL = 仪器列表已满(执行了装备/补全, 或确认已装备且无需补全), 队列重置为满列表;
+# INTACT = 已装备但组列表读数失败, 状态未确认, 队列保持; FAILED = 失败, 本轮不用仪器。
+INSTRUMENT_GROUP_FULL = "full"
 INSTRUMENT_GROUP_INTACT = "intact"
-INSTRUMENT_GROUP_ACTIONED = "actioned"
 INSTRUMENT_GROUP_FAILED = "failed"
 
 
@@ -232,9 +234,9 @@ def use_instrument(
                 break
             if not entry:
                 if not clicked:
-                    task.log_warning("未识别到「仪器」按钮, 跳过本口仪器使用")
+                    task.log_warning("未识别到「仪器」按钮, 跳过本回合仪器使用")
                     return False
-                task.log_warning("重试时未识别到「仪器」按钮, 跳过本口仪器使用")
+                task.log_warning("重试时未识别到「仪器」按钮, 跳过本回合仪器使用")
                 _close_instrument_list(task, boxes)
                 return False
             task.operate_click(entry[0], after_sleep=INSTRUMENT_STEP_SLEEP)
@@ -256,7 +258,7 @@ def use_instrument(
                 # 迟开的弹窗挡住后续键盘输价 (对齐装备侧收尾, 见 auction-notes 7)。
                 _close_instrument_list(task, boxes)
             if not budget_gone:
-                task.log_warning("仪器列表弹窗未打开, 跳过本口仪器使用")
+                task.log_warning("仪器列表弹窗未打开, 跳过本回合仪器使用")
             return False
         list_opened = True
 
@@ -266,7 +268,7 @@ def use_instrument(
         if not row_hits:
             # 空槽说明队列记录与实机列表已经对不上, 宁可放弃本口也不按
             # 默认高亮误用第一项 (见 auction-notes 7); 关闭由 finally 统一执行。
-            task.log_warning(f"仪器列表第 {row} 行没有内容, 跳过本口仪器使用")
+            task.log_warning(f"仪器列表第 {row} 行没有内容, 跳过本回合仪器使用")
             return False
 
         for step in (rows[row - 1], INSTRUMENT_CONFIRM):
@@ -419,9 +421,9 @@ def ensure_instrument_group(
 ) -> str:
     """主界面校验并装备「仪器组」选定的组, 返回结论字符串供任务层落账。
 
-    返回 INSTRUMENT_GROUP_INTACT(已装备且无需补全, 未做任何动作) /
-    INSTRUMENT_GROUP_ACTIONED(执行了装备或补全, 仪器列表恢复满, 任务层据此
-    重置仪器队列) / INSTRUMENT_GROUP_FAILED(失败, 本轮不用仪器)。
+    返回 INSTRUMENT_GROUP_FULL(仪器列表已满: 执行了装备/补全, 或确认已装备且
+    无需补全, 任务层据此重置仪器队列) / INSTRUMENT_GROUP_INTACT(组列表读数
+    失败, 状态未确认, 队列保持) / INSTRUMENT_GROUP_FAILED(失败, 本轮不用仪器)。
 
     每轮无条件点主界面「请选择仪器组合」入口(POS_INSTRUMENT_GROUP_ENTRY 用户
     实测)打开「仪器组合」弹窗核实补全状态, 按三种实机状态分支 (见
@@ -485,16 +487,21 @@ def ensure_instrument_group(
             first_row = _read_settled_list(task, boxes, deadline, RE_ANY_TEXT)
             if not first_row:
                 # 读数失败(迟迟不安稳或持续不可读)说明拿不到可信的首行判定;
-                # 不动作只关闭, 下轮校验重试, 不拿可疑读数去点付费按钮。
+                # 不动作只关闭, 下轮校验重试, 不拿可疑读数去点付费按钮。状态
+                # 未确认, 返回 INTACT 让任务层保持队列不动(不据此重置)。
                 task.log_warning("组列表读数失败, 本轮不动作, 关闭仪器组合弹窗")
                 _close_combo_dialog(task, boxes)
                 return INSTRUMENT_GROUP_INTACT
             if not _first_row_is_group(first_row, target_re):
                 # 已装备的组只有在需要补全时才会被置顶到列表首位; 未置顶说明仪器
-                # 还在, 不点卡片, 直接关闭继续拍卖 (实机流程见 auction-notes 7)。
+                # 还在(满), 不点卡片, 直接关闭继续拍卖 (实机流程见 auction-notes 7)。
+                # 返回 FULL 而非「队列保持」: 「未置顶 = 仪器满」是实机事实, 任务层
+                # 据此把队列重置为满列表 —— 队列可能因补全在别处生效(用户手动补全,
+                # 或上轮补全动作成功但被判定失败)而残留已用掉的槽位, 不重置会让该
+                # 槽位被永久跳过 (2026-10-06 事故, 见 auction-notes 7)。
                 task.log_info("仪器组已装备且无需补全, 关闭仪器组合弹窗")
                 _close_combo_dialog(task, boxes)
-                return INSTRUMENT_GROUP_INTACT
+                return INSTRUMENT_GROUP_FULL
             task.log_info("已装备的仪器组被置顶, 需要补全, 走补全流程")
 
         entry = None
@@ -566,7 +573,7 @@ def ensure_instrument_group(
         equipped = _read_box_text(task, boxes.instrument_card)
         if target_re.search(equipped):
             task.log_info(f"{group_name}已装备")
-            return INSTRUMENT_GROUP_ACTIONED
+            return INSTRUMENT_GROUP_FULL
         task.log_warning(f"装备动作已执行但仪器组卡片仍未读到 {group_name}, 本轮不用仪器")
         return INSTRUMENT_GROUP_FAILED
     except TaskDisabledException:

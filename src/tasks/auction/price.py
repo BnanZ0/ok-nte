@@ -14,6 +14,7 @@ from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 from src.tasks.auction.layout import FULLWIDTH_NUMERIC, PAD_SHORTCUTS, RE_INPUT_RANGE
 from src.tasks.auction.options import (
     BID_MODE_ESTIMATE,
+    BID_MODE_EV,
     BID_MODE_SMART,
     CONF_BID_PRICES,
     MAX_BID_ROUNDS,
@@ -175,7 +176,7 @@ def validate_fixed_price(raw_price: object) -> int:
 def validate_raise_value(raw_value: object) -> Decimal:
     """校验「加价数值」: 必须按 Decimal 解析为正有限数, 返回解析结果, 非法时抛 ValueError。
 
-    解析口径必须与运行时回退读数的 _config_decimal 一致, 否则非法字符串会在
+    解析口径必须与运行时回退读数的 config_read.read_decimal 一致, 否则非法字符串会在
     运行时回退成 0 静默按基础价出价 (见 auction-notes 5.1); 加价的语义就是往上加,
     0 或负数在入口一并拦下。
     """
@@ -193,7 +194,7 @@ def validate_raise_value(raw_value: object) -> Decimal:
 def validate_raise_round(raw_round: object) -> None:
     """校验「加价回合数」: 有值时必须能按 int 解析且不为负, 非法时抛 ValueError。
 
-    解析口径与运行时的 _config_int 一致: 运行时对解析失败静默回退 0(= 第 1 口
+    解析口径与运行时的 config_read.read_int 一致: 运行时对解析失败静默回退 0(= 第 1 口
     就按加价算), 负数会让 raise_offset 的偏移前移 (填 -1 时第 1 口就按第 3 口
     的加价算), 两者都改变真实出价, 与基础价/加价数值同口径在入口拦下
     (见 auction-notes 5.1)。键缺失(None)不算脏值: 运行时同样按 0 处理。
@@ -211,7 +212,7 @@ def validate_raise_round(raw_round: object) -> None:
 def validate_special_round_price(raw_price: object) -> int:
     """校验自定义模式「指定回合价格」: 必须能解析成正整数, 返回解析结果。
 
-    与基础价同口径在入口拦下: 运行时 _config_int 对非法值静默回退 0,
+    与基础价同口径在入口拦下: 运行时 config_read.read_int 对非法值静默回退 0,
     special_round_price 对 ≤0 一律返回 None, 整个指定回合功能静默失效
     (见 auction-notes 5.1)。
     """
@@ -227,8 +228,8 @@ def validate_special_round_price(raw_price: object) -> int:
 def validate_special_rounds(raw_rounds: object) -> list[int]:
     """校验自定义模式「指定回合」: 逐项按 int 解析, 须非空且取值在单场口数上限内。
 
-    对原始配置值解析, 不经过会吞脏值的 _config_int_list(任一项非法返回空
-    列表, 所有指定回合静默丢失); 越界回合(游戏单场最多 MAX_BID_ROUNDS 口)
+    对原始配置值逐项解析, 非法直接抛错, 不走「任一项非法返回空列表, 所有指定
+    回合静默丢失」的读数回退; 越界回合(游戏单场最多 MAX_BID_ROUNDS 口)
     永不命中, 同属静默失效, 一并在入口拦下 (见 auction-notes 5.1)。
     """
     if not isinstance(raw_rounds, (list, tuple)):
@@ -241,7 +242,7 @@ def validate_special_rounds(raw_rounds: object) -> list[int]:
             raise ValueError(f"指定回合配置非法: {raw_rounds!r}") from None
         if not 1 <= value <= MAX_BID_ROUNDS:
             raise ValueError(
-                f"指定回合取值只能是 1~{MAX_BID_ROUNDS} (单场最多 {MAX_BID_ROUNDS} 口), "
+                f"指定回合取值只能是 1~{MAX_BID_ROUNDS} (单场最多 {MAX_BID_ROUNDS} 回合), "
                 f"当前: {raw_rounds!r}"
             )
         rounds.append(value)
@@ -502,6 +503,70 @@ def _smart_low_value_bid(state: SmartRoundState, round_no: int, estimate: int) -
     return estimate + reserve + bonus
 
 
+# --- 期望价值回合系数模式 ---
+
+# 回合系数表: 出价 = EV ÷ 系数, 逐口收紧 (第 1 口出期望的一半, 第 4 口出九成)。
+# 数值移植自达芙计算器「回合参考价」(calculator.html STRATEGY_MINI_OPTIONS,
+# 2026-10-07), 未经实机验证; 分数形式避免浮点除误差, price = EV * den // num。
+EV_ROUND_COEFFICIENTS: dict[int, tuple[int, int]] = {
+    1: (2, 1),  # 2.0
+    2: (8, 5),  # 1.6
+    3: (13, 10),  # 1.3
+    4: (11, 10),  # 1.1
+}
+# 期望价值模式最多出价的口数, 之后放弃本场等待拍卖结束 (达芙口径第 5 口出
+# 「跑路价」, 本实现取更保守的放弃: 没有可靠的红色地板价可跑)。
+EV_MAX_BIDS = 4
+
+
+def ev_expected_value(
+    purple_count: int,
+    purple_avg: int,
+    gold_count: int,
+    gold_avg: int,
+    red_count: int,
+    red_pool_price: int,
+) -> int:
+    """期望价值: 紫金部分按情报窗口的官方均价直接计价, 红按配置红池单价折算。
+
+    翻倍/闪耀不建模: 翻倍场的真实期望高于计算值, 出价只会低估不会高估
+    (偏差口径见 auction-notes 7)。
+    """
+    return purple_count * purple_avg + gold_count * gold_avg + red_count * red_pool_price
+
+
+def ev_red_count(total_count: int, purple_count: int, gold_count: int) -> int:
+    """红件数 = 紫金红总件数 − 紫 − 金; 读数互相矛盾(差值为负)按 0 处理。"""
+    return max(total_count - purple_count - gold_count, 0)
+
+
+def ev_round_price(ev: int, bid_count: int) -> int | None:
+    """第 bid_count 口的期望价值出价 = EV ÷ 回合系数, 整数运算向下取整。
+
+    超出系数表的口数返回 None, 由调用方按「放弃本场」处理。
+    """
+    coefficient = EV_ROUND_COEFFICIENTS.get(bid_count)
+    if coefficient is None:
+        return None
+    num, den = coefficient
+    return ev * den // num
+
+
+def validate_red_pool_price(raw_price: object) -> int:
+    """校验期望价值模式「红池均价」: 必须能解析成非负整数, 返回解析结果。
+
+    红池单价是真实花钱的决策输入, 非法值在任务入口拦下而不是出价时回退
+    (口径同 validate_fixed_price); 0 = 红不计入 EV, 是合法的保守取值。
+    """
+    try:
+        price = int(raw_price)
+    except (TypeError, ValueError):
+        raise ValueError(f"红池均价配置非法: {raw_price!r}") from None
+    if price < 0:
+        raise ValueError(f"红池均价不能为负数, 当前: {raw_price!r}")
+    return price
+
+
 # --- 资产路由: 资产跌破门槛时按表把出价模式切到低风险模式 ---
 
 # 「巨物小吱4123」的固定出价表按高级场贵重拍品设计, 账号在高级场亏损掉到低级场后,
@@ -510,8 +575,11 @@ def _smart_low_value_bid(state: SmartRoundState, round_no: int, estimate: int) -
 ASSET_MODE_ROUTE_THRESHOLD = 1_000_000
 
 # 资产跌破门槛时的模式路由表; 其他模式需要同等保护时在这里加一项。
+# 期望价值模式同样要保护: 红池单价是静态配置, 低级场的红价远低于高级场,
+# 不路由会按高级场口径在低级场高估红价。
 ASSET_MODE_ROUTES: dict[str, str] = {
     BID_MODE_SMART: BID_MODE_ESTIMATE,
+    BID_MODE_EV: BID_MODE_ESTIMATE,
 }
 
 

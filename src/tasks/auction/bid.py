@@ -4,8 +4,8 @@
 放弃与仪器等能力都经任务侧适配器访问, 允许访问面由 contracts.AuctionBidOps
 窄协议声明。出价循环与结果等待属阶段协调, 留在任务类 (_stage_bid_loop /
 _wait_bid_outcome); 本模块只承载「一次竞价动作」的领域规则: 资产为零的
-二次确认、出价高于资产的钳制、无心弃局、仪器先于出价按钮使用、键盘弹出
-判定与价格输入的先后顺序。
+二次确认、出价高于资产的钳制、无心弃局、仪器先于出价按钮使用、出价
+确认后的表情发送、键盘弹出判定与价格输入的先后顺序。
 出价序号与上轮出价的落账不在本模块: 键盘确认价经任务侧 _input_fixed_price
 落账 last_bid_price, current_bid_count 由出价循环维护。
 """
@@ -26,7 +26,9 @@ def attempt_bid(task: AuctionBidOps, boxes: AuctionBoxes, deadline: float) -> bo
         读 0, 或展柜未检出永恒之心且勾选了「无心放弃本场」。
     """
     # 等待确认后的加载动画完成, 再判断资产值.
-    asset_value = task._read_asset_value(
+    reading = task._reading_ops()
+    asset_value = reading.asset_once(
+        reading,
         boxes.asset_value,
         task._remaining_timeout(deadline, auction_reading.ASSET_OCR_TIMEOUT),
     )
@@ -36,7 +38,8 @@ def attempt_bid(task: AuctionBidOps, boxes: AuctionBoxes, deadline: float) -> bo
 
     # 资产为 0 时放弃本轮出价; 单次误读就放弃整场拍卖代价过高, 放弃前需二次确认.
     if asset_value == 0:
-        confirm_value = task._read_asset_value(
+        confirm_value = reading.asset_once(
+            reading,
             boxes.asset_value,
             task._remaining_timeout(deadline, auction_reading.ASSET_OCR_TIMEOUT),
         )
@@ -113,6 +116,8 @@ def attempt_bid(task: AuctionBidOps, boxes: AuctionBoxes, deadline: float) -> bo
     if not bid_confirmed:
         raise WaitFailedException("出价确认失败: 出价按钮仍存在")
 
+    task._send_emote_once()
+
     return True
 
 
@@ -139,11 +144,14 @@ def cap_price_to_asset(
     """
     if price <= asset_value:
         return price
-    confirm_value = task._read_asset_value(
+    reading = task._reading_ops()
+    confirm_value = reading.asset_once(
+        reading,
         boxes.asset_value,
         task._remaining_timeout(deadline, auction_reading.ASSET_OCR_TIMEOUT),
     )
-    hint_cap = task._read_input_range_cap(
+    hint_cap = reading.input_range_once(
+        reading,
         boxes.price_result,
         task._remaining_timeout(deadline, auction_reading.INPUT_RANGE_CAP_OCR_TIMEOUT),
     )

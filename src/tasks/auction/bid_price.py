@@ -1,17 +1,18 @@
 """出价价格决策: 出价模式的注册分发与各模式的价格计算实现。
 
-四种出价模式 (自定义 / 每轮指定 / 按系统估价 / 逐口追踪) 的模式声明、配置校验
-与算价入口共用同一张注册表, 都收在本模块: 任务入口的 _validate_price_config 与
+五种出价模式 (自定义 / 每轮指定 / 按系统估价 / 逐口追踪 / 期望价值) 的模式声明、
+配置校验与算价入口共用同一张注册表, 都收在本模块: 任务入口的 _validate_price_config 与
 运行时算价按模式取同一个 BidMode, 新增模式只需在注册表加一项。纯计算规则
-(加价公式, 分档换算, 逐口追踪策略, 指定价格解析) 在 auction_price, 这里负责读
-配置, 调 OCR 读数, 告警与回退。模块函数的第一个参数 task 是 AutoBidAuctionTask
-实例, 允许访问面由 contracts.AuctionBidPriceOps 声明; 模块内部的自家函数直接
-调用, 不再绕道任务转发。
+(加价公式, 分档换算, 逐口追踪策略, 指定价格解析, 期望价值) 在 auction_price,
+这里负责读配置, 调 OCR 读数, 告警与回退。模块函数的第一个参数 task 是
+AutoBidAuctionTask 实例, 允许访问面由 contracts.AuctionBidPriceOps 声明;
+模块内部的自家函数直接调用, 不再绕道任务转发。
 """
 
 from collections.abc import Callable
 from dataclasses import dataclass
 
+from src.tasks.auction import config_read as auction_config_read
 from src.tasks.auction import price as auction_price
 from src.tasks.auction import reading as auction_reading
 from src.tasks.auction.contracts import AuctionBidPriceOps
@@ -19,6 +20,7 @@ from src.tasks.auction.layout import AuctionBoxes
 from src.tasks.auction.options import (
     BID_MODE_CUSTOM,
     BID_MODE_ESTIMATE,
+    BID_MODE_EV,
     BID_MODE_LIST,
     BID_MODE_SMART,
     CONF_AUTO_RAISE,
@@ -27,6 +29,7 @@ from src.tasks.auction.options import (
     CONF_HEART_INCREMENT,
     CONF_RAISE_ROUND,
     CONF_RAISE_VALUE,
+    CONF_RED_POOL_PRICE,
     CONF_SPECIAL_ROUND,
     CONF_SPECIAL_ROUND_PRICE,
     CONF_SPECIAL_ROUNDS,
@@ -55,7 +58,8 @@ def apply_heart_increment(task: AuctionBidPriceOps, price: int) -> int:
     """
     if not task._heart_present or price <= 0:
         return price
-    increment = task._config_int(
+    cfg = auction_config_read.ConfigReader(task.config, task.log_warning)
+    increment = cfg.read_int(
         CONF_HEART_INCREMENT,
         0,
         warn=f"「{CONF_HEART_INCREMENT}」不是整数, 本次按 0 处理(不加成)",
@@ -72,7 +76,7 @@ def resolve_bid_prices(task: AuctionBidPriceOps) -> list[int]:
     解析规则见 auction_price.resolve_bid_prices: 未设置(0)的回合沿用上一次
     已设置的价格, 第 1 次出价必须有价格, 否则返回空列表由调用方按配置错误处理。
     """
-    raw_prices = [task._config_int(key, 0) for key in CONF_BID_PRICES]
+    raw_prices = [auction_config_read.read_int(task.config, key, 0) for key in CONF_BID_PRICES]
     return auction_price.resolve_bid_prices(raw_prices)
 
 
@@ -93,6 +97,35 @@ def listed_bid_price(task: AuctionBidPriceOps, bid_count: int) -> int:
     else:
         task.log_info(f"第 {bid_count} 次出价使用指定价格 {price}")
     return price
+
+
+def _read_base_price(task: AuctionBidPriceOps) -> int:
+    """读「基础价」作出价下限, 非法值告警回退 1; 估价类两个模式共用同一口径。"""
+    cfg = auction_config_read.ConfigReader(task.config, task.log_warning)
+    return cfg.read_int(
+        CONF_FIXED_PRICE,
+        1,
+        warn=f"「{CONF_FIXED_PRICE}」不是整数, 出价下限与估价读不出时的回退值按 1 计算",
+    )
+
+
+def _read_stable_estimate(
+    task: AuctionBidPriceOps, boxes: AuctionBoxes | None, deadline: float | None
+) -> int | None:
+    """稳定读「当前估价」, boxes 缺失或读不出返回 None; 0 是滚数前的占位不是失败。
+
+    「按系统估价」与「逐口追踪」共用; skip_zero 的原因见 estimate_bid_price。
+    """
+    if boxes is None:
+        return None
+    ops = task._reading_ops()
+    return ops.stable_once(
+        ops,
+        boxes.estimate,
+        task._remaining_timeout(deadline, auction_reading.ESTIMATE_STABLE_TIMEOUT),
+        "当前估价",
+        skip_zero=True,
+    )
 
 
 def estimate_bid_price(
@@ -116,23 +149,12 @@ def estimate_bid_price(
     routed = task._asset_routed_mode is not None
     base_price = 1
     if not routed:
-        base_price = task._config_int(
-            CONF_FIXED_PRICE,
-            1,
-            warn=f"「{CONF_FIXED_PRICE}」不是整数, 出价下限与估价读不出时的回退值按 1 计算",
-        )
-    estimate = None
-    if boxes is not None:
-        estimate = task._read_stable_asset_value(
-            boxes.estimate,
-            task._remaining_timeout(deadline, auction_reading.ESTIMATE_STABLE_TIMEOUT),
-            "当前估价",
-            skip_zero=True,
-        )
+        base_price = _read_base_price(task)
+    estimate = _read_stable_estimate(task, boxes, deadline)
     if estimate is None:
         if routed:
             raise BidPriceUnavailable(
-                f"资产路由模式下第 {bid_count} 口估价识别失败, 不回退「基础价」"
+                f"资产路由模式下第 {bid_count} 回合估价识别失败, 不回退「基础价」"
             )
         task.log_warning(f"当前估价识别失败, 第 {bid_count} 次出价回退到基础价 {base_price}")
         return base_price
@@ -142,7 +164,7 @@ def estimate_bid_price(
     if final_price <= 0:
         if routed:
             raise BidPriceUnavailable(
-                f"资产路由模式下第 {bid_count} 口按估价 {estimate} 与倍率 {ratio} "
+                f"资产路由模式下第 {bid_count} 回合按估价 {estimate} 与倍率 {ratio} "
                 f"算出无效价格 {final_price}, 不回退「基础价」"
             )
         task.log_warning(
@@ -172,20 +194,9 @@ def smart_bid_price(
     当前最高价的出价, 连续 3 次失败会丢掉整轮; 界面读不到他人的最高价,
     「自己上一口」是能拿到的最可靠的必要下界。
     """
-    base_price = task._config_int(
-        CONF_FIXED_PRICE,
-        1,
-        warn=f"「{CONF_FIXED_PRICE}」不是整数, 出价下限与估价读不出时的回退值按 1 计算",
-    )
+    base_price = _read_base_price(task)
     bid_count = task.current_bid_count + 1
-    estimate = None
-    if boxes is not None:
-        estimate = task._read_stable_asset_value(
-            boxes.estimate,
-            task._remaining_timeout(deadline, auction_reading.ESTIMATE_STABLE_TIMEOUT),
-            "当前估价",
-            skip_zero=True,
-        )
+    estimate = _read_stable_estimate(task, boxes, deadline)
     if estimate is None:
         task.log_warning(f"当前估价识别失败, 第 {bid_count} 次出价回退到基础价 {base_price}")
         return base_price
@@ -195,12 +206,12 @@ def smart_bid_price(
     bid = auction_price.smart_bid_price(state, bid_count, estimate)
     if task.last_bid_price is not None and bid <= task.last_bid_price:
         task.log_warning(
-            f"{BID_MODE_SMART}出价 {bid} 不高于上一口 {task.last_bid_price}, "
+            f"{BID_MODE_SMART}出价 {bid} 不高于上一回合 {task.last_bid_price}, "
             f"抬高到 {task.last_bid_price + 1}"
         )
         bid = task.last_bid_price + 1
     task.log_info(
-        f"{BID_MODE_SMART}: 第 {bid_count} 口估价 {estimate}, 出价 {bid}, "
+        f"{BID_MODE_SMART}: 第 {bid_count} 回合估价 {estimate}, 出价 {bid}, "
         f"134 万物品标记: {'是' if state.special_134 else '否'}"
     )
     return bid
@@ -233,13 +244,13 @@ def estimate_ratio(task: AuctionBidPriceOps, estimate: int) -> float:
 
 def tier_bounds(task: AuctionBidPriceOps) -> list[int]:
     """读取 6 档估价上限, 非法值按 0(无上限)处理, 严谨性由入口校验保证。"""
-    return [task._config_int(key, 0) for key in CONF_TIER_BOUNDS]
+    return [auction_config_read.read_int(task.config, key, 0) for key in CONF_TIER_BOUNDS]
 
 
 def tier_ratios(task: AuctionBidPriceOps) -> list:
     """读取 6 档百分比取值, 缺失/非法时回退该档默认(参考攻略档), 严谨性由入口校验保证。"""
     return [
-        task._config_decimal(key, DEFAULT_TIER_PERCENTS[index - 1])
+        auction_config_read.read_decimal(task.config, key, DEFAULT_TIER_PERCENTS[index - 1])
         for index, key in enumerate(CONF_TIER_RATIOS, start=1)
     ]
 
@@ -253,7 +264,8 @@ def special_round_price(task: AuctionBidPriceOps, bid_count: int) -> int | None:
     if not task.config.get(CONF_SPECIAL_ROUND, False):
         return None
 
-    special_rounds = task._config_int_list(
+    cfg = auction_config_read.ConfigReader(task.config, task.log_warning)
+    special_rounds = cfg.read_int_list(
         CONF_SPECIAL_ROUNDS,
         warn=f"「{CONF_SPECIAL_ROUNDS}」含非法项, 指定回合单独出价不生效, 按常规价格出价",
     )
@@ -264,7 +276,7 @@ def special_round_price(task: AuctionBidPriceOps, bid_count: int) -> int | None:
             "这些回合单独出价不会命中, 按常规价格出价"
         )
         special_rounds = [r for r in special_rounds if 1 <= r <= MAX_BID_ROUNDS]
-    special_price = task._config_int(
+    special_price = cfg.read_int(
         CONF_SPECIAL_ROUND_PRICE,
         0,
         warn=f"「{CONF_SPECIAL_ROUND_PRICE}」不是整数, 指定回合单独出价不生效, 按常规价格出价",
@@ -288,11 +300,12 @@ def raise_price(task: AuctionBidPriceOps, base_price: int, bid_count: int) -> in
     这里负责读取配置、告警与回退基础价。
     """
     mode = task._raise_mode()
-    value = task._config_decimal(CONF_RAISE_VALUE, "0")
-    raise_round = task._config_int(
+    cfg = auction_config_read.ConfigReader(task.config, task.log_warning)
+    value = cfg.read_decimal(CONF_RAISE_VALUE, "0")
+    raise_round = cfg.read_int(
         CONF_RAISE_ROUND,
         0,
-        warn=f"「{CONF_RAISE_ROUND}」不是非负整数, 本次按 0 处理(第 1 口起即按加价计算)",
+        warn=f"「{CONF_RAISE_ROUND}」不是非负整数, 本次按 0 处理(第 1 回合起即按加价计算)",
     )
 
     # 未到配置的加价回合, 直接使用基础价.
@@ -338,7 +351,7 @@ def validate_tiered_ratio(task: AuctionBidPriceOps) -> None:
                 f"分档{index}估价上限不能为负: {task.config.get(CONF_TIER_BOUNDS[index - 1])!r}"
             )
         if bound == 0 and index != len(bounds):
-            # 非数字配置经 _config_int 也回退成 0, 把原始值带上便于定位.
+            # 非数字配置经 config_read.read_int 也回退成 0, 把原始值带上便于定位.
             raise ValueError(
                 f"只有最后一档允许上限填 0(无上限), 分档{index}: "
                 f"{task.config.get(CONF_TIER_BOUNDS[index - 1])!r}"
@@ -350,7 +363,7 @@ def validate_tiered_ratio(task: AuctionBidPriceOps) -> None:
 
     tier_values = []
     for index, key in enumerate(CONF_TIER_RATIOS, start=1):
-        value = task._config_decimal(key, DEFAULT_TIER_PERCENTS[index - 1])
+        value = auction_config_read.read_decimal(task.config, key, DEFAULT_TIER_PERCENTS[index - 1])
         if not value.is_finite() or value <= 0:
             raise ValueError(f"分档{index}百分比必须为正数, 当前: {task.config.get(key)!r}")
         tier_values.append(value)
@@ -396,7 +409,9 @@ def _validate_custom(task: AuctionBidPriceOps) -> None:
 
 
 def _validate_list(task: AuctionBidPriceOps) -> None:
-    auction_price.validate_bid_prices([task._config_int(key, 0) for key in CONF_BID_PRICES])
+    auction_price.validate_bid_prices(
+        [auction_config_read.read_int(task.config, key, 0) for key in CONF_BID_PRICES]
+    )
 
 
 def _validate_estimate(task: AuctionBidPriceOps) -> None:
@@ -407,6 +422,16 @@ def _validate_estimate(task: AuctionBidPriceOps) -> None:
 def _validate_smart(task: AuctionBidPriceOps) -> None:
     # 与「按系统估价」同口径: 估价读不出时回退基础价, 只提前说清后果,
     # 不拦任务; 其余策略数值是参考脚本内置的, 没有用户可配项。
+    warn_if_fixed_price_invalid(task)
+
+
+def _validate_ev(task: AuctionBidPriceOps) -> None:
+    """期望价值模式的入口校验: 红池单价非负整数(0 = 红不计入), 非法直接终止。
+
+    「基础价」只在该模式缺情报降级按估价口径出价时兜底, 与估价类模式同口径
+    提前告警, 不拦任务。
+    """
+    auction_price.validate_red_pool_price(task.config.get(CONF_RED_POOL_PRICE))
     warn_if_fixed_price_invalid(task)
 
 
@@ -421,7 +446,8 @@ def _price_custom(
     基础价每口活读以跟进运行中的改动; 运行中改坏会静默回退 1, 只能靠告警提示
     (见 auction-notes 5.1)。
     """
-    base_price = task._config_int(
+    cfg = auction_config_read.ConfigReader(task.config, task.log_warning)
+    base_price = cfg.read_int(
         CONF_FIXED_PRICE,
         1,
         warn=f"「{CONF_FIXED_PRICE}」不是正整数, 本次出价按回退值 1 计算",
@@ -458,20 +484,73 @@ def _price_smart(
     return apply_heart_increment(task, smart_bid_price(task, boxes, deadline))
 
 
+def _price_ev(
+    task: AuctionBidPriceOps, boxes: AuctionBoxes | None, deadline: float | None, bid_count: int
+) -> int:
+    """期望价值回合系数: 情报快照算 EV 后按回合系数收紧出价。
+
+    情报快照不完整时按「按系统估价」口径降级 (显式告警, 非静默): EV 是真实
+    花钱决策, 宁可退回保守口径也不按残缺数据出价。红件数由总数减紫金得出,
+    读数矛盾按 0 处理; 系数表只到第 4 口, 第 5 口起放弃本场 (与资产路由算
+    不出价格同路处理, 见 _stage_bid_loop 的 BidPriceUnavailable 分支)。
+    """
+    info = task._ensure_lot_info(boxes)
+    if not info.complete:
+        task.log_warning(
+            f"情报窗口字段不全({info}), 第 {bid_count} 次出价按「按系统估价」口径降级"
+        )
+        return apply_heart_increment(task, estimate_bid_price(task, boxes, deadline, bid_count))
+
+    red_count = auction_price.ev_red_count(info.total_count, info.purple_count, info.gold_count)
+    if red_count == 0 and info.total_count - info.purple_count - info.gold_count < 0:
+        task.log_warning(
+            f"情报读数矛盾: 紫金红总数 {info.total_count} 小于紫 {info.purple_count} + "
+            f"金 {info.gold_count}, 红件数按 0 处理"
+        )
+    cfg = auction_config_read.ConfigReader(task.config, task.log_warning)
+    red_pool_price = cfg.read_int(
+        CONF_RED_POOL_PRICE,
+        0,
+        warn=f"「{CONF_RED_POOL_PRICE}」不是整数, 本次按 0 处理(红不计入期望价值)",
+    )
+    ev = auction_price.ev_expected_value(
+        info.purple_count, info.purple_avg, info.gold_count, info.gold_avg,
+        red_count, red_pool_price,
+    )
+    price = auction_price.ev_round_price(ev, bid_count)
+    if price is None:
+        raise BidPriceUnavailable(
+            f"{BID_MODE_EV}只出前 {auction_price.EV_MAX_BIDS} 次出价, "
+            f"第 {bid_count} 次起放弃本场, 等待拍卖结束"
+        )
+    if price <= 0:
+        task.log_warning(
+            f"{BID_MODE_EV} 按情报({info})与红池单价 {red_pool_price} 算出非正价格 "
+            f"{price}, 按「按系统估价」口径降级"
+        )
+        return apply_heart_increment(task, estimate_bid_price(task, boxes, deadline, bid_count))
+    task.log_info(
+        f"{BID_MODE_EV}: 紫 {info.purple_count}×{info.purple_avg} + "
+        f"金 {info.gold_count}×{info.gold_avg} + 红 {red_count}×{red_pool_price} = "
+        f"期望价值 {ev}, 第 {bid_count} 次出价 {price}"
+    )
+    return apply_heart_increment(task, price)
+
+
 @dataclass(frozen=True)
 class BidMode:
     """一种出价模式: 校验与算价入口随模式一起声明, 两处分发共用同一张表。"""
 
-    key: str
     validate: Callable[[AuctionBidPriceOps], None]
     price: Callable[[AuctionBidPriceOps, AuctionBoxes | None, float | None, int], int]
 
 
 BID_MODE_REGISTRY: dict[str, BidMode] = {
-    BID_MODE_LIST: BidMode(BID_MODE_LIST, _validate_list, _price_list),
-    BID_MODE_ESTIMATE: BidMode(BID_MODE_ESTIMATE, _validate_estimate, _price_estimate),
-    BID_MODE_SMART: BidMode(BID_MODE_SMART, _validate_smart, _price_smart),
-    BID_MODE_CUSTOM: BidMode(BID_MODE_CUSTOM, _validate_custom, _price_custom),
+    BID_MODE_LIST: BidMode(_validate_list, _price_list),
+    BID_MODE_ESTIMATE: BidMode(_validate_estimate, _price_estimate),
+    BID_MODE_SMART: BidMode(_validate_smart, _price_smart),
+    BID_MODE_CUSTOM: BidMode(_validate_custom, _price_custom),
+    BID_MODE_EV: BidMode(_validate_ev, _price_ev),
 }
 
 

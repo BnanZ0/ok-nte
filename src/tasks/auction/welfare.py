@@ -233,7 +233,8 @@ def observe_main_asset(task: AuctionWelfareOps, boxes: AuctionBoxes, deadline: f
         return None
 
     # 使用数字 match, 避免漏识别单字符数值 0.
-    asset_value = task._read_asset_value(boxes.main_asset, timeout)
+    ops = task._reading_ops()
+    asset_value = ops.asset_once(ops, boxes.main_asset, timeout)
     if asset_value is None:
         task.log_warning("资产值识别失败, 跳过本次观测")
         return None
