@@ -1497,3 +1497,11 @@ msgstr ""
 
 msgid "模型生成Token上限"
 msgstr ""
+
+msgid "存在失败时发送 BOT 通知"
+msgstr ""
+
+msgid ""
+"开启仅失败或中断时通知, 关闭每次都通知。\n"
+"需在通知设置中启用接收渠道。"
+msgstr ""

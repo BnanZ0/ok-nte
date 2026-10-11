@@ -1254,3 +1254,13 @@ msgstr "Número máximo de tokens gerados pelo modelo"
 
 msgid "模型生成Token上限"
 msgstr "Limite de tokens de geração do modelo"
+
+msgid "存在失败时发送 BOT 通知"
+msgstr "Enviar notificação do BOT em caso de falha"
+
+msgid ""
+"开启仅失败或中断时通知, 关闭每次都通知。\n"
+"需在通知设置中启用接收渠道。"
+msgstr ""
+"Quando ativado, notifica apenas em caso de falha ou interrupção; quando desativado, notifica sempre.\n"
+"É necessário ativar os canais de recebimento nas configurações de notificação."
