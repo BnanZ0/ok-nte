@@ -64,19 +64,6 @@ Mirror 的包发布、启动器适配和运行时更新需另外接入; 仅添�
 
 参考: [PyInstaller 官方 hook 机制](https://pyinstaller.org/en/stable/hooks.html)、[隐藏导入说明](https://pyinstaller.org/en/stable/when-things-go-wrong.html#listing-hidden-imports)。自定义 hook 是本项目针对依赖库补齐运行资源的配置, 并非这些库的上游官方 hook。
 
-## 通用 SignPath 签名
-
-签名实现放在 `.github/actions/sign/action.yml`, 是在调用方当前 runner 上执行的
-composite action。`build.yml` 保持原来的单个 build job, 通过
-`uses: ./.github/actions/sign` 调用, 签名结果直接覆盖原 EXE, 然后继续打包和发布。
-`SIGN_BUILD`、`SIGN_SETUP` 和 `USE_RELEASE` 保持原有行为; 签名失败会停止 build。
-
-调用方先上传未签名文件, 再提供 `artifact_id`、`api_token` 和 `output_directory`。
-action 执行 Sign、可选 Approve, 等待签名完成并下载结果到指定目录。
-默认使用 `single-exe` 和 `release-signing`; 安装器传 `artifact_configuration: setupexe`,
-并沿用原先不显式 Approve 的策略, 传 `approve: 'false'`。
-仓库需要配置 `SIGNPATH_API_TOKEN`。
-
 ## PyAppify Action
 
 在项目根目录的 `pyappify.yml` 中配置:
@@ -93,3 +80,28 @@ PyAppify 根据此目录自动获取唯一的 `.spec` 和 `requirements.txt`, �
 并调用本目录的 `build.ps1` 完成构建。workflow 调用 PyAppify Action 即可,
 不需要再传 spec 或依赖文件路径。`resource_id` 需替换为真实 Mirror RID;
 测试 workflow 可以通过 Action 参数覆盖为本地测试 RID。
+
+## 同一 Release 分两阶段更新 PyAppify
+
+1. 在 Actions 运行 **PyAppify Launcher Prerelease**, 输入计划发布的应用 tag
+   `release_tag`, 例如 `v1.3.6`。此时先不要创建正式 tag。
+2. workflow 编译并签名最新版启动器, 上传到临时 tag `pyappify-v1.3.6` 的 prerelease。
+3. 根据 release 说明手动填写 `src/config.py` 的 `update_pyappify`,
+   以及 `.github/workflows/build.yml` 的 `USE_RELEASE`。
+4. 提交配置, 再按正常流程创建并推送正式 tag `v1.3.6`。
+5. **Windows Release** 自动将原 prerelease 关联到正式 tag, 复用启动器,
+   在同一个 release 先上传 full 和 body ZIP, 再补齐安装器, 最后转为正式发布。
+
+配置填写说明:
+
+- `update_pyappify.to_version` 和 `sha256` 复制预构建结果; 哈希对应签名后的 EXE。
+- `update_pyappify.zip_url` 使用正式 tag 的下载地址, 例如
+  `https://github.com/BnanZ0/ok-nte/releases/download/v1.3.6/ok-nte-win32.zip`。
+- `USE_RELEASE` 使用同一正式 tag 的 API 地址, 例如
+  `https://api.github.com/repos/BnanZ0/ok-nte/releases/tags/v1.3.6`。
+
+正式 tag 的地址在 workflow 完成关联后才可用。配置需在创建正式 tag 前提交,
+这样用户更新到该版本时就能收到新的启动器更新配置。
+
+若启动器嵌入的 `pyappify.yml` 或 `icons/` 改变, 需重新预构建。
+构建失败可重跑原 workflow run。客户端仍引用的启动器 ZIP 应保持可下载。

@@ -1,0 +1,152 @@
+name: PyAppify Launcher Prerelease
+run-name: PyAppify launcher · ${{ inputs.release_tag }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Future application tag, e.g. v1.3.6. Creates only pyappify-v1.3.6 now.
+        type: string
+        required: true
+
+concurrency:
+  group: pyappify-launcher-prerelease
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: pwsh
+
+jobs:
+  launcher:
+    name: Build, sign and publish launcher
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    env:
+      RELEASE_TAG: ${{ inputs.release_tag }}
+
+    steps:
+      - name: Configure runner
+        run: |
+          [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+          git config --global core.autocrlf false
+          git config --global core.eol lf
+
+      - name: Check out source
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Validate version and reserve tag name
+        id: version
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if ($env:RELEASE_TAG -notmatch '^v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$') {
+            throw 'Application release tag must be a stable vX.Y.Z tag.'
+          }
+          $tag = "pyappify-$env:RELEASE_TAG"
+          $finalRefs = gh api "repos/$env:GITHUB_REPOSITORY/git/matching-refs/tags/$env:RELEASE_TAG"
+          if ($LASTEXITCODE -ne 0) { throw 'Could not check the future application tag.' }
+          $existingFinal = @($finalRefs | ConvertFrom-Json | Where-Object { $_.ref -eq "refs/tags/$env:RELEASE_TAG" })
+          if ($existingFinal.Count -gt 0) { throw 'Prepare the launcher before creating the application tag.' }
+          $refs = gh api "repos/$env:GITHUB_REPOSITORY/git/matching-refs/tags/$tag"
+          if ($LASTEXITCODE -ne 0) { throw 'Could not check existing launcher tags.' }
+          $matchingRefs = @($refs | ConvertFrom-Json | Where-Object { $_.ref -eq "refs/tags/$tag" })
+          if ($matchingRefs.Count -gt 0) {
+            throw "Tag $tag already exists; choose the next application release tag."
+          }
+          "tag=$tag" >> $env:GITHUB_OUTPUT
+
+      - name: Build launcher executable only
+        id: build
+        uses: BnanZ0/pyappify-action@master
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          build_exe_only: true
+          package_mode: frozen
+
+      - name: Upload unsigned launcher
+        id: unsigned
+        uses: actions/upload-artifact@v7
+        with:
+          name: launcher-to-sign-${{ github.run_attempt }}
+          path: ${{ steps.build.outputs.exe-path }}
+          if-no-files-found: error
+
+      - name: Sign and approve launcher
+        uses: ./.github/actions/sign
+        with:
+          artifact_id: ${{ steps.unsigned.outputs.artifact-id }}
+          api_token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          output_directory: ${{ steps.build.outputs.exe-folder }}
+
+      - name: Package signed launcher and show manual configuration
+        env:
+          EXE_PATH: ${{ steps.build.outputs.exe-path }}
+        run: |
+          $signature = Get-AuthenticodeSignature -LiteralPath $env:EXE_PATH
+          if ($signature.Status -ne 'Valid') { throw "Invalid launcher signature: $($signature.Status)" }
+          $productVersion = (Get-Item -LiteralPath $env:EXE_PATH).VersionInfo.ProductVersion
+          if ($productVersion -notmatch '^((0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*))(\.0)?(\+.*)?$') {
+            throw "Cannot read the launcher version from EXE: $productVersion."
+          }
+          $launcherVersion = $Matches[1]
+          $bundlePath = Join-Path $env:RUNNER_TEMP "launcher-$env:GITHUB_RUN_ID/ok-nte"
+          New-Item -ItemType Directory -Path $bundlePath -Force | Out-Null
+          New-Item -ItemType Directory -Path pyappify_dist -Force | Out-Null
+          Copy-Item -LiteralPath $env:EXE_PATH -Destination (Join-Path $bundlePath 'ok-nte.exe')
+          Compress-Archive -LiteralPath $bundlePath -DestinationPath 'pyappify_dist/ok-nte-win32.zip'
+          $sha256 = (Get-FileHash -LiteralPath $env:EXE_PATH -Algorithm SHA256).Hash.ToLowerInvariant()
+          Set-Content -LiteralPath 'pyappify_dist/win32_sha256.txt' -Value $sha256 -Encoding utf8
+          $releaseApi = "https://api.github.com/repos/$env:GITHUB_REPOSITORY/releases/tags/$env:RELEASE_TAG"
+          $update = [ordered]@{
+            to_version = $launcherVersion
+            zip_url = "https://github.com/$env:GITHUB_REPOSITORY/releases/download/$env:RELEASE_TAG/ok-nte-win32.zip"
+            sha256 = $sha256
+          }
+          @(
+            "PyAppify launcher $launcherVersion, built using the action's default latest source tag."
+            ''
+            "Temporary tag: pyappify-$env:RELEASE_TAG. Future application tag: $env:RELEASE_TAG."
+            'Manually edit and commit the settings below, then create and push the application tag normally.'
+            'Windows Release will associate this same prerelease with the application tag and complete the release.'
+            ''
+            'src/config.py, update_pyappify:'
+            '```json'
+            ($update | ConvertTo-Json)
+            '```'
+            ''
+            'build.yml, top-level env:'
+            '```yaml'
+            "USE_RELEASE: '$releaseApi'"
+            '```'
+            ''
+            'These URLs reference the future final tag and become available after release association.'
+            'SHA256 is for the signed EXE inside the ZIP, not the ZIP. Keep the launcher ZIP unchanged.'
+            'Prepare the launcher again if its embedded pyappify.yml or icons change.'
+          ) | Set-Content -LiteralPath 'pyappify_dist/update-info.md' -Encoding utf8
+
+      - name: Publish launcher prerelease
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          target_commitish: ${{ github.sha }}
+          name: ${{ steps.version.outputs.tag }}
+          body_path: pyappify_dist/update-info.md
+          draft: false
+          prerelease: true
+          make_latest: false
+          overwrite_files: false
+          fail_on_unmatched_files: true
+          files: |
+            pyappify_dist/ok-nte-win32.zip
+            pyappify_dist/win32_sha256.txt
+
+      - name: Show configuration for the next application release
+        run: Get-Content pyappify_dist/update-info.md >> $env:GITHUB_STEP_SUMMARY

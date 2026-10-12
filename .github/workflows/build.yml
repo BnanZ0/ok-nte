@@ -17,7 +17,8 @@ env:
   PYTHONLEGACYWINDOWSSTDIO: 'UTF-8'
   SIGN_BUILD: 'true'
   SIGN_SETUP: 'false'
-  # Non-empty reuses an existing release EXE; empty builds a new EXE.
+  # Set to the final release API URL after preparing its launcher prerelease.
+  # An older release URL still reuses its EXE; empty builds a new EXE.
   USE_RELEASE: ''
   SYNC_GITHUB_REPO: 'true'
 
@@ -95,6 +96,54 @@ jobs:
           }
           python -X faulthandler -m unittest discover -s tests -p "*test*.py" --top-level-directory . -v 2>&1
 
+      - name: Associate launcher prerelease with the application tag
+        if: env.USE_RELEASE == format('https://api.github.com/repos/{0}/releases/tags/{1}', github.repository, github.ref_name)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ github.ref_name }}
+          RELEASE_COMMIT: ${{ github.sha }}
+        run: |
+          $apiRoot = "https://api.github.com/repos/$env:GITHUB_REPOSITORY"
+          $headers = @{
+            Authorization = "Bearer $env:GH_TOKEN"
+            Accept = 'application/vnd.github+json'
+          }
+          function Get-Release([string]$tagName) {
+            try {
+              return Invoke-RestMethod -Uri "$apiRoot/releases/tags/$tagName" -Headers $headers -ErrorAction Stop
+            } catch {
+              if ($null -ne $_.Exception.Response -and [int]$_.Exception.Response.StatusCode -eq 404) {
+                return $null
+              }
+              throw
+            }
+          }
+          $final = Get-Release $env:RELEASE_TAG
+          $staged = Get-Release "pyappify-$env:RELEASE_TAG"
+          if ($null -ne $final -and $null -ne $staged) {
+            throw 'Both staged and final releases exist; resolve the conflict before building.'
+          }
+          $release = if ($null -ne $final) { $final } else { $staged }
+          if ($null -eq $release) { throw 'No prepared launcher release found.' }
+          if ($release.draft -or @($release.assets | Where-Object { $_.name -eq 'ok-nte-win32.zip' }).Count -ne 1) {
+            throw 'The release must be published and contain ok-nte-win32.zip.'
+          }
+          if ($null -ne $staged) {
+            if (-not $staged.prerelease -or $staged.immutable) {
+              throw 'The prepared launcher must be in a mutable prerelease.'
+            }
+            $body = @{
+              tag_name = $env:RELEASE_TAG
+              target_commitish = $env:RELEASE_COMMIT
+              name = $env:RELEASE_TAG
+            } | ConvertTo-Json
+            $updated = Invoke-RestMethod -Method Patch -Uri "$apiRoot/releases/$($staged.id)" -Headers $headers -ContentType 'application/json' -Body $body -ErrorAction Stop
+            if ($updated.id -ne $staged.id -or $updated.tag_name -ne $env:RELEASE_TAG) {
+              throw 'Unexpected release returned after association.'
+            }
+          }
+          Write-Host "Release $($release.id) is associated with $env:RELEASE_TAG."
+
       - name: Synchronize update repository
         id: sync
         uses: ok-oldking/partial-sync-repo@bbd55c1dffbcc1292a12295d949e7807b35ea93e
@@ -152,16 +201,18 @@ jobs:
           package_mode: frozen
           use_release: ${{ env.USE_RELEASE }}
 
-      - name: Publish frozen full package
+      - name: Publish frozen full and body packages
         if: steps.release_version.outputs.is_release == 'true'
         uses: softprops/action-gh-release@v3
         with:
           body: |
-            frozen full 包已上传, 安装器将在构建完成后补充。
+            frozen full 和 body 包已上传, 安装器将在构建完成后补充。
           draft: false
           prerelease: true
           make_latest: false
-          files: pyappify_dist/*-full.zip
+          files: |
+            pyappify_dist/*-full.zip
+            pyappify_dist/*-body.zip
           fail_on_unmatched_files: true
 
       - name: Trigger MirrorChyan workflows
