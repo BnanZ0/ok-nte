@@ -116,13 +116,13 @@
         },
         {
             "id": 19,
-            "file_name": "images/4.png",
+            "file_name": "images/10.png",
             "width": 2560,
             "height": 1440
         },
         {
             "id": 20,
-            "file_name": "images/5.png",
+            "file_name": "images/4.png",
             "width": 2560,
             "height": 1440
         },
@@ -134,13 +134,13 @@
         },
         {
             "id": 22,
-            "file_name": "images/6.png",
+            "file_name": "images/5.png",
             "width": 2560,
             "height": 1440
         },
         {
             "id": 23,
-            "file_name": "images/7.png",
+            "file_name": "images/6.png",
             "width": 2560,
             "height": 1440
         },
@@ -182,7 +182,7 @@
         },
         {
             "id": 30,
-            "file_name": "images/10.png",
+            "file_name": "images/9.png",
             "width": 2560,
             "height": 1440
         },
@@ -200,13 +200,13 @@
         },
         {
             "id": 33,
-            "file_name": "images/8.png",
+            "file_name": "images/7.png",
             "width": 2560,
             "height": 1440
         },
         {
             "id": 34,
-            "file_name": "images/9.png",
+            "file_name": "images/8.png",
             "width": 2560,
             "height": 1440
         },
@@ -255,6 +255,18 @@
         {
             "id": 45,
             "file_name": "images/4.png",
+            "width": 2560,
+            "height": 1440
+        },
+        {
+            "id": 46,
+            "file_name": "images/0.png",
+            "width": 2560,
+            "height": 1440
+        },
+        {
+            "id": 47,
+            "file_name": "images/1.png",
             "width": 2560,
             "height": 1440
         }
@@ -1403,6 +1415,45 @@
             ],
             "area": 1023,
             "iscrowd": 0
+        },
+        {
+            "id": 89,
+            "image_id": 46,
+            "category_id": 89,
+            "bbox": [
+                90,
+                1163,
+                63,
+                65
+            ],
+            "area": 4095,
+            "iscrowd": 0
+        },
+        {
+            "id": 90,
+            "image_id": 47,
+            "category_id": 90,
+            "bbox": [
+                624,
+                853,
+                144,
+                141
+            ],
+            "area": 20304,
+            "iscrowd": 0
+        },
+        {
+            "id": 91,
+            "image_id": 47,
+            "category_id": 91,
+            "bbox": [
+                969,
+                1239,
+                67,
+                70
+            ],
+            "area": 4690,
+            "iscrowd": 0
         }
     ],
     "categories": [
@@ -1844,6 +1895,21 @@
         {
             "id": 88,
             "name": "launcher_start",
+            "supercategory": ""
+        },
+        {
+            "id": 89,
+            "name": "volleyball_wc_next",
+            "supercategory": ""
+        },
+        {
+            "id": 90,
+            "name": "volleyball_empty_player",
+            "supercategory": ""
+        },
+        {
+            "id": 91,
+            "name": "volleyball_wc_start",
             "supercategory": ""
         }
     ]
