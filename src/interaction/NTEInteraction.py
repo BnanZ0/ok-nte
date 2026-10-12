@@ -17,6 +17,7 @@ from win32api import GetCursorPos
 
 from src.interaction.cursor_sync import CursorSync
 from src.interaction.keyboard_layout import QwertyPhysicalKeyMapper
+from src.interaction.mouse_blocker import MouseInputBlocker
 
 logger = Logger.get_logger(__name__)
 
@@ -29,6 +30,8 @@ class NTEInteraction(PostMessageInteraction):
         self.cursor_position = None
         self._operating = False
         self._input_lock = threading.RLock()
+        self._mouse_blocker = MouseInputBlocker()
+        self._mouse_block_depth = 0
         self.user32 = ctypes.windll.user32
         self.qwerty_physical_key_mapper = QwertyPhysicalKeyMapper()
         self._disable_key_mapping = 0
@@ -42,8 +45,11 @@ class NTEInteraction(PostMessageInteraction):
         self._activate_require = not visible
 
     def on_destroy(self):
-        self._cursor_sync.stop()
-        super().on_destroy()
+        try:
+            self._mouse_blocker.close()
+        finally:
+            self._cursor_sync.stop()
+            super().on_destroy()
 
     def send_key(self, key, down_time=0.01):
         with self._input_lock:
@@ -145,29 +151,34 @@ class NTEInteraction(PostMessageInteraction):
         with self._input_lock:
             result = None
             reset_scene_executor = None
-
-            is_outer_operate = False
-            if not self._operating:
-                self.cursor_position = GetCursorPos()
-                self._operating = True
-                is_outer_operate = True
-
-            if block:
-                self.block_input()
+            is_outer_operate = not self._operating
+            cursor_saved = False
+            input_blocked = False
             try:
+                if block:
+                    self.block_input()
+                    input_blocked = True
+                if is_outer_operate:
+                    self.cursor_position = GetCursorPos()
+                    self._operating = True
+                    cursor_saved = True
                 reset_scene_executor = self._enter_reset_scene_without_check()
                 result = fun()
             except Exception as e:
                 logger.error("operate exception", e)
                 raise
             finally:
-                self._exit_reset_scene_without_check(reset_scene_executor)
-                if is_outer_operate:
-                    self._operating = False
-                    if restore_cursor:
-                        self._restore_cursor()
-                if block:
-                    self.unblock_input()
+                try:
+                    try:
+                        self._exit_reset_scene_without_check(reset_scene_executor)
+                    finally:
+                        if cursor_saved:
+                            self._operating = False
+                            if restore_cursor:
+                                self._restore_cursor()
+                finally:
+                    if input_blocked:
+                        self.unblock_input()
             return result
 
     def _enter_reset_scene_without_check(self):
@@ -207,10 +218,19 @@ class NTEInteraction(PostMessageInteraction):
             logger.error("restore cursor exception", e)
 
     def block_input(self):
-        self.user32.BlockInput(True)
+        """Block physical mouse input only; keyboard input remains available."""
+        with self._input_lock:
+            if self._mouse_block_depth == 0:
+                self._mouse_blocker.start()
+            self._mouse_block_depth += 1
 
     def unblock_input(self):
-        self.user32.BlockInput(False)
+        with self._input_lock:
+            if self._mouse_block_depth == 0:
+                return
+            self._mouse_block_depth -= 1
+            if self._mouse_block_depth == 0:
+                self._mouse_blocker.stop()
 
     def move_mouse_relative(self, dx, dy):
         """
