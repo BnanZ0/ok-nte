@@ -13,7 +13,7 @@
 此方法适合绝大多数用户，简单快捷，并支持自动更新。
 
 * **[GitHub](https://github.com/BnanZ0/ok-nte/releases)**: 官方发布页，全球访问速度快。
-* **[Mirror酱](https://mirrorchyan.com/zh/projects?rid=ok-nte&channel=stable)**: 国内镜像，下载可能需要购买其平台的
+* **[Mirror酱](https://mirrorchyan.com/zh/projects?rid=ok-nte-zip&channel=stable)**: 国内镜像，下载可能需要购买其平台的
   CD-KEY。
 * **[百度网盘](https://pan.baidu.com/s/102Mh1djq2B1T-cIJhct9Gg?pwd=okww)**: 免费下载
 * **[夸克网盘](https://pan.quark.cn/s/24433f3febc1)**: 免费下载
