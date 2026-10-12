@@ -1264,3 +1264,6 @@ msgid ""
 msgstr ""
 "Quando ativado, notifica apenas em caso de falha ou interrupção; quando desativado, notifica sempre.\n"
 "É necessário ativar os canais de recebimento nas configurações de notificação."
+
+msgid "半自动周赛"
+msgstr "Torneio Semanal Semiautomático"

@@ -1530,3 +1530,6 @@ msgid ""
 msgstr ""
 "When enabled, notify only on failure or interruption; when disabled, notify every time.\n"
 "Receiving channels must be enabled in notification settings."
+
+msgid "半自动周赛"
+msgstr "Semi-Auto Weekly Contest"

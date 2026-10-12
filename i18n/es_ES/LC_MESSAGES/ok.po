@@ -1530,3 +1530,6 @@ msgid ""
 msgstr ""
 "Al activarlo, solo notifica en caso de fallo o interrupción; al desactivarlo, notifica siempre.\n"
 "Es necesario activar los canales de recepción en los ajustes de notificación."
+
+msgid "半自动周赛"
+msgstr "Torneo semanal semiautomático"
