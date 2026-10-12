@@ -228,6 +228,14 @@ class FurnitureTask(NTEOneTimeTask, BaseCombatTask):
         return ret
 
     def click_furniture(self, furniture):
+        # 滚动至顶部
+        self.operate(
+            lambda: self.scroll(
+                0.8566, 0.4701, 40
+            ),
+            block=True,
+        )
+
         box_left = self.box_of_screen(0.024, 0.181, 0.278, 0.775, hcenter=True)
         self.wait_until(
             lambda: self.find_sift_feature(furniture, box=box_left), raise_if_not_found=True
@@ -238,28 +246,14 @@ class FurnitureTask(NTEOneTimeTask, BaseCombatTask):
         # 点击异象家具
         def action():
             box = self.find_sift_feature(furniture, box=box_left)
-            if not box:
-                return False
-
-            self.operate_click(box, after_sleep=1)
-
-            if not self.find_sift_feature(furniture, box=box_right):
-                return
-
-            self.operate_click(0.978, 0.848, after_sleep=0.5)
-            self.operate_click(box, after_sleep=1)
-
-            if self.find_sift_feature(furniture, box=box_right):
-                return True
-
+            if box:
+                self.operate_click(box)
+                self.sleep(0.5)
+                if self.find_sift_feature(furniture, box=box_right):
+                    return True
             self.sleep(0.5)
 
         self.retry_on_action(action, attempt=10, raise_if_failed=True)
-
-        # 二次确认异象家具
-        self.wait_until(
-            lambda: self.find_sift_feature(furniture, box=box_right), raise_if_not_found=True
-        )
 
         # 领取目标家具
         self.sleep(0.5)
