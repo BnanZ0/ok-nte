@@ -1531,5 +1531,8 @@ msgstr ""
 "When enabled, notify only on failure or interruption; when disabled, notify every time.\n"
 "Receiving channels must be enabled in notification settings."
 
-msgid "半自动周赛"
-msgstr "Semi-Auto Weekly Contest"
+msgid "自动周赛"
+msgstr "Auto Weekly Contest"
+
+msgid "复读接球/传球"
+msgstr "Repeat Receive/Pass"

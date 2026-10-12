@@ -1506,5 +1506,8 @@ msgid ""
 "需在通知设置中启用接收渠道。"
 msgstr ""
 
-msgid "半自动周赛"
+msgid "自动周赛"
+msgstr ""
+
+msgid "复读接球/传球"
 msgstr ""
