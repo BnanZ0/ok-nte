@@ -205,7 +205,7 @@ config = {
         ["src.tasks.DSDFarmTask", "DSDFarmTask"],
         ["src.tasks.AutoBidAuctionTask", "AutoBidAuctionTask"],
         ["src.tasks.VolleyballTask", "VolleyballTask"],
-         ["src.tasks.DartTask", "DartTask"],
+        ["src.tasks.DartTask", "DartTask"],
         # 测试相关
         ["src.tasks.CombatDetectionTestTask", "CombatDetectionTestTask"],
         ["src.tasks.DebugCharTask", "DebugCharTask"],
@@ -235,8 +235,8 @@ config = {
     ],
     "scene": ["src.scene.NTEScene", "NTEScene"],
     "update_pyappify": {
-        "to_version": "1.2.3",
-        "zip_url": "https://github.com/BnanZ0/ok-nte/releases/download/v1.3.5/ok-nte-win32.zip",
-        "sha256": "9e8c7ec1e1ab8af7824dd6ee1a5bdc8ec7c01d1b1007270ff8dec19fe9c14980",
+        "to_version": "1.2.4",
+        "zip_url": "https://github.com/BnanZ0/ok-nte/releases/download/v1.4.11/ok-nte-win32.zip",
+        "sha256": "0e83d5d365b4aa8800c0165630258ee9bf4d33e8a82c4d67737dad54729747d4",
     },
 }
