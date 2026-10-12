@@ -26,7 +26,7 @@ RECORD_CONFIG_FOLDER = "configs/records"
 RECORD_OPERATIONS_KEY = "operations"
 SAVED_OPERATION_KEYS = ("type", "x", "y", "delay", "count", "button", "down_time")
 SCROLL_MERGE_INTERVAL = 0.35
-NOTIFICATION = (
+RECORD_NOTIFICATION = (
     "No recorded operations were found. Please wait for the recording prompt, "
     "then follow the instructions carefully to record your actions.\n"
     "DO NOT manually switch windows!\n"
@@ -38,6 +38,7 @@ class RecordTask(BaseNTETask):
     """Base task for recording and replaying user mouse operations."""
 
     CONF_RESET_RECORD = "重置记录"
+    RECORD_NOTIFICATION: str = RECORD_NOTIFICATION  # Override in subclasses to customize the prompt
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -61,7 +62,6 @@ class RecordTask(BaseNTETask):
                 self.CONF_RESET_RECORD: "清空已记录的操作",
             }
         )
-        self.tr(NOTIFICATION)
 
     def run(self):
         operations = self.load_recorded_operations()
@@ -71,7 +71,7 @@ class RecordTask(BaseNTETask):
     def show_notification(self):
         confirmation = ConfirmationRequested(
             self.tr(self.name),
-            self.tr(NOTIFICATION),
+            self.tr(self.RECORD_NOTIFICATION),
             rich_text=False,
             hide_cancel=True,
             close_delay_seconds=2,

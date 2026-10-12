@@ -19,13 +19,24 @@ EN_RECORD_INS = (
     "※ Do not click [Start Match]"
 )
 
+RECORD_NOTIFICATION = (
+    "未找到已录制的操作。在可以选择球员时将会出现录制提示\n"
+    "请按照指引，仔细完成操作录制。"
+)
+
+EN_RECORD_NOTIFICATION = (
+    "No recorded action found. A recording prompt will appear when you can select a player.\n"
+    "Please follow the instructions carefully to complete the action recording."
+)
+
 
 class VolleyballTask(NTEOneTimeTask, RecordTask):
     CONF_MODE = "模式"
+    CONF_REPEAT_RECEIVE_PASS = "复读接球/传球"
     MODE_EXP = "刷经验"
     MODE_AUTO = "自动闯关"
     MODE_SUP = "辅助扣发球"
-    MODE_WC = "半自动周赛"
+    MODE_WC = "自动周赛"
     MODES = [MODE_EXP, MODE_AUTO, MODE_WC]
 
     def __init__(self, *args, **kwargs):
@@ -34,6 +45,7 @@ class VolleyballTask(NTEOneTimeTask, RecordTask):
         self.default_config.update(
             {
                 self.CONF_MODE: self.MODE_EXP,
+                self.CONF_REPEAT_RECEIVE_PASS: True,
             }
         )
         self.config_type.update(
@@ -43,6 +55,7 @@ class VolleyballTask(NTEOneTimeTask, RecordTask):
                     "options": self.MODES,
                     "sub_configs": {
                         self.MODE_WC: [
+                            self.CONF_REPEAT_RECEIVE_PASS,
                             self.CONF_RESET_RECORD,
                         ]
                     },
@@ -52,6 +65,9 @@ class VolleyballTask(NTEOneTimeTask, RecordTask):
         self.instructions = INST if self.is_chinese() else EN_INST
         self.sleep_check_interval = 0.2
         self._play_count = 0
+        self.RECORD_NOTIFICATION = (
+            RECORD_NOTIFICATION if self.is_chinese() else EN_RECORD_NOTIFICATION
+        )
 
     def run(self):
         super().run()
@@ -105,8 +121,11 @@ class VolleyballTask(NTEOneTimeTask, RecordTask):
             self.sleep(0.1)
 
     def play_once(self, key, switch_key):
-        match self.config.get(self.CONF_MODE):
-            case self.MODE_EXP | self.MODE_AUTO:
+        match (
+            self.config.get(self.CONF_MODE),
+            self.config.get(self.CONF_REPEAT_RECEIVE_PASS, False),
+        ):
+            case (self.MODE_EXP | self.MODE_AUTO, _) | (self.MODE_WC, True):
                 if self._play_count >= 4:
                     self.sleep(0.5)
                     self.send_key("a", down_time=0.1)
@@ -118,9 +137,9 @@ class VolleyballTask(NTEOneTimeTask, RecordTask):
                 if self.send_key(key, interval=0.5):
                     self._play_count += 1
                     return ("j" if switch_key else "k"), not switch_key
-            case self.MODE_SUP:
+            case (self.MODE_SUP, _):
                 pass
-            case self.MODE_WC:
+            case (self.MODE_WC, _):
                 pass
         return key, switch_key
 
@@ -153,7 +172,9 @@ class VolleyballTask(NTEOneTimeTask, RecordTask):
                     if empty_player := self.find_one(Labels.volleyball_empty_player):
                         self.operate_click(empty_player, after_sleep=1)
                         record_instruction = RECORD_INS if self.is_chinese() else EN_RECORD_INS
-                        self.record_or_replay_operations(2, instruction_text=record_instruction)
+                        self.record_or_replay_operations(
+                            2, instruction_text=record_instruction, include_scroll=False
+                        )
                         self.sleep(1)
                     self.operate_click(wc_start, after_sleep=0.5)
                 else:
