@@ -25,6 +25,7 @@ jobs:
     name: Build, sign and publish launcher
     runs-on: windows-latest
     permissions:
+      actions: read
       contents: write
     env:
       RELEASE_TAG: ${{ inputs.release_tag }}
