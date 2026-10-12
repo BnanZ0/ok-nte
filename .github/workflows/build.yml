@@ -265,10 +265,12 @@ jobs:
             ### 下载包说明
               * [ok-nte-win32-China-setup.exe](https://github.com/BnanZ0/ok-nte/releases/download/${{ github.ref_name }}/ok-nte-win32-China-setup.exe) 完整安装包, 更新使用阿里云+腾讯CNB.
               * [ok-nte-win32-online-setup.exe](https://github.com/BnanZ0/ok-nte/releases/download/${{ github.ref_name }}/ok-nte-win32-online-setup.exe) 在线安装包, 在线白嫖的服务器不一定稳定, 建议优先使用完整包.
+              * [ok-nte-win-x86_64-${{ github.ref_name }}-full.zip](https://github.com/BnanZ0/ok-nte/releases/download/${{ github.ref_name }}/ok-nte-win-x86_64-${{ github.ref_name }}-full.zip) 完整便携压缩包, 包含启动器和程序本体, 解压后运行根目录的 ok-nte.exe, 更新使用 [Mirror酱](https://mirrorchyan.com/zh/get-start) (需要 CD-KEY).
+              * [ok-nte-win-x86_64-${{ github.ref_name }}-body.zip](https://github.com/BnanZ0/ok-nte/releases/download/${{ github.ref_name }}/ok-nte-win-x86_64-${{ github.ref_name }}-body.zip) 程序本体压缩包, 包含运行依赖, 解压后运行 ok-nte.exe, 不含更新启动器.
               * [ok-nte-win32-Global-setup.exe](https://github.com/BnanZ0/ok-nte/releases/download/${{ github.ref_name }}/ok-nte-win32-Global-setup.exe) full package with dependencies, using GitHub and PyPi as update source
               * 不要下载ok-nte-win32.zip,和SourceCode.zip, Do Not Download the SourceCode, ok-nte-win32.zip
             ### 如果无法下载或下载慢, 可以使用其他下载源
-              * [Mirror酱下载渠道](https://mirrorchyan.com/zh/projects?rid=ok-nte-zip&channel=stable), 国内网页直链, 下载需要购买CD-KEY, 已有Mirror酱CD-KEY可免费下载
+              * [Mirror酱下载渠道](https://mirrorchyan.com/zh/projects?rid=ok-nte&channel=stable), 国内网页直链, 下载需要购买CD-KEY, 已有Mirror酱CD-KEY可免费下载
               * [百度网盘](https://pan.baidu.com/s/102Mh1djq2B1T-cIJhct9Gg?pwd=okww) 免费下载
               * [夸克网盘](https://pan.quark.cn/s/24433f3febc1) 免费下载
           draft: false
