@@ -1,20 +1,32 @@
 from ok import TaskDisabledException
 
 from src.Labels import Labels
-from src.tasks.BaseNTETask import BaseNTETask
 from src.tasks.NTEOneTimeTask import NTEOneTimeTask
+from src.tasks.RecordTask import RecordTask
 from src.tasks.trigger.SkipDialogTask import SkipDialogTask
 
 INST = "进入比赛后开始任务"
 EN_INST = "Start the mission after entering the game"
 
+RECORD_INS = (
+    "记录点击球员的操作，分为两个步骤：\n1. 点击球员1\n2. 点击球员2\n\n※ 请勿点击[开始比赛]"
+)
 
-class VolleyballTask(NTEOneTimeTask, BaseNTETask):
+EN_RECORD_INS = (
+    "The player click operation is recorded in two steps:\n"
+    "1. Click on player 1\n"
+    "2. Click on player 2\n\n"
+    "※ Do not click [Start Match]"
+)
+
+
+class VolleyballTask(NTEOneTimeTask, RecordTask):
     CONF_MODE = "模式"
     MODE_EXP = "刷经验"
     MODE_AUTO = "自动闯关"
     MODE_SUP = "辅助扣发球"
-    MODES = [MODE_EXP, MODE_AUTO]
+    MODE_WC = "半自动周赛"
+    MODES = [MODE_EXP, MODE_AUTO, MODE_WC]
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -29,6 +41,11 @@ class VolleyballTask(NTEOneTimeTask, BaseNTETask):
                 self.CONF_MODE: {
                     "type": "drop_down",
                     "options": self.MODES,
+                    "sub_configs": {
+                        self.MODE_WC: [
+                            self.CONF_RESET_RECORD,
+                        ]
+                    },
                 }
             }
         )
@@ -97,11 +114,13 @@ class VolleyballTask(NTEOneTimeTask, BaseNTETask):
                     self.send_key("s", down_time=0.1)
                     self._play_count = 0
                     return key, switch_key
-                
+
                 if self.send_key(key, interval=0.5):
                     self._play_count += 1
                     return ("j" if switch_key else "k"), not switch_key
             case self.MODE_SUP:
+                pass
+            case self.MODE_WC:
                 pass
         return key, switch_key
 
@@ -115,7 +134,7 @@ class VolleyballTask(NTEOneTimeTask, BaseNTETask):
                     self.sleep(1)
                     boxes = self.find_feature(
                         Labels.volleyball_star,
-                        box=self.get_box_by_name(Labels.box_volleyball_stars)
+                        box=self.get_box_by_name(Labels.box_volleyball_stars),
                     )
                     if len(boxes) == 3:
                         box = self.find_one(Labels.volleyball_next) or self.find_one(
@@ -123,9 +142,22 @@ class VolleyballTask(NTEOneTimeTask, BaseNTETask):
                         )
                 if box:
                     self.operate_click(box, after_sleep=0.5)
-
             case self.MODE_SUP:
                 pass
+            case self.MODE_WC:
+                if box := self.find_one(Labels.volleyball_wc_next):
+                    self.operate_click(box, after_sleep=0.5)
+                elif wc_start := self.find_one(
+                    Labels.volleyball_wc_start, horizontal_variance=0.05, vertical_variance=0.05
+                ):
+                    if empty_player := self.find_one(Labels.volleyball_empty_player):
+                        self.operate_click(empty_player, after_sleep=1)
+                        record_instruction = RECORD_INS if self.is_chinese() else EN_RECORD_INS
+                        self.record_or_replay_operations(2, instruction_text=record_instruction)
+                        self.sleep(1)
+                    self.operate_click(wc_start, after_sleep=0.5)
+                else:
+                    self.click(0.9859, 0.9764, interval=1)
 
     def is_service(self):
         from src import text_white_color
