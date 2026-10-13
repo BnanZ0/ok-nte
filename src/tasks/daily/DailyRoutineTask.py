@@ -1,6 +1,7 @@
 from contextlib import contextmanager
 from copy import deepcopy
 from dataclasses import dataclass
+from enum import StrEnum
 
 from ok import TaskDisabledException
 from ok.util.config import Config
@@ -29,8 +30,10 @@ class DailyRoutineEntry:
 
 
 DAILY_ROUTINE_ENTRIES = (
-    DailyRoutineEntry("daily_anomaly", AnomalyTask, True, "daily_anomaly", True),
-    DailyRoutineEntry("daily_anomaly_hunter", AnomalyHunter, False, "daily_anomaly", True),
+    DailyRoutineEntry("daily_anomaly", AnomalyTask, True, "daily_anomaly", daily_config=True),
+    DailyRoutineEntry(
+        "daily_anomaly_hunter", AnomalyHunter, False, "daily_anomaly", daily_config=True
+    ),
     DailyRoutineEntry("coffee", CoffeeTask),
     DailyRoutineEntry("daily_claim", DailyClaimTask, True),
     DailyRoutineEntry("cinema_date", CinemaDateTask),
@@ -121,6 +124,12 @@ class _DailyTaskSchema:
     default_config: dict
     config_description: dict
     config_type: dict
+
+
+class _RoutineResult(StrEnum):
+    SUCCESS = "success"
+    FAILED = "failed"
+    SKIPPED = "skipped"
 
 
 class _DailyTaskConfig(Config):
@@ -370,6 +379,7 @@ class DailyRoutineTask(NTEOneTimeTask, BaseNTETask):
             self.log_warning("日常任务中的任务已在运行或排队，跳过重复入队")
             return False
         self._reset_task_status(items)
+        self.current_task_key = None
         self.log_info("开始执行日常任务")
         for item in items:
             self._execute_routine_item(item)
@@ -380,41 +390,45 @@ class DailyRoutineTask(NTEOneTimeTask, BaseNTETask):
 
     def _execute_routine_item(self, item):
         task_id = item["id"]
-        self.task_status["pending"].remove(task_id)
-        task = self.task_for_id(task_id)
-        if not item["enabled"]:
-            self.task_status["skipped"].append(task_id)
-            return
-        if task is None:
-            self.task_status["skipped"].append(task_id)
-            self.log_info(f"任务不支持当前语言，跳过: {task_id}")
-            return
-
-        self.current_task_key = task_id
-        self.info_set("当前任务", task.name)
-        self.log_info(f"开始任务: {task.name}")
-        self.ensure_main()
+        task = None
+        result = _RoutineResult.SKIPPED
         try:
-            with self._active_task_context(task_id, task):
-                result = task.do_run()
-                entry = self.entries_by_id()[task_id]
-                if result and entry.daily_config and (shift_id := getattr(task, "shift_id", None)):
-                    shift_id(task)
+            if item["enabled"]:
+                task = self.task_for_id(task_id)
+                if task is None:
+                    self.log_info(f"任务不支持当前语言, 跳过: {task_id}")
+                else:
+                    self.current_task_key = task_id
+                    result = self._run_routine_task(task_id, task)
         except TaskDisabledException:
             raise
         except Exception as error:
-            self.log_error(f"任务运行失败: {task.name}", error)
-            result = False
+            name = task.name if task is not None else task_id
+            self.log_error(f"任务运行失败: {name}", error)
+            result = _RoutineResult.FAILED
+        finally:
+            self.current_task_key = None
 
-        if not result:
-            self.task_status["failed"].append(task_id)
+        self.task_status["pending"].remove(task_id)
+        self.task_status[result].append(task_id)
+        if result == _RoutineResult.FAILED:
             self.screenshot(f"daily_routine_fail_{task_id}")
-            self.log_info(f"任务失败: {task.name}")
-            return
+        if task is not None and result != _RoutineResult.SKIPPED:
+            message = "任务完成" if result == _RoutineResult.SUCCESS else "任务失败"
+            self.log_info(f"{message}: {task.name}")
 
-        self.task_status["success"].append(task_id)
-        self.current_task_key = None
-        self.log_info(f"任务完成: {task.name}")
+    def _run_routine_task(self, task_id, task) -> _RoutineResult:
+        """Map True, False and None task outcomes to success, failure and skipping."""
+        self.info_set("当前任务", task.name)
+        self.log_info(f"开始任务: {task.name}")
+        self.ensure_main()
+        with self._active_task_context(task_id, task):
+            result = task.do_run()
+            if hasattr(task, "on_daily_end"):
+                task.on_daily_end(result)
+        if result is None:
+            return _RoutineResult.SKIPPED
+        return _RoutineResult.SUCCESS if result else _RoutineResult.FAILED
 
     def _reset_task_status(self, items):
         self.task_status = {
@@ -466,13 +480,15 @@ class DailyRoutineTask(NTEOneTimeTask, BaseNTETask):
         return self.tr(task.name) if getattr(self, "_app", None) is not None else task.name
 
     @contextmanager
-    def _active_task_context(self, task_id, task):
+    def _active_task_context(self, task_id, task, task_config=None):
+        if task_config is None:
+            task_config = self.daily_task_config(task_id, task)
         previous_task = self._active_routine_task
         previous_interval = self.sleep_check_interval
         original_config = task.config
         self._active_routine_task = task
         self.sleep_check_interval = task.sleep_check_interval
-        task.config = self.daily_task_config(task_id, task)
+        task.config = task_config
         try:
             yield task
         finally:

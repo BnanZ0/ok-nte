@@ -4,7 +4,7 @@ from unittest.mock import Mock
 from src.tasks.AnomalyTask import AnomalyTask
 
 
-class FakeDailyTask:
+class FakeDailyTask(AnomalyTask):
     def __init__(self, config):
         self.config = config
         self.sync_config = Mock()
@@ -45,7 +45,8 @@ class TestAnomalyTask(unittest.TestCase):
 
         for config, expected_idx in configs:
             with self.subTest(config=config):
-                self.assertEqual(self.anomaly.get_sub_idx(config), expected_idx)
+                self.anomaly.config = config
+                self.assertEqual(self.anomaly.get_sub_idx(), expected_idx)
 
     def test_drop_down_options_are_lists_of_strings(self):
         self.assertIsInstance(AnomalyTask.TASK_TYPES, list)
@@ -59,9 +60,10 @@ class TestAnomalyTask(unittest.TestCase):
             AnomalyTask.CONF_ABILITY_ID: 99,
         }
 
-        self.assertEqual(self.anomaly.resolve_sub_id(config), 5)
+        self.anomaly.config = config
+        self.assertEqual(self.anomaly.resolve_sub_id(), 5)
         self.assertEqual(config[AnomalyTask.CONF_ABILITY_ID], 5)
-        self.anomaly.sync_config.assert_called_once_with(config)
+        self.anomaly.sync_config.assert_called_once_with()
 
     def test_shift_id_custom_cycle_keeps_friendly_experience_labels_and_sets_next_task(self):
         self.assertIn(AnomalyTask.EXP_CHAR, AnomalyTask.CYCLE_CUSTOM_OPTIONS)
@@ -81,7 +83,7 @@ class TestAnomalyTask(unittest.TestCase):
             }
         )
 
-        self.anomaly.shift_id(daily)
+        daily.on_daily_end(True)
 
         self.assertEqual(daily.config[AnomalyTask.CONF_TASK_TYPE], AnomalyTask.TASK_ABILITY)
         self.assertEqual(daily.config[AnomalyTask.CONF_ABILITY_ID], 5)
@@ -98,7 +100,7 @@ class TestAnomalyTask(unittest.TestCase):
             }
         )
 
-        self.anomaly.shift_custom_cycle(daily)
+        daily.shift_custom_cycle()
 
         self.assertEqual(daily.config[AnomalyTask.CONF_TASK_TYPE], AnomalyTask.TASK_ARC)
         self.assertEqual(daily.config[AnomalyTask.CONF_ARC_ID], 3)
@@ -115,9 +117,11 @@ class TestAnomalyTask(unittest.TestCase):
                     }
                 )
 
-                self.anomaly.shift_custom_cycle(daily)
+                daily.shift_custom_cycle()
 
-                self.assertEqual(daily.config[AnomalyTask.CONF_TASK_TYPE], AnomalyTask.TASK_EXP_COIN)
+                self.assertEqual(
+                    daily.config[AnomalyTask.CONF_TASK_TYPE], AnomalyTask.TASK_EXP_COIN
+                )
                 daily.sync_config.assert_not_called()
                 daily.log_warning.assert_called_once()
 
@@ -130,7 +134,7 @@ class TestAnomalyTask(unittest.TestCase):
             }
         )
 
-        self.anomaly.shift_id(daily)
+        daily.on_daily_end(True)
 
         self.assertEqual(daily.config[AnomalyTask.CONF_ABILITY_ID], 1)
         daily.sync_config.assert_called_once_with()

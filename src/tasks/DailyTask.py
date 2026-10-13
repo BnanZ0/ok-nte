@@ -1,4 +1,3 @@
-import re
 from contextlib import contextmanager
 from datetime import datetime
 from typing import Callable, Iterator, List, Optional, Tuple, Type, TypeVar, cast
@@ -9,18 +8,18 @@ from src import text_white_color
 from src.Labels import Labels
 from src.tasks.AnomalyTask import AnomalyTask
 from src.tasks.BaseNTETask import BaseNTETask
+from src.tasks.BaseStaminaTask import BaseStaminaTask
 from src.tasks.daily.CinemaDateTask import CinemaDateTask
 from src.tasks.daily.CoffeeTask import CoffeeTask
 from src.tasks.daily.FountainTask import FountainTask
 from src.tasks.daily.FurnitureTask import FurnitureTask
 from src.tasks.daily.GiftTask import GiftTask
-from src.tasks.NTEOneTimeTask import NTEOneTimeTask
 from src.utils import image_utils as iu
 
 WorkingTaskT = TypeVar("WorkingTaskT", bound=BaseNTETask)
 
 
-class DailyTask(NTEOneTimeTask, BaseNTETask):
+class DailyTask(BaseStaminaTask):
     """日常任务执行器"""
 
     # --- 配置项键名 ---
@@ -39,7 +38,7 @@ class DailyTask(NTEOneTimeTask, BaseNTETask):
     CONF_GIFT = "羁遇赠礼"
 
     CINEMA_DATE_TARGET = "约会目标"
-    DAILY_STAMINA_TARGET = "目标消耗体力"
+    DAILY_STAMINA_TARGET = BaseStaminaTask.CONF_STAMINA_TARGET
 
     # --- 一咖舍任务选项 ---
     COFFEE_MODE_CLAIM_AND_RESTOCK = "领取/补货一咖舍"
@@ -56,7 +55,6 @@ class DailyTask(NTEOneTimeTask, BaseNTETask):
         self.default_config.update(
             {
                 self.CONF_TASK: self.TASK[1],
-                self.DAILY_STAMINA_TARGET: 180,
                 self.CONF_COFFEE_TASK: self.TASK_NONE,
                 self.CONF_CINEMA_DATE: False,
                 self.CINEMA_DATE_TARGET: "",
@@ -304,43 +302,31 @@ class DailyTask(NTEOneTimeTask, BaseNTETask):
     def complete_daily_activities(self):
         """执行操作完成每日活跃度"""
         self.log_info("正在执行每日活跃度任务")
-        if self.check_activity():
-            self.log_info("当前体力消耗或每日活跃度已达标，跳过每日活跃度任务")
-            return True
-
-        used_stamina = self.info_get("used stamina")
-        target_stamina = self.config.get(self.DAILY_STAMINA_TARGET, 180)
-        must_use = target_stamina - used_stamina
-        if must_use <= 0:
-            self.log_info(
-                f"当前体力消耗: {used_stamina}, {self.DAILY_STAMINA_TARGET}: {target_stamina}"
-            )
-            self.log_info("目标已达成，跳过每日活跃度任务")
-            return True
-        self.info_set("must use stamina", must_use)
-
-        ret = False
         task_name = self.config.get(self.CONF_TASK)
         if task_name == AnomalyTask.TASK_NAME:
-            with self.set_working_task(AnomalyTask) as task:
-                if ret := task.do_run(self.config, stamina_target=must_use):
-                    task.shift_id(self)
-
-        return ret
+            with self.set_working_task(AnomalyTask, config=self.config) as task:
+                result = task.do_run()
+                task.on_daily_end(result)
+                return result is not False
+        return False
 
     @contextmanager
-    def set_working_task(self, cls: Type[WorkingTaskT]) -> Iterator[WorkingTaskT]:
+    def set_working_task(self, cls: Type[WorkingTaskT], config=None) -> Iterator[WorkingTaskT]:
         old_working_task = self.working_task
         old_sleep_check_interval = self.sleep_check_interval
         working_task = cast(WorkingTaskT, self.get_task_by_class(cls))
         old_task_info = working_task.info
+        old_task_config = working_task.config
         self.working_task = working_task
         self.working_task.info = self.info
         self.sleep_check_interval = working_task.sleep_check_interval
+        if config is not None:
+            working_task.config = config
         try:
             yield working_task
         finally:
             self.working_task.info = old_task_info
+            self.working_task.config = old_task_config
             self.working_task = old_working_task
             self.sleep_check_interval = old_sleep_check_interval
 
@@ -349,64 +335,10 @@ class DailyTask(NTEOneTimeTask, BaseNTETask):
             return self.working_task.sleep_check()
         return super().sleep_check()
 
-    def _open_activity(self):
-        def action():
-            self.openF1panel()
-            self.operate_click(*self.pos.panels.f1.activity)
-            self.sleep(0.5)
-            return self.wait_panel(Labels.f1_activity_panel)
-
-        self.log_info("开启活跃度面板")
-        result = self.retry_on_action(action, self.ensure_main)
-        if not result:
-            self.log_error("无法找到活跃度面板")
-            return False
-        return True
-
-    def check_activity(self):
-        if not self._open_activity():
-            return False
-        activity_re = re.compile(r"(\d+)")
-        mission_re = re.compile(r"^(\d+)/180$")
-        used_stamina = 0
-        daily_activity = 0
-
-        mission_box = self.box_of_screen(0.184, 0.652, 0.781, 0.710, name="mission", hcenter=True)
-        activity_box = self.box_of_screen(0.184, 0.188, 0.256, 0.255, name="activity", hcenter=True)
-
-        activity = self.ocr(box=activity_box, match=activity_re)
-
-        for _ in range(2):
-            mission = self.ocr(box=mission_box, match=mission_re)
-
-            if mission:
-                match = mission_re.search(mission[0].name)
-                if match:
-                    used_stamina = int(match.group(1))
-                    self.log_info(f"ocr found used stamina {used_stamina}")
-                    break
-            else:
-                self.operate(
-                    lambda: self.scroll_relative(0.2379, 0.7285, -42),
-                    block=True,
-                )
-                self.sleep(0.25)
-
-        if activity:
-            match = activity_re.search(activity[0].name)
-            if match:
-                daily_activity = int(match.group(1))
-                self.log_info(f"ocr found daily activity {daily_activity}")
-
-        self.info_set("used stamina", used_stamina)
-        self.info_set("daily activity", daily_activity)
-
-        return used_stamina >= 180 or daily_activity >= 100
-
     def claim_activity_rewards(self, in_panel=False):
         """领取活跃度奖励"""
         self.log_info("正在领取活跃度奖励")
-        if not in_panel and not self._open_activity():
+        if not in_panel and not self.open_activity_panel():
             return False
         if self.find_one(Labels.f1_activity_mission):
             self.operate_click(0.2348, 0.7653)
