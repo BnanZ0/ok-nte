@@ -45,8 +45,6 @@ class AnomalyHunter(BaseStaminaTask, BaseCombatTask):
 
     TASK_COST = 60
     MAX_CONSECUTIVE_FAILURES = 3
-    HUNTER_TAB_X = 0.912
-    HUNTER_TAB_Y = 0.152
     HUNTER_TRAVEL_X = 0.867
     HUNTER_TRAVEL_Y_START = 0.262
     HUNTER_NEXT_PAGE_TRAVEL_Y_START = 0.468
@@ -174,7 +172,7 @@ class AnomalyHunter(BaseStaminaTask, BaseCombatTask):
         self.log_info("打开F1面板并切换至异象追猎页签")
         self.open_f1_domain_page()
         self.sleep(0.5)
-        self.operate_click(self.HUNTER_TAB_X, self.HUNTER_TAB_Y)
+        self.operate_click(*self.pos.panels.f1.domain.hunter)
         self.sleep(0.5)
 
     def normalize_target(self, target: str) -> str:

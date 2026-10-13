@@ -204,13 +204,13 @@ class AnomalyTask(BaseStaminaTask, BaseCombatTask):
         # 不同操作 1: 选择任务类型
         self.log_info(f"切换至任务页签: {task_type}")
         if task_type == self.TASK_EXP_COIN:
-            self.operate_click(0.1703, 0.1528)
+            self.operate_click(*self.pos.panels.f1.domain.exp)
         elif task_type == self.TASK_ABILITY:
-            self.operate_click(0.2977, 0.1528)
+            self.operate_click(*self.pos.panels.f1.domain.skill)
         elif task_type == self.TASK_ARC:
-            self.operate_click(0.4211, 0.1528)
+            self.operate_click(*self.pos.panels.f1.domain.arc)
         elif task_type == self.TASK_CONSOLE:
-            self.operate_click(0.5422, 0.1528)
+            self.operate_click(*self.pos.panels.f1.domain.console)
 
         self.sleep(0.5)
 
