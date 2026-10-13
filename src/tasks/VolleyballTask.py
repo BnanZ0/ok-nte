@@ -69,6 +69,10 @@ class VolleyballTask(NTEOneTimeTask, RecordTask):
             RECORD_NOTIFICATION if self.is_chinese() else EN_RECORD_NOTIFICATION
         )
 
+    def show_notification(self):
+        if self.config.get(self.CONF_MODE) == self.MODE_WC:
+            super().show_notification()
+
     def run(self):
         super().run()
         try:
