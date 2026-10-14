@@ -49,7 +49,7 @@ MOUSE_CONTROL_WARNING = (
 )
 
 
-class BaseNTETask( # pyright: ignore[reportIncompatibleMethodOverride]
+class BaseNTETask(  # pyright: ignore[reportIncompatibleMethodOverride]
     SceneFlowMixin,
     CharUIMixin,
     MovementMixin,
@@ -614,9 +614,6 @@ class BaseNTETask( # pyright: ignore[reportIncompatibleMethodOverride]
         return True
 
     def openF1panel(self):
-        if hasattr(self, "reset_to_false"):
-            self.reset_to_false()
-
         def action():
             if self.is_in_team():
                 self.send_key("f1", after_sleep=1)
@@ -631,9 +628,6 @@ class BaseNTETask( # pyright: ignore[reportIncompatibleMethodOverride]
         return result
 
     def openF2panel(self):
-        if hasattr(self, "reset_to_false"):
-            self.reset_to_false()
-
         def action():
             if self.is_in_team():
                 self.send_key("f2", after_sleep=1)
@@ -648,9 +642,6 @@ class BaseNTETask( # pyright: ignore[reportIncompatibleMethodOverride]
         return result
 
     def openF5panel(self):
-        if hasattr(self, "reset_to_false"):
-            self.reset_to_false()
-
         def action():
             if self.is_in_team():
                 self.send_key("f5", after_sleep=1)
@@ -665,9 +656,6 @@ class BaseNTETask( # pyright: ignore[reportIncompatibleMethodOverride]
         return result
 
     def openESCpanel(self):
-        if hasattr(self, "reset_to_false"):
-            self.reset_to_false()
-
         def action():
             if self.is_in_team():
                 self.send_key("esc", after_sleep=1)
@@ -1012,7 +1000,7 @@ class BaseNTETask( # pyright: ignore[reportIncompatibleMethodOverride]
         box = self.box_of_screen(0.785, 0.022, 0.814, 0.076, name="stamina_icon")
         self.wait_until(
             lambda: self.find_one(Labels.stamina_icon, box=box),
-            pre_action=lambda: self.operate_click(*self.pos.panels.f1.domain.entry, interval=0.5),
+            post_action=lambda: self.operate_click(*self.pos.panels.f1.domain.entry, interval=1),
             settle_time=0.5,
             time_out=10,
         )

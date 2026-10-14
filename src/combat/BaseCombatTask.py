@@ -33,8 +33,10 @@ class NotInCombatException(Exception):
 
 @dataclass
 class SleepCheckSkip:
-    sound_combat_context: bool = False
-    check_combat: bool = False
+    """Checks stay disabled until a task enters its combat phase."""
+
+    sound_combat_context: bool = True
+    check_combat: bool = True
 
     @property
     def all(self) -> bool:
@@ -128,10 +130,12 @@ class BaseCombatTask(CharElementUIMixin, CombatCheck):
         """初始化本场战斗, 执行一次首切并记录实际首发角色。
 
         此方法是战斗开始阶段唯一的副作用入口。首发角色已记录时直接复用。
+        Checks are enabled for a new session; repeated calls preserve temporary pauses.
         """
 
         session = self.combat_session
         if session.start_char is None:
+            self.sleep_check_skip.all = False
             session.combat_start = time.time()
             self.click(after_sleep=0.25)
             self.switch_to_combat_start_char()
@@ -423,10 +427,10 @@ class BaseCombatTask(CharElementUIMixin, CombatCheck):
             wait_combat_time (int, optional): 等待进入战斗状态的超时时间 (秒)。默认为 200。
             raise_if_not_found (bool, optional): 如果未找到战斗状态是否抛出异常。默认为 True。
         """
-        self.wait_until(
-            self.in_combat, time_out=wait_combat_time, raise_if_not_found=raise_if_not_found
-        )
         try:
+            self.wait_until(
+                self.in_combat, time_out=wait_combat_time, raise_if_not_found=raise_if_not_found
+            )
             self.begin_combat_session()
             self.info["Combat Count"] = self.info.get("Combat Count", 0) + 1
             with self.retarget_turn_policy(enable=retarget_turn):
@@ -839,9 +843,9 @@ class BaseCombatTask(CharElementUIMixin, CombatCheck):
 
     def combat_end(self):
         """战斗结束时调用的清理方法。"""
+        self.sleep_check_skip.all = True
         try:
             self.reset_to_false()
-            SoundCombatContext().clear_task_if(self)
 
             current_char = self.get_current_char(raise_exception=False)
             if current_char:
@@ -852,6 +856,7 @@ class BaseCombatTask(CharElementUIMixin, CombatCheck):
 
             self._clear_dead_chars()
         finally:
+            SoundCombatContext().clear_task_if(self)
             self.combat_session = None
 
     def _clear_dead_chars(self):
@@ -887,6 +892,7 @@ class BaseCombatTask(CharElementUIMixin, CombatCheck):
 
     @contextmanager
     def skip_sleep_checks(self):
+        """Temporarily change checks. Keep combat-session start/end outside this scope."""
         old_values = {
             field.name: getattr(self.sleep_check_skip, field.name)
             for field in fields(self.sleep_check_skip)
@@ -897,15 +903,18 @@ class BaseCombatTask(CharElementUIMixin, CombatCheck):
             for check, old_value in old_values.items():
                 setattr(self.sleep_check_skip, check, old_value)
 
+    def can_sound_trigger(self) -> bool:
+        """Allow sound actions when their checks are enabled and no animation is playing."""
+        return not self.sleep_check_skip.sound_combat_context and not self.in_animation
+
     def sleep_check(self):
-        if (
-            not self.sleep_check_skip.sound_combat_context
-            and not self.in_animation
-            and SoundCombatContext.should_interrupt_combat()
-        ):
-            self.log_info("Combat sleep interrupted by sound action")
-            SoundCombatContext().execute_pending_action()
-            SoundCombatContext.wait_for_resume()
+        if self.can_sound_trigger() and SoundCombatContext.should_interrupt_combat():
+            context = SoundCombatContext()
+            if context.is_bound_to(self):
+                self.log_info("Combat sleep interrupted by sound action")
+                context.execute_pending_action(expected_task=self)
+                if context.is_bound_to(self):
+                    context.wait_for_resume()
 
         if not self.sleep_check_skip.check_combat:
             self.check_combat()

@@ -89,9 +89,6 @@ class AnomalyHunter(BaseStaminaTask, BaseCombatTask):
             self.log_error("AnomalyHunter Error", e)
 
     def do_run(self) -> bool | None:
-        stamina_target = self.resolve_stamina_target()
-        if stamina_target == 0:
-            return None
         target = self.normalize_target(
             self.config.get(self.CONF_HUNTER_TARGET, self.TARGET_SOUND_KING)
         )
@@ -99,7 +96,15 @@ class AnomalyHunter(BaseStaminaTask, BaseCombatTask):
         self.info_set("追猎目标", target)
         self.log_info(f"开始异象追猎任务: {target}, 目标索引: {target_idx}")
 
+        self.ensure_main()
+        stamina_target = self.resolve_stamina_target()
+        if stamina_target == 0:
+            return None
+
         self.open_hunter_page()
+
+        self.sleep(0.5)
+
         stamina = self.get_stamina()
 
         if stamina < self.TASK_COST:

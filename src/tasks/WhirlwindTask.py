@@ -63,7 +63,7 @@ class WhirlwindTask(NTEOneTimeTask, BaseCombatTask):
                 cond1 = True
                 cond2 = True
         finally:
-            self.sleep_check_skip.all = False
+            self.sleep_check_skip.all = True
             self._release_navigation_keys()
 
     def sleep_check(self):

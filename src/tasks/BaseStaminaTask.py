@@ -1,10 +1,8 @@
 import re
-from contextlib import contextmanager
 from dataclasses import dataclass
 
 from ok import CannotFindException
 
-from src.combat.BaseCombatTask import BaseCombatTask
 from src.Labels import Labels
 from src.tasks.BaseNTETask import BaseNTETask
 from src.tasks.NTEOneTimeTask import NTEOneTimeTask
@@ -102,8 +100,7 @@ class BaseStaminaTask(NTEOneTimeTask, BaseNTETask):
         return max(0, target - activity.used_stamina)
 
     def check_activity(self) -> bool:
-        with self._activity_check_context():
-            return self.daily_activity_complete(self.read_daily_activity())
+        return self.daily_activity_complete(self.read_daily_activity())
 
     def resolve_stamina_target(self) -> int | None:
         """Return the remaining daily target, or None for reward-count mode."""
@@ -112,19 +109,9 @@ class BaseStaminaTask(NTEOneTimeTask, BaseNTETask):
         target = self.config.get(self.CONF_STAMINA_TARGET)
         must_use = 0
         if target > 0:
-            with self._activity_check_context():
-                activity = self.read_daily_activity()
+            activity = self.read_daily_activity()
             must_use = self.calculate_remaining_stamina(activity, target)
         self.info_set("must use stamina", must_use)
         if must_use == 0:
             self.log_info("体力消耗目标或每日活跃度已达标, 跳过每日体力任务")
         return must_use
-
-    @contextmanager
-    def _activity_check_context(self):
-        if isinstance(self, BaseCombatTask):
-            with self.skip_sleep_checks() as skip:
-                skip.all = True
-                yield
-        else:
-            yield

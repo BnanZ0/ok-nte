@@ -179,9 +179,6 @@ class AnomalyTask(BaseStaminaTask, BaseCombatTask):
             self.log_error("AnomalyTask Error", e)
 
     def do_run(self) -> bool | None:
-        stamina_target = self.resolve_stamina_target()
-        if stamina_target == 0:
-            return None
         task_type = self.config.get(self.CONF_TASK_TYPE)
         idx = self.get_sub_idx()
 
@@ -196,7 +193,10 @@ class AnomalyTask(BaseStaminaTask, BaseCombatTask):
 
         # 共同操作 1
         self.ensure_main()
-        self.log_info("打开F1面板并选择对应功能")
+        stamina_target = self.resolve_stamina_target()
+        if stamina_target == 0:
+            return None
+
         self.open_f1_domain_page()
 
         self.sleep(0.5)

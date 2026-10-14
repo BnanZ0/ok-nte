@@ -2,13 +2,14 @@ import unittest
 from unittest.mock import Mock
 
 from src.char.BaseChar import BaseChar
-from src.combat.BaseCombatTask import BaseCombatTask
+from src.combat.BaseCombatTask import BaseCombatTask, SleepCheckSkip
 from src.tasks.DSDFarmTask import DSDFarmTask
 
 
 class TestCombatSession(unittest.TestCase):
     def _task(self):
         task = BaseCombatTask.__new__(BaseCombatTask)
+        task.sleep_check_skip = SleepCheckSkip()
         task.combat_session = None
         task.current_char = object()
         task.start_char = object()
@@ -33,6 +34,7 @@ class TestCombatSession(unittest.TestCase):
         self.assertEqual(task.switch_calls, 1)
         self.assertIs(session.start_char, task.start_char)
         self.assertGreater(session.combat_start, 0)
+        self.assertFalse(task.sleep_check_skip.all)
 
     def test_first_engage_is_recorded_once_for_the_active_session(self):
         task = self._task()
@@ -82,6 +84,7 @@ class TestCombatSession(unittest.TestCase):
 
     def test_dsd_switching_config_can_be_set_before_combat_starts(self):
         task = DSDFarmTask.__new__(DSDFarmTask)
+        task.sleep_check_skip = SleepCheckSkip()
         task.config = {task.CONF_DONT_SWITCH: True}
         task.combat_session = None
         task.current_char = object()
@@ -89,9 +92,7 @@ class TestCombatSession(unittest.TestCase):
         task.get_current_char = lambda raise_exception=False: task.current_char
         task.click = lambda *_args, **_kwargs: None
 
-        task.combat_session.switch_enabled = not task.config.get(
-            task.CONF_DONT_SWITCH, False
-        )
+        task.combat_session.switch_enabled = not task.config.get(task.CONF_DONT_SWITCH, False)
         session = task.begin_combat_session()
         self.assertFalse(session.switch_enabled)
         task.config[task.CONF_DONT_SWITCH] = False

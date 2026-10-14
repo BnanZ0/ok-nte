@@ -43,6 +43,7 @@ class TestStaminaTask(unittest.TestCase):
         task = object.__new__(AnomalyTask)
         task.config = {BaseStaminaTask.CONF_STAMINA_TARGET: 120}
         task.sleep_check_skip = SleepCheckSkip()
+        task.check_combat = Mock()
         task.info_set = Mock()
         task.log_info = Mock()
         task.read_daily_activity = Mock(return_value=DailyActivity(60, 40))
@@ -54,7 +55,7 @@ class TestStaminaTask(unittest.TestCase):
         self.assertEqual(task.resolve_stamina_target(), 60)
 
         self.assertEqual(task.config[task.CONF_STAMINA_TARGET], 120)
-        self.assertFalse(task.sleep_check_skip.all)
+        self.assertTrue(task.sleep_check_skip.all)
 
     def test_target_resolution_distinguishes_daily_and_reward_count_modes(self):
         task = self._task()
@@ -68,7 +69,7 @@ class TestStaminaTask(unittest.TestCase):
         self.assertIsNone(task.resolve_stamina_target())
         task.read_daily_activity.assert_not_called()
 
-    def test_panel_failure_restores_combat_checks_before_propagating(self):
+    def test_panel_failure_keeps_sleep_checks_disabled(self):
         task = self._task()
 
         def fail_read():
@@ -81,4 +82,5 @@ class TestStaminaTask(unittest.TestCase):
         with self.assertRaises(ValueError):
             task.resolve_stamina_target()
 
-        self.assertFalse(task.sleep_check_skip.all)
+        self.assertTrue(task.sleep_check_skip.all)
+        task.check_combat.assert_not_called()

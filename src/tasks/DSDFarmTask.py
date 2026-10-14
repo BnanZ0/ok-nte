@@ -91,7 +91,7 @@ class DSDFarmTask(NTEOneTimeTask, BaseCombatTask):
         except Exception as e:
             self.log_error("DSDFarmTask Error", e)
         finally:
-            self.sleep_check_skip.all = False
+            self.sleep_check_skip.all = True
 
     def do_run(self):
         self.do_teleport_on_spot = False
@@ -239,28 +239,26 @@ class DSDFarmTask(NTEOneTimeTask, BaseCombatTask):
                 fun = origin_fun
 
     def deside_combat_action(self):
-        with self.skip_sleep_checks() as skip:
-            skip.all = False
-            max_combat_time = self.config.get(self.CONF_MAX_COMBAT_TIME, 1200)
+        max_combat_time = self.config.get(self.CONF_MAX_COMBAT_TIME, 1200)
 
-            session = self.combat_session
-            session.switch_enabled = not self.config.get(self.CONF_DONT_SWITCH, False)
-            session.use_ultimate = self.config.get(self.CONF_USE_ULT, True)
-            start_combat = time.time()
-            self.combat_once(max_combat_time=max_combat_time)
-            self.team_dead = False
-            while not self.is_in_team():
-                self.team_dead = True
-                self.operate_click(0.501, 0.777, after_sleep=0.5)
-                self.send_key("esc", after_sleep=2)
-                self.next_frame()
-            if self.team_dead:
-                return
-            if self.config.get(self.CONF_WAIT_FULL_DURATION):
-                remaining_time = max_combat_time - (time.time() - start_combat)
-                if remaining_time > 0:
-                    self.log_info(f"战斗提前结束，原地等待 {remaining_time:.1f} 秒以补齐时长上限。")
-                    self.sleep(remaining_time)
+        session = self.combat_session
+        session.switch_enabled = not self.config.get(self.CONF_DONT_SWITCH, False)
+        session.use_ultimate = self.config.get(self.CONF_USE_ULT, True)
+        start_combat = time.time()
+        self.combat_once(max_combat_time=max_combat_time)
+        self.team_dead = False
+        while not self.is_in_team():
+            self.team_dead = True
+            self.operate_click(0.501, 0.777, after_sleep=0.5)
+            self.send_key("esc", after_sleep=2)
+            self.next_frame()
+        if self.team_dead:
+            return
+        if self.config.get(self.CONF_WAIT_FULL_DURATION):
+            remaining_time = max_combat_time - (time.time() - start_combat)
+            if remaining_time > 0:
+                self.log_info(f"战斗提前结束, 原地等待 {remaining_time:.1f} 秒以补齐时长上限。")
+                self.sleep(remaining_time)
 
     def map_zoom(self, zoom="max"):
         self.ensure_main()
