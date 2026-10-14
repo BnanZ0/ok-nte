@@ -1536,3 +1536,6 @@ msgstr "Torneo semanal automático"
 
 msgid "复读接球/传球"
 msgstr "Repetir recepción/pase"
+
+msgid "脱战旋转索敌"
+msgstr "Barrido fuera de combate"

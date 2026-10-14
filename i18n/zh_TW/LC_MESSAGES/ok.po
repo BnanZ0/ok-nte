@@ -1537,3 +1537,6 @@ msgstr "自動週賽"
 
 msgid "复读接球/传球"
 msgstr "重複接球/傳球"
+
+msgid "脱战旋转索敌"
+msgstr "脫戰旋轉索敵"

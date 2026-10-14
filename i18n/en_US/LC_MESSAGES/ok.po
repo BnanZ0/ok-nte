@@ -1536,3 +1536,6 @@ msgstr "Auto Weekly Contest"
 
 msgid "复读接球/传球"
 msgstr "Repeat Receive/Pass"
+
+msgid "脱战旋转索敌"
+msgstr "Out-of-Combat Target Sweep"

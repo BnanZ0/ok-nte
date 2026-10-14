@@ -1511,3 +1511,6 @@ msgstr ""
 
 msgid "复读接球/传球"
 msgstr ""
+
+msgid "脱战旋转索敌"
+msgstr ""
