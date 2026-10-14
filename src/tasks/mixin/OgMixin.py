@@ -1,5 +1,6 @@
 import ctypes
 import inspect
+from typing import Any
 
 import win32api
 import win32con
@@ -12,7 +13,8 @@ logger = Logger.get_logger(__name__)
 
 
 class OgMixin(BaseTask):
-    def validate_config(self, key, value):  # type: ignore
+    # Any accommodates upstream BaseTask's inferred None return type in multiple inheritance.
+    def validate_config(self, key, value) -> Any:
         type_spec = self.config_type.get(key)
         if resolve_config_type(type_spec, self.default_config.get(key)) == "drop_down":
             options = type_spec.get("options")
