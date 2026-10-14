@@ -11,6 +11,7 @@ class AutoCombatTask(BaseCombatTask, TriggerTask):
     CONF_USE_ULT = "使用终结技"
     CONF_AUTO_TARGET = "自动目标"
     CONF_COMBAT_START_PRIORITY = "启用开战优先级"
+    CONF_RETARGET_TURN = "脱战旋转索敌"
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -23,6 +24,7 @@ class AutoCombatTask(BaseCombatTask, TriggerTask):
                 self.CONF_AUTO_TARGET: True,
                 self.CONF_USE_ULT: True,
                 self.CONF_COMBAT_START_PRIORITY: True,
+                self.CONF_RETARGET_TURN: False,
             }
         )
         self.config_description = {
@@ -45,9 +47,10 @@ class AutoCombatTask(BaseCombatTask, TriggerTask):
 
         try:
             self.combat_session.use_ultimate = self.config.get(self.CONF_USE_ULT, True)
-            self.begin_combat_session()
-            while self.in_combat():
-                self.get_current_char(raise_exception=True).perform()
+            with self.retarget_turn_policy(enable=self.config.get(self.CONF_RETARGET_TURN, False)):
+                self.begin_combat_session()
+                while self.in_combat():
+                    self.get_current_char(raise_exception=True).perform()
         except NotInCombatException as e:
             logger.info(f"Out of combat {int(time.time() - self.combat_session.combat_start)} {e}")
         finally:
