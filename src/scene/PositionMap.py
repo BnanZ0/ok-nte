@@ -4,7 +4,7 @@ from .ScreenRatio import ScreenRatio
 
 class Position_6_panels__3_esc:
     back_to_login = ScreenRatio(0.930078, 0.869444)
-    gift = ScreenRatio(0.748047, 0.708333)
+    gift = ScreenRatio(0.808984, 0.709722)
     mail = ScreenRatio(0.870313, 0.871528)
 
     def __init__(self, parent):
