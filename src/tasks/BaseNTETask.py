@@ -463,8 +463,8 @@ class BaseNTETask( # pyright: ignore[reportIncompatibleMethodOverride]
         )
         return interac_box
 
-    def find_interac(self):
-        return self.find_one(
+    def find_interac(self) -> list[Box]:
+        return self.find_feature(
             Labels.interactable,
             box=self.interac_box,
             threshold=0.7,
