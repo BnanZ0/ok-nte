@@ -7,7 +7,7 @@ from enum import Enum
 
 import cv2
 import numpy as np
-from ok import Box, Logger, safe_get
+from ok import Box, Logger, get_bounding_box, safe_get
 
 from src import text_white_color
 from src.char.BaseChar import BaseChar, Element
@@ -350,15 +350,23 @@ class BaseCombatTask(CharElementUIMixin, CombatCheck):
         cds["time"] = time.time()
         cds["skill"] = 0
         cds["ultimate"] = 0
+        cd_boxes = [
+            self.get_box_by_name(Labels.box_skill).scale(1.5),
+            self.get_box_by_name(Labels.box_ultimate).scale(1.5),
+        ]
+
+        def process_cd_frame(image):
+            image = gf.isolate_text_to_black(image)
+            return iu.mask_outside_boxes(image, cd_boxes)
+
         texts = self.ocr(
-            0.8594, 0.8847, 0.9578, 0.9139, frame_processor=gf.isolate_text_to_black, match=cd_regex
+            box=get_bounding_box(cd_boxes),
+            frame_processor=process_cd_frame,
+            match=cd_regex,
         )
-        for text in texts:
-            cd = convert_cd(text)
-            if text.x < self.width_of_screen(0.89):
-                cds["skill"] = cd
-            elif text.x > self.width_of_screen(0.925):
-                cds["ultimate"] = cd
+        for name, box in zip(("skill", "ultimate"), cd_boxes):
+            for text in box.in_boundary(texts):
+                cds[name] = convert_cd(text)
         self.scene.cd_refreshed = True
         # self.log_debug(f"cd refreshed: {cds} {time.time() - cds['time']}")
 
@@ -573,7 +581,14 @@ class BaseCombatTask(CharElementUIMixin, CombatCheck):
                 intro_ready = current_char is not None and (
                     free_intro or current_char.is_cycle_full()
                 )
-                if retry_intro and not has_intro and not intro_replanned and intro_ready:
+                # A health change must belong to the target of the key already sent.
+                if (
+                    retry_intro
+                    and switch_key_sent_at <= 0
+                    and not has_intro
+                    and not intro_replanned
+                    and intro_ready
+                ):
                     intro_replanned = True
                     new_decision = self._decide_switch_to(
                         current_char,

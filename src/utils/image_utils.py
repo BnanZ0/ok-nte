@@ -4,7 +4,7 @@ from typing import Tuple
 
 import cv2
 import numpy as np
-from ok import Box, color_range_to_bound
+from ok import Box, color_range_to_bound, get_bounding_box
 
 from src.events import communicate
 
@@ -237,6 +237,22 @@ def mask_corners(image, ratio_w=0.5555, ratio_h=0.8571, corners=None, to_bgr=Tru
     fill_color = (0, 0, 0) if to_bgr else 0
     result = cv2.fillPoly(white, contours, fill_color)  # 黑色填充
 
+    return result
+
+
+def mask_outside_boxes(image: np.ndarray, boxes: list[Box]) -> np.ndarray:
+    """Keep boxes in their cropped/resized bounding image and fill the rest with white."""
+    source_box = get_bounding_box(boxes)
+    height, width = image.shape[:2]
+    scale_x = width / source_box.width
+    scale_y = height / source_box.height
+    result = np.full_like(image, 255)
+    for box in boxes:
+        x1 = max(0, min(width, round((box.x - source_box.x) * scale_x)))
+        y1 = max(0, min(height, round((box.y - source_box.y) * scale_y)))
+        x2 = max(0, min(width, round((box.x + box.width - source_box.x) * scale_x)))
+        y2 = max(0, min(height, round((box.y + box.height - source_box.y) * scale_y)))
+        result[y1:y2, x1:x2] = image[y1:y2, x1:x2]
     return result
 
 

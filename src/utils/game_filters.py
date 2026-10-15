@@ -30,7 +30,9 @@ lv_red_hsv = HSVRange((0, 235, 180), (0, 255, 255))
 
 
 def isolate_text_to_black(cv_image):
-    return iu.create_color_mask(cv_image, text_white_color, invert=True)
+    image = iu.create_color_mask(cv_image, text_white_color)
+    image = iu.morphology_mask(image, closing=True)
+    return cv2.bitwise_not(image)
 
 
 def isolate_lv_to_white(cv_image):

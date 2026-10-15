@@ -982,7 +982,7 @@ class BaseChar:
         duration: float,
         interval: float = 0.1,
         after_sleep: float = 0,
-        click_skill_if_ready_and_return: bool = False,
+        until_skill_full: bool = False,
         until_cycle_full: bool = False,
     ):
         """持续进行普通攻击一段时间。
@@ -996,10 +996,10 @@ class BaseChar:
         """
         start = time.time()
         while time.time() - start < duration:
-            if click_skill_if_ready_and_return and self.skill_available():
-                return self.click_skill()
-            # if until_cycle_full and self.is_cycle_full():
-            #     return
+            if until_skill_full and self.skill_available():
+                return
+            if until_cycle_full and self.is_cycle_full():
+                return
             self.click()
             self.sleep(interval)
         self.sleep(after_sleep)

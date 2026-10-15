@@ -127,9 +127,7 @@ class Blackbird(BaseChar):
         self.switch_other_char()
 
     def _wait_ultimate_unfreeze(self, start, click=True):
-        if self.in_ult:
-            return super()._wait_ultimate_unfreeze(start, click)
-        wait = 2.6
+        wait = 2 if self.in_ult else 2.6
         if click:
             self.continues_normal_attack(wait)
         else:
