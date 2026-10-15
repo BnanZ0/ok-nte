@@ -41,7 +41,12 @@ class DebugCharTask(NTEOneTimeTask, BaseCombatTask):
         self.char = None
         self.is_char_loaded = False
         self.char_list = [entry.impl_id for entry in iter_char_implementations()]
-        self.default_config.update({"char": self.char_list[0]})
+        self.default_config.update({"char": self.char_list[0], "is_current_char": True})
+        self.config_description.update(
+            {
+                "is_current_char": "开发工具调用角色方法时, 开启表示出场角色; 关闭表示后台角色",
+            }
+        )
         self.config_type.update(
             {
                 "char": {
@@ -186,6 +191,7 @@ class DebugCharTask(NTEOneTimeTask, BaseCombatTask):
                 if not self.is_char_loaded:
                     self.is_char_loaded = True
                     self.load_chars()
+                self.char.is_current_char = self.config.get("is_current_char", True)
                 return getattr(self.char, name)
         except AttributeError:
             raise AttributeError(
