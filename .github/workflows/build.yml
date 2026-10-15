@@ -19,7 +19,7 @@ env:
   SIGN_SETUP: 'false'
   # Set to the final release API URL after preparing its launcher prerelease.
   # An older release URL still reuses its EXE; empty builds a new EXE.
-  USE_RELEASE: 'https://api.github.com/repos/BnanZ0/ok-nte/releases/tags/v1.4.11'
+  USE_RELEASE: 'https://api.github.com/repos/BnanZ0/ok-nte/releases/tags/v1.4.14'
   SYNC_GITHUB_REPO: 'true'
 
 defaults:
