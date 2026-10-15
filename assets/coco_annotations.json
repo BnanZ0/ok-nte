@@ -68,7 +68,7 @@
         },
         {
             "id": 11,
-            "file_name": "images/2.png",
+            "file_name": "images/4.png",
             "width": 2560,
             "height": 1440
         },
@@ -224,13 +224,13 @@
         },
         {
             "id": 38,
-            "file_name": "images/3.png",
+            "file_name": "images/2.png",
             "width": 2560,
             "height": 1440
         },
         {
             "id": 39,
-            "file_name": "images/4.png",
+            "file_name": "images/3.png",
             "width": 2560,
             "height": 1440
         },
@@ -254,7 +254,7 @@
         },
         {
             "id": 45,
-            "file_name": "images/4.png",
+            "file_name": "images/3.png",
             "width": 2560,
             "height": 1440
         },
@@ -267,6 +267,12 @@
         {
             "id": 47,
             "file_name": "images/1.png",
+            "width": 2560,
+            "height": 1440
+        },
+        {
+            "id": 49,
+            "file_name": "images/5.png",
             "width": 2560,
             "height": 1440
         }
@@ -1454,6 +1460,19 @@
             ],
             "area": 4690,
             "iscrowd": 0
+        },
+        {
+            "id": 92,
+            "image_id": 49,
+            "category_id": 93,
+            "bbox": [
+                2198,
+                1262,
+                74,
+                74
+            ],
+            "area": 5476,
+            "iscrowd": 0
         }
     ],
     "categories": [
@@ -1910,6 +1929,11 @@
         {
             "id": 91,
             "name": "volleyball_wc_start",
+            "supercategory": ""
+        },
+        {
+            "id": 93,
+            "name": "akane_skill_2",
             "supercategory": ""
         }
     ]

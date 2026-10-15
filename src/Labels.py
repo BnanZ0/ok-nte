@@ -2,6 +2,7 @@ from enum import Enum
 
 
 class Labels(str, Enum):
+    akane_skill_2 = 'akane_skill_2'
     anomaly_fluff = 'anomaly_fluff'
     anomaly_mammon = 'anomaly_mammon'
     auto_play = 'auto_play'
