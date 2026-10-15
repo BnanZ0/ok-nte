@@ -24,7 +24,8 @@ Automatically complete selected daily and weekly tasks.
 - **Anomaly Domain**: Automate Anomaly Domain.
 - **Anomaly Hunt**: Automate Anomaly Hunt challenges.
 - **Auto Whirlwind**: Automatically completes 'Whirlwind' challenges.
-- **Volley Star**: Supports EXP farming and automatic match progression.
+- **Volley Star**: Supports EXP farming, automatic match progression, and automated weekly competitions.
+- **Puka Land - Hit the Lucky Star**: Automatically play the darts minigame repeatedly to farm Star Tickets.
 - **Bagel Agent**: Automatically posts, replies, and likes in the Bagel community, or assists in generating copy in assistant mode.
 
 ### ⚡ Constant Triggers & Combat (Triggers/Character Center)

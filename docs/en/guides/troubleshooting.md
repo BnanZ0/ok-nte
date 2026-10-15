@@ -19,10 +19,19 @@ If the ok-nte update shows no progress for a long time, the dependency download 
 Check the following in order:
 
 1. The resolution is 16:9 and at least 1920×1080.
-2. The game brightness, UI opacity, and keybindings use the recommended settings.
+2. Brightness, UI Opacity, camera settings, and keybindings follow the requirements in [Before you start](../getting-started/configuration.md).
 3. Graphics filters, HDR, sharpening, and screen overlays are disabled.
-4. The game window is not minimized, and the screen is not locked or asleep.
+4. Confirm that the game window is not minimized, the computer is unlocked, and the display stays on.
 5. The mouse is not interfering with the foreground game window while the task is running.
+
+</details>
+
+<details>
+<summary><strong>Unstable auto-combat recognition?</strong></summary>
+
+Disable **Damage Display** in the system options section (**系统功能**) of the **Control** tab in the game settings. Damage numbers can obscure the UI and interfere with auto-combat recognition.
+
+Also confirm that the other settings follow the requirements in [Before you start](../getting-started/configuration.md).
 
 </details>
 
