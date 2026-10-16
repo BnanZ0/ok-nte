@@ -226,6 +226,19 @@ jobs:
           gh workflow run --repo "$GITHUB_REPOSITORY" mirrorchyan_release.yml -f "tag=$RELEASE_TAG"
           gh workflow run --repo "$GITHUB_REPOSITORY" mirrorchyan_release_note.yml -f "tag=$RELEASE_TAG" -f "release_note=$RELEASE_NOTE"
 
+      - name: Use latest NSIS installer template
+        if: steps.release_version.outputs.is_release == 'true'
+        shell: pwsh
+        run: |
+          $template = Join-Path $env:RUNNER_TEMP 'p/src-tauri/nsis/installer.nsi'
+          if (!(Test-Path -LiteralPath $template -PathType Leaf)) {
+            throw "PyAppify installer template not found: $template"
+          }
+          Invoke-WebRequest `
+            -Uri 'https://raw.githubusercontent.com/BnanZ0/pyappify/master/src-tauri/nsis/installer.nsi' `
+            -OutFile $template `
+            -ErrorAction Stop
+
       - name: Build setup executable
         if: steps.release_version.outputs.is_release == 'true'
         uses: BnanZ0/pyappify-action@master
