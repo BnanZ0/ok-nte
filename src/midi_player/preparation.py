@@ -300,8 +300,8 @@ def _store_prepared_result(
 
 def _layout_from_options(options: PlaybackOptions) -> PianoLayout:
     if options.bounds is None:
-        return PianoLayout.default(options.layout_mode)
-    return PianoLayout(options.layout_mode, options.bounds)
+        return PianoLayout.default(options.layout_mode, instrument=options.instrument)
+    return PianoLayout(options.layout_mode, options.bounds, instrument=options.instrument)
 
 
 def mapped_pitch_cache_key(

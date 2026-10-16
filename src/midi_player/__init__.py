@@ -1,4 +1,4 @@
-"""Runtime support for the MIDI piano player tab."""
+"""Runtime support for the MIDI instrument player tab."""
 
 from importlib import import_module
 from typing import TYPE_CHECKING
@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 __all__ = [
     "DEFAULT_21_KEY_BOUNDS",
     "DEFAULT_36_KEY_BOUNDS",
+    "Instrument",
     "LayoutMode",
     "MidiAnalyzer",
     "MidiLibraryService",
@@ -27,6 +28,7 @@ __all__ = [
 _EXPORT_MODULES = {
     "DEFAULT_21_KEY_BOUNDS": ".models",
     "DEFAULT_36_KEY_BOUNDS": ".models",
+    "Instrument": ".models",
     "LayoutMode": ".models",
     "MidiAnalyzer": ".analyzer",
     "MidiLibraryService": ".library",
@@ -54,6 +56,7 @@ if TYPE_CHECKING:
     from .models import (
         DEFAULT_21_KEY_BOUNDS,
         DEFAULT_36_KEY_BOUNDS,
+        Instrument,
         LayoutMode,
         MidiNoteEvent,
         MidiTrackInfo,

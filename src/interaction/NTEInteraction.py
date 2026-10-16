@@ -1,6 +1,7 @@
 import ctypes
 import threading
 import time
+from typing import Any
 
 import win32api
 import win32con
@@ -59,16 +60,32 @@ class NTEInteraction(PostMessageInteraction):
                 return super().send_key(key, down_time=down_time)
             finally:
                 self._disable_key_mapping -= 1
-
-    def send_key_down(self, key, activate=True):
+    
+    def send_key_down(self, key, activate=True) -> Any:
         with self._input_lock:
             key = self._map_key(key)
-            return super().send_key_down(key, activate=activate)
+            if activate:
+                self.try_activate()
+            vk_code = self.get_key_by_str(key)
+            lparam = self.make_lparam(vk_code, is_up=False)
+            return self.post(win32con.WM_KEYDOWN, vk_code, lparam)
 
-    def send_key_up(self, key):
+    def send_key_up(self, key) -> Any:
         with self._input_lock:
             key = self._map_key(key)
-            return super().send_key_up(key)
+            vk_code = self.get_key_by_str(key)
+            lparam = self.make_lparam(vk_code, is_up=True)
+            return self.post(win32con.WM_KEYUP, vk_code, lparam)
+
+    def post(self, message, wParam=0, lParam=0, hwnd=None) -> Any:
+        try:
+            if hwnd is None:
+                hwnd = self.hwnd
+            win32gui.PostMessage(hwnd, message, wParam, lParam)
+        except Exception as exc:
+            logger.error(f"PostMessage failed for message {message:#x}: {exc}")
+            return False
+        return True
 
     def scroll(self, x, y, scroll_amount):
         with self._input_lock:

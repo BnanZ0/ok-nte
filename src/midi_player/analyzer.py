@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from .layout import PianoLayout
-from .models import LayoutMode, ParsedSong, SongStats
+from .models import Instrument, LayoutMode, ParsedSong, SongStats
 from .preparation import prepare_midi_playback
 
 
@@ -14,11 +14,13 @@ class MidiAnalyzer:
         bounds: tuple[float, float, float, float] | None = None,
         track_indices: tuple[int, ...] | None = None,
         smart_remap: bool = True,
+        *,
+        instrument: Instrument | str = Instrument.PIANO,
     ) -> SongStats:
         if bounds is None:
-            layout = PianoLayout.default(layout_mode)
+            layout = PianoLayout.default(layout_mode, instrument=instrument)
         else:
-            layout = PianoLayout(LayoutMode(layout_mode), bounds)
+            layout = PianoLayout(LayoutMode(layout_mode), bounds, instrument=instrument)
 
         playable = layout.playable_pitches
         playable_count = 0

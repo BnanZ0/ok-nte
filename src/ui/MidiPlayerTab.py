@@ -43,6 +43,7 @@ from qfluentwidgets import (
 )
 
 from src.midi_player import (
+    Instrument,
     LayoutMode,
     MidiLibraryService,
     MidiPlaybackController,
@@ -62,6 +63,7 @@ from src.ui.features.midi.widgets import (
 from src.ui.foundation.icons import FluentSystemIcon
 
 MIDI_PLAYER_CONFIG_DEFAULTS = {
+    "instrument": Instrument.PIANO.value,
     "pitch": 0,
     "auto_pitch": False,
     "smart_remap": True,
@@ -70,6 +72,7 @@ MIDI_PLAYER_CONFIG_DEFAULTS = {
     "schedule_enabled": False,
     "schedule_time": "00:00",
     "bounds_36": [0.103, 0.654, 0.903, 0.919],
+    "bounds_guitar_36": [0.103, 0.654, 0.903, 0.919],
     "collapsed_sections": {},
     "track_selection": {},
     "song_analysis_settings": {},
@@ -99,7 +102,7 @@ class MidiPlayerTab(CustomTab):
     def __init__(self):
         super().__init__()
         self.icon = FluentIcon.MUSIC
-        self.tr_name_tab = self.tr("自动弹琴")
+        self.tr_name_tab = self.tr("自动乐器")
         self.tr_no_song_selected = self.tr("未选择歌曲")
         self.is_playing = False
         self.is_favorite = False
@@ -248,7 +251,7 @@ class MidiPlayerTab(CustomTab):
         self.vbox.setContentsMargins(10, 10, 30, 0)
         self.vbox.setSpacing(20)
 
-        self.title_label = TitleLabel(self.tr("自动弹琴"), self.container)
+        self.title_label = TitleLabel(self.tr("自动乐器"), self.container)
         self.title_label.adjustSize()
         self.vbox.addWidget(self.title_label)
 
@@ -479,6 +482,19 @@ class MidiPlayerTab(CustomTab):
         vbox_key.setContentsMargins(20, 20, 20, 20)
         vbox_key.setSpacing(15)
 
+        hbox_instrument = QHBoxLayout()
+        hbox_instrument.addWidget(BodyLabel(self.tr("乐器"), self.key_card))
+        hbox_instrument.addStretch()
+        self.cb_instrument = ComboBox(self.key_card)
+        self.cb_instrument.addItem(self.tr("钢琴"), userData=Instrument.PIANO.value)
+        self.cb_instrument.addItem(self.tr("吉他"), userData=Instrument.GUITAR.value)
+        self.cb_instrument.setMinimumWidth(150)
+        self.cb_instrument.setToolTip(self.tr("选择与游戏当前演奏界面一致的乐器"))
+        self.cb_instrument.installEventFilter(ToolTipFilter(self.cb_instrument, showDelay=300))
+        self.cb_instrument.currentIndexChanged.connect(self.on_instrument_changed)
+        hbox_instrument.addWidget(self.cb_instrument)
+        vbox_key.addLayout(hbox_instrument)
+
         hbox_mode = QHBoxLayout()
         lbl_mode = BodyLabel(self.tr("键盘布局"))
 
@@ -487,7 +503,7 @@ class MidiPlayerTab(CustomTab):
         self.segmented_widget.addItem("36_keys", self.tr("36键半音布局 (12x3)"))
         self.segmented_widget.addItem("21_keys", self.tr("21键自然音布局 (已禁用)"))
         self.segmented_widget.items["21_keys"].setEnabled(False)
-        self.segmented_widget.items["21_keys"].setToolTip(self.tr("当前游戏钢琴使用 36 键半音布局"))
+        self.segmented_widget.items["21_keys"].setToolTip(self.tr("当前乐器使用 36 键半音布局"))
         self.segmented_widget.items["21_keys"].installEventFilter(
             ToolTipFilter(self.segmented_widget.items["21_keys"], showDelay=300)
         )
@@ -510,7 +526,7 @@ class MidiPlayerTab(CustomTab):
         self.stacked_widget.addWidget(self.config_21)
 
         vbox_key.addWidget(self.stacked_widget)
-        self._add_collapsible_section("key_config", self.tr("按键坐标配置"), self.key_card)
+        self._add_collapsible_section("key_config", self.tr("乐器与键位设置"), self.key_card)
 
         self.segmented_widget.currentItemChanged.connect(self.on_key_mode_changed)
         self._connect_bounds_savers(self.config_36)
@@ -569,6 +585,10 @@ class MidiPlayerTab(CustomTab):
     def _load_saved_settings(self):
         self._loading_settings = True
         try:
+            index = self.cb_instrument.findData(
+                self.config.get("instrument", Instrument.PIANO.value)
+            )
+            self.cb_instrument.setCurrentIndex(max(0, index))
             self.spn_pitch.setValue(int(self.config.get("pitch", 0)))
             self.switch_auto_pitch.setChecked(bool(self.config.get("auto_pitch", False)))
             self.switch_smart_remap.setChecked(bool(self.config.get("smart_remap", True)))
@@ -579,12 +599,7 @@ class MidiPlayerTab(CustomTab):
             saved_time = QTime.fromString(str(self.config.get("schedule_time", "00:00")), "HH:mm")
             if saved_time.isValid():
                 self.time_picker.setTime(saved_time)
-            bounds = self.config.get("bounds_36", MIDI_PLAYER_CONFIG_DEFAULTS["bounds_36"])
-            if isinstance(bounds, list) and len(bounds) == 4:
-                self.config_36.spn_x1.setText(str(bounds[0]))
-                self.config_36.spn_y1.setText(str(bounds[1]))
-                self.config_36.spn_x2.setText(str(bounds[2]))
-                self.config_36.spn_y2.setText(str(bounds[3]))
+            self._load_instrument_bounds()
         finally:
             self._loading_settings = False
 
@@ -596,7 +611,46 @@ class MidiPlayerTab(CustomTab):
     def save_key_bounds(self, *args):
         if self._loading_settings:
             return
-        self.config["bounds_36"] = list(self.config_36.get_coords())
+        self.config[self._instrument_bounds_key()] = list(self.config_36.get_coords())
+
+    def _current_instrument(self):
+        return Instrument(self.cb_instrument.currentData())
+
+    def _instrument_bounds_key(self):
+        if self._current_instrument() == Instrument.GUITAR:
+            return "bounds_guitar_36"
+        return "bounds_36"
+
+    def _load_instrument_bounds(self):
+        key = self._instrument_bounds_key()
+        bounds = self.config.get(key, MIDI_PLAYER_CONFIG_DEFAULTS[key])
+        if not isinstance(bounds, list) or len(bounds) != 4:
+            bounds = MIDI_PLAYER_CONFIG_DEFAULTS[key]
+        for edit, value in zip(
+            (
+                self.config_36.spn_x1,
+                self.config_36.spn_y1,
+                self.config_36.spn_x2,
+                self.config_36.spn_y2,
+            ),
+            bounds,
+        ):
+            edit.setText(str(value))
+        self.config_36.setEnabled(self._current_instrument() == Instrument.PIANO)
+
+    def on_instrument_changed(self, index):
+        if self._loading_settings:
+            return
+        self._loading_settings = True
+        try:
+            self._load_instrument_bounds()
+        finally:
+            self._loading_settings = False
+        self.config["instrument"] = self._current_instrument().value
+        self._current_seconds = 0.0
+        self._set_progress_slider_value(0)
+        self.lbl_time_current.setText("00:00")
+        self._request_analysis_for_current_song()
 
     def _set_speed_percent(self, value):
         value = max(25, min(200, int(value)))
@@ -773,6 +827,7 @@ class MidiPlayerTab(CustomTab):
         return PianoLayout(
             self._current_layout_mode(),
             bounds,
+            instrument=self._current_instrument(),
         )
 
     def _key_label(self, key):
@@ -784,7 +839,11 @@ class MidiPlayerTab(CustomTab):
         labels_36 = ["1", "#1", "2", "b3", "3", "4", "#4", "5", "#5", "6", "b7", "7"]
         labels_21 = ["1", "2", "3", "4", "5", "6", "7"]
         labels = labels_36 if self._current_layout_mode() == LayoutMode.KEYS_36 else labels_21
-        note = labels[key.column] if 0 <= key.column < len(labels) else str(key.column + 1)
+        if self._current_instrument() == Instrument.GUITAR:
+            names = ("C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B")
+            note = f"{names[key.pitch % 12]}{key.pitch // 12 - 1}"
+        else:
+            note = labels[key.column] if 0 <= key.column < len(labels) else str(key.column + 1)
         return f"{row_names.get(key.row, key.row)} {note}"
 
     def _current_key_sequence(self, mode):
@@ -801,9 +860,10 @@ class MidiPlayerTab(CustomTab):
         except Exception:
             width = 0
             height = 0
-        print("=== MIDI Piano Key Mapping ===")
+        print("=== MIDI Instrument Key Mapping ===")
         print(
-            f"mode={self.current_key_mode}, bounds={self.get_current_key_coordinates()}, "
+            f"instrument={self._current_instrument().value}, mode={self.current_key_mode}, "
+            f"bounds={self.get_current_key_coordinates()}, "
             f"client={width}x{height}"
         )
         for key in layout.keys:
@@ -867,6 +927,7 @@ class MidiPlayerTab(CustomTab):
     def _current_playback_options(self):
         track_indices = self._selected_track_indices()
         return PlaybackOptions(
+            instrument=self._current_instrument(),
             layout_mode=self._current_layout_mode(),
             transpose=self.spn_pitch.value(),
             smart_remap=self.switch_smart_remap.isChecked(),
@@ -1078,14 +1139,12 @@ class MidiPlayerTab(CustomTab):
         transpose = self.spn_pitch.value()
         auto_pitch = self.switch_auto_pitch.isChecked()
         smart_remap = self.switch_smart_remap.isChecked()
-        layout_mode = self._current_layout_mode()
-        bounds = self.get_current_key_coordinates()
         track_indices = self._selected_track_indices(song_id)
         min_transpose = self.spn_pitch.minimum()
         max_transpose = self.spn_pitch.maximum()
         generation = self._analysis_generation
 
-        layout = PianoLayout(layout_mode, bounds)
+        layout = self._current_layout()
         try:
             future = submit_midi_analysis(
                 self.library,
@@ -1442,6 +1501,7 @@ class MidiPlayerTab(CustomTab):
         self.update_progress(int(current * 1000), int(total * 1000))
 
     def _update_play_button_icon(self):
+        self.cb_instrument.setEnabled(not self.is_playing)
         if self.is_playing:
             self.btn_play_pause.setIcon(FluentIcon.PAUSE)
         else:

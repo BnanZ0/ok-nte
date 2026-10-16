@@ -8,6 +8,7 @@ from src.midi_player.controller import MidiPlaybackController
 from src.midi_player.layout import PianoLayout
 from src.midi_player.library import MidiLibraryService
 from src.midi_player.models import (
+    Instrument,
     LayoutMode,
     MidiNoteEvent,
     ParsedSong,
@@ -21,9 +22,44 @@ from src.midi_player.preparation import (
     mapped_pitch_cache_key,
     prepare_midi_analysis_async,
     prepare_midi_playback,
+    prepare_midi_playback_async,
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+
+
+class TestInstrumentLayout(unittest.TestCase):
+    def test_default_piano_and_guitar_match_their_note_ranges(self):
+        piano = PianoLayout.default(LayoutMode.KEYS_36)
+        guitar = PianoLayout.default(LayoutMode.KEYS_36, instrument=Instrument.GUITAR)
+
+        self.assertEqual(piano.playable_pitches, frozenset(range(40, 76)))
+        self.assertEqual(guitar.playable_pitches, frozenset(range(52, 88)))
+        for row, pitch in ((0, 76), (1, 64), (2, 52)):
+            with self.subTest(row=row):
+                key = next(key for key in guitar.keys if key.row == row and key.column == 0)
+                self.assertEqual(key.pitch, pitch)
+                self.assertEqual(
+                    guitar.coordinate_for_pitch(pitch), piano.coordinate_for_pitch(pitch - 12)
+                )
+
+    def test_remap_cache_keeps_instrument_ranges_separate(self):
+        parsed = ParsedSong(
+            info=_song_info("song-a", "Song A"),
+            duration=0.1,
+            ticks_per_beat=480,
+            notes=(MidiNoteEvent(pitch=40, start=0.0, duration=0.1),),
+        )
+        cache = MappedPitchCache()
+        for instrument, expected_pitch in (
+            (Instrument.PIANO, 40),
+            (Instrument.GUITAR, 52),
+            (Instrument.PIANO, 40),
+        ):
+            with self.subTest(instrument=instrument):
+                layout = PianoLayout.default(LayoutMode.KEYS_36, instrument=instrument)
+                prepared = prepare_midi_playback(parsed, layout, 0, mapped_pitch_cache=cache)
+                self.assertEqual(prepared.mapped_pitches, (expected_pitch,))
 
 
 class TestMidiPitchMapping(unittest.TestCase):
@@ -173,6 +209,32 @@ class TestMidiPreparation(unittest.TestCase):
 
 
 class TestMidiProcessPreparation(unittest.IsolatedAsyncioTestCase):
+    async def test_playback_options_apply_instrument_with_default_and_custom_bounds(self):
+        from mido import Message, MidiFile, MidiTrack
+
+        with TemporaryDirectory(dir=REPO_ROOT) as tmp:
+            root = Path(tmp)
+            source = root / "instrument-song.mid"
+            midi = MidiFile(ticks_per_beat=480)
+            track = MidiTrack()
+            track.append(Message("note_on", note=64, velocity=64, time=0))
+            track.append(Message("note_off", note=64, velocity=0, time=480))
+            midi.tracks.append(track)
+            midi.save(source)
+            library = MidiLibraryService(library_dir=root / "library")
+            song = library.import_files([source])[0]
+
+            for bounds in (None, (0.1, 0.6, 0.9, 0.9)):
+                for instrument, expected_row in ((Instrument.PIANO, 0), (Instrument.GUITAR, 1)):
+                    with self.subTest(bounds=bounds, instrument=instrument):
+                        options = PlaybackOptions(instrument=instrument, bounds=bounds)
+                        prepared = await prepare_midi_playback_async(library, song.id, options)
+                        self.assertEqual(prepared.mapped_pitches, (64,))
+                        key = next(key for key in prepared.layout.keys if key.pitch == 64)
+                        self.assertEqual(key.row, expected_row)
+                        if bounds is not None:
+                            self.assertEqual(prepared.layout.bounds, bounds)
+
     async def test_prepare_midi_analysis_async_populates_parent_caches(self):
         from mido import Message, MidiFile, MidiTrack
 
@@ -329,7 +391,9 @@ class TestMidiPlaybackPreparation(unittest.IsolatedAsyncioTestCase):
         await play_task
 
         self.assertTrue(play_task.done())
-        self.assertEqual(events, [("prepare", "song-a"), ("play_start", "song-a"), ("idle", "idle")])
+        self.assertEqual(
+            events, [("prepare", "song-a"), ("play_start", "song-a"), ("idle", "idle")]
+        )
 
 
 class _FakePlaybackLibrary:

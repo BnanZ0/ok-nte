@@ -14,6 +14,11 @@ class LayoutMode(str, Enum):
     KEYS_21 = "21"
 
 
+class Instrument(str, Enum):
+    PIANO = "piano"
+    GUITAR = "guitar"
+
+
 class PlayMode(str, Enum):
     SINGLE_LOOP = "single_loop"
     SEQUENTIAL = "sequential"
@@ -99,6 +104,7 @@ class PlaybackOptions:
     on_status: Callable[[str], None] | None = None
     on_progress: Callable[[float, float], None] | None = None
     on_song_changed: Callable[[str], None] | None = None
+    instrument: Instrument = Instrument.PIANO
 
 
 @dataclass

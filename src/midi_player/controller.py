@@ -5,8 +5,9 @@ import inspect
 import random
 from dataclasses import replace
 
+from .keyboard import KeyboardPlayer, build_key_events
 from .library import MidiLibraryService
-from .models import PlaybackOptions, PlayMode
+from .models import Instrument, PlaybackOptions, PlayMode
 from .preparation import PreparedMidiPlayback, prepare_midi_playback_async
 
 
@@ -231,47 +232,73 @@ class MidiPlaybackController:
         interaction = og.executor.interaction
         client_width = method.width
         client_height = method.height
+        keyboard = KeyboardPlayer(interaction) if layout.instrument == Instrument.GUITAR else None
 
-        self._status(options, "playing")
         start_offset = max(0.0, min(options.start_offset, playback_duration))
         source_offset = start_offset * speed
+        events = ()
+        if keyboard is not None:
+            events = build_key_events(
+                notes,
+                mapped_pitches,
+                layout,
+                speed=speed,
+                start_offset=start_offset,
+                minimum_duration=max(0.001, float(options.note_gap)),
+            )
+
+        self._status(options, "playing")
         playback_origin = asyncio.get_running_loop().time() - start_offset
         progress_task = asyncio.create_task(
             self._progress_loop(lambda: playback_origin, playback_duration, options)
         )
 
         try:
-            for note, pitch in zip(notes, mapped_pitches):
-                if note.start < source_offset:
-                    continue
-                if self._stopped.is_set():
-                    break
-                coordinate = layout.client_coordinate_for_pitch(
-                    pitch,
-                    client_width,
-                    client_height,
-                )
-                if coordinate is None:
-                    continue
+            if keyboard is not None:
+                for event in events:
+                    playback_origin = await self._wait_until_playback_time(
+                        playback_origin, event.time, keyboard=keyboard
+                    )
+                    if self._stopped.is_set():
+                        break
+                    keyboard.apply(event)
+            else:
+                for note, pitch in zip(notes, mapped_pitches):
+                    if note.start < source_offset:
+                        continue
+                    if self._stopped.is_set():
+                        break
+                    coordinate = layout.client_coordinate_for_pitch(
+                        pitch,
+                        client_width,
+                        client_height,
+                    )
+                    if coordinate is None:
+                        continue
 
-                playback_origin = await self._wait_until_playback_time(
-                    playback_origin,
-                    note.start / speed,
-                )
-                if self._stopped.is_set():
-                    break
+                    playback_origin = await self._wait_until_playback_time(
+                        playback_origin,
+                        note.start / speed,
+                    )
+                    if self._stopped.is_set():
+                        break
 
-                x, y = coordinate
-                await self._tap(interaction, x, y, options.note_gap)
+                    x, y = coordinate
+                    await self._tap(interaction, x, y, options.note_gap)
 
             if not self._stopped.is_set():
                 playback_origin = await self._wait_until_playback_time(
                     playback_origin,
                     playback_duration,
+                    keyboard=keyboard,
                 )
                 self._progress(options, playback_duration, playback_duration)
         finally:
-            await _cancel_and_wait(progress_task)
+            try:
+                if keyboard is not None:
+                    keyboard.release_all()
+            finally:
+                await _cancel_and_wait(progress_task)
 
     def _random_song_id(self, current_song_id: str) -> str | None:
         song_ids = self._sequence_song_ids()
@@ -344,13 +371,19 @@ class MidiPlaybackController:
         self,
         playback_origin: float,
         playback_time: float,
+        *,
+        keyboard: KeyboardPlayer | None = None,
     ) -> float:
         loop = asyncio.get_running_loop()
         while not self._stopped.is_set():
             if not self._pause.is_set():
                 pause_started_at = loop.time()
+                if keyboard is not None:
+                    keyboard.release_all()
                 await self._pause.wait()
                 playback_origin += loop.time() - pause_started_at
+                if keyboard is not None and not self._stopped.is_set():
+                    keyboard.restore()
                 continue
 
             delay = playback_origin + playback_time - loop.time()

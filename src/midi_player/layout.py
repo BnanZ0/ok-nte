@@ -2,10 +2,15 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from .models import DEFAULT_21_KEY_BOUNDS, DEFAULT_36_KEY_BOUNDS, LayoutMode
+from .models import DEFAULT_21_KEY_BOUNDS, DEFAULT_36_KEY_BOUNDS, Instrument, LayoutMode
 
 NATURAL_OFFSETS = (0, 2, 4, 5, 7, 9, 11)
 CHROMATIC_OFFSETS = tuple(range(12))
+GUITAR_KEY_ROWS = (
+    tuple("1234567890-="),
+    tuple("qwertyuiop[]"),
+    (*"asdfghjkl;'", "enter"),
+)
 
 
 @dataclass(frozen=True)
@@ -25,10 +30,14 @@ class PianoLayout:
         mode: LayoutMode,
         bounds: tuple[float, float, float, float],
         *,
-        middle_octave_start: int = 52,
+        middle_octave_start: int | None = None,
+        instrument: Instrument | str = Instrument.PIANO,
     ) -> None:
         self.mode = LayoutMode(mode)
         self.bounds = bounds
+        self.instrument = Instrument(instrument)
+        if middle_octave_start is None:
+            middle_octave_start = 64 if self.instrument == Instrument.GUITAR else 52
         self.middle_octave_start = middle_octave_start
         self.columns = 12 if self.mode == LayoutMode.KEYS_36 else 7
         self.rows = 3
@@ -46,12 +55,14 @@ class PianoLayout:
         return cls(LayoutMode(mode), (x1, y1, x2, y2))
 
     @classmethod
-    def default(cls, mode: LayoutMode | str) -> "PianoLayout":
+    def default(
+        cls, mode: LayoutMode | str, *, instrument: Instrument | str = Instrument.PIANO
+    ) -> "PianoLayout":
         layout_mode = LayoutMode(mode)
         bounds = DEFAULT_36_KEY_BOUNDS
         if layout_mode == LayoutMode.KEYS_21:
             bounds = DEFAULT_21_KEY_BOUNDS
-        return cls(layout_mode, bounds)
+        return cls(layout_mode, bounds, instrument=instrument)
 
     @property
     def playable_pitches(self) -> frozenset[int]:
@@ -66,6 +77,12 @@ class PianoLayout:
         if key is None:
             return None
         return key.ratio_x, key.ratio_y
+
+    def keyboard_key_for_pitch(self, pitch: int) -> str | None:
+        key = self._keys.get(pitch)
+        if self.instrument != Instrument.GUITAR or key is None:
+            return None
+        return GUITAR_KEY_ROWS[key.row][key.column]
 
     def client_coordinate_for_pitch(
         self,
