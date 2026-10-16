@@ -542,7 +542,7 @@ msgstr ""
 msgid "已收藏"
 msgstr ""
 
-msgid "当前游戏钢琴使用 36 键半音布局"
+msgid "当前乐器使用 36 键半音布局"
 msgstr ""
 
 msgid "打印键位映射"
@@ -551,7 +551,7 @@ msgstr ""
 msgid "打开 mid_lib"
 msgstr ""
 
-msgid "按键坐标配置"
+msgid "乐器与键位设置"
 msgstr ""
 
 msgid "搜索歌曲"
@@ -590,7 +590,7 @@ msgstr ""
 msgid "测试全部键"
 msgstr ""
 
-msgid "自动弹琴"
+msgid "自动乐器"
 msgstr ""
 
 msgid "自动音高"
@@ -1513,4 +1513,16 @@ msgid "复读接球/传球"
 msgstr ""
 
 msgid "脱战旋转索敌"
+msgstr ""
+
+msgid "乐器"
+msgstr ""
+
+msgid "钢琴"
+msgstr ""
+
+msgid "吉他"
+msgstr ""
+
+msgid "选择与游戏当前演奏界面一致的乐器"
 msgstr ""

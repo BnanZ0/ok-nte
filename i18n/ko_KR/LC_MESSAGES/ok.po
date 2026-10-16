@@ -546,8 +546,8 @@ msgstr "좌측 상단 버튼 중심:"
 msgid "已收藏"
 msgstr "즐겨찾기"
 
-msgid "当前游戏钢琴使用 36 键半音布局"
-msgstr "현재 게임 피아노는 36키 반음계 레이아웃을 사용합니다"
+msgid "当前乐器使用 36 键半音布局"
+msgstr "현재 악기는 36키 반음계 레이아웃을 사용합니다"
 
 msgid "打印键位映射"
 msgstr "키 매핑 출력"
@@ -555,8 +555,8 @@ msgstr "키 매핑 출력"
 msgid "打开 mid_lib"
 msgstr "mid_lib 열기"
 
-msgid "按键坐标配置"
-msgstr "키 좌표 설정"
+msgid "乐器与键位设置"
+msgstr "악기 및 키 설정"
 
 msgid "搜索歌曲"
 msgstr "노래 검색"
@@ -594,8 +594,8 @@ msgstr "중음 열 테스트"
 msgid "测试全部键"
 msgstr "모든 키 테스트"
 
-msgid "自动弹琴"
-msgstr "자동 피아노"
+msgid "自动乐器"
+msgstr "자동 악기"
 
 msgid "自动音高"
 msgstr "자동 피치"
@@ -1539,3 +1539,15 @@ msgstr "리시브/패스 반복"
 
 msgid "脱战旋转索敌"
 msgstr "비전투 중 회전하며 적 탐색"
+
+msgid "乐器"
+msgstr "악기"
+
+msgid "钢琴"
+msgstr "피아노"
+
+msgid "吉他"
+msgstr "기타"
+
+msgid "选择与游戏当前演奏界面一致的乐器"
+msgstr "게임 연주 화면과 같은 악기를 선택하세요"

@@ -1273,3 +1273,24 @@ msgstr "Repetir recepção/passe"
 
 msgid "脱战旋转索敌"
 msgstr "Varredura fora de combate"
+
+msgid "自动乐器"
+msgstr "Instrumentos"
+
+msgid "乐器与键位设置"
+msgstr "Instrumento e teclas"
+
+msgid "当前乐器使用 36 键半音布局"
+msgstr "Layout cromático de 36 teclas para este instrumento"
+
+msgid "乐器"
+msgstr "Instrumento"
+
+msgid "钢琴"
+msgstr "Piano"
+
+msgid "吉他"
+msgstr "Guitarra"
+
+msgid "选择与游戏当前演奏界面一致的乐器"
+msgstr "Escolha o instrumento exibido no jogo"

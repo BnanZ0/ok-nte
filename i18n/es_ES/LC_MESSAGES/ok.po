@@ -546,8 +546,8 @@ msgstr "Centro del botón sup. izquierdo:"
 msgid "已收藏"
 msgstr "En favoritos"
 
-msgid "当前游戏钢琴使用 36 键半音布局"
-msgstr "El piano del juego usa un diseño cromático de 36 teclas"
+msgid "当前乐器使用 36 键半音布局"
+msgstr "Diseño cromático de 36 teclas"
 
 msgid "打印键位映射"
 msgstr "Imprimir mapeo de teclas"
@@ -555,8 +555,8 @@ msgstr "Imprimir mapeo de teclas"
 msgid "打开 mid_lib"
 msgstr "Abrir mid_lib"
 
-msgid "按键坐标配置"
-msgstr "Config. de coordenadas de teclas"
+msgid "乐器与键位设置"
+msgstr "Instrumento y teclas"
 
 msgid "搜索歌曲"
 msgstr "Buscar canciones"
@@ -594,8 +594,8 @@ msgstr "Probar fila media"
 msgid "测试全部键"
 msgstr "Probar todas las teclas"
 
-msgid "自动弹琴"
-msgstr "Piano Auto"
+msgid "自动乐器"
+msgstr "Instrumentos"
 
 msgid "自动音高"
 msgstr "Tono automático"
@@ -1539,3 +1539,15 @@ msgstr "Repetir recepción/pase"
 
 msgid "脱战旋转索敌"
 msgstr "Barrido fuera de combate"
+
+msgid "乐器"
+msgstr "Instrumento"
+
+msgid "钢琴"
+msgstr "Piano"
+
+msgid "吉他"
+msgstr "Guitarra"
+
+msgid "选择与游戏当前演奏界面一致的乐器"
+msgstr "Elige el instrumento del juego"

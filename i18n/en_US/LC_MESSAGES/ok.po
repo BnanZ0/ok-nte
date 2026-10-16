@@ -546,8 +546,8 @@ msgstr "Top-Left Button Center:"
 msgid "已收藏"
 msgstr "Favorited"
 
-msgid "当前游戏钢琴使用 36 键半音布局"
-msgstr "Current game piano uses a 36-key chromatic layout"
+msgid "当前乐器使用 36 键半音布局"
+msgstr "36-key chromatic layout for this instrument"
 
 msgid "打印键位映射"
 msgstr "Print Key Mapping"
@@ -555,8 +555,8 @@ msgstr "Print Key Mapping"
 msgid "打开 mid_lib"
 msgstr "Open mid_lib"
 
-msgid "按键坐标配置"
-msgstr "Key Coordinates Config"
+msgid "乐器与键位设置"
+msgstr "Instrument & Key Settings"
 
 msgid "搜索歌曲"
 msgstr "Search Songs"
@@ -594,8 +594,8 @@ msgstr "Test Mid Row"
 msgid "测试全部键"
 msgstr "Test All Keys"
 
-msgid "自动弹琴"
-msgstr "Auto Piano"
+msgid "自动乐器"
+msgstr "Instruments"
 
 msgid "自动音高"
 msgstr "Auto Pitch"
@@ -1539,3 +1539,15 @@ msgstr "Repeat Receive/Pass"
 
 msgid "脱战旋转索敌"
 msgstr "Out-of-Combat Target Sweep"
+
+msgid "乐器"
+msgstr "Instrument"
+
+msgid "钢琴"
+msgstr "Piano"
+
+msgid "吉他"
+msgstr "Guitar"
+
+msgid "选择与游戏当前演奏界面一致的乐器"
+msgstr "Choose the instrument shown in-game"

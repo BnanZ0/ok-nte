@@ -546,8 +546,8 @@ msgstr "左上ボタンの中心:"
 msgid "已收藏"
 msgstr "お気に入り"
 
-msgid "当前游戏钢琴使用 36 键半音布局"
-msgstr "現在のゲームのピアノは36キーの半音階レイアウトを使用しています"
+msgid "当前乐器使用 36 键半音布局"
+msgstr "現在の楽器は36キーの半音階レイアウトを使用"
 
 msgid "打印键位映射"
 msgstr "キーマッピングを出力"
@@ -555,8 +555,8 @@ msgstr "キーマッピングを出力"
 msgid "打开 mid_lib"
 msgstr "mid_libを開く"
 
-msgid "按键坐标配置"
-msgstr "キー座標設定"
+msgid "乐器与键位设置"
+msgstr "楽器とキー設定"
 
 msgid "搜索歌曲"
 msgstr "曲を検索"
@@ -594,8 +594,8 @@ msgstr "中音列をテスト"
 msgid "测试全部键"
 msgstr "すべてのキーをテスト"
 
-msgid "自动弹琴"
-msgstr "自動ピアノ"
+msgid "自动乐器"
+msgstr "自動楽器"
 
 msgid "自动音高"
 msgstr "自動ピッチ"
@@ -1539,3 +1539,15 @@ msgstr "レシーブ/パスを繰り返す"
 
 msgid "脱战旋转索敌"
 msgstr "非戦闘時の旋回索敵"
+
+msgid "乐器"
+msgstr "楽器"
+
+msgid "钢琴"
+msgstr "ピアノ"
+
+msgid "吉他"
+msgstr "ギター"
+
+msgid "选择与游戏当前演奏界面一致的乐器"
+msgstr "ゲームの演奏画面に合う楽器を選択してください"
