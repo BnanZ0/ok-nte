@@ -45,6 +45,7 @@ class CombatDetectResult:
 class CombatDetectPolicy:
     miss_required: int = 1
     uncertain_seconds: float = 0.5
+    sync: bool = False
 
 
 @dataclass
@@ -284,7 +285,11 @@ class CombatCheck(BaseNTETask):
         if self.combat_end_condition is not None and self.combat_end_condition():
             return self.reset_to_false()
 
-        combat_detect = self.async_combat_detect()
+        combat_detect = (
+            CombatDetectResult(self.combat_detect(), "sync")
+            if self.combat_detect_policy.sync
+            else self.async_combat_detect()
+        )
         combat_phase = self._update_combat_detect_state(combat_detect)
         if combat_phase is CombatDetectPhase.IN_COMBAT:
             return self._set_in_combat(combat_detect.source)

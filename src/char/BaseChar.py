@@ -891,6 +891,17 @@ class BaseChar:
         """检查战斗状态 (代理到 task.check_combat)。"""
         self.task.check_combat()
 
+    def sync_check_combat(self):
+        """刷新当前帧, 临时同步检测并走完整的战斗检查流程。"""
+        policy = self.task.combat_detect_policy
+        old_sync = policy.sync
+        policy.sync = True
+        try:
+            self.task.next_frame()
+            self.check_combat()
+        finally:
+            policy.sync = old_sync
+
     def reset_state(self):
         """重置角色的战斗相关状态 (如入场技标记)。"""
         self.has_intro = False

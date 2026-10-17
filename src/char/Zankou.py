@@ -42,8 +42,7 @@ class Zankou(BaseChar):
                 self.task.wait_until(
                     self.ultimate_available, post_action=self.click_with_interval, time_out=3
                 )
-                self.task.next_frame()
-                self.check_combat()
+                self.sync_check_combat()
                 yield ultimate.repeat_for_entry()
 
         return self.plan(skill_combo, ultimate, entry=entry)
