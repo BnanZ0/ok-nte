@@ -42,6 +42,7 @@ class VolleyballTask(NTEOneTimeTask, RecordTask):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.name = "排球之星"
+        self.group_name = "都市闲趣"
         self.default_config.update(
             {
                 self.CONF_MODE: self.MODE_EXP,
