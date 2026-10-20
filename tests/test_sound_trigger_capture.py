@@ -41,6 +41,41 @@ class ProcessResolverTests(unittest.TestCase):
 
 class ProcessLoopbackTests(unittest.TestCase):
     @unittest.skipUnless(sys.platform == "win32", "WASAPI loopback is Windows-only")
+    def test_failed_com_initialization_does_not_mark_ready_or_uninitialize(self):
+        from src.sound_trigger.capture import process_loopback
+
+        source = process_loopback.ProcessLoopbackSource("missing-test-process.exe")
+        with (
+            patch.object(process_loopback, "_capability_available", return_value=True),
+            patch.object(
+                process_loopback.comtypes, "CoInitializeEx", side_effect=OSError("COM failed")
+            ),
+            patch.object(process_loopback.comtypes, "CoUninitialize") as uninitialize,
+        ):
+            with self.assertRaises(OSError):
+                source._produce(lambda _chunk: None)
+
+        self.assertFalse(source._ready.is_set())
+        uninitialize.assert_not_called()
+
+    @unittest.skipUnless(sys.platform == "win32", "WASAPI loopback is Windows-only")
+    def test_successful_com_initialization_is_balanced_when_capture_stops(self):
+        from src.sound_trigger.capture import process_loopback
+
+        source = process_loopback.ProcessLoopbackSource("missing-test-process.exe")
+        source._stop.set()
+        with (
+            patch.object(process_loopback, "_capability_available", return_value=True),
+            patch.object(process_loopback.comtypes, "CoInitializeEx") as initialize,
+            patch.object(process_loopback.comtypes, "CoUninitialize") as uninitialize,
+        ):
+            source._produce(lambda _chunk: None)
+
+        initialize.assert_called_once_with(process_loopback.comtypes.COINIT_MULTITHREADED)
+        uninitialize.assert_called_once_with()
+        self.assertTrue(source._ready.is_set())
+
+    @unittest.skipUnless(sys.platform == "win32", "WASAPI loopback is Windows-only")
     def test_windows_sdk_struct_layouts_match_expected_sizes(self):
         import ctypes
 

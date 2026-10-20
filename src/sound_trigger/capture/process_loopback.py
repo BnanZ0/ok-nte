@@ -474,15 +474,12 @@ class ProcessLoopbackSource(AudioCaptureSource):
         if not _capability_available():
             raise RuntimeError("WASAPI per-process loopback is not available on this system")
 
+        # Only enter the cleanup scope after COM initialization succeeds.
+        comtypes.CoInitializeEx(comtypes.COINIT_MULTITHREADED)
         try:
-            comtypes.CoInitializeEx(comtypes.COINIT_MULTITHREADED)
-        except OSError as exc:
-            logger.warning(f"CoInitializeEx(MTA) returned {exc}; continuing")
-
-        self._mark_ready()
-        failure_streak = 0
-        missing_log_key = "missing_audio_process"
-        try:
+            self._mark_ready()
+            failure_streak = 0
+            missing_log_key = "missing_audio_process"
             while not self._stop.is_set():
                 pid = resolve_target_pid(self.process_name)
                 if pid is None:
@@ -519,10 +516,7 @@ class ProcessLoopbackSource(AudioCaptureSource):
                     if self._stop.wait(PROCESS_WAIT_INTERVAL):
                         return
         finally:
-            try:
-                comtypes.CoUninitialize()
-            except Exception:
-                pass
+            comtypes.CoUninitialize()
 
     def _run_loopback_stream(self, pid: int, push: PushFn) -> None:
         audio_client, block_align, is_float = self._activate_and_initialize(pid)

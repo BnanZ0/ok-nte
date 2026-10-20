@@ -13,6 +13,12 @@ class RuntimeServices:
     """Own startup and shutdown for the sound and OpenVINO runtime services."""
 
     def __init__(self) -> None:
+        if threading.current_thread() is not threading.main_thread():
+            raise RuntimeError("RuntimeServices must be constructed on the main thread")
+        # comtypes initializes its importing thread, but its atexit cleanup runs
+        # on the main thread. Load it here before any audio worker can import it.
+        import comtypes  # noqa: F401
+
         self._stop_event = Event()
         self._started = False
         self._openvino_model_async = None
