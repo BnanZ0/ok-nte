@@ -1098,16 +1098,15 @@ class BaseNTETask(
     def exit_anomaly(self):
         deadline = time.time() + 30
         while time.time() < deadline:
-            if self.is_in_team():
-                if not self.find_exit():
-                    if self.wait_until(
-                        lambda: self.is_in_team() and not self.find_exit(),
-                        settle_time=0.5,
-                        time_out=1,
-                    ):
-                        return True
-                else:
-                    self.send_key("esc")
+            if self.is_in_team() and not self.find_exit():
+                if self.wait_until(
+                    lambda: self.is_in_team() and not self.find_exit(),
+                    settle_time=0.5,
+                    time_out=1,
+                ):
+                    return True
+            else:
+                self.send_key("esc", after_sleep=1)
 
             if self.wait_click_confirm(
                 range=(0.619, 0.607, 0.709, 0.709),

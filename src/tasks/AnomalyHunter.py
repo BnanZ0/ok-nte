@@ -87,6 +87,8 @@ class AnomalyHunter(BaseStaminaTask, BaseCombatTask):
             raise
         except Exception as e:
             self.log_error("AnomalyHunter Error", e)
+        finally:
+            self.exit_anomaly()
 
     def do_run(self) -> bool | None:
         target = self.normalize_target(
