@@ -1,5 +1,5 @@
 from src.char.BaseChar import BaseChar
-from src.combat.planner import Planner, RoleProfile
+from src.combat.planner import CombatPlan, Planner, RoleProfile
 
 
 class Support(BaseChar):
@@ -13,13 +13,13 @@ class Support(BaseChar):
 
     def click_ultimate_action(
         self,
+        plan: CombatPlan | None = None,
+        *,
         name: str | None = None,
         tags: set[Planner.ActionTag] | None = None,
         add_tags: set[Planner.ActionTag] | Planner.ActionTag | None = None,
         reason: str = "ultimate action available",
         can_execute=None,
-        send_click: bool = True,
-        wait_if_no_cd: float = 0,
     ):
         """声明支持角色的 Q 动作, 默认附加 `ULTIMATE_ACTION` 和 `SUPPORT` 标签。
 
@@ -27,27 +27,23 @@ class Support(BaseChar):
         """
         tags = tags or {Planner.ActionTag.ULTIMATE_ACTION, Planner.ActionTag.SUPPORT}
         return super().click_ultimate_action(
+            plan,
             name=name,
             tags=tags,
             add_tags=add_tags,
             reason=reason,
             can_execute=can_execute,
-            send_click=send_click,
-            wait_if_no_cd=wait_if_no_cd,
         )
 
     def click_skill_action(
         self,
+        plan: CombatPlan | None = None,
+        *,
         name: str | None = None,
         tags: set[Planner.ActionTag] | None = None,
         add_tags: set[Planner.ActionTag] | Planner.ActionTag | None = None,
         reason: str = "skill action available",
-        down_time: float = 0.01,
         can_execute=None,
-        post_sleep: float = 0,
-        has_animation: bool = False,
-        send_click: bool = True,
-        time_out: float = 0,
     ):
         """声明支持角色的 E 动作, 默认附加 `SKILL_ACTION` 和 `SUPPORT` 标签。
 
@@ -55,14 +51,10 @@ class Support(BaseChar):
         """
         tags = tags or {Planner.ActionTag.SKILL_ACTION, Planner.ActionTag.SUPPORT}
         return super().click_skill_action(
+            plan,
             name=name,
             tags=tags,
             add_tags=add_tags,
             reason=reason,
             can_execute=can_execute,
-            down_time=down_time,
-            post_sleep=post_sleep,
-            has_animation=has_animation,
-            send_click=send_click,
-            time_out=time_out,
         )

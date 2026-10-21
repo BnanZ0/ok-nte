@@ -58,8 +58,9 @@ For complex action ordering, define entry flow with action variables in the same
 
 ```python
 def combat_plan(self, context: CombatContext):
-    skill = self.click_skill_action(reason="skill available")
-    ultimate = self.click_ultimate_action(reason="ultimate available")
+    plan = self.plan()
+    skill = self.click_skill_action(plan, reason="skill available")
+    ultimate = self.click_ultimate_action(plan, reason="ultimate available")
 
     def entry():
         skill_result = yield skill
@@ -70,7 +71,8 @@ def combat_plan(self, context: CombatContext):
         if ultimate_result:
             yield skill.repeat_for_entry()
 
-    return self.plan(skill, ultimate, entry=entry)
+    plan.entry = entry
+    return plan
 ```
 
 `yield action` executes the action and sends an `ActionResult` back to the generator. Its truth value is True only when the action succeeded, so you can write:
@@ -88,17 +90,35 @@ if a and not b:
 
 ## CombatPlan
 
-Create a `CombatPlan` with `self.plan(*actions, claims=None, entry=None)`:
+Create an empty plan with `self.plan()`, then pass it to the character's Q/E helpers.
+Each helper registers the action and returns a callable with the native execution
+method's parameter names and types. Planner only receives ordinary `ActionIntent`
+objects; release parameters and their binding stay in `BaseChar`.
 
 ```python
 def combat_plan(self, context):
-    setup = self.planner_action(...)
-    claims = []
+    plan = self.plan()
+    skill = self.click_skill_action(plan)
+    ultimate = self.click_ultimate_action(plan)
     if self.should_claim_field():
-        claims.append(FieldClaim.high(reason="burst window"))
+        plan.add(FieldClaim.high(reason="burst window"))
 
-    return self.plan(setup, claims=claims)
+    def entry():
+        if (yield skill(down_time=0.3)):
+            yield ultimate(send_click=False)
+
+    plan.entry = entry
+    return plan
 ```
+
+`plan.add(...)` returns its argument and ignores `None`. Actions are registered in
+insertion order, which is also their default execution order without `entry`.
+Register actions and claims only while building the plan. A call such as `skill(...)`
+binds one attempt; it neither executes nor registers another action.
+The existing `self.plan(*actions, claims=None, entry=None)` form remains supported:
+helpers without a plan still return callable action declarations that can be passed
+there. Use `yield action` for the existing parameters and `yield action(...)` only
+when supplying release arguments for that attempt. Empty `()` are unnecessary.
 
 Rules:
 
@@ -111,9 +131,85 @@ Rules:
 - An ordinary entry flow is subject to the planner's per-entry action limit.
 - The same action is executed at most once during one entry.
 
+### Execution parameters
+
+Write release parameters on the returned action, not on `click_skill_action(...)`
+or `click_ultimate_action(...)`. Completion comes from `click_skill`/`click_ultimate`
+through one generic wrapper in `BaseChar`; adding a native method parameter does not
+require updating a planner type or a second Q/E parameter signature.
+
+```python
+if (yield skill(down_time=0.3, post_sleep=0)):
+    yield ultimate(send_click=False)
+yield skill(down_time=0.01).repeat_for_entry()
+```
+
+These calls create ordinary action copies whose `execute` closures capture the
+arguments. Identity, tags, slot, readiness, cooldown checks, and permissions remain
+unchanged. A changed parameter does not permit a second execution in the same entry;
+apply `repeat_for_entry()` to the bound attempt explicitly.
+Unspecified native parameters use their method defaults, except E keeps its existing
+helper default of `down_time=0.01`. Argument binding rejects unknown names without
+sending input. Constructing a plan and binding an attempt never run the executor.
+
+Q/E helpers always bind the native `click_skill`/`click_ultimate` method. They do not
+accept an `execute` replacement; custom executors belong in `planner_action(...)`.
+For state-dependent release arguments, calculate them at the action call site.
+
+If ordinary execution and strict routes should share configured parameters, bind them
+before registering the action:
+
+```python
+skill = self.click_skill_action()  # Create without automatic registration.
+skill = plan.add(skill(down_time=self.skill_down_time, post_sleep=0.2))
+# Inside entry:
+yield skill
+yield skill(down_time=0.1, post_sleep=0.2).repeat_for_entry()
+```
+
+Bound actions retain their callable type and native parameter completion, so the same
+variable can be reused. Supplying arguments again binds a new attempt using the native
+method and helper defaults; it does not merge the previous action's argument values.
+
+Catalog scheduling uses those bound values. Binding captures argument values at that
+point; it does not evaluate them again at execution. Entry may bind a different attempt
+with `skill(...)`, but if a strict route already executed the same action, entry receives
+that earlier result instead of releasing it again. `plan.add()` only appends: do not
+register the default version first and then append a same-identity parameter version
+when the intent is to configure a single catalog action.
+
+### Custom actions
+
+The same mechanism preserves a custom execution function's parameters after its
+first `CombatContext` argument:
+
+```python
+def perform_burst(self, context: CombatContext, *, duration: float = 0.5) -> bool:
+    self.continues_normal_attack(duration)
+    return True
+
+# Inside combat_plan:
+burst = self.planner_action(
+    plan=plan,
+    tags=Planner.ActionTag.DAMAGE,
+    execute=self.perform_burst,
+)
+# Inside entry:
+yield burst(duration=0.8)
+```
+
+Custom calls have the same completion, binding, permission, result, and repeat rules.
+The default catalog executor receives only `context`, so extra parameters should have
+defaults. Read current state inside that executor for dynamic defaults. Callable-valued
+custom arguments are passed through as values; planner does not interpret them.
+
 ## ActionIntent
 
 `ActionIntent` expresses "what the character may try after entering the field". Do not split normal attacks, waits, or repeated presses into many actions; keep those details inside one action's `execute` function.
+
+BaseChar's helpers return callable action declarations compatible with `ActionIntent`.
+Calling one creates a bound `ActionIntent`; no Q/E-specific parameter classes are
+part of the planner API.
 
 Fields:
 
@@ -256,52 +352,42 @@ if self.consume_first_engage():
 ### `click_ultimate_action`
 
 ```python
-self.click_ultimate_action(
+ultimate = self.click_ultimate_action(
+    plan,
     name=None,
     tags=None,
     add_tags=None,
     reason="ultimate action available",
     can_execute=None,
-    send_click=True,
-    wait_if_no_cd=0,
 )
+# Inside entry:
+yield ultimate(send_click=False, wait_if_no_cd=0.5)
 ```
 
-- Automatically sets `slot=ActionSlot.ULTIMATE`.
-- Defaults to `tags={ActionTag.ULTIMATE_ACTION}`.
-- `tags` completely specifies the base tags; `add_tags` can receive one tag or a tag set and appends to them, or appends to the default tags when `tags` is omitted.
-- Defaults to `name=f"{character_name}_ultimate"`.
-- `can_execute` includes `self.ultimate_available()` by default; an extra condition is combined with it.
-- `priority_ready` automatically uses `self.ultimate_available()`.
-- When `send_click` is True, ordinary clicks are sent during the ultimate animation. `wait_if_no_cd` is the maximum time to wait for cooldown readiness.
-- `execute` calls `self.click_ultimate()`.
+- Registers `slot=ActionSlot.ULTIMATE`, default tag `ULTIMATE_ACTION`, and the default name `"{character}_ultimate"`.
+- `tags` replaces the base tags; `add_tags` extends them with one tag or a collection.
+- Eligibility always includes `ultimate_available()` plus any extra `can_execute` condition; readiness uses `ultimate_available()`.
+- The executor is always `click_ultimate`; supply release arguments on `ultimate(...)`. Bind and register an attempt when catalog scheduling also needs those arguments.
+- Omit `plan` when returning the declaration through the existing `self.plan(...)` form.
 
 ### `click_skill_action`
 
 ```python
-self.click_skill_action(
+skill = self.click_skill_action(
+    plan,
     name=None,
     tags=None,
     add_tags=None,
     reason="skill action available",
-    down_time=0.01,
     can_execute=None,
-    post_sleep=0,
-    has_animation=False,
-    send_click=True,
-    time_out=0,
 )
+# Inside entry:
+yield skill(down_time=0.3, post_sleep=0.2)
 ```
 
-- Automatically sets `slot=ActionSlot.SKILL`.
-- Defaults to `tags={ActionTag.SKILL_ACTION}`.
-- `tags` completely specifies the base tags; `add_tags` can receive one tag or a tag set and appends to them, or appends to the default tags when `tags` is omitted.
-- Defaults to `name=f"{character_name}_skill"`.
-- `can_execute` includes `self.skill_available()` by default; an extra condition is combined with it.
-- `priority_ready` automatically uses `self.skill_available()`.
-- `down_time` controls key-press duration; `post_sleep` adds a wait after a successful skill; `has_animation` marks a skill with an animation.
-- `send_click` controls ordinary clicks during the skill. `time_out` limits the wait for skill activation; 0 uses the built-in default.
-- `execute` calls `self.click_skill()`.
+- Registers `slot=ActionSlot.SKILL`, default tag `SKILL_ACTION`, and the default name `"{character}_skill"`.
+- Tag overrides work as for Q. Eligibility always includes `skill_available()` plus any extra `can_execute` condition; readiness uses `skill_available()`.
+- The executor is always `click_skill`; supply release arguments on `skill(...)`. E's existing helper default `down_time=0.01` is retained.
 
 ### `click_arc_action`
 

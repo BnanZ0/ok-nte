@@ -1,6 +1,8 @@
 import time
+from dataclasses import dataclass, field, replace
 from enum import IntFlag, StrEnum, auto
-from typing import TYPE_CHECKING
+from inspect import signature
+from typing import TYPE_CHECKING, Callable, Concatenate, Self, cast
 
 from ok import Logger
 
@@ -9,6 +11,7 @@ from src.combat.planner import (
     ActionExecutor,
     ActionIntent,
     ActionPredicate,
+    ActionResult,
     CombatContext,
     CombatPlan,
     FieldClaim,
@@ -23,6 +26,17 @@ if TYPE_CHECKING:
     from src.combat.BaseCombatTask import BaseCombatTask
 
 SKILL_TIME_OUT = 15
+
+
+@dataclass(slots=True)
+class _BoundAction[**P](ActionIntent):
+    """保留执行函数签名, 调用时只绑定本次 execute。"""
+
+    bind: Callable[P, ActionExecutor] = field(kw_only=True, repr=False, compare=False)
+
+    def __call__(self, *args: P.args, **kwargs: P.kwargs) -> Self:
+        execute = self.bind(*args, **kwargs) if args or kwargs else self.execute
+        return replace(self, execute=execute)
 
 
 class Element(StrEnum):
@@ -235,8 +249,8 @@ class BaseChar:
         """
 
         return self.plan(
-            self.click_ultimate_action("base_ultimate"),
-            self.click_skill_action("base_skill"),
+            self.click_ultimate_action(name="base_ultimate"),
+            self.click_skill_action(name="base_skill"),
         )
 
     def combat_policies(self, context: CombatContext) -> None:
@@ -260,10 +274,13 @@ class BaseChar:
         claims: list[FieldClaim] | tuple[FieldClaim, ...] | None = None,
         entry=None,
     ) -> CombatPlan:
-        """创建角色 `CombatPlan`，并过滤空动作。
+        """创建角色 `CombatPlan`, 并过滤空动作。
 
         用法:
             return self.plan(action_or_none, claims=[claim], entry=entry)
+
+        也可以先创建空 plan, 用 self.click_skill_action(plan, ...) 登记动作,
+        用 plan.add(claim) 声明入场诉求, 设置 plan.entry 后直接返回 plan。
         """
 
         return CombatPlan(
@@ -312,167 +329,200 @@ class BaseChar:
             priority_ready=priority_ready or (lambda _: False),
         )
 
+    @staticmethod
+    def _defer_action[**P](
+        perform: Callable[P, ActionResult | bool | None], **defaults: object
+    ) -> Callable[P, ActionExecutor]:
+        def bind(*args: P.args, **kwargs: P.kwargs) -> ActionExecutor:
+            parameters = signature(perform)
+            arguments = parameters.bind_partial(*args, **kwargs)
+            call_kwargs = {
+                name: value for name, value in defaults.items() if name not in arguments.arguments
+            }
+            call_kwargs.update(kwargs)
+            arguments = parameters.bind(*args, **call_kwargs)
+            return lambda context: perform(*arguments.args, **arguments.kwargs)
+
+        return bind
+
     def click_ultimate_action(
         self,
+        plan: CombatPlan | None = None,
+        *,
         name: str | None = None,
         tags: set[Planner.ActionTag] | None = None,
         add_tags: set[Planner.ActionTag] | Planner.ActionTag | None = None,
         reason: str = "ultimate action available",
-        can_execute=None,
-        send_click: bool = True,
-        wait_if_no_cd: float = 0,
+        can_execute: ActionPredicate | None = None,
     ):
-        """创建一个 Q 动作声明。
+        """创建一个 Q 动作声明, 可选择加入指定计划。
 
         Args:
-            name: 动作名; 默认 `"{角色名}_ultimate"`, 用于日志和 planner 精确匹配。
-            tags: 替换默认动作标签; 默认为 `{Planner.ActionTag.ULTIMATE_ACTION}`。
+            plan: 要加入的计划。传入时自动追加动作; 不传时只创建动作声明。
+            name: 动作名; 默认 "{角色名}_ultimate", 用于日志和 planner 精确匹配。
+            tags: 替换默认动作标签; 默认为 {Planner.ActionTag.ULTIMATE_ACTION}。
             add_tags: 在最终标签上追加一个或多个标签。
             reason: planner 选择或执行此动作时使用的说明。
-            can_execute: 接收 planner context 的额外条件; 返回 False 时禁止执行。
+            can_execute: 接收 CombatContext 的额外条件; 返回 False 时禁止执行。
                 终结技本身不可用时, 动作仍会被禁止。
-            send_click: 传给 `click_ultimate`; 为 True 时在终结技动画期间发送普通点击。
-            wait_if_no_cd: 传给 `click_ultimate`; 冷却尚未完成时最多等待的秒数。
+
+        Returns:
+            保留 click_ultimate 参数提示的动作声明。直接 yield ultimate 使用已有参数;
+            yield ultimate(send_click=False) 为本次释放指定参数。
 
         Behavior:
-            - 自动设置 `slot=Planner.ActionSlot.ULTIMATE`。
-            - `can_execute` 默认包含 `self.ultimate_available()`。
-            - `priority_ready` 自动使用 `self.ultimate_available()`。
-            - `send_click` 和 `wait_if_no_cd` 传给 `self.click_ultimate(...)`。
-            - `execute` 调用 `self.click_ultimate(...)`。
-            - planner 会自动用 `slot=ULTIMATE` 检查 reservation。
-        """
+            - 创建动作和绑定参数都不会发送输入, 动作交给 planner 后才执行。
+            - 自动设置 slot=Planner.ActionSlot.ULTIMATE。
+            - 执行前检查 ultimate_available() 和额外的 can_execute 条件。
+            - 切人评分使用 ultimate_available() 判断终结技是否就绪。
+            - planner 根据动作槽位和 reservation 检查是否允许释放。
+            - 固定执行 self.click_ultimate(...), 不接受 execute 替换。
+            - send_click、wait_if_no_cd 等释放参数写在返回动作的调用处,
+              含义及默认值见 click_ultimate()。
 
-        name = name or f"{self.__str__()}_ultimate"
+        Examples:
+            ultimate = self.click_ultimate_action(plan)
+            yield ultimate(send_click=False)
+        """
         tags = set(tags) if tags else {Planner.ActionTag.ULTIMATE_ACTION}
         if add_tags:
-            if isinstance(add_tags, (set, list, tuple)):
-                tags.update(add_tags)
-            else:
-                tags.add(add_tags)
-
-        return self.planner_action(
+            tags.update(add_tags if isinstance(add_tags, (set, list, tuple)) else {add_tags})
+        bind = self._defer_action(self.click_ultimate)
+        action = _BoundAction(
+            name=name or f"{self}_ultimate",
             tags=tags,
             slot=Planner.ActionSlot.ULTIMATE,
-            execute=lambda context: self.click_ultimate(
-                send_click=send_click, wait_if_no_cd=wait_if_no_cd
-            ),
-            name=name,
+            execute=bind(),
+            bind=bind,
             reason=reason,
             can_execute=lambda context: (
                 self.ultimate_available() and (can_execute is None or can_execute(context))
             ),
             priority_ready=lambda _: self.ultimate_available(),
         )
+        if plan is not None:
+            plan.add(action)
+        return action
 
     def click_skill_action(
         self,
+        plan: CombatPlan | None = None,
+        *,
         name: str | None = None,
         tags: set[Planner.ActionTag] | None = None,
         add_tags: set[Planner.ActionTag] | Planner.ActionTag | None = None,
         reason: str = "skill action available",
-        down_time: float = 0.01,
-        can_execute=None,
-        post_sleep: float = 0,
-        has_animation: bool = False,
-        send_click: bool = True,
-        time_out: float = 0,
+        can_execute: ActionPredicate | None = None,
     ):
-        """创建一个 E 动作声明。
+        """创建一个 E 动作声明, 可选择加入指定计划。
 
         Args:
-            name: 动作名; 默认 `"{角色名}_skill"`, 用于日志和 planner 精确匹配。
-            tags: 替换默认动作标签; 默认为 `{Planner.ActionTag.SKILL_ACTION}`。
+            plan: 要加入的计划。传入时自动追加动作; 不传时只创建动作声明。
+            name: 动作名; 默认 "{角色名}_skill", 用于日志和 planner 精确匹配。
+            tags: 替换默认动作标签; 默认为 {Planner.ActionTag.SKILL_ACTION}。
             add_tags: 在最终标签上追加一个或多个标签。
             reason: planner 选择或执行此动作时使用的说明。
-            can_execute: 接收 planner context 的额外条件; 返回 False 时禁止执行。
+            can_execute: 接收 CombatContext 的额外条件; 返回 False 时禁止执行。
                 技能本身不可用时, 动作仍会被禁止。
-            down_time: 传给 `click_skill`; 技能按键按下的持续秒数。
-            post_sleep: 传给 `click_skill`; 成功释放技能后额外等待的秒数。
-            has_animation: 传给 `click_skill`; 是否按带动画的技能处理。
-            send_click: 传给 `click_skill`; 是否在技能释放过程中发送普通点击。
-            time_out: 传给 `click_skill`; 等待技能释放的超时秒数。为 0 时使用内置默认值。
+
+        Returns:
+            保留 click_skill 参数提示的动作声明。直接 yield skill 使用已有参数;
+            yield skill(down_time=0.3) 为本次释放指定参数。
 
         Behavior:
-            - 自动设置 `slot=Planner.ActionSlot.SKILL`。
-            - `can_execute` 默认包含 `self.skill_available()`。
-            - `priority_ready` 自动使用 `self.skill_available()`。
-            - `execute` 调用 `self.click_skill(...)`。
-            - planner 会自动用 `slot=SKILL` 检查 reservation。
-        """
+            - 创建动作和绑定参数都不会发送输入, 动作交给 planner 后才执行。
+            - 自动设置 slot=Planner.ActionSlot.SKILL。
+            - 执行前检查 skill_available() 和额外的 can_execute 条件。
+            - 切人评分使用 skill_available() 判断技能是否就绪。
+            - planner 根据动作槽位和 reservation 检查是否允许释放。
+            - 固定执行 self.click_skill(...), 不接受 execute 替换。
+            - down_time 默认保持 0.01 秒, 其余释放参数沿用 click_skill() 的默认值。
+              释放参数写在返回动作的调用处, 含义见 click_skill()。
+            - 如果计划中的动作也应使用指定参数, 先绑定再加入计划。
+              plan.add() 只追加动作, 不会替换已经登记的版本。
 
-        name = name or f"{self.__str__()}_skill"
+        Examples:
+            skill = self.click_skill_action()
+            skill = plan.add(skill(down_time=0.3, post_sleep=0.2))
+            yield skill
+        """
         tags = set(tags) if tags else {Planner.ActionTag.SKILL_ACTION}
         if add_tags:
-            if isinstance(add_tags, (set, list, tuple)):
-                tags.update(add_tags)
-            else:
-                tags.add(add_tags)
-
-        return self.planner_action(
+            tags.update(add_tags if isinstance(add_tags, (set, list, tuple)) else {add_tags})
+        bind = self._defer_action(self.click_skill, down_time=0.01)
+        action = _BoundAction(
+            name=name or f"{self}_skill",
             tags=tags,
             slot=Planner.ActionSlot.SKILL,
-            execute=lambda context: self.click_skill(
-                down_time=down_time,
-                post_sleep=post_sleep,
-                has_animation=has_animation,
-                send_click=send_click,
-                time_out=time_out,
-            ),
-            name=name,
+            execute=bind(),
+            bind=bind,
             reason=reason,
             can_execute=lambda context: (
                 self.skill_available() and (can_execute is None or can_execute(context))
             ),
             priority_ready=lambda _: self.skill_available(),
         )
+        if plan is not None:
+            plan.add(action)
+        return action
 
-    def planner_action(
+    def planner_action[**P](
         self,
         tags: set[Planner.ActionTag] | Planner.ActionTag,
-        execute: ActionExecutor,
+        execute: Callable[Concatenate[CombatContext, P], ActionResult | bool | None],
         name: str | None = None,
         slot: Planner.ActionSlot | None = None,
         reason: str = "",
         can_execute: ActionPredicate | None = None,
         priority_ready: ActionPredicate | None = None,
-    ):
-        """创建一个交给 `CombatPlanner` 调度的动作声明。
-
-        `name` 是高级精确匹配用的动作名；普通自定义动作不传时保持空字串。
-        动作真正执行多久由 `execute` 自己负责；长时间动作应在 `execute` 内完成。
+        *,
+        plan: CombatPlan | None = None,
+    ) -> _BoundAction[P]:
+        """创建一个交给 CombatPlanner 调度的自定义动作声明。
 
         Args:
-            tags: 动作标签集合。推荐写 `{Planner.ActionTag.X}`；传单个 tag 时会被包装成 set。
-            execute: 接收 `CombatContext` 的执行函数。只有严格返回 True 才算成功；
-                False/None/无 return 都算失败。可手写返回 `ActionResult`。
-            name: 高级动作名和日志名。普通动作可以不传。
-            slot: 动作槽位。需要被 route/reservation 匹配时应设置。
+            tags: 动作标签集合; 也可以传入单个 Planner.ActionTag。
+            execute: 接收 CombatContext 的执行函数。返回 True 表示成功,
+                False、None 或无 return 表示失败; 也可以返回 ActionResult。
+                额外参数应提供默认值, 供 planner 提前调度动作时使用。
+            name: 高级精确匹配用的动作名和日志名; 普通动作不传时保持空字符串。
+            slot: 动作槽位; 需要被 route 或 reservation 匹配时应设置。
             reason: 日志和切人理由。
-            can_execute: 额外 planner 层硬限制；False 时不执行也不评分。
-            priority_ready: 只用于切人评分；False 不代表已在场时不能尝试。
+            can_execute: 接收 CombatContext 的硬限制; 返回 False 时不执行也不评分。
+            priority_ready: 接收 CombatContext 的评分条件; 返回 False 时不参与动作评分,
+                但不会单独禁止已在场角色执行此动作。
+            plan: 要加入的计划。传入时自动追加动作; 不传时只创建动作声明。
 
         Returns:
-            `ActionIntent`。
+            可直接 yield 的动作声明, 保留 execute 中首个 context 之后的参数提示。
+            绑定参数后的动作仍可继续调用, 也可交给 plan.add() 登记。
 
-        Note:
-            只要 `slot` 不为 None，`CombatPlanner` 会自动检查 reservation。
-            开发者传入的 `can_execute` 只表达额外机制限制，不需要重复写
-            `context.is_slot_available(...)`。
+        Behavior:
+            - 创建动作和绑定参数都不会调用 execute, 动作交给 planner 后才执行。
+            - planner 执行时自动传入 CombatContext, 调用返回动作时不需要传 context。
+            - action(...) 为本次执行绑定参数, 不会自动登记或替换计划中的动作。
+            - 指定 slot 后, planner 会自动检查 reservation;
+              can_execute 只需表达额外机制限制, 不需要重复检查槽位权限。
+            - 动作执行时长由 execute 负责, 长动作应自行设置退出条件。
         """
 
-        if not isinstance(tags, set):
-            tags = {tags}
+        def bind(*args: P.args, **kwargs: P.kwargs) -> ActionExecutor:
+            signature(execute).bind(None, *args, **kwargs)
+            return lambda context: execute(context, *args, **kwargs)
 
-        return ActionIntent(
+        action = _BoundAction(
             name=name or "",
-            tags=tags,
+            tags=set(tags) if isinstance(tags, set) else {tags},
             slot=slot,
-            execute=execute,
+            execute=cast(ActionExecutor, execute),
+            bind=bind,
             reason=reason,
             can_execute=can_execute,
             priority_ready=priority_ready,
         )
+        if plan is not None:
+            plan.add(action)
+        return action
 
     def has_cd(self, box_name):
         """检查指定技能是否在冷却中 (代理到 task.has_cd)。
@@ -639,7 +689,7 @@ class BaseChar:
         result["animation_pending_start"] = 0
         return "continue"
 
-    def click_ultimate(self, send_click=True, wait_if_no_cd=0):
+    def click_ultimate(self, send_click: bool = True, wait_if_no_cd: float = 0) -> bool:
         """尝试释放终结技。
 
         Args:
@@ -761,11 +811,11 @@ class BaseChar:
 
     def click_skill(
         self,
-        down_time=0.05,
-        post_sleep=0,
-        has_animation=False,
-        send_click=True,
-        time_out=0,
+        down_time: float = 0.05,
+        post_sleep: float = 0,
+        has_animation: bool = False,
+        send_click: bool = True,
+        time_out: float = 0,
     ) -> bool:
         """尝试释放技能。
 

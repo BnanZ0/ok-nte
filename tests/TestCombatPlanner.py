@@ -4,8 +4,11 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
+from src.char.Akane import Akane
 from src.char.BaseChar import BaseChar
 from src.char.Nanally import Nanally
+from src.char.Sakiri import Sakiri
+from src.char.Support import Support
 from src.combat.BaseCombatTask import BaseCombatTask
 from src.combat.planner import (
     NEVER_EXPIRES,
@@ -1232,6 +1235,77 @@ class TestCombatPlanner(unittest.TestCase):
         self.assertEqual(char.ultimate_clicked, 1)
         self.assertEqual(result.name, "api_char_ultimate")
 
+    def test_plan_add_keeps_objects_and_plans_independent(self):
+        plan = CombatPlan()
+        other = CombatPlan()
+        action = self._action("skill", {ActionTag.SKILL_ACTION}, ActionSlot.SKILL, [])
+        claim = FieldClaim.strict(reason="return now")
+
+        self.assertIs(plan.add(action), action)
+        self.assertIs(plan.add(claim), claim)
+        self.assertIsNone(plan.add(None))
+
+        self.assertEqual(plan.actions, [action])
+        self.assertEqual(plan.claims, [claim])
+        self.assertEqual(other.actions, [])
+        self.assertEqual(other.claims, [])
+        with self.assertRaises(TypeError):
+            plan.add("skill")
+
+    def test_plan_add_preserves_seeded_and_added_default_action_order(self):
+        calls = []
+        first = self._action("first", {ActionTag.SKILL_ACTION}, ActionSlot.SKILL, calls)
+        second = self._action("second", {ActionTag.ULTIMATE_ACTION}, ActionSlot.ULTIMATE, calls)
+        plan = CombatPlan(iter([first]), claims=())
+        plan.add(FieldClaim.normal(reason="ordinary entry"))
+        plan.add(second)
+        char = FakeChar(0, "builder", plan_items=lambda _: plan)
+        planner = self._planner([char])
+
+        self.assertEqual(calls, [])
+        result = planner.perform_current_char(char)
+
+        self.assertEqual(calls, ["first", "second"])
+        self.assertEqual(result.name, "second")
+
+    def test_plan_add_claim_selects_char_and_entry_receives_action_results(self):
+        task = FakeTask()
+        current = FakeChar(0, "current")
+        results = []
+
+        def build_plan(source, context):
+            plan = source.plan()
+            skill = plan.add(source.click_skill_action())
+            ultimate = plan.add(source.click_ultimate_action())
+            skill.priority_ready = ultimate.priority_ready = lambda _: False
+            plan.add(FieldClaim.strict(reason="entry needed without ready actions"))
+
+            def entry():
+                result = yield skill
+                results.append(bool(result))
+                if result:
+                    yield ultimate
+
+            plan.entry = entry
+            return plan
+
+        char = PublicApiChar(task, 1, "builder", build_plan)
+        task.chars = [current, char]
+        planner = CombatPlanner(task)
+        planner.reset(task.chars)
+
+        decision = planner.decide_switch(current)
+
+        self.assertEqual(decision.target, char)
+        self.assertEqual((char.skill_clicked, char.ultimate_clicked), (0, 0))
+        planner.prepare_switch(decision)
+        planner.complete_switch(decision, previous_char=current)
+        result = planner.perform_current_char(char)
+
+        self.assertEqual(results, [True])
+        self.assertEqual((char.skill_clicked, char.ultimate_clicked), (1, 1))
+        self.assertEqual(result.name, "builder_ultimate")
+
     def test_basechar_arc_helper_is_zero_priority_arc_slot(self):
         task = FakeTask()
         char = PublicApiChar(
@@ -1252,6 +1326,439 @@ class TestCombatPlanner(unittest.TestCase):
         self.assertEqual(result.slot, ActionSlot.ARC)
         self.assertEqual(result.tags, {ActionTag.ARC_ACTION})
         self.assertEqual(char.arc_clicked, 1)
+
+    def test_basechar_registration_keeps_support_role_tags(self):
+        char = Support(FakeTask(), 0)
+        plan = char.plan()
+
+        skill = char.click_skill_action(plan, add_tags=ActionTag.HIGH_PRIORITY)
+        ultimate = char.click_ultimate_action(plan)
+
+        self.assertEqual(plan.actions, [skill, ultimate])
+        self.assertEqual(skill.slot, ActionSlot.SKILL)
+        self.assertEqual(
+            skill.tags, {ActionTag.SKILL_ACTION, ActionTag.SUPPORT, ActionTag.HIGH_PRIORITY}
+        )
+        self.assertEqual(ultimate.slot, ActionSlot.ULTIMATE)
+        self.assertEqual(ultimate.tags, {ActionTag.ULTIMATE_ACTION, ActionTag.SUPPORT})
+        self.assertIsInstance(skill, ActionIntent)
+        self.assertIsInstance(ultimate, ActionIntent)
+        with self.assertRaises(TypeError):
+            char.click_skill_action(plan, down_tme=0.3)
+        self.assertEqual(plan.actions, [skill, ultimate])
+
+    def test_entry_parameters_preserve_registered_defaults_and_explicit_repeats(self):
+        task = FakeTask()
+        char = PublicApiChar(task, 0, "params", lambda *_: plan)
+        char.click_skill = Mock(return_value=True)
+        char.click_ultimate = Mock(return_value=True)
+        plan = char.plan()
+        skill = char.click_skill_action()
+        skill = plan.add(skill(down_time=0.4, post_sleep=0.2))
+        ultimate = char.click_ultimate_action(plan)
+
+        def entry():
+            if (yield skill(down_time=0.3, post_sleep=0, has_animation=False, send_click=False)):
+                yield ultimate(send_click=False, wait_if_no_cd=0)
+            yield skill.repeat_for_entry()
+            yield skill(down_time=0.1, time_out=0.5).repeat_for_entry()
+
+        plan.entry = entry
+        task.chars = [char]
+        planner = CombatPlanner(task)
+        planner.reset(task.chars)
+        char.click_skill.assert_not_called()
+        char.click_ultimate.assert_not_called()
+
+        result = planner.perform_current_char(char)
+
+        self.assertEqual(
+            [call.kwargs for call in char.click_skill.call_args_list],
+            [
+                dict(down_time=0.3, post_sleep=0, has_animation=False, send_click=False),
+                dict(down_time=0.4, post_sleep=0.2),
+                dict(down_time=0.1, time_out=0.5),
+            ],
+        )
+        char.click_ultimate.assert_called_once_with(send_click=False, wait_if_no_cd=0)
+        self.assertEqual(plan.actions, [skill, ultimate])
+        self.assertEqual(result.name, "params_skill")
+
+    def test_bound_skill_keeps_default_duration_and_accepts_positional_overrides(self):
+        task = FakeTask()
+        char = PublicApiChar(task, 0, "params", lambda *_: None)
+        calls = []
+
+        def click_skill(down_time=0.05, *, post_sleep=0):
+            calls.append((down_time, post_sleep))
+            return True
+
+        char.click_skill = click_skill
+        skill = char.click_skill_action()
+        context = CombatPlanner(task).context_for(char)
+
+        skill.run(context)
+        skill(post_sleep=0.2).run(context)
+        skill(0.3, post_sleep=0.4).run(context)
+
+        self.assertEqual(calls, [(0.01, 0), (0.01, 0.2), (0.3, 0.4)])
+
+    def test_different_parameters_do_not_bypass_entry_deduplication(self):
+        task = FakeTask()
+        char = PublicApiChar(task, 0, "params", lambda *_: plan)
+        char.click_skill = Mock(return_value=True)
+        char.click_ultimate = Mock(return_value=True)
+        plan = char.plan()
+        skill = char.click_skill_action(plan)
+        ultimate = char.click_ultimate_action(plan)
+        results = []
+
+        def entry():
+            results.append(bool((yield skill(down_time=0.1))))
+            results.append(bool((yield skill(down_time=0.5))))
+            results.append(bool((yield ultimate(send_click=False))))
+            results.append(bool((yield ultimate(send_click=True))))
+
+        plan.entry = entry
+        task.chars = [char]
+        planner = CombatPlanner(task)
+        planner.reset(task.chars)
+
+        planner.perform_current_char(char)
+
+        char.click_skill.assert_called_once_with(down_time=0.1)
+        char.click_ultimate.assert_called_once_with(send_click=False)
+        self.assertEqual(results, [True, True, True, True])
+
+    def test_entry_arguments_use_state_after_previous_action(self):
+        task = FakeTask()
+        current = FakeChar(0, "current")
+        char = PublicApiChar(task, 1, "params", lambda *_: plan)
+        char.click_skill = Mock(return_value=True)
+        char.click_ultimate = Mock(return_value=True)
+        state = {"down_time": 0.01, "send_click": True}
+        plan = char.plan()
+        skill = char.click_skill_action(plan)
+        ultimate = char.click_ultimate_action(plan)
+
+        def entry():
+            state["send_click"] = False
+            if (yield ultimate(send_click=state["send_click"])):
+                state["down_time"] = 0.3
+                yield skill(down_time=state["down_time"])
+
+        plan.entry = entry
+        task.chars = [current, char]
+        planner = CombatPlanner(task)
+        planner.reset(task.chars)
+
+        decision = planner.decide_switch(current)
+
+        self.assertEqual(decision.target, char)
+        char.click_skill.assert_not_called()
+        char.click_ultimate.assert_not_called()
+        planner.prepare_switch(decision)
+        planner.complete_switch(decision, previous_char=current)
+        planner.perform_current_char(char)
+
+        char.click_skill.assert_called_once_with(down_time=0.3)
+        char.click_ultimate.assert_called_once_with(send_click=False)
+
+    def test_strict_route_uses_registered_parameters_before_entry_arguments(self):
+        task = FakeTask()
+        source = FakeChar(0, "source")
+        char = PublicApiChar(task, 1, "params", lambda *_: plan)
+        char.click_skill = Mock(return_value=True)
+        char.click_ultimate = Mock(return_value=True)
+        state = {"down_time": 0.4}
+        plan = char.plan()
+        skill = char.click_skill_action()
+        registered_skill = plan.add(skill(down_time=state["down_time"]))
+        ultimate = char.click_ultimate_action(plan)
+        results = []
+
+        def entry():
+            results.append(bool((yield skill(down_time=0.9))))
+            yield ultimate(send_click=False)
+
+        plan.entry = entry
+        task.chars = [source, char]
+        planner = CombatPlanner(task)
+        planner.reset(task.chars)
+        self._publish(
+            planner,
+            source,
+            lambda context: context.request_route(
+                [FollowupStep.for_action(char, ActionSlot.SKILL)], reason="need skill"
+            ),
+        )
+        decision = planner.decide_switch(source)
+        char.click_skill.assert_not_called()
+        state["down_time"] = 0.8
+        planner.prepare_switch(decision)
+        planner.complete_switch(decision, previous_char=source)
+
+        planner.perform_current_char(char)
+
+        char.click_skill.assert_called_once_with(down_time=0.4)
+        char.click_ultimate.assert_called_once_with(send_click=False)
+        self.assertEqual(results, [True])
+        self.assertEqual(plan.actions, [registered_skill, ultimate])
+        self.assertFalse(planner.context_for(char).has_active_request())
+
+    def test_parameter_binding_keeps_reservations_permissions_and_cooldowns(self):
+        for kind, slot, params in (
+            ("skill", ActionSlot.SKILL, {"down_time": 0.2}),
+            ("ultimate", ActionSlot.ULTIMATE, {"send_click": False}),
+        ):
+            for restriction in ("reservation", "can_execute", "cooldown"):
+                with self.subTest(kind=kind, restriction=restriction):
+                    task = FakeTask()
+                    source = FakeChar(0, "source")
+                    char = PublicApiChar(task, 1, "params", lambda *_: plan)
+                    char.click_skill = Mock(return_value=True)
+                    char.click_ultimate = Mock(return_value=True)
+                    setattr(char, f"{kind}_available", Mock(return_value=restriction != "cooldown"))
+                    plan = char.plan()
+                    action = getattr(char, f"click_{kind}_action")(
+                        plan, can_execute=lambda _: restriction != "can_execute"
+                    )
+
+                    def entry():
+                        yield action(**params)
+
+                    plan.entry = entry
+                    task.chars = [source, char]
+                    planner = CombatPlanner(task)
+                    planner.reset(task.chars)
+                    if restriction == "reservation":
+                        self._publish(
+                            planner,
+                            source,
+                            lambda context: context.reserve_actions(
+                                [ActionReservation.for_action(char, slot)],
+                                reason="hold action",
+                                until=NEVER_EXPIRES,
+                            ),
+                        )
+
+                    result = planner.perform_current_char(char)
+
+                    self.assertFalse(result.success)
+                    char.click_skill.assert_not_called()
+                    char.click_ultimate.assert_not_called()
+
+    def test_qe_helpers_reject_execute_replacement(self):
+        for char_type in (BaseChar, Support):
+            char = char_type(FakeTask(), 0)
+            plan = char.plan()
+            execute = Mock(return_value=True)
+            for kind in ("skill", "ultimate"):
+                with self.subTest(char=char_type.__name__, kind=kind), self.assertRaises(TypeError):
+                    getattr(char, f"click_{kind}_action")(plan, execute=execute)
+            self.assertEqual(plan.actions, [])
+            execute.assert_not_called()
+
+    def test_akane_binds_skill_parameters_and_passes_action_to_combo(self):
+        for boss_fight, down_time in ((False, 0.3), (True, 0.01)):
+            with self.subTest(boss_fight=boss_fight):
+                task = FakeTask()
+                task._boss_fight = boss_fight
+                char = Akane(task, 0)
+                char.skill_available = Mock(return_value=True)
+                char.ultimate_available = Mock(return_value=True)
+                char.click_skill = Mock(return_value=True)
+                char.click_ultimate = Mock(return_value=True)
+                char.perform_ult_combo = Mock(return_value=iter(()))
+                task.chars = [char]
+                planner = CombatPlanner(task)
+                planner.reset(task.chars)
+
+                planner.perform_current_char(char)
+
+                char.click_skill.assert_called_once_with(down_time=down_time, post_sleep=0.2)
+                char.click_ultimate.assert_called_once_with()
+                char.perform_ult_combo.assert_called_once()
+                action = char.perform_ult_combo.call_args.args[0]
+                self.assertIsInstance(action, ActionIntent)
+                self.assertEqual(action.slot, ActionSlot.SKILL)
+
+    def test_sakiri_keeps_registered_skill_duration(self):
+        task = FakeTask()
+        char = Sakiri(task, 0)
+        char.skill_available = Mock(return_value=True)
+        char.ultimate_available = Mock(return_value=False)
+        char.click_skill = Mock(return_value=True)
+        task.chars = [char]
+        planner = CombatPlanner(task)
+        planner.reset(task.chars)
+
+        result = planner.perform_current_char(char)
+
+        char.click_skill.assert_called_once_with(down_time=0.25)
+        self.assertTrue(result.success)
+        self.assertEqual(result.slot, ActionSlot.SKILL)
+
+    def test_action_calls_reject_metadata_overrides(self):
+        char = BaseChar(FakeTask(), 0)
+        plan = char.plan()
+        for action in (char.click_skill_action(plan), char.click_ultimate_action(plan)):
+            for params in ({"can_execute": lambda _: True}, {"slot": ActionSlot.CUSTOM}):
+                with self.subTest(action=action.slot, params=params), self.assertRaises(TypeError):
+                    action(**params)
+
+    def test_custom_action_parameters_preserve_defaults_results_and_repeats(self):
+        task = FakeTask()
+        char = PublicApiChar(task, 0, "custom", lambda *_: plan)
+        plan = char.plan()
+        calls = []
+        results = []
+
+        def perform(context, *, duration=0.5, send_click=True):
+            calls.append((context.current_char, duration, send_click))
+            return duration > 0
+
+        burst = char.planner_action(
+            plan=plan,
+            tags={ActionTag.DAMAGE},
+            slot=ActionSlot.CUSTOM,
+            execute=perform,
+        )
+
+        def entry():
+            results.append(bool((yield burst(duration=0))))
+            # Changing parameters alone must replay the failed attempt's result.
+            results.append(bool((yield burst(duration=0.8))))
+            results.append(bool((yield burst(duration=0.8, send_click=False).repeat_for_entry())))
+            yield burst.repeat_for_entry()
+
+        plan.entry = entry
+        task.chars = [char]
+        planner = CombatPlanner(task)
+        planner.reset(task.chars)
+
+        self.assertIsInstance(burst, ActionIntent)
+        self.assertEqual(calls, [])
+        result = planner.perform_current_char(char)
+
+        self.assertEqual(calls, [(char, 0, True), (char, 0.8, False), (char, 0.5, True)])
+        self.assertEqual(results, [False, False, True])
+        self.assertTrue(result.success)
+        self.assertEqual(result.slot, ActionSlot.CUSTOM)
+        self.assertEqual(result.tags, {ActionTag.DAMAGE})
+        self.assertEqual(plan.actions, [burst])
+
+    def test_custom_action_parameters_keep_permissions_and_reservations(self):
+        for restriction in ("reservation", "can_execute"):
+            with self.subTest(restriction=restriction):
+                task = FakeTask()
+                source = FakeChar(0, "source")
+                char = PublicApiChar(task, 1, "custom", lambda *_: plan)
+                plan = char.plan()
+                calls = []
+
+                def perform(context, *, duration=0.5):
+                    calls.append(duration)
+                    return True
+
+                burst = char.planner_action(
+                    plan=plan,
+                    tags=ActionTag.DAMAGE,
+                    slot=ActionSlot.CUSTOM,
+                    can_execute=lambda _: restriction != "can_execute",
+                    execute=perform,
+                )
+
+                def entry():
+                    yield burst(duration=0.8)
+
+                plan.entry = entry
+                task.chars = [source, char]
+                planner = CombatPlanner(task)
+                planner.reset(task.chars)
+                if restriction == "reservation":
+                    self._publish(
+                        planner,
+                        source,
+                        lambda context: context.reserve_actions(
+                            [ActionReservation.for_action(char, ActionSlot.CUSTOM)],
+                            reason="hold custom action",
+                            until=NEVER_EXPIRES,
+                        ),
+                    )
+
+                result = planner.perform_current_char(char)
+
+                self.assertFalse(result.success)
+                self.assertEqual(calls, [])
+
+    def test_custom_action_route_uses_current_defaults_and_replays_result(self):
+        task = FakeTask()
+        source = FakeChar(0, "source")
+        char = PublicApiChar(task, 1, "custom", lambda *_: plan)
+        plan = char.plan()
+        state = {"duration": 0.5}
+        calls = []
+        results = []
+
+        def perform(context, *, duration=None):
+            calls.append(
+                (context.current_char, state["duration"] if duration is None else duration)
+            )
+            return True
+
+        burst = char.planner_action(
+            plan=plan,
+            tags=ActionTag.DAMAGE,
+            slot=ActionSlot.CUSTOM,
+            execute=perform,
+        )
+
+        def entry():
+            results.append(bool((yield burst(duration=0.9))))
+
+        plan.entry = entry
+        task.chars = [source, char]
+        planner = CombatPlanner(task)
+        planner.reset(task.chars)
+        self._publish(
+            planner,
+            source,
+            lambda context: context.request_route(
+                [FollowupStep.for_action(char, ActionSlot.CUSTOM)], reason="need custom action"
+            ),
+        )
+        decision = planner.decide_switch(source)
+        self.assertEqual(calls, [])
+        state["duration"] = 0.8
+        planner.prepare_switch(decision)
+        planner.complete_switch(decision, previous_char=source)
+
+        planner.perform_current_char(char)
+
+        self.assertEqual(calls, [(char, 0.8)])
+        self.assertEqual(results, [True])
+        self.assertFalse(planner.context_for(char).has_active_request())
+
+    def test_custom_action_calls_validate_executor_signature_without_executing(self):
+        char = PublicApiChar(FakeTask(), 0, "custom", lambda *_: None)
+        calls = []
+
+        def perform(context, duration=0.5, /, *, send_click=True):
+            calls.append((duration, send_click))
+            return True
+
+        plan = char.plan()
+        burst = char.planner_action(plan=plan, tags=ActionTag.DAMAGE, execute=perform)
+        for params in ({"duration": 0.8}, {"send_clik": False}, {"can_execute": lambda _: True}):
+            with self.subTest(params=params), self.assertRaises(TypeError):
+                burst(**params)
+
+        context = CombatPlanner(char.task).context_for(char)
+        result = burst(0.8, send_click=False).run(context)
+
+        self.assertTrue(result.success)
+        self.assertEqual(calls, [(0.8, False)])
 
     def test_entry_flow_runs_result_followups(self):
         calls = []
