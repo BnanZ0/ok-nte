@@ -44,11 +44,6 @@ class RuntimeServices:
             return
         self._stop_event.set()
         self._openvino_model_future.cancel()
-        threading.Thread(
-            target=self._shutdown_sound_context,
-            daemon=True,
-            name="SoundContextShutdown",
-        ).start()
 
     @property
     def openvino_model_async(self):
@@ -92,23 +87,39 @@ class RuntimeServices:
         self.openvino_model_async.clear_cache()
 
     def _init_sound_context(self) -> None:
-        from src.sound_trigger.SoundCombatContext import SoundCombatContext
+        if self._stop_event.is_set():
+            return
+        context = None
+        try:
+            from src.sound_trigger.SoundCombatContext import SoundCombatContext
 
-        context = SoundCombatContext()
-        if self._stop_event.is_set():
-            return
-        context.setup(
-            task=None,
-            sample_path=get_path_relative_to_exe("assets", "sounds", "dodge.wav"),
-            counter_attack_sample_path=get_path_relative_to_exe("assets", "sounds", "counter.wav"),
-        )
-        if self._stop_event.is_set():
-            context.shutdown()
-            return
-        if context.enter() and not self._stop_event.is_set():
-            logger.info("SoundCombatContext initialized globally")
-        else:
-            context.shutdown()
+            if self._stop_event.is_set():
+                return
+            context = SoundCombatContext()
+            context.setup(
+                task=None,
+                sample_path=get_path_relative_to_exe("assets", "sounds", "dodge.wav"),
+                counter_attack_sample_path=get_path_relative_to_exe(
+                    "assets", "sounds", "counter.wav"
+                ),
+                initialization_stop_event=self._stop_event,
+            )
+            if self._stop_event.is_set():
+                return
+            if context.enter() and not self._stop_event.is_set():
+                logger.info("SoundCombatContext initialized globally")
+                self._stop_event.wait()
+        except Exception:
+            if not self._stop_event.is_set():
+                logger.exception("Failed to initialize SoundCombatContext")
+        finally:
+            # Keep setup and teardown on the same worker. Stopping must not
+            # import audio dependencies or race an unfinished setup.
+            if context is not None:
+                try:
+                    context.shutdown()
+                except Exception:
+                    logger.exception("Failed to shut down SoundCombatContext")
 
     def _init_openvino(self) -> None:
         if self._stop_event.is_set():
@@ -124,14 +135,6 @@ class RuntimeServices:
             self._publish_openvino_failure(error)
         else:
             self._publish_openvino_detector(detector)
-
-    def _shutdown_sound_context(self) -> None:
-        try:
-            from src.sound_trigger.SoundCombatContext import SoundCombatContext
-
-            SoundCombatContext().shutdown()
-        except Exception:
-            logger.exception("Failed to shut down SoundCombatContext")
 
     def _publish_openvino_failure(self, error: BaseException) -> None:
         if self._stop_event.is_set():

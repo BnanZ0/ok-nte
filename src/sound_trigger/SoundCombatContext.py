@@ -123,9 +123,12 @@ class SoundCombatContext:
         counter_attack_threshold: float = 0.12,
         dodge_action: Optional[Callable] = None,
         counter_action: Optional[Callable] = None,
+        initialization_stop_event: Optional[threading.Event] = None,
         **kwargs,
     ):
         with self._context_lock:
+            if initialization_stop_event is not None and initialization_stop_event.is_set():
+                return
             if self._is_active:
                 return
 
@@ -163,6 +166,7 @@ class SoundCombatContext:
                 threshold=threshold,
                 counter_attack_threshold=counter_attack_threshold,
                 process_name=audio_process_name,
+                initialization_stop_event=initialization_stop_event,
             )
 
             self._trigger = DodgeCounterTrigger(

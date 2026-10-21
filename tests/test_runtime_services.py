@@ -2,10 +2,87 @@ import os
 import subprocess
 import sys
 import textwrap
+import threading
 import unittest
 from pathlib import Path
+from unittest.mock import Mock, patch
 
 import psutil
+
+
+class SoundServiceLifecycleTests(unittest.TestCase):
+    def setUp(self):
+        self.services = self.make_services()
+
+    @staticmethod
+    def make_services():
+        from src.runtime.services import RuntimeServices
+
+        with patch.dict(sys.modules, {"comtypes": Mock()}):
+            return RuntimeServices()
+
+    def test_stop_before_start_does_not_create_audio_context_or_threads(self):
+        with (
+            patch("src.sound_trigger.SoundCombatContext.SoundCombatContext") as context_type,
+            patch("src.runtime.services.threading.Thread") as thread_type,
+        ):
+            self.services.stop()
+            self.services.start()
+            self.services._init_sound_context()
+
+        context_type.assert_not_called()
+        thread_type.assert_not_called()
+
+    def test_stop_during_setup_cleans_up_without_starting_listener(self):
+        for fail_during_shutdown in (False, True):
+            with self.subTest(fail_during_shutdown=fail_during_shutdown):
+                services = self.make_services()
+                context = Mock()
+
+                def setup(**kwargs):
+                    self.assertIs(kwargs["initialization_stop_event"], services._stop_event)
+                    services.stop()
+                    if fail_during_shutdown:
+                        raise RuntimeError("can't register atexit after shutdown")
+
+                context.setup.side_effect = setup
+                with patch(
+                    "src.sound_trigger.SoundCombatContext.SoundCombatContext",
+                    return_value=context,
+                ):
+                    services._init_sound_context()
+
+                context.enter.assert_not_called()
+                context.shutdown.assert_called_once_with()
+
+    def test_running_audio_is_cleaned_up_by_its_owner_after_stop(self):
+        entered = threading.Event()
+        context = Mock()
+        context.enter.side_effect = lambda: entered.set() or True
+        worker = threading.Thread(target=self.services._init_sound_context, daemon=True)
+        with patch(
+            "src.sound_trigger.SoundCombatContext.SoundCombatContext", return_value=context
+        ):
+            worker.start()
+            try:
+                self.assertTrue(entered.wait(3.0))
+                context.shutdown.assert_not_called()
+            finally:
+                self.services.stop()
+                worker.join(timeout=3.0)
+
+        self.assertFalse(worker.is_alive())
+        context.shutdown.assert_called_once_with()
+
+    def test_failed_listener_start_cleans_up_without_waiting_for_stop(self):
+        context = Mock()
+        context.enter.return_value = False
+        with patch(
+            "src.sound_trigger.SoundCombatContext.SoundCombatContext", return_value=context
+        ):
+            self.services._init_sound_context()
+
+        context.shutdown.assert_called_once_with()
 
 
 class RuntimeServicesTests(unittest.TestCase):

@@ -1,6 +1,9 @@
 import sys
+import tempfile
 import threading
 import unittest
+from concurrent.futures import CancelledError
+from pathlib import Path
 from unittest.mock import patch
 
 import numpy as np
@@ -122,6 +125,74 @@ class ProcessLoopbackTests(unittest.TestCase):
 
 
 class SoundListenerTests(unittest.TestCase):
+    def test_cancelled_initialization_does_not_load_samples(self):
+        from src.sound_trigger.SoundListener import SoundListener
+
+        stop_event = threading.Event()
+        stop_event.set()
+        with patch.object(SoundListener, "_load_and_cache") as load_sample:
+            with self.assertRaises(CancelledError):
+                SoundListener(
+                    sample_path="unused.wav",
+                    counter_attack_sample_path="unused-counter.wav",
+                    initialization_stop_event=stop_event,
+                )
+
+        load_sample.assert_not_called()
+
+    def test_stop_during_decode_cancels_without_cache_or_counter_load(self):
+        from src.sound_trigger.SoundCombatContext import SoundCombatContext
+        from src.sound_trigger.SoundListener import SoundListener
+
+        for fail_during_shutdown in (False, True):
+            with self.subTest(fail_during_shutdown=fail_during_shutdown):
+                stop_event = threading.Event()
+
+                def decode(*args, **kwargs):
+                    stop_event.set()
+                    if fail_during_shutdown:
+                        raise RuntimeError("can't register atexit after shutdown")
+                    return np.ones(100), SoundListener.used_sr
+
+                with tempfile.TemporaryDirectory() as directory:
+                    sample_path = Path(directory) / "dodge.wav"
+                    sample_path.touch()
+                    with (
+                        patch("src.sound_trigger.SoundListener.librosa.load", side_effect=decode)
+                        as load,
+                        patch.object(SoundCombatContext, "_instance", None),
+                    ):
+                        context = SoundCombatContext()
+                        with self.assertRaises(CancelledError):
+                            context.setup(
+                                task=None,
+                                sample_path=str(sample_path),
+                                counter_attack_sample_path=str(Path(directory) / "counter.wav"),
+                                initialization_stop_event=stop_event,
+                            )
+
+                    self.assertFalse(context.is_active)
+                    self.assertIsNone(context.listener)
+                    load.assert_called_once()
+                    self.assertEqual(list(Path(directory).iterdir()), [sample_path])
+
+    def test_decode_failure_without_stop_preserves_original_error(self):
+        from src.sound_trigger.SoundListener import SoundListener
+
+        error = OSError("simulated decoder failure")
+        with tempfile.TemporaryDirectory() as directory:
+            sample_path = Path(directory) / "dodge.wav"
+            sample_path.touch()
+            with patch("src.sound_trigger.SoundListener.librosa.load", side_effect=error):
+                with self.assertRaises(RuntimeError) as raised:
+                    SoundListener(
+                        sample_path=str(sample_path),
+                        counter_attack_sample_path="",
+                        initialization_stop_event=threading.Event(),
+                    )
+
+        self.assertIs(raised.exception.__cause__, error)
+
     def test_missing_sample_file_fails_fast(self):
         from src.sound_trigger.SoundListener import SoundListener
 
