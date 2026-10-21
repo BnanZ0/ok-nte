@@ -23,28 +23,27 @@ class Blackbird(BaseChar):
         self.no_dps_teammate = False
 
     def describe_role(self):
-        return RoleProfile(
-            role=Planner.Role.SUB_DPS, field_preference=Planner.FieldPreference.SUB_DPS
-        )
+        return RoleProfile(role=Planner.Role.SUB_DPS)
 
     def combat_plan(self, context):
-        claims = []
-        ultimate = self.click_ultimate_action()
+        plan = self.plan()
         skill = self.click_skill_action(
-            add_tags=Planner.ActionTag.HIGH_PRIORITY, can_execute=self.should_use_skill
+            plan,
+            add_tags=Planner.ActionTag.HIGH_PRIORITY,
+            can_execute=self.should_use_skill,
         )
+        ultimate = self.click_ultimate_action(plan)
 
         if not self.claim_after_skill and self.skill_available():
-            claims.append(FieldClaim.normal(reason="skill instant cycle"))
+            plan.add(FieldClaim.normal(reason="skill instant cycle"))
 
         if self.claim_after_skill and self.ultimate_available():
-            claims.append(FieldClaim.normal(reason="skill succeeded"))
+            plan.add(FieldClaim.normal(reason="skill succeeded"))
 
         if self.no_dps_teammate and self._should_return_from_ult():
-            claims.append(FieldClaim.strict(reason="ultimate window ending"))
+            plan.add(FieldClaim.strict(reason="ultimate window ending"))
 
         def entry():
-            self.claim_after_skill = False
             self.no_dps_teammate = False
 
             if self.in_ult is None:
@@ -60,23 +59,27 @@ class Blackbird(BaseChar):
                 yield ultimate
                 self.in_ult = False
 
-            if (yield skill):
+            if (yield skill) and not self.claim_after_skill:
                 self.claim_after_skill = True
                 return
+
+            self.claim_after_skill = False
 
             if (yield ultimate.repeat_for_entry()):
                 self.in_ult = True
                 self.perform_in_ult(context)
                 dps_list = self.get_teammates_by_role(Planner.Role.MAIN_DPS)
-                steps = []
-                for char in dps_list:
-                    steps.append(FollowupStep.for_switch(char, "Blackbird request dps"))
+                steps = [
+                    FollowupStep.for_switch(char, reason="Blackbird request dps")
+                    for char in dps_list
+                ]
                 if steps:
                     context.request_route(steps, return_to_source=True)
                 else:
                     self.no_dps_teammate = True
 
-        return self.plan(skill, ultimate, claims=claims, entry=entry)
+        plan.entry = entry
+        return plan
 
     def should_use_skill(self, context: CombatContext = None):
         return (
