@@ -43,7 +43,6 @@ An ordinary character usually only needs to override `describe_role()` and `comb
 def describe_role(self):
     return RoleProfile(
         role=Planner.Role.SUB_DPS,
-        field_preference=Planner.FieldPreference.SUB_DPS,
         max_field_time=1.5,
     )
 
@@ -301,13 +300,28 @@ former, while the latter affects ordinary switch scoring. Neither is a hard sche
 | Field | Values / purpose |
 |---|---|
 | `role` | `Planner.Role.MAIN_DPS`, `SUB_DPS`, or `SUPPORT`; describes the team role. Defaults to `SUB_DPS`. |
-| `field_preference` | `Planner.FieldPreference.MAIN_DPS`, `SUB_DPS`, `SUPPORT`, or `SETUP_ONLY`; expresses ordinary field-time preference. Defaults to `SUB_DPS`. |
+| `field_preference` | `Planner.FieldPreference.MAIN_DPS`, `SUB_DPS`, `SUPPORT`, or `SETUP_ONLY`; expresses ordinary field-time preference. When omitted, construction derives the same-named preference from `role`. Explicit values take precedence. |
 | `max_field_time` | When greater than 0, allows the planner's built-in field-time fallback for up to this duration; set to 0 to disable it. Defaults to 1.5 seconds. |
 | `combat_start_priority` | Used only for the opening switch. Values greater than 0 make a character eligible, and higher values rank first. It does not affect ordinary combat switch scoring. Defaults to 0. |
 
 `MAIN_DPS` favors staying on field, `SUB_DPS` favors shorter field time, and `SUPPORT` and
 `SETUP_ONLY` suit characters that rotate out after support or setup actions. Coordination requests
 and field claims still affect the final choice.
+
+Ordinary characters only need to declare their role: `MAIN_DPS`, `SUB_DPS`, and
+`SUPPORT` each default to the same-named field preference. Special preferences remain
+independently configurable:
+
+```python
+RoleProfile(role=Planner.Role.MAIN_DPS)
+RoleProfile(
+    role=Planner.Role.SUB_DPS,
+    field_preference=Planner.FieldPreference.SETUP_ONLY,
+)
+```
+
+Defaults are resolved at construction; changing `role` later does not automatically
+change `field_preference`.
 
 ## BaseChar Helpers
 

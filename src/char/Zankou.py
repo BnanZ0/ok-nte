@@ -11,10 +11,7 @@ class Zankou(BaseChar):
         super().__init__(*args, **kwargs)
 
     def describe_role(self):
-        return RoleProfile(
-            role=Planner.Role.MAIN_DPS,
-            field_preference=Planner.FieldPreference.MAIN_DPS,
-        )
+        return RoleProfile(role=Planner.Role.MAIN_DPS)
 
     def combat_plan(self, context):
         ultimate = self.click_ultimate_action()

@@ -12,7 +12,6 @@ class Zero(BaseChar):
     def describe_role(self):
         return RoleProfile(
             role=Planner.Role.SUB_DPS,
-            field_preference=Planner.FieldPreference.SUB_DPS,
             max_field_time=1.0,
         )
 

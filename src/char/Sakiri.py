@@ -10,7 +10,8 @@ class Sakiri(Support):
         super().__init__(*args, **kwargs)
 
     def combat_plan(self, context):
+        skill = self.click_skill_action(add_tags=Planner.ActionTag.TEAM_BUFF)
         return self.plan(
             self.click_ultimate_action(add_tags=Planner.ActionTag.TEAM_BUFF),
-            self.click_skill_action(add_tags=Planner.ActionTag.TEAM_BUFF, down_time=0.25),
+            skill(down_time=0.25),
         )

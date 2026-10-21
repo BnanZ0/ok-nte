@@ -209,10 +209,7 @@ class BaseChar:
         return self.task.send_key
 
     def describe_role(self):
-        return RoleProfile(
-            role=Planner.Role.SUB_DPS,
-            field_preference=Planner.FieldPreference.SUB_DPS,
-        )
+        return RoleProfile(role=Planner.Role.SUB_DPS)
 
     def switch_in_guard(
         self,

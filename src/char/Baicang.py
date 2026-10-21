@@ -5,7 +5,6 @@ from src.combat.planner import (
     ActionSlot,
     ActionTag,
     CombatContext,
-    FieldPreference,
     Role,
     RoleProfile,
 )
@@ -69,7 +68,6 @@ class Baicang(BaseChar):
     def describe_role(self):
         return RoleProfile(
             role=Role.MAIN_DPS,
-            field_preference=FieldPreference.MAIN_DPS,
             max_field_time=self.MAX_FIELD_TIME,
         )
 

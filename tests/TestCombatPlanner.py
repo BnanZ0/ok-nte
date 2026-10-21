@@ -220,6 +220,24 @@ class TestCombatPlanner(unittest.TestCase):
     def test_planner_namespace_exports_existing_enums(self):
         self.assertIs(Planner.NEVER_EXPIRES, NEVER_EXPIRES)
 
+    def test_role_profile_defaults_follow_role(self):
+        self.assertEqual(RoleProfile().field_preference, FieldPreference.SUB_DPS)
+        for role, preference in (
+            (Role.MAIN_DPS, FieldPreference.MAIN_DPS),
+            (Role.SUB_DPS, FieldPreference.SUB_DPS),
+            (Role.SUPPORT, FieldPreference.SUPPORT),
+        ):
+            with self.subTest(role=role):
+                profile = RoleProfile(role=role)
+                self.assertEqual(profile.field_preference, preference)
+
+    def test_role_profile_preserves_explicit_field_preference(self):
+        for role in Role:
+            for preference in FieldPreference:
+                with self.subTest(role=role, preference=preference):
+                    profile = RoleProfile(role=role, field_preference=preference)
+                    self.assertEqual(profile.field_preference, preference)
+
     def _char(self, index, name, **kwargs):
         return FakeChar(index, name, **kwargs)
 
@@ -317,6 +335,26 @@ class TestCombatPlanner(unittest.TestCase):
 
         self.assertEqual(decision.target, dps)
         self.assertIn("dps", decision.reason)
+
+    def test_inferred_and_explicit_field_preferences_affect_switch_selection(self):
+        for profile, expected in (
+            (RoleProfile(role=Role.MAIN_DPS), "dps"),
+            (
+                RoleProfile(role=Role.MAIN_DPS, field_preference=FieldPreference.SETUP_ONLY),
+                "sub_dps",
+            ),
+        ):
+            with self.subTest(preference=profile.field_preference):
+                current = self._support(0, "current")
+                dps = self._char(1, "dps")
+                dps.describe_role = Mock(return_value=profile)
+                sub_dps = self._char(2, "sub_dps")
+                sub_dps.describe_role = Mock(return_value=RoleProfile(role=Role.SUB_DPS))
+                planner = self._planner([current, dps, sub_dps])
+
+                decision = planner.decide_switch(current)
+
+                self.assertIs(decision.target, dps if expected == "dps" else sub_dps)
 
     def test_team_buff_skill_outranks_main_dps_ultimate(self):
         current = self._setup_char(0, "current", max_field_time=0)

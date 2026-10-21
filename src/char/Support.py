@@ -6,7 +6,6 @@ class Support(BaseChar):
     def describe_role(self):
         return RoleProfile(
             role=Planner.Role.SUPPORT,
-            field_preference=Planner.FieldPreference.SUPPORT,
             max_field_time=1,
             combat_start_priority=1,
         )

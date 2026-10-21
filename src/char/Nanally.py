@@ -19,7 +19,6 @@ class Nanally(BaseChar):
     def describe_role(self):
         return RoleProfile(
             role=Planner.Role.MAIN_DPS,
-            field_preference=Planner.FieldPreference.MAIN_DPS,
             max_field_time=1.5,
         )
 
@@ -49,6 +48,6 @@ class Nanally(BaseChar):
             self.normal_attack()
             self.sleep(0.2)
         return skill_used
-    
+
     def on_combat_end(self, chars):
         self.switch_other_char()

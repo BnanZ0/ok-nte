@@ -56,10 +56,7 @@ class CustomChar(BaseChar):
             self.logger.warning(f"No custom char info found for {self.ufn_name}")
 
     def describe_role(self):
-        return RoleProfile(
-            role=Planner.Role.SUB_DPS,
-            field_preference=Planner.FieldPreference.SUB_DPS,
-        )
+        return RoleProfile(role=Planner.Role.SUB_DPS)
 
     def combat_plan(self, context):
         if not self.parsed_combo:

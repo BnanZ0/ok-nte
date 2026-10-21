@@ -43,7 +43,6 @@ from src.combat.planner import (
 def describe_role(self):
     return RoleProfile(
         role=Planner.Role.SUB_DPS,
-        field_preference=Planner.FieldPreference.SUB_DPS,
         max_field_time=1.5,
     )
 
@@ -305,12 +304,25 @@ context.is_slot_available(self, ActionSlot.SKILL)
 | 字段 | 可选值 / 用途 |
 |---|---|
 | `role` | `Planner.Role.MAIN_DPS`、`SUB_DPS`、`SUPPORT`；描述队伍定位。默认 `SUB_DPS`。 |
-| `field_preference` | `Planner.FieldPreference.MAIN_DPS`、`SUB_DPS`、`SUPPORT`、`SETUP_ONLY`；表达普通情况下的站场倾向。默认 `SUB_DPS`。 |
+| `field_preference` | `Planner.FieldPreference.MAIN_DPS`、`SUB_DPS`、`SUPPORT`、`SETUP_ONLY`；表达普通情况下的站场倾向。未指定时在构造阶段根据 `role` 推导同名偏好；显式配置优先。 |
 | `max_field_time` | 大于 0 时允许 planner 使用内建站场兜底动作，并以此作为最长站场时长；设为 0 可关闭该兜底。默认 1.5 秒。 |
 | `combat_start_priority` | 仅用于开战首切；大于 0 才成为首切候选，数值越高越优先。不会影响普通战斗中的切人评分。默认 0。 |
 
 `MAIN_DPS` 倾向持续站场，`SUB_DPS` 倾向短时站场，`SUPPORT` 与 `SETUP_ONLY` 更适合
 完成辅助或准备动作后轮换。协作请求和入场诉求会影响最终选择。
+
+普通角色只需声明定位, `MAIN_DPS`、`SUB_DPS`、`SUPPORT` 会分别补全同名站场偏好。
+特殊偏好仍可单独指定：
+
+```python
+RoleProfile(role=Planner.Role.MAIN_DPS)
+RoleProfile(
+    role=Planner.Role.SUB_DPS,
+    field_preference=Planner.FieldPreference.SETUP_ONLY,
+)
+```
+
+默认值只在构造时补全, 后续修改 `role` 不会自动改变 `field_preference`。
 
 ## BaseChar Helper
 

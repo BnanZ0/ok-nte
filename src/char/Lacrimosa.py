@@ -12,7 +12,6 @@ class Lacrimosa(BaseChar):
     def describe_role(self):
         return RoleProfile(
             role=Planner.Role.MAIN_DPS,
-            field_preference=Planner.FieldPreference.MAIN_DPS,
             max_field_time=1.5,
         )
 
@@ -25,6 +24,6 @@ class Lacrimosa(BaseChar):
             self.click_skill_action(),
             claims=claims,
         )
-    
+
     def on_combat_end(self, chars):
         self.switch_other_char()

@@ -338,6 +338,7 @@ class RoleProfile:
 
     由角色的 `describe_role()` 返回。`role` 描述队伍定位, 可由
     `CombatContext.request_role()` 匹配; `field_preference` 决定普通切人评分。
+    未指定 `field_preference` 时根据 `role` 补全, 显式配置始终优先。
     `max_field_time` 会被 planner 用来生成内建的 `planner_field_time` 站场动作。
 
     `combat_start_priority` 只用于开战首切。大于 0 的角色会成为首切候选；
@@ -345,9 +346,18 @@ class RoleProfile:
     """
 
     role: Role = Role.SUB_DPS
-    field_preference: FieldPreference = FieldPreference.SUB_DPS
+    # None is an initialization sentinel, resolved before the profile is returned.
+    field_preference: FieldPreference = cast(FieldPreference, None)
     max_field_time: float = 1.5
     combat_start_priority: int = 0
+
+    def __post_init__(self) -> None:
+        if self.field_preference is None:
+            self.field_preference = {
+                Role.MAIN_DPS: FieldPreference.MAIN_DPS,
+                Role.SUB_DPS: FieldPreference.SUB_DPS,
+                Role.SUPPORT: FieldPreference.SUPPORT,
+            }[self.role]
 
 
 @dataclass(slots=True)

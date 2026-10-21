@@ -1,12 +1,24 @@
 # pyright: reportCallIssue=error, reportArgumentType=error
 # pyright: reportUnnecessaryTypeIgnoreComment=error
-"""Static checks that BaseChar wrappers retain the native execution signatures."""
+"""Static checks for planner helper signatures and public profile types."""
 
 from typing import assert_type
 
 from src.char.BaseChar import BaseChar
 from src.char.Support import Support
-from src.combat.planner import ActionResult, ActionTag, CombatContext
+from src.combat.planner import (
+    ActionResult,
+    ActionTag,
+    CombatContext,
+    FieldPreference,
+    Role,
+    RoleProfile,
+)
+
+
+def check_role_profile_types() -> None:
+    profile = RoleProfile(role=Role.MAIN_DPS)
+    assert_type(profile.field_preference, FieldPreference)
 
 
 def check_action_signatures(char: BaseChar, context: CombatContext) -> None:
