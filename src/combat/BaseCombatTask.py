@@ -1,5 +1,6 @@
 import re
 from bisect import bisect_right
+from collections.abc import Generator
 from contextlib import contextmanager
 from dataclasses import dataclass, fields
 from enum import Enum
@@ -192,13 +193,7 @@ class BaseCombatTask(CharElementUIMixin, CombatCheck):
         """
         if not self.chars:
             return -1
-        min_time = float("inf")
-        min_index = -1
-        for char in self.chars:
-            if char.last_switch_time < min_time:
-                min_time = char.last_switch_time
-                min_index = char.index
-        return min_index
+        return min(self.chars, key=lambda char: char.last_switch_time).index
 
     def _get_element_ring_pair(self, element_a: Element, element_b: Element):
         index_a = self.element_ring_index.get(element_a)
@@ -912,7 +907,7 @@ class BaseCombatTask(CharElementUIMixin, CombatCheck):
         )
 
     @contextmanager
-    def skip_sleep_checks(self):
+    def skip_sleep_checks(self) -> Generator[SleepCheckSkip, None, None]:
         """Temporarily change checks. Keep combat-session start/end outside this scope."""
         old_values = {
             field.name: getattr(self.sleep_check_skip, field.name)

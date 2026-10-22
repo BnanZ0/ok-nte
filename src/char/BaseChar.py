@@ -749,19 +749,19 @@ class BaseChar:
             if send_click
             else None
         )
-        if result.status is _AvailableActionStatus.ANIMATION:
-            self.logger.debug("clicked ultimate has animation")
-            with self.task.skip_sleep_checks() as skip:
-                skip.all = True
+
+        with self.task.skip_sleep_checks() as skip:
+            skip.all = True
+            if result.status is _AvailableActionStatus.ANIMATION:
+                self.logger.debug("clicked ultimate has animation")
                 animated = self._wait_action_animation(
                     start=start,
                     on_wait=ultimate_animation_click,
                 )
                 clicked = clicked or animated
-        elif result.status is _AvailableActionStatus.RELEASED:
-            self.logger.debug("clicked ultimate no animation")
-
-        duration = self._wait_ultimate_unfreeze(start)
+            elif result.status is _AvailableActionStatus.RELEASED:
+                self.logger.debug("clicked ultimate no animation")
+            duration = self._wait_ultimate_unfreeze(start)
 
         self._ultimate_available = False
         self.last_ultimate_time = self.clock.now()
@@ -862,7 +862,11 @@ class BaseChar:
             self.add_freeze_duration(animation_start, self.clock.now() - animation_start)
         if clicked:
             self.last_skill_time = skill_click_time
-            self.task.wait_until(lambda: not self.skill_available(check_color=False), time_out=1)
+            with self.task.skip_sleep_checks() as skip:
+                skip.all = True
+                self.task.wait_until(
+                    lambda: not self.skill_available(check_color=False), time_out=1
+                )
             self.sleep(post_sleep)
         duration = self.clock.now() - skill_click_time if skill_click_time else 0
         self.logger.debug(
@@ -1196,3 +1200,13 @@ class BaseChar:
         if char is None:
             char = self
         return self.task.find_element_reaction_target(char)
+
+    def should_instant_cycle(self, context: CombatContext = None):
+        return self.skill_available() and (
+            not self.has_element_reaction_teammate()
+            or not self.is_cycle_full()
+            or (
+                context is not None
+                and context.strict_route_wants_action(self, slot=Planner.ActionSlot.SKILL)
+            )
+        )

@@ -1605,6 +1605,7 @@ class TestCombatPlanner(unittest.TestCase):
             with self.subTest(boss_fight=boss_fight):
                 task = FakeTask()
                 task._boss_fight = boss_fight
+                task.time_elapsed_accounting_for_freeze = Mock(return_value=0)
                 char = Akane(task, 0)
                 char.skill_available = Mock(return_value=True)
                 char.ultimate_available = Mock(return_value=True)

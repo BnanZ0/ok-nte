@@ -13,14 +13,12 @@ class Blackbird(BaseChar):
     cn_name = "黑羽"
     element = BaseChar.ElementType.BLUE
     ULT_DURATION = 15
-    ULT_RETURN_LEAD_TIME = 4.0
     ENH_SKILL_COUNT = 1
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.in_ult = None
         self.claim_after_skill = False
-        self.no_dps_teammate = False
 
     def describe_role(self):
         return RoleProfile(role=Planner.Role.SUB_DPS)
@@ -30,21 +28,14 @@ class Blackbird(BaseChar):
         skill = self.click_skill_action(
             plan,
             add_tags=Planner.ActionTag.HIGH_PRIORITY,
-            can_execute=self.should_use_skill,
+            can_execute=self.should_instant_cycle,
         )
         ultimate = self.click_ultimate_action(plan)
 
-        if not self.claim_after_skill and self.skill_available():
-            plan.add(FieldClaim.normal(reason="skill instant cycle"))
-
-        if self.claim_after_skill and self.ultimate_available():
-            plan.add(FieldClaim.normal(reason="skill succeeded"))
-
-        if self.no_dps_teammate and self._should_return_from_ult():
-            plan.add(FieldClaim.strict(reason="ultimate window ending"))
+        if self._should_return_from_ult():
+            plan.add(FieldClaim.low(reason="in ultimate"))
 
         def entry():
-            self.no_dps_teammate = False
 
             if self.in_ult is None:
                 self.in_ult = bool(
@@ -74,28 +65,15 @@ class Blackbird(BaseChar):
                     for char in dps_list
                 ]
                 if steps:
-                    context.request_route(steps, return_to_source=True)
-                else:
-                    self.no_dps_teammate = True
+                    context.request_route(steps)
 
         plan.entry = entry
         return plan
 
-    def should_use_skill(self, context: CombatContext = None):
-        return (
-            not self.has_element_reaction_teammate()
-            or not self.is_cycle_full()
-            or (
-                context is not None
-                and context.strict_route_wants_action(self, slot=Planner.ActionSlot.SKILL)
-            )
-        )
-
     def _should_return_from_ult(self):
-        if not self.in_ult or self.last_ultimate_time <= 0:
+        if not self.in_ult:
             return False
-        elapsed = self.time_elapsed_accounting_for_freeze(self.last_ultimate_time)
-        return elapsed >= self.ULT_DURATION - self.ULT_RETURN_LEAD_TIME
+        return True
 
     def perform_in_ult(self, context: CombatContext):
         self.logger.info("start perform_in_ult")
@@ -120,15 +98,19 @@ class Blackbird(BaseChar):
         super().reset_state()
         self.in_ult = None
         self.claim_after_skill = False
-        self.no_dps_teammate = False
 
     def on_combat_end(self, chars):
         super().on_combat_end(chars)
         self.in_ult = None
         self.claim_after_skill = False
-        self.no_dps_teammate = False
         self.switch_other_char()
 
     @property
     def ultimate_freeze_wait(self):
         return 2 if self.in_ult else 2.6
+
+    def click_skill(self, down_time = 0.05, post_sleep = 0, send_click = True, time_out = 0):
+        ret = super().click_skill(down_time, post_sleep, send_click, time_out)
+        if not self.in_ult and ret:
+            self.task.wait_until(self.is_cycle_full, time_out=1)
+        return ret
