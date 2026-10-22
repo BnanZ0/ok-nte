@@ -129,12 +129,6 @@ class Blackbird(BaseChar):
         self.no_dps_teammate = False
         self.switch_other_char()
 
-    def _wait_ultimate_unfreeze(self, start, click=True):
-        wait = 2 if self.in_ult else 2.6
-        if click:
-            self.continues_normal_attack(wait)
-        else:
-            self.sleep(wait)
-        duration = self.now() - start
-        self.add_freeze_duration(start, duration)
-        return duration
+    @property
+    def ultimate_freeze_wait(self):
+        return 2 if self.in_ult else 2.6

@@ -1396,7 +1396,7 @@ class TestCombatPlanner(unittest.TestCase):
         ultimate = char.click_ultimate_action(plan)
 
         def entry():
-            if (yield skill(down_time=0.3, post_sleep=0, has_animation=False, send_click=False)):
+            if (yield skill(down_time=0.3, post_sleep=0, send_click=False)):
                 yield ultimate(send_click=False, wait_if_no_cd=0)
             yield skill.repeat_for_entry()
             yield skill(down_time=0.1, time_out=0.5).repeat_for_entry()
@@ -1413,7 +1413,7 @@ class TestCombatPlanner(unittest.TestCase):
         self.assertEqual(
             [call.kwargs for call in char.click_skill.call_args_list],
             [
-                dict(down_time=0.3, post_sleep=0, has_animation=False, send_click=False),
+                dict(down_time=0.3, post_sleep=0, send_click=False),
                 dict(down_time=0.4, post_sleep=0.2),
                 dict(down_time=0.1, time_out=0.5),
             ],

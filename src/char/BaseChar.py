@@ -1,6 +1,6 @@
 import time
 from dataclasses import dataclass, field, replace
-from enum import IntFlag, StrEnum, auto
+from enum import Enum, IntFlag, StrEnum, auto
 from inspect import signature
 from typing import TYPE_CHECKING, Callable, Concatenate, Self, cast
 
@@ -26,6 +26,23 @@ if TYPE_CHECKING:
     from src.combat.BaseCombatTask import BaseCombatTask
 
 SKILL_TIME_OUT = 15
+
+
+class _AvailableActionStatus(Enum):
+    CONTINUE = auto()
+    UNAVAILABLE = auto()
+    RELEASED = auto()
+    ANIMATION = auto()
+    TIMEOUT = auto()
+
+
+@dataclass(slots=True)
+class _AvailableActionResult:
+    clicked: bool = False
+    action_time: float = 0
+    animation_start: float = 0
+    status: _AvailableActionStatus = _AvailableActionStatus.UNAVAILABLE
+    timed_out: bool = False
 
 
 @dataclass(slots=True)
@@ -150,6 +167,10 @@ class BaseChar:
         if isinstance(other, BaseChar):
             return self.name == other.name and self.index == other.index
         return False
+
+    @property
+    def ultimate_freeze_wait(self) -> None | float:
+        return None
 
     def perform(self):
         """执行当前角色的主要战斗行动序列。"""
@@ -597,7 +618,7 @@ class BaseChar:
 
     def alert_skill_failed(self):
         self.task.log_error(
-            "Click skill failed, check if the keybinding is correct in ok-nte settings!",
+            "Click skill/ult failed, check if the keybinding is correct in ok-nte settings!",
             notify=True,
         )
         self.task.screenshot("click_skill too long, breaking")
@@ -609,17 +630,9 @@ class BaseChar:
         send_action,
         send_click=True,
         time_out=SKILL_TIME_OUT,
-        has_animation=False,
-    ):
+    ) -> _AvailableActionResult:
         start = time.time()
-        result = {
-            "clicked": False,
-            "action_time": 0,
-            "animation_start": 0,
-            "animation_pending_start": 0,
-            "status": "unavailable",
-            "timed_out": False,
-        }
+        result = _AvailableActionResult()
 
         while True:
             status = self._check_available_action_result(
@@ -628,63 +641,50 @@ class BaseChar:
                 start,
                 time_out,
                 available,
-                has_animation=has_animation,
             )
-            if status != "continue":
-                result["status"] = status
+            if status is not _AvailableActionStatus.CONTINUE:
+                result.status = status
                 return result
             else:
                 self.logger.debug(f"{action_type} available click/send")
                 action_time = time.time()
                 sent = send_action()
                 if send_click:
-                    self.sleep(0.001, checks=self.SleepChecks.NONE)
+                    self.sleep(0.1, checks=self.SleepChecks.NONE)
                     self.click(action_name=f"{action_type}_click", interval=0.3)
                 if sent is not False:
-                    result["clicked"] = True
-                    result["action_time"] = action_time
-            self.sleep(0.01, checks=self.SleepChecks.NONE)
+                    result.clicked = True
+                    result.action_time = action_time
+            self.sleep(0.1, checks=self.SleepChecks.NONE)
 
     def _check_available_action_result(
         self,
         action_type,
-        result,
+        result: _AvailableActionResult,
         start,
         time_out,
         available,
-        has_animation=False,
-    ):
+    ) -> _AvailableActionStatus:
         now = time.time()
         elapsed = now - start
 
         if elapsed > time_out:
-            result["timed_out"] = True
-            return "timeout"
+            result.timed_out = True
+            return _AvailableActionStatus.TIMEOUT
 
-        if has_animation:
-            if not self.task.is_in_team():
-                if result["animation_start"] == 0:
-                    self.task.in_animation = True
-                    result["animation_start"] = result["action_time"] or now
-
-                return "animation"
-            elif result["animation_start"] != 0:
-                self.task.in_animation = False
-                result["animation_start"] = 0
-
-        if self.task.is_in_team() and not available():
-            waiting_for_animation = (
-                has_animation and result["clicked"] and result["animation_start"] == 0
-            )
-            if waiting_for_animation:
-                result["animation_pending_start"] = result["animation_pending_start"] or now
-                if now - result["animation_pending_start"] < 0.5:
-                    return "continue"
+        if not self.task.is_in_team():
+            self.task.in_animation = True
+            result.animation_start = result.action_time or now
+            return _AvailableActionStatus.ANIMATION
+        elif not available():
             self.logger.debug(f"{action_type} not available break")
-            return "released" if result["clicked"] else "unavailable"
-        self.sleep(0.01)
-        result["animation_pending_start"] = 0
-        return "continue"
+            return (
+                _AvailableActionStatus.RELEASED
+                if result.clicked
+                else _AvailableActionStatus.UNAVAILABLE
+            )
+        self.sleep(0.1, checks=self.SleepChecks.NONE)
+        return _AvailableActionStatus.CONTINUE
 
     def click_ultimate(self, send_click: bool = True, wait_if_no_cd: float = 0) -> bool:
         """尝试释放终结技。
@@ -699,15 +699,7 @@ class BaseChar:
         if not self.task.combat_session.use_ultimate:
             return False
 
-        if self.ultimate_available():
-            if self.task.combat_detect_uncertain:
-                self.logger.info("click_ultimate blocked by combat_detect_uncertain")
-                while self.task.combat_detect_uncertain:
-                    self.click_with_interval()
-                    self.sleep(0.1)
-                self.logger.info("click_ultimate unblocked")
-        else:
-            self._wait_for_ultimate_ready(wait_if_no_cd)
+        self._ultimate_guard(wait_if_no_cd)
 
         self.logger.debug("click_ultimate start")
         if not self.task.in_animation:
@@ -718,66 +710,84 @@ class BaseChar:
                     action_name="ultimate_send", interval=0.15, down_time=0.05
                 ),
                 send_click=send_click,
-                has_animation=True,
             )
         else:
-            result = {
-                "clicked": True,
-                "action_time": time.time(),
-                "animation_start": 0,
-                "status": "animation",
-                "timed_out": False,
-            }
+            result = _AvailableActionResult(
+                clicked=True,
+                action_time=time.time(),
+                status=_AvailableActionStatus.ANIMATION,
+            )
 
         return self._finish_ultimate_action(result, send_click)
 
-    def _finish_ultimate_action(self, result, send_click):
-        if result.get("timed_out"):
+    def _ultimate_guard(self, wait_if_no_cd):
+        if self.ultimate_available():
+            if self.task.combat_detect_uncertain:
+                self.logger.info("click_ultimate blocked by combat_detect_uncertain")
+                while self.task.combat_detect_uncertain:
+                    self.click_with_interval()
+                    self.sleep(0.1)
+                self.logger.info("click_ultimate unblocked")
+        elif wait_if_no_cd > 0:
+            deadline = time.time() + wait_if_no_cd
+            while not self.has_cd("ultimate") and time.time() < deadline:
+                self.sleep(0.1)
+
+    def _finish_ultimate_action(self, result: _AvailableActionResult, send_click):
+        if result.timed_out:
             self.alert_skill_failed()
             self.task.raise_not_in_combat("too long clicking a ultimate")
 
-        if result["status"] == "animation":
-            self.logger.debug("not in_team successfully casted ultimate")
-        elif not result["clicked"]:
-            return False
-        elif result["status"] != "animation":
-            self.logger.error("clicked ultimate but no effect")
+        if not result.clicked:
             return False
 
-        clicked = result["clicked"]
-        start = result["animation_start"] or time.time()
+        clicked = result.clicked
+        start = result.animation_start or time.time()
         ultimate_animation_click = (
             (lambda: self.click(action_name="ultimate_click", interval=0.25))
             if send_click
             else None
         )
-        with self.task.skip_sleep_checks() as skip:
-            skip.all = True
-            animated = self._wait_action_animation(
-                start=start,
-                timeout=7,
-                on_wait=ultimate_animation_click,
-            )
-            clicked = clicked or animated
+        if result.status is _AvailableActionStatus.ANIMATION:
+            self.logger.debug("clicked ultimate has animation")
+            with self.task.skip_sleep_checks() as skip:
+                skip.all = True
+                animated = self._wait_action_animation(
+                    start=start,
+                    on_wait=ultimate_animation_click,
+                )
+                clicked = clicked or animated
+        elif result.status is _AvailableActionStatus.RELEASED:
+            self.logger.debug("clicked ultimate no animation")
 
-            duration = self._wait_ultimate_unfreeze(start)
+        duration = self._wait_ultimate_unfreeze(start)
+
         self._ultimate_available = False
         self.last_ultimate_time = time.time()
         if clicked:
             self.logger.info(f"click_ultimate end {duration}")
         return clicked
 
-    def _wait_for_ultimate_ready(self, wait_if_no_cd):
-        deadline = time.time() + wait_if_no_cd
-        while not self.has_cd("ultimate") and time.time() < deadline:
-            self.sleep(0.1)
-
     def _wait_ultimate_unfreeze(self, start, click=True):
         self.logger.info("waiting for ultimate unfrozen")
+        post_action = (
+            (lambda: self.click(action_name="ultimate_click", interval=0.25)) if click else None
+        )
+
+        if self.ultimate_freeze_wait is not None:
+            wait = self.ultimate_freeze_wait
+            if click:
+                self.continues_normal_attack(wait)
+            else:
+                self.sleep(wait)
+            duration = time.time() - start
+            self.add_freeze_duration(start, duration)
+            return duration
+
         self.task.wait_until(
             lambda: self.has_cd("ultimate"),
-            post_action=lambda: click and self.click_with_interval(),
-            time_out=2,
+            post_action=post_action,
+            time_out=1,
         )
         box_ultimate = self.task.get_box_by_name(Labels.box_ultimate)
         snapshot = box_ultimate.crop_frame(self.task.frame)
@@ -789,7 +799,7 @@ class BaseChar:
                 template=processed_snapshot,
                 box=box_ultimate.scale(1.1, 1.1),
                 frame_processor=gf.isolate_text_to_black,
-                threshold=0.7,
+                threshold=0.9,
             ):
                 self.logger.info("ultimate unfreeze cause cd changed")
                 return True
@@ -799,8 +809,8 @@ class BaseChar:
 
         self.task.wait_until(
             condition,
-            time_out=10,
-            post_action=lambda: click and self.click_with_interval(),
+            time_out=2,
+            post_action=post_action,
         )
         duration = time.time() - start
         self.add_freeze_duration(start, duration)
@@ -810,7 +820,6 @@ class BaseChar:
         self,
         down_time: float = 0.05,
         post_sleep: float = 0,
-        has_animation: bool = False,
         send_click: bool = True,
         time_out: float = 0,
     ) -> bool:
@@ -819,7 +828,6 @@ class BaseChar:
         Args:
             down_time (float, optional): 按键按下的持续时间。默认为 0.01。
             post_sleep (float, optional): 释放技能后的休眠时间。默认为 0。
-            has_animation (bool, optional): 技能是否有释放动画。默认为 False。
             send_click (bool, optional): 在释放技能前是否发送普通点击。默认为 True。
             time_out (float, optional): 技能释放的超时时间。默认为 0。
         Returns:
@@ -837,37 +845,34 @@ class BaseChar:
             ),
             send_click=send_click,
             time_out=the_time_out,
-            has_animation=has_animation,
         )
-        if result["timed_out"] and time_out == 0:
-            self.alert_skill_failed()
-        clicked, duration, animated = self._finish_skill_action(result, post_sleep)
-        self.logger.debug(
-            f"click_skill end clicked {clicked} duration {duration} animated {animated}"
-        )
-        return clicked
+        return self._finish_skill_action(result, post_sleep)
 
-    def _finish_skill_action(self, result, post_sleep=0):
-        clicked = result["clicked"]
-        skill_click_time = result["action_time"]
-        animation_start = result["animation_start"]
+    def _finish_skill_action(self, result: _AvailableActionResult, post_sleep=0) -> bool:
+        if result.timed_out:
+            self.alert_skill_failed()
+            self.task.raise_not_in_combat("too long clicking a ultimate")
+
+        clicked = result.clicked
+        skill_click_time = result.action_time
+        animation_start = result.animation_start
         if animation_start > 0:
-            self._wait_action_animation(
-                start=animation_start,
-                timeout=6,
-            )
+            self._wait_action_animation(start=animation_start)
             self.add_freeze_duration(animation_start, time.time() - animation_start)
         if clicked:
             self.last_skill_time = skill_click_time
-            self.task.wait_until(lambda: self.task.get_cd("skill") > 0.3, time_out=1)
+            self.task.wait_until(lambda: not self.skill_available(check_color=False), time_out=1)
             self.sleep(post_sleep)
         duration = time.time() - skill_click_time if skill_click_time != 0 else 0
-        return clicked, duration, animation_start > 0
+        self.logger.debug(
+            f"click_skill end clicked {clicked} duration {duration} animated {animation_start > 0}"
+        )
+        return clicked
 
     def _wait_action_animation(
         self,
         start,
-        timeout,
+        timeout=10,
         on_wait=None,
     ):
         animated = False

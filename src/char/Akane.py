@@ -1,5 +1,5 @@
 from src.char.BaseChar import BaseChar
-from src.combat.planner import ActionIntent, Planner, RoleProfile
+from src.combat.planner import ActionIntent, FieldClaim, Planner, RoleProfile
 from src.Labels import Labels
 
 
@@ -11,35 +11,47 @@ class Akane(BaseChar):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.in_ult = None
+        self.in_ult_start = -1
+        self.skill_2_count = 0
 
     def describe_role(self):
-        return RoleProfile(
-            role=Planner.Role.MAIN_DPS, field_preference=Planner.FieldPreference.MAIN_DPS
-        )
+        return RoleProfile(role=Planner.Role.MAIN_DPS)
 
     @property
     def skill_down_time(self):
         return 0.01 if self.task._boss_fight else 0.3
 
     def combat_plan(self, context):
-        ultimate = self.click_ultimate_action()
-        skill = self.click_skill_action(down_time=self.skill_down_time, post_sleep=0.2)
+        plan = self.plan()
+        if self.in_ult_start > 0:
+            plan.add(FieldClaim.strict(reason="in ultimate"))
+
+        skill = self.click_skill_action()
+        skill = plan.add(skill(down_time=self.skill_down_time, post_sleep=0.2))
+        ultimate = self.click_ultimate_action(plan)
 
         def entry():
-            if (yield ultimate):
-                yield skill
-                self.in_ult = True
+            if not self.in_ult_start > 0:
+                if (yield ultimate):
+                    self.in_ult_start = self.now()
+                    yield skill
+            if self.in_ult_start > 0:
                 yield from self.perform_ult_combo(skill)
 
-        return self.plan(skill, ultimate, entry=entry)
+        plan.entry = entry
+        return plan
 
     def perform_ult_combo(self, skill: ActionIntent):
-        skill_count = 0
-        ult_2 = False
-        start = self.now()
-        while skill_count < 2:
+        deadline = self.now() + 13
+        while self.now() < deadline:
+            if self.in_ult_start > 0 and (
+                self.skill_2_count > 0 or self.now() - self.in_ult_start > self.ULT_DURATION - 2
+            ):
+                if self.click_ultimate():
+                    self.in_ult_start = -1
+
             self.click()
+
             if self.skill_available():
                 with self.task.skip_sleep_checks() as skip:
                     skip.sound_combat_context = True
@@ -47,47 +59,20 @@ class Akane(BaseChar):
                         lambda: self.task.find_one(Labels.akane_skill_2), time_out=0.5
                     ):
                         if self.click_skill():
-                            skill_count += 1
-                            if skill_count < 2:
-                                self.continues_normal_attack(1)
+                            self.skill_2_count += 1
+                            if self.skill_2_count >= 2:
+                                self.skill_2_count = 0
+                            return
                     else:
                         yield skill.repeat_for_entry()
 
-            if not ult_2 and (skill_count > 0 or self.now() - start > self.ULT_DURATION - 2):
-                ult_2 = self.click_ult_2()
             self.sleep(0.1)
-
-    def click_ult_2(self):
-        if not self.ultimate_available():
-            return False
-        self.logger.info("click ult 2")
-
-        start = self.now()
-        clicked = False
-        while self.ultimate_available():
-            clicked = self.send_ultimate_key()
-            self.click()
-            self.sleep(0.1, checks=self.SleepChecks.NONE)
-
-        if not clicked:
-            return False
-
-        self._wait_ultimate_unfreeze(start)
-        self.in_ult = False
-        return clicked
 
     def on_combat_end(self, chars):
         super().on_combat_end(chars)
-        self.in_ult = None
+        self.in_ult_start = -1
+        self.skill_2_count = 0
 
-    def _wait_ultimate_unfreeze(self, start, click=True):
-        if self.in_ult:
-            return super()._wait_ultimate_unfreeze(start, click)
-        wait = 1.5
-        if click:
-            self.continues_normal_attack(wait)
-        else:
-            self.sleep(wait)
-        duration = self.now() - start
-        self.add_freeze_duration(start, duration)
-        return duration
+    @property
+    def ultimate_freeze_wait(self):
+        return None if self.in_ult_start > 0 else 1.5
