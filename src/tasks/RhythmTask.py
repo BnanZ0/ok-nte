@@ -1,5 +1,4 @@
 import threading
-import time
 from collections import deque
 
 from ok import TaskDisabledException
@@ -8,6 +7,7 @@ from src.Labels import Labels
 from src.tasks.BaseNTETask import BaseNTETask
 from src.tasks.NTEOneTimeTask import NTEOneTimeTask
 from src.ui.task_icons import Icon
+from src.utils.clock import TimePoint
 
 # ─────────────────────────── 常量 ───────────────────────────
 
@@ -63,8 +63,10 @@ class RhythmTask(NTEOneTimeTask, BaseNTETask):
         )
 
         self._prev_state: dict[str, bool] = dict.fromkeys(DETECT_POINTS, False)
-        self._last_press_time: dict[str, float] = dict.fromkeys(DETECT_POINTS, 0.0)
-        self._last_finish_check: float = 0.0
+        self._last_press_time: dict[str, TimePoint] = dict.fromkeys(
+            DETECT_POINTS, self.clock.UNSET
+        )
+        self._last_finish_check = self.clock.UNSET
         self._key_queue: deque = deque()
         self._key_queue_cv = threading.Condition()
         self._key_worker: threading.Thread | None = None
@@ -95,8 +97,8 @@ class RhythmTask(NTEOneTimeTask, BaseNTETask):
 
             # 等待离开选歌界面（最多15秒），确认进入音游后再开始检测
             self.log_info("等待进入音游界面")
-            deadline_load = time.time() + 15
-            while time.time() < deadline_load:
+            load_timer = self.clock.timer(timeout=15)
+            while not load_timer.expired():
                 self.sleep(0.3)
                 if not self._is_song_select():
                     break
@@ -107,8 +109,8 @@ class RhythmTask(NTEOneTimeTask, BaseNTETask):
 
             # 重置每曲状态
             self._prev_state = dict.fromkeys(DETECT_POINTS, False)
-            self._last_press_time = dict.fromkeys(DETECT_POINTS, 0.0)
-            self._last_finish_check = 0.0
+            self._last_press_time = dict.fromkeys(DETECT_POINTS, self.clock.UNSET)
+            self._last_finish_check = self.clock.UNSET
             self._start_key_worker()
 
             # 单曲主循环
@@ -123,8 +125,8 @@ class RhythmTask(NTEOneTimeTask, BaseNTETask):
                 self.log_info("等待回到选歌界面")
                 self.sleep(1.0)
                 # 确认在选歌界面再点（防止界面未就绪）
-                deadline = time.time() + 10
-                while time.time() < deadline:
+                timer = self.clock.timer(timeout=10)
+                while not timer.expired():
                     if self._is_song_select():
                         break
                     self.sleep(0.5)
@@ -137,12 +139,12 @@ class RhythmTask(NTEOneTimeTask, BaseNTETask):
     def _run_single(self):
         """单曲打击主循环"""
         timeout = float(self.config.get(self.CONF_TIMEOUT_SECONDS, 180))
-        deadline = time.time() + timeout
+        timer = self.clock.timer(timeout=timeout)
         self.log_info("音游开始，按键 D/F/J/K")
 
         try:
-            while time.time() < deadline:
-                now = time.time()
+            while not timer.expired():
+                now = self.clock.now()
                 if now - self._last_finish_check >= FINISH_CHECK_INTERVAL:
                     self._last_finish_check = now
                     if self._is_finished():
@@ -193,7 +195,7 @@ class RhythmTask(NTEOneTimeTask, BaseNTETask):
         key_map = self._get_key_map()
         col_name = {"d": "第1列", "f": "第2列", "j": "第3列", "k": "第4列"}
 
-        now = time.time()
+        now = self.clock.now()
         for track, has_note in state.items():
             prev = self._prev_state[track]
             can_retrigger = (

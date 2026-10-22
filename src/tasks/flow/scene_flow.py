@@ -10,6 +10,8 @@ from typing import Any
 
 from ok import WaitFailedException
 
+from src.utils import clock
+
 SceneDetector = Callable[[], bool]
 SceneAction = Callable[[], Any]
 FailureRoute = Callable[["StepFailure"], Enum | None]
@@ -125,16 +127,16 @@ class SceneFlow:
         self._active_steps: tuple[Enum, ...] = ()
         self._current_step: Enum | None = None
         self._transition_source: Enum | None = None
-        self._transition_started_at: float | None = None
+        self._transition_started_at: clock.TimePoint | None = None
         self._active_transition: SceneTransition | None = None
         self._attempts: dict[Enum, int] = {}
-        self._next_attempt_at = 0.0
-        self._next_transition_at = 0.0
+        self._next_attempt_at = clock.UNSET
+        self._next_transition_at = clock.UNSET
         self._last_failure: StepFailure | None = None
         self._interrupt_count = 0
-        self._unknown_since: float | None = None
+        self._unknown_since: clock.TimePoint | None = None
         self._recovery_count = 0
-        self._last_recovery_at: float | None = None
+        self._last_recovery_at: clock.TimePoint | None = None
 
     @property
     def active(self) -> bool:
@@ -147,7 +149,7 @@ class SceneFlow:
     @property
     def snapshot(self) -> SceneFlowSnapshot:
         unknown_duration = (
-            0.0 if self._unknown_since is None else max(0.0, time.monotonic() - self._unknown_since)
+            0.0 if self._unknown_since is None else max(0.0, clock.now() - self._unknown_since)
         )
         return SceneFlowSnapshot(
             current_step=self._current_step,
@@ -337,7 +339,7 @@ class SceneFlow:
                 self._finish_transition()
                 if step.key != self._transition_source:
                     self._attempts[step.key] = 0
-                if step.key == self._transition_source and time.monotonic() < self._next_attempt_at:
+                if step.key == self._transition_source and clock.now() < self._next_attempt_at:
                     self._wait(poll_interval)
                     continue
                 if self._attempt_limit_reached(step):
@@ -372,12 +374,12 @@ class SceneFlow:
             raise
         self._activate_steps(step.next_steps)
         self._active_transition = step.transition
-        self._next_transition_at = 0.0
+        self._next_transition_at = clock.UNSET
         if step.transition is not None:
-            self._transition_started_at = time.monotonic()
+            self._transition_started_at = clock.now()
             return self._run_transition(force=True)
         if step.key in step.next_steps:
-            self._next_attempt_at = time.monotonic() + step.policy.interval
+            self._next_attempt_at = clock.now() + step.policy.interval
         return True
 
     def _run_transition(self, *, force: bool = False) -> bool:
@@ -385,7 +387,7 @@ class SceneFlow:
         source = self._transition_source
         if transition is None or source is None:
             return True
-        if not force and time.monotonic() < self._next_transition_at:
+        if not force and clock.now() < self._next_transition_at:
             return True
         try:
             transition.action()
@@ -399,7 +401,7 @@ class SceneFlow:
             if self._must_propagate(error):
                 raise
             raise
-        self._next_transition_at = time.monotonic() + transition.interval
+        self._next_transition_at = clock.now() + transition.interval
         return True
 
     def _run_guard(self, guard: _Guard) -> bool:
@@ -432,7 +434,7 @@ class SceneFlow:
             return True
         if step.detector() and not self._attempt_limit_reached(step):
             self._activate_steps((step.key,))
-            self._next_attempt_at = time.monotonic() + step.policy.interval
+            self._next_attempt_at = clock.now() + step.policy.interval
             return True
         return self._fail_step(step, str(error) or error.__class__.__name__, error)
 
@@ -473,14 +475,14 @@ class SceneFlow:
         if failure is not None:
             self._last_failure = failure
         if self._unknown_since is None:
-            self._unknown_since = time.monotonic()
+            self._unknown_since = clock.now()
         return self._recover_if_needed()
 
     def _recover_if_needed(self, *, force: bool = False) -> bool:
         recovery = self._recovery
         if recovery is None:
             return False
-        now = time.monotonic()
+        now = clock.now()
         if self._unknown_since is None:
             self._unknown_since = now
         unknown_duration = now - self._unknown_since
@@ -544,7 +546,7 @@ class SceneFlow:
 
     def _activate_steps(self, keys: tuple[Enum, ...]) -> None:
         self._active_steps = keys
-        self._next_attempt_at = 0.0
+        self._next_attempt_at = clock.UNSET
 
     def _activate_start(self, step: Enum) -> None:
         self._active_steps = (step,)
@@ -553,7 +555,7 @@ class SceneFlow:
         self._transition_started_at = None
         self._finish_transition()
         self._attempts[step] = 0
-        self._next_attempt_at = 0.0
+        self._next_attempt_at = clock.UNSET
 
     @staticmethod
     def _resume_steps(step: _Step) -> tuple[Enum, ...]:
@@ -566,12 +568,12 @@ class SceneFlow:
             return False
         return (
             transition.timeout is not None
-            and time.monotonic() - self._transition_started_at >= transition.timeout
+            and clock.now() - self._transition_started_at >= transition.timeout
         )
 
     def _finish_transition(self) -> None:
         self._active_transition = None
-        self._next_transition_at = 0.0
+        self._next_transition_at = clock.UNSET
         self._transition_started_at = None
 
     def _attempt_limit_reached(self, step: _Step) -> bool:
@@ -592,7 +594,7 @@ class SceneFlow:
         self._transition_started_at = None
         self._finish_transition()
         self._attempts.clear()
-        self._next_attempt_at = 0.0
+        self._next_attempt_at = clock.UNSET
         self._last_failure = None
         self._interrupt_count = 0
         self._unknown_since = None

@@ -16,6 +16,7 @@ from src.tasks.NTEOneTimeTask import NTEOneTimeTask
 from src.tasks.trigger.SkipDialogTask import SkipDialogTask
 from src.utils import game_filters as gf
 from src.utils import image_utils as iu
+from src.utils.clock import Timer
 
 
 class AbortException(Exception):
@@ -27,7 +28,7 @@ class CharacterSwitchState:
     role: str
     keys: list[str]
     index: int = 0
-    deadline: float = 0
+    timeout_timer: Timer | None = None
 
     @property
     def current_key(self):
@@ -202,13 +203,13 @@ class AutoHeistTask(NTEOneTimeTask, BaseCombatTask):
         self.sleep_check_interval = self.DEFAULT_SLEEP_CHECK_INTERVAL
         self._scroll_switch = False
         self._scroll_count = 0
-        self._scroll_time = 0
+        self._scroll_time = self.clock.UNSET
         self._dead_fighter_keys = []
         self._current_fighter_key = None
         self._switch_state: CharacterSwitchState | None = None
         self._handling_switch_state = False
         self._quick_pick_event = Event()
-        self._quick_pick_ready_at = 0
+        self._quick_pick_ready_at = self.clock.UNSET
         self._held_keys = set()
         self._interaction_watch_active = False
         self._interaction_watch_found = False
@@ -393,7 +394,7 @@ class AutoHeistTask(NTEOneTimeTask, BaseCombatTask):
         key = state.current_key
         if state.role == self.ROLE_FIGHTER:
             self._current_fighter_key = key
-        state.deadline = time.time() + self.SWITCH_CHECK_DURATION
+        state.timeout_timer = self.clock.timer(timeout=self.SWITCH_CHECK_DURATION)
         self.send_key(key)
         return key
 
@@ -432,7 +433,7 @@ class AutoHeistTask(NTEOneTimeTask, BaseCombatTask):
             return
 
         state = self._switch_state
-        if time.time() > state.deadline:
+        if state.timeout_timer is None or state.timeout_timer.expired():
             self._switch_state = None
             self._update_sleep_check_interval()
             return
@@ -588,11 +589,11 @@ class AutoHeistTask(NTEOneTimeTask, BaseCombatTask):
 
     def _reset_quick_pick(self):
         self._quick_pick_event.clear()
-        self._quick_pick_ready_at = 0
+        self._quick_pick_ready_at = self.clock.UNSET
 
     def _start_quick_pick(self):
         if not self._quick_pick_event.is_set():
-            self._quick_pick_ready_at = time.time() + self.QUICK_PICK_START_DELAY
+            self._quick_pick_ready_at = self.clock.now() + self.QUICK_PICK_START_DELAY
         self._quick_pick_event.set()
 
     def _release_held_keys(self):
@@ -611,7 +612,7 @@ class AutoHeistTask(NTEOneTimeTask, BaseCombatTask):
             time.sleep(0.1)
             return
 
-        if self._quick_pick_event.is_set() and time.time() >= self._quick_pick_ready_at:
+        if self._quick_pick_event.is_set() and self.clock.now() >= self._quick_pick_ready_at:
             if self._check_action_interval("quick_pick", self.QUICK_PICK_INTERVAL):
                 interaction = self.executor.interaction
                 if interaction is not None:
@@ -628,7 +629,7 @@ class AutoHeistTask(NTEOneTimeTask, BaseCombatTask):
         return False
 
     def _alternate_scroll(self, interval=0):
-        if time.time() - self._scroll_time >= interval:
+        if self.clock.now() - self._scroll_time >= interval:
             time.sleep(0.01)
             if self._should_stop_quick_pick_loop():
                 return False
@@ -639,7 +640,7 @@ class AutoHeistTask(NTEOneTimeTask, BaseCombatTask):
                 interaction.scroll(0, 0, 1)
             else:
                 interaction.scroll(0, 0, -1)
-            self._scroll_time = time.time()
+            self._scroll_time = self.clock.now()
             self._scroll_count += 1
             if self._scroll_count >= 3:
                 self._scroll_count = 0
@@ -755,10 +756,10 @@ class AutoHeistTask(NTEOneTimeTask, BaseCombatTask):
         """
         _key = self.switch_to_fighter(check_switched=True)
         self.wait_until(self.has_health_bar)
-        deadline = time.time() + 60
-        settle = -1
-        in_team_settle = -1
-        while time.time() < deadline:
+        timer = self.clock.timer(timeout=60)
+        settle = self.clock.UNSET
+        in_team_settle = self.clock.UNSET
+        while not timer.expired():
             self.send_key_down("space")
             self.sleep(0.05)
             self.mouse_down()
@@ -768,27 +769,27 @@ class AutoHeistTask(NTEOneTimeTask, BaseCombatTask):
             self.mouse_up()
             self.sleep(0.50)
             if not self.is_in_team():
-                if in_team_settle < 0:
-                    in_team_settle = time.time()
-                if time.time() - in_team_settle > 1:
+                if not in_team_settle:
+                    in_team_settle = self.clock.now()
+                if self.clock.now() - in_team_settle > 1:
                     self.log_info(f"fighter {_key} dead, try next")
                     self._dead_fighter_keys.append(_key)
                     self.ensure_in_team()
                     _key = self.switch_to_fighter()
             else:
-                in_team_settle = -1
+                in_team_settle = self.clock.UNSET
                 _key = self._current_fighter_key or _key
             self.send_key_down(_key)
             self.sleep(0.02)
             self.send_key_up(_key)
             self.next_frame()
             if not self._find_red_health_bar(10):
-                if settle < 0:
-                    settle = time.time()
-                if time.time() - settle > 2:
+                if not settle:
+                    settle = self.clock.now()
+                if self.clock.now() - settle > 2:
                     break
             else:
-                settle = -1
+                settle = self.clock.UNSET
         else:
             raise AbortException("timeout for clear_current_combat")
         self.switch_to_runner(check_switched=True)
@@ -837,14 +838,13 @@ class AutoHeistTask(NTEOneTimeTask, BaseCombatTask):
         `min_walk_time` 表示开始后至少移动多久再处理撬锁提示/启动 `send_pick`。
         `hold=True` 表示结束时保留方向键按下状态，交给后续路径处理。
         """
-        start_time = time.time()
-        deadline = start_time + time_out
-        earliest_lock_pick_time = start_time + min_walk_time
+        timer = self.clock.timer(timeout=time_out)
+        pick_timer = self.clock.timer(timeout=min_walk_time)
         pick_started = False
 
         def wait_until_pick_time():
             nonlocal pick_started
-            remaining = earliest_lock_pick_time - time.time()
+            remaining = pick_timer.remaining()
             if remaining > 0:
                 self.sleep(remaining)
             if send_pick and not pick_started:
@@ -853,21 +853,20 @@ class AutoHeistTask(NTEOneTimeTask, BaseCombatTask):
 
         if direction is not None:
             self.send_key_down(direction)
-        while time.time() < deadline:
-            now = time.time()
-            if send_pick and not pick_started and now >= earliest_lock_pick_time:
+        while not timer.expired():
+            if send_pick and not pick_started and pick_timer.expired():
                 self.send_key_down("f")
                 pick_started = True
             if self.find_one(Labels.heist_interac_lock_pick, vertical_variance=0.05):
-                if now < earliest_lock_pick_time:
+                if not pick_timer.expired():
                     wait_until_pick_time()
-                lock_pick = time.time()
+                lock_pick = self.clock.now()
                 if direction is not None:
                     self.send_key_up(direction)
                 self.wait_until(self.is_lock_pick_active, settle_time=0.5)
                 self.wait_until(lambda: not self.is_lock_pick_active(), settle_time=0.5)
                 self.sleep(0.50)
-                deadline += time.time() - lock_pick
+                timer.extend(self.clock.now() - lock_pick)
                 if direction is not None:
                     self.send_key_down(direction)
             self.next_frame()
@@ -879,8 +878,8 @@ class AutoHeistTask(NTEOneTimeTask, BaseCombatTask):
 
         `raise_timeout=True` 时超时会中断路径；否则超时只安静返回。
         """
-        deadline = time.time() + time_out
-        while time.time() < deadline:
+        timer = self.clock.timer(timeout=time_out)
+        while not timer.expired():
             if self.find_one(Labels.heist_interac_lock_pick, vertical_variance=0.05):
                 self.wait_until(self.is_lock_pick_active, settle_time=0.5)
             if self.is_lock_pick_active():
@@ -947,8 +946,8 @@ class AutoHeistTask(NTEOneTimeTask, BaseCombatTask):
         self.wait_in_team(settle_time=0.25)
 
     def sleep_send_key(self, time_out, key, interval=0.2):
-        deadline = time.time() + time_out
-        while time.time() < deadline:
+        timer = self.clock.timer(timeout=time_out)
+        while not timer.expired():
             self.send_key(key, interval=interval)
             self.sleep(0.01)
 

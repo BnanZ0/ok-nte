@@ -1,5 +1,4 @@
 import re
-import time
 
 from ok import TaskDisabledException
 
@@ -58,10 +57,10 @@ class DarkTask(NTEOneTimeTask, RecordTask):
     def go(self):
         key_down = False
         self.wait_in_team(time_out=120, settle_time=2)
-        start_time = time.time()
+        start_time = self.clock.now()
         try:
             while True:
-                elapsed = time.time() - start_time
+                elapsed = self.clock.now() - start_time
 
                 # 剩余时间
                 remain = 150 - elapsed

@@ -56,7 +56,7 @@ class TestCombatDetectAsync(unittest.TestCase):
         task._lv_async = True
         task.find_lv_future = None
         task._find_lv_latency = 0
-        task._find_lv_async_started_at = 0
+        task._find_lv_async_started_at = None
         task.fake_executor = FakeExecutor([first, second])
 
         TestableCombatCheck.find_lv_async(task, frame="frame")

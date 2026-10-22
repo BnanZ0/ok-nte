@@ -49,9 +49,9 @@ class Zankou(BaseChar):
         return plan
 
     def perform_skill_combo(self):
-        deadline = self.now() + 10
+        timer = self.clock.timer(timeout=10)
         clicked_skill = False
-        while self.now() < deadline:
+        while not timer.expired():
             click_skill, purple_skill = self.click_zankou_skill()
             if not clicked_skill:
                 clicked_skill = click_skill

@@ -1,4 +1,3 @@
-import time
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -59,7 +58,7 @@ class Hotori(BaseChar):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.record_window_start = 0
+        self.record_window_start = self.clock.UNSET
         self.pending_team_record_setup_reservation = False
         self.records_ready: bool | None = None
 
@@ -155,10 +154,10 @@ class Hotori(BaseChar):
         self.records_ready = None
 
     def _record_window_reservation_finish(self):
-        self.record_window_start = 0
+        self.record_window_start = self.clock.UNSET
 
     def is_record_expire(self):
-        if self.record_window_start <= 0:
+        if not self.record_window_start:
             return True
         return self.record_window_elapsed() > self.TEAM_SKILL_WINDOW
 
@@ -260,7 +259,7 @@ class Hotori(BaseChar):
         success = self.click_ultimate()
         if success:
             self.records_ready = False
-            self.record_window_start = 0
+            self.record_window_start = self.clock.UNSET
             should_publish_pending = not self.has_reservation()
             self.start_reservation()
             if context is not None:
@@ -276,7 +275,7 @@ class Hotori(BaseChar):
                     context.request_switch(
                         team.zero,
                         reason="switch to Zero after Hotori ultimate",
-                        until=lambda: self.record_window_start > 0,
+                        until=lambda: bool(self.record_window_start),
                     )
         else:
             self.continues_normal_attack(0.2)
@@ -292,11 +291,11 @@ class Hotori(BaseChar):
         return self.pending_team_record_setup_reservation
 
     def start_records(self):
-        self.record_window_start = self.last_skill_time if self.last_skill_time > 0 else time.time()
+        self.record_window_start = self.last_skill_time or self.clock.now()
         self.records_ready = False
 
     def clear_records(self):
-        self.record_window_start = 0
+        self.record_window_start = self.clock.UNSET
         self.records_ready = None
 
     @property
@@ -373,6 +372,6 @@ class Hotori(BaseChar):
                 pre_action=self.check_combat,
             )
         finally:
-            duration = time.time() - start - 0.1
+            duration = self.clock.now() - start - 0.1
             self.add_freeze_duration(start, duration)
         return duration

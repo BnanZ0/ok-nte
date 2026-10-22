@@ -1,10 +1,11 @@
 import threading
-import time
 from contextlib import suppress
 
 import win32gui
 from ok import og
 from win32api import GetCursorPos, SetCursorPos
+
+from src.utils import clock
 
 _CURSOR_SYNC_INTERVAL = 0.02
 _CURSOR_SYNC_CENTER_RATIO = 0.015
@@ -22,11 +23,11 @@ class CursorSync:
         self._wake_event = threading.Event()
         self._center = None
         self._limit = None
-        self._ignore_until = 0.0
+        self._ignore_until = clock.UNSET
         self._last_cursor_position = None
         self._last_sample_was_outside = False
-        self._next_geometry_refresh_at = 0.0
-        self._next_reset_at = 0.0
+        self._next_geometry_refresh_at = clock.UNSET
+        self._next_reset_at = clock.UNSET
         self._thread = None
 
     def start(self):
@@ -51,15 +52,15 @@ class CursorSync:
             if self._center is not None and not is_in_center_zone:
                 self._last_cursor_position = tuple(position)
             self._last_sample_was_outside = self._center is not None and not is_in_center_zone
-            self._ignore_until = time.monotonic() + _CURSOR_SYNC_INTERNAL_MOVE_GRACE_PERIOD
+            self._ignore_until = clock.now() + _CURSOR_SYNC_INTERNAL_MOVE_GRACE_PERIOD
         SetCursorPos(position)
         with self._lock:
-            self._ignore_until = time.monotonic()
+            self._ignore_until = clock.now()
         self._wake_event.set()
 
     def mark_internal_move(self):
         with self._lock:
-            self._ignore_until = time.monotonic() + _CURSOR_SYNC_INTERNAL_MOVE_GRACE_PERIOD
+            self._ignore_until = clock.now() + _CURSOR_SYNC_INTERNAL_MOVE_GRACE_PERIOD
         self._wake_event.set()
 
     def _worker(self):
@@ -80,7 +81,7 @@ class CursorSync:
             self._wait()
 
     def _refresh_geometry_if_needed(self):
-        now = time.monotonic()
+        now = clock.now()
         with self._lock:
             if now < self._next_geometry_refresh_at:
                 return
@@ -97,7 +98,7 @@ class CursorSync:
         reset_position = None
         with self._lock:
             is_in_center_zone = self._is_in_center_zone(cursor_position)
-            now = time.monotonic()
+            now = clock.now()
             should_reset = all(
                 (
                     now >= self._ignore_until,

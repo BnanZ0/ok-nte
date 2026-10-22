@@ -1,5 +1,3 @@
-import time
-
 from ok import TaskDisabledException
 
 from src.combat.BaseCombatTask import BaseCombatTask
@@ -31,7 +29,7 @@ class WhirlwindTask(NTEOneTimeTask, BaseCombatTask):
                 self.CONFIG_RELOGIN: False,
             }
         )
-        self.relogin_time = 0
+        self.relogin_time = self.clock.UNSET
 
     def run(self):
         super().run()
@@ -74,14 +72,14 @@ class WhirlwindTask(NTEOneTimeTask, BaseCombatTask):
     def check_relogin(self):
         if not self.config.get(self.CONFIG_RELOGIN):
             return
-        if time.time() > self.relogin_time:
+        if self.clock.now() > self.relogin_time:
             self.log_info("重新登入游戏")
             self.back_to_login()
             self.ensure_main()
             self.set_relogin_time()
 
     def set_relogin_time(self):
-        self.relogin_time = time.time() + 2 * 60 * 60
+        self.relogin_time = self.clock.now() + 2 * 60 * 60
 
     def _dodge_with_skill(self):
         self.send_key(self.get_skill_key())
@@ -162,8 +160,8 @@ class WhirlwindTask(NTEOneTimeTask, BaseCombatTask):
                 angle = self._navigation_angle()
                 if angle is None:
                     if failed_start is None:
-                        failed_start = time.time()
-                    elif time.time() - failed_start > self.NAVIGATION_FAILED_TIMEOUT:
+                        failed_start = self.clock.now()
+                    elif self.clock.now() - failed_start > self.NAVIGATION_FAILED_TIMEOUT:
                         return False
                     self.sleep(self.NAVIGATION_FAILED_RETRY_INTERVAL)
                     continue
@@ -194,11 +192,11 @@ class WhirlwindTask(NTEOneTimeTask, BaseCombatTask):
         return max(abs(last_error), abs(current_error)) <= self.NAVIGATION_CLAMP_ENTER_ANGLE
 
     def _advance_after_navigation(self, side_key):
-        start = time.time()
-        next_micro_tune = 0
+        start = self.clock.now()
+        next_micro_tune = self.clock.UNSET
         self.send_key_down("w")
         try:
-            while time.time() - start < self.NAVIGATION_CLAMP_TIMEOUT:
+            while self.clock.now() - start < self.NAVIGATION_CLAMP_TIMEOUT:
                 if self.find_dialog_history():
                     return True
                 self.scroll_and_interac()
@@ -210,10 +208,10 @@ class WhirlwindTask(NTEOneTimeTask, BaseCombatTask):
                         continue
                     side_key = self._navigation_side_key(angle)
 
-                now = time.time()
+                now = self.clock.now()
                 if now >= next_micro_tune:
                     self._micro_tune_after_clamp(side_key)
-                    next_micro_tune = time.time() + self.NAVIGATION_CLAMP_MICRO_INTERVAL
+                    next_micro_tune = self.clock.now() + self.NAVIGATION_CLAMP_MICRO_INTERVAL
 
                 self.sleep(self.NAVIGATION_CLAMP_LOOP_INTERVAL)
             return False

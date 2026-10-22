@@ -1,8 +1,9 @@
 import sys
 import threading
-import time
 from dataclasses import dataclass
 from typing import Any, Callable
+
+from src.utils import clock
 
 
 @dataclass
@@ -14,9 +15,9 @@ class _LogState:
 class LogGate:
     """Small helper for throttled logs and message-change logs."""
 
-    def __init__(self, target=None, time_func: Callable[[], float] = time.time):
+    def __init__(self, target=None, time_func: Callable[[], float] | None = None):
         self._target = target
-        self._time = time_func
+        self._time = time_func or clock.now
         self._states: dict[Any, _LogState] = {}
         self._lock = threading.Lock()
 

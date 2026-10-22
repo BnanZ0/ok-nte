@@ -249,12 +249,12 @@ class CombatPlanner:
                 expected_entry=None,
             )
 
-        priority, target = max(
+        priority, target = min(
             candidates,
             key=lambda item: (
-                item[0],
-                -getattr(item[1], "last_switch_time", 0),
-                -getattr(item[1], "index", 0),
+                -item[0],
+                getattr(item[1], "last_switch_time", self.task.clock.UNSET),
+                getattr(item[1], "index", 0),
             ),
         )
         return SwitchDecision(
@@ -886,12 +886,12 @@ class CombatPlanner:
                 continue
             target = targets[0]
             if len(targets) > 1:
-                target = max(
+                target = min(
                     targets,
                     key=lambda char: (
-                        self._score_char(char, context, current_char=False)[0],
-                        -char.last_perform,
-                        -char.index,
+                        -self._score_char(char, context, current_char=False)[0],
+                        char.last_perform,
+                        char.index,
                     ),
                 )
             if decision is None:
@@ -1263,11 +1263,11 @@ class CombatPlanner:
             if claim is None or claim.level != FieldClaimLevel.STRICT:
                 continue
             score, _, _, breakdown = self._score_char(char, context, current_char=False)
-            candidates.append((score, -char.last_perform, -char.index, char, claim, breakdown))
+            candidates.append((-score, char.last_perform, char.index, char, claim, breakdown))
 
         if not candidates:
             return None
-        _, _, _, target, claim, breakdown = max(candidates)
+        _, _, _, target, claim, breakdown = min(candidates)
         return SwitchDecision(
             target=target,
             reason=f"strict field claim: {claim.reason}",

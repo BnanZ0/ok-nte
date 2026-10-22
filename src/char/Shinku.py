@@ -1,5 +1,3 @@
-import time
-
 from src.char.BaseChar import BaseChar
 from src.combat.planner import CombatContext, Planner, RoleProfile
 
@@ -31,8 +29,8 @@ class Shinku(BaseChar):
         return plan
 
     def perform_in_ult(self, context: CombatContext = None):
-        start = time.time()
-        while (elapsed := time.time() - start) < 12:
+        start = self.clock.now()
+        while (elapsed := self.clock.now() - start) < 12:
             if elapsed > 9 and self.ultimate_available():
                 if self.click_ultimate():
                     return True

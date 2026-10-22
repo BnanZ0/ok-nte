@@ -1,7 +1,8 @@
-import time
 from collections import deque
 
 from ok import BaseTask, Logger
+
+from src.utils import clock
 
 logger = Logger.get_logger(__name__)
 
@@ -10,6 +11,8 @@ LATERAL_DIRECTION_CHANGE_WINDOW = 3.0
 
 
 class MovementMixin(BaseTask):
+    clock = clock
+
     def walk_to_box(
         self, find_function, time_out=30, end_condition=None, y_offset=0.05, x_threshold=0.07
     ):
@@ -78,13 +81,13 @@ class MovementMixin(BaseTask):
         self, find_function, time_out=30, end_condition=None, y_offset=0.05, x_threshold=0.07
     ):
         last_direction = None
-        start = time.time()
+        start = self.clock.now()
         ended = False
         last_target = None
         centered = False
         lateral_change_times = deque()
         try:
-            while time.time() - start < time_out:
+            while self.clock.now() - start < time_out:
                 self.next_frame()
                 if end_condition:
                     ended = end_condition()
@@ -103,7 +106,7 @@ class MovementMixin(BaseTask):
                     if self._has_frequent_lateral_direction(
                         next_direction,
                         lateral_change_times,
-                        time.monotonic(),
+                        self.clock.now(),
                     ):
                         logger.info(
                             "Detected rapid lateral direction changes; "

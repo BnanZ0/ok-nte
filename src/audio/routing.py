@@ -4,7 +4,6 @@ import io
 import re
 import subprocess
 import threading
-import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -15,6 +14,7 @@ from ok.util.logger import Logger
 
 from src import GAME_EXE
 from src.events import communicate
+from src.utils import clock
 
 logger = Logger.get_logger(__name__)
 
@@ -380,10 +380,10 @@ class _BackgroundAudioRouter:
         self._connected = False
         self._bound_exit_event = None
         self._last_visible: bool | None = None
-        self.last_mute_check = 0
+        self.last_mute_check = clock.UNSET
 
     def on_window(self, visible: bool, *_args) -> None:
-        now = time.time()
+        now = clock.now()
         visible_changed = visible != self._last_visible
         recently_checked = now - self.last_mute_check <= _WINDOW_ROUTE_CHECK_INTERVAL_SECONDS
         if not visible_changed and recently_checked:

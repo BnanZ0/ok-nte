@@ -49,10 +49,10 @@ class Daffodill(BaseChar):
         - The loop is time-boxed by ``ULT_BURST_DURATION``.
         """
         self.logger.info("burst start")
-        deadline = self.now() + self.ULT_BURST_DURATION
+        timer = self.clock.timer(timeout=self.ULT_BURST_DURATION)
         skill_used = False
 
-        while self.now() < deadline:
+        while not timer.expired():
             if not skill_used and context.is_action_allowed(self, skill):
                 skill_used = self.click_skill()
             self.normal_attack()

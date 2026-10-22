@@ -1,5 +1,3 @@
-import time
-
 from ok import Logger, TriggerTask
 
 from src.Labels import Labels
@@ -17,7 +15,7 @@ class SkipDialogTask(TriggerTask, BaseNTETask):  # type: ignore
         self.skip = None
         self.trigger_interval = 0.5
         self.skip_message_hold = False
-        self._check_confirm_timer = 0
+        self._check_confirm_timer = self.clock.UNSET
         self.name = "任务跳过对话"
         self.description = "点击时将短暂控制物理鼠标"
         self.default_config.update(
@@ -87,12 +85,12 @@ class SkipDialogTask(TriggerTask, BaseNTETask):  # type: ignore
         box = self.box_of_screen(0.659, 0.559, 0.733, 0.670)
         if skip_button := self.find_confirm(box, threshold=0.8):
             # sleep 0.2 to stable click skip button
-            now = time.time()
+            now = self.clock.now()
             self.wait_until(
                 lambda: self.calculate_color_percentage(skip_confirm_color, skip_button) > 0.4,
                 time_out=6,
             )
-            if time.time() - now < 2.5:
+            if self.clock.now() - now < 2.5:
                 self.sleep(0.2)
                 self.operate_click(0.4508, 0.5194)
                 self.sleep(0.4)
@@ -124,11 +122,11 @@ class SkipDialogTask(TriggerTask, BaseNTETask):  # type: ignore
 
     def check_skip(self):
         if self.try_click_skip():
-            self._check_confirm_timer = time.time() + 3
-        if self._check_confirm_timer > time.time():
+            self._check_confirm_timer = self.clock.now() + 3
+        if self._check_confirm_timer > self.clock.now():
             return self.skip_confirm()
         else:
-            self._check_confirm_timer = 0
+            self._check_confirm_timer = self.clock.UNSET
 
 
 skip_confirm_color = {

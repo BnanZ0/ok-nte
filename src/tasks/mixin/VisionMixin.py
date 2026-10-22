@@ -1,5 +1,4 @@
 import math
-import time
 from typing import Callable, NamedTuple
 
 import cv2
@@ -9,6 +8,7 @@ from ok.feature.Feature import Feature
 from ok.feature.FeatureSet import read_from_json
 
 from src.Labels import Labels
+from src.utils import clock
 
 
 class RotatedTemplateCacheKey(NamedTuple):
@@ -50,6 +50,8 @@ SIFT_HOMOGRAPHY_MIN_MATCH_COUNT = 4
 
 
 class VisionMixin(BaseTask):
+    clock = clock
+
     # cache_id/mask fingerprint/angle options -> [(angle, rotated mask), ...]
     _rotated_template_cache: dict[RotatedTemplateCacheKey, RotatedTemplateCacheValue] = {}
 
@@ -91,11 +93,11 @@ class VisionMixin(BaseTask):
         :param trim_template: >= 0 时按该比例裁掉模板外圈背景；-1 表示不裁剪。
         :return: 匹配到的 Box；未找到时返回 None。Box 上额外带有 scale/match_count/inlier_count。
         """
-        start_time = time.time()
+        start_time = self.clock.now()
         diagnostics = {}
 
         def finish(result: Box | None, reason=None):
-            cost_ms = (time.time() - start_time) * 1000
+            cost_ms = (self.clock.now() - start_time) * 1000
             if cost_ms > 100:
                 detail = " ".join(f"{key}={value}" for key, value in diagnostics.items())
                 if result is None:
@@ -423,11 +425,11 @@ class VisionMixin(BaseTask):
         min_non_zero=20,
         template_angle=0,
     ):
-        start_time = time.time()
+        start_time = self.clock.now()
         template = self.get_feature_by_name(feature_name).mat
         scene_mask = self._first_channel_mask(scene)
         if cv2.countNonZero(scene_mask) < min_non_zero:
-            return [], (time.time() - start_time) * 1000
+            return [], (self.clock.now() - start_time) * 1000
 
         best = None
         for angle, rotated_template in self._get_rotated_templates(
@@ -451,10 +453,10 @@ class VisionMixin(BaseTask):
                 }
 
         if best is None or best["score"] < threshold:
-            return [], (time.time() - start_time) * 1000
+            return [], (self.clock.now() - start_time) * 1000
 
         best["score"] = round(best["score"], 3)
-        return [best], (time.time() - start_time) * 1000
+        return [best], (self.clock.now() - start_time) * 1000
 
     def find_rotated_template(
         self,
@@ -491,10 +493,10 @@ class VisionMixin(BaseTask):
         :param coverage_weight: 覆盖率在综合分数中的权重。
         :return: (results, cost_ms)，results 与 _find_rotated_template 保持同类结构。
         """
-        start_time = time.time()
+        start_time = self.clock.now()
         frame = self.frame if frame is None else frame
         if frame is None:
-            return [], (time.time() - start_time) * 1000
+            return [], (self.clock.now() - start_time) * 1000
 
         if isinstance(box, str):
             box = self.get_box_by_name(box)
@@ -504,16 +506,16 @@ class VisionMixin(BaseTask):
         self.draw_boxes(boxes=box, color="blue")
 
         if scene is None or scene.size == 0:
-            return [], (time.time() - start_time) * 1000
+            return [], (self.clock.now() - start_time) * 1000
 
         if frame_processor is not None:
             scene = frame_processor(scene)
             if scene is None or scene.size == 0:
-                return [], (time.time() - start_time) * 1000
+                return [], (self.clock.now() - start_time) * 1000
 
         scene_mask = self._binary_mask(scene)
         if cv2.countNonZero(scene_mask) < min_non_zero:
-            return [], (time.time() - start_time) * 1000
+            return [], (self.clock.now() - start_time) * 1000
 
         max_distance_px = max(float(max_distance_px), 1.0)
         tolerance_px = max(float(tolerance_px), 0.0)
@@ -570,13 +572,13 @@ class VisionMixin(BaseTask):
                 }
 
         if best is None or best["score"] < threshold or best["coverage"] < min_coverage:
-            return [], (time.time() - start_time) * 1000
+            return [], (self.clock.now() - start_time) * 1000
 
         self.draw_boxes(boxes=best["box"], color="red")
         best["score"] = round(best["score"], 3)
         best["coverage"] = round(best["coverage"], 3)
         best["distance_score"] = round(best["distance_score"], 3)
-        return [best], (time.time() - start_time) * 1000
+        return [best], (self.clock.now() - start_time) * 1000
 
     def _get_rotated_templates(
         self,
@@ -662,7 +664,7 @@ class VisionMixin(BaseTask):
         scene_contours: 在场景中找到的候选轮廓。
         score_threshold: 越小越严格。通常 0.05-0.2 之间。
         """
-        start_time = time.time()
+        start_time = self.clock.now()
 
         results = []
         for cnt in scene_contours:
@@ -688,4 +690,4 @@ class VisionMixin(BaseTask):
 
         # 按分数升序排列（得分越低越好）
         results = sorted(results, key=lambda x: x["score"])
-        return results, (time.time() - start_time) * 1000
+        return results, (self.clock.now() - start_time) * 1000

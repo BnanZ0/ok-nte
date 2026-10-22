@@ -150,10 +150,10 @@ class LauncherTask(BaseNTETask):
 
     def _click_start_game(self, time_out=120):
         self.log_info(f"Looking for launcher Start Game button for up to {time_out}s")
-        deadline = time.time() + time_out
+        timer = self.clock.timer(timeout=time_out)
         start_click_pending = False
-        while time.time() < deadline:
-            loop_start = time.time()
+        while not timer.expired():
+            loop_start = self.clock.now()
             if self._find_process(GAME_EXE):
                 self.log_info(
                     "Game process appeared while checking launcher; treating launch as successful"
@@ -210,7 +210,7 @@ class LauncherTask(BaseNTETask):
                         interval=10,
                     )
                     self.sleep(1)
-                    deadline = self._extend_deadline_for_update(deadline, loop_start)
+                    self._extend_timeout_for_update(timer, loop_start)
                     continue
 
             self.sleep(1)
@@ -223,8 +223,8 @@ class LauncherTask(BaseNTETask):
         is_ready = self._launcher_button_ready()
         return is_ready, button
 
-    def _extend_deadline_for_update(self, deadline, start_time):
-        return deadline + time.time() - start_time
+    def _extend_timeout_for_update(self, timer, start_time):
+        timer.extend(self.clock.now() - start_time)
 
     def _find_launcher_button(self):
         to_find = [Labels.launcher_start, Labels.launcher_update]
@@ -253,10 +253,10 @@ class LauncherTask(BaseNTETask):
                 time.sleep(0.1)
                 continue
 
-            started = time.monotonic()
+            started = self.clock.now()
             time.sleep(min(remaining, 0.1))
             if not (self.paused or self.executor.paused):
-                remaining -= time.monotonic() - started
+                remaining -= self.clock.now() - started
 
     def _ensure_launcher_visible(self):
         _, launcher_hwnd = self._find_process_window(LAUNCHER_EXE, require_title=True)
@@ -288,8 +288,8 @@ class LauncherTask(BaseNTETask):
                     f"Cannot find game window, retrying capture ({attempt + 1}/{attempts})"
                 )
         time_out = 10
-        deadline = time.time() + time_out
-        while time.time() < deadline:
+        timer = self.clock.timer(timeout=time_out)
+        while not timer.expired():
             if not self.executor.connected():
                 self.log_info("executor not connected try refresh")
                 self.executor.device_manager.refresh()
@@ -315,8 +315,8 @@ class LauncherTask(BaseNTETask):
             f"Waiting for process and window {exe_label} for up to {time_out}s "
             f"(settle_window={settle_window})"
         )
-        start = time.time()
-        while time.time() - start < time_out:
+        start = self.clock.now()
+        while self.clock.now() - start < time_out:
             proc, hwnd = self._find_process_window(
                 exe_name,
                 require_title=exe_name == LAUNCHER_EXE,
@@ -326,7 +326,7 @@ class LauncherTask(BaseNTETask):
                     self._restore_window_if_minimized(hwnd, exe_name)
                     size = self._get_window_size(hwnd)
                     if not self._is_usable_window_size(size):
-                        elapsed = int(time.time() - start)
+                        elapsed = int(self.clock.now() - start)
                         self.log_info(
                             f"Window for {exe_label} exists but is too small; "
                             f"hwnd={hwnd}, size={size[0]}x{size[1]}, elapsed={elapsed}s",
@@ -348,7 +348,7 @@ class LauncherTask(BaseNTETask):
                     )
                     return proc
 
-            elapsed = int(time.time() - start)
+            elapsed = int(self.clock.now() - start)
             if proc:
                 self.log_info(
                     f"Process {exe_label} exists, waiting for window; elapsed={elapsed}s",
@@ -446,10 +446,10 @@ class LauncherTask(BaseNTETask):
 
     def _wait_for_window_size_to_settle(self, hwnd, exe_name, wait_start, time_out, settle_time=8):
         self.log_info(f"Waiting for {exe_name} window size to settle for {settle_time}s")
-        stable_start = time.time()
+        stable_start = self.clock.now()
         last_size = self._get_window_size(hwnd)
 
-        while time.time() - wait_start < time_out:
+        while self.clock.now() - wait_start < time_out:
             if not win32gui.IsWindow(hwnd):
                 self.log_warning(f"Window for {exe_name} disappeared while settling; hwnd={hwnd}")
                 return False
@@ -457,19 +457,19 @@ class LauncherTask(BaseNTETask):
             self._restore_window_if_minimized(hwnd, exe_name)
             size = self._get_window_size(hwnd)
             if not self._is_usable_window_size(size):
-                stable_start = time.time()
+                stable_start = self.clock.now()
             elif size != last_size:
                 self.log_info(
                     f"Window size for {exe_name} changed while settling: "
                     f"{last_size[0]}x{last_size[1]} -> {size[0]}x{size[1]}"
                 )
-                stable_start = time.time()
+                stable_start = self.clock.now()
                 last_size = size
-            elif time.time() - stable_start >= settle_time:
+            elif self.clock.now() - stable_start >= settle_time:
                 self.log_info(f"Window size for {exe_name} settled at {size[0]}x{size[1]}")
                 return True
 
-            stable_for = max(0, time.time() - stable_start)
+            stable_for = max(0, self.clock.now() - stable_start)
             self.log_info_gated(
                 f"Waiting for {exe_name} window to settle; "
                 f"size={size[0]}x{size[1]}, stable_for={stable_for:.1f}s/{settle_time}s",

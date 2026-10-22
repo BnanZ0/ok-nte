@@ -1,4 +1,3 @@
-import time
 from dataclasses import dataclass, field, replace
 from enum import Enum, IntFlag, StrEnum, auto
 from inspect import signature
@@ -20,6 +19,7 @@ from src.combat.planner import (
     SwitchInGuard,
 )
 from src.Labels import Labels
+from src.utils import clock
 from src.utils import game_filters as gf
 
 if TYPE_CHECKING:
@@ -39,8 +39,8 @@ class _AvailableActionStatus(Enum):
 @dataclass(slots=True)
 class _AvailableActionResult:
     clicked: bool = False
-    action_time: float = 0
-    animation_start: float = 0
+    action_time: clock.TimePoint = clock.UNSET
+    animation_start: clock.TimePoint = clock.UNSET
     status: _AvailableActionStatus = _AvailableActionStatus.UNAVAILABLE
     timed_out: bool = False
 
@@ -80,6 +80,7 @@ class BaseChar:
         ALL = COMBAT | SOUND
 
     ElementType = Element
+    clock = clock
     INTRO_MOTION_FREEZE_DURATION = 1.5
     en_name = ""
     cn_name = ""
@@ -103,30 +104,30 @@ class BaseChar:
         self.char_id = char_id
         self.impl_id = ""
         self.index = index
-        self.last_switch_time = -1
-        self.last_ultimate_time = -1
+        self.last_switch_time = self.clock.UNSET
+        self.last_ultimate_time = self.clock.UNSET
         self.has_intro = False
         self.is_current_char = False
         self._ultimate_available = False
         self._skill_available = False
-        self.last_perform = 0
-        self.last_skill_time = -1
-        self.last_outro_time = -1
+        self.last_perform = self.clock.UNSET
+        self.last_skill_time = self.clock.UNSET
+        self.last_outro_time = self.clock.UNSET
         self.confidence = confidence
         self.logger = Logger.get_logger(self.name)
-        self.cycle_start_time = 0.0
+        self.cycle_start_time = self.clock.UNSET
         self.element = type(self).element
         self.planner_handles_arc = False
         self.is_dead = False
 
     def cycle_start(self):
-        self.cycle_start_time = time.time()
+        self.cycle_start_time = self.clock.now()
 
     def cycle_sleep(self, duration=0.1):
-        to_sleep = duration - (time.time() - self.cycle_start_time)
+        to_sleep = duration - (self.clock.now() - self.cycle_start_time)
         if to_sleep > 0.05:
             self.check_combat()
-        self.sleep(duration - (time.time() - self.cycle_start_time))
+        self.sleep(duration - (self.clock.now() - self.cycle_start_time))
 
     def skip_combat_check(self):
         """是否在某些操作中跳过战斗状态检查。
@@ -174,7 +175,7 @@ class BaseChar:
 
     def perform(self):
         """执行当前角色的主要战斗行动序列。"""
-        self.last_perform = time.time()
+        self.last_perform = self.clock.now()
         self.task.record_first_engage(self)
         if self.has_intro:
             self.add_intro_motion_freeze(self.last_perform)
@@ -567,7 +568,7 @@ class BaseChar:
 
     def switch_out(self):
         """角色被切换下场时的状态更新。"""
-        self.last_switch_time = time.time()
+        self.last_switch_time = self.clock.now()
         self.is_current_char = False
         self.has_intro = False
 
@@ -631,7 +632,7 @@ class BaseChar:
         send_click=True,
         time_out=SKILL_TIME_OUT,
     ) -> _AvailableActionResult:
-        start = time.time()
+        start = self.clock.now()
         result = _AvailableActionResult()
 
         while True:
@@ -647,7 +648,7 @@ class BaseChar:
                 return result
             else:
                 self.logger.debug(f"{action_type} available click/send")
-                action_time = time.time()
+                action_time = self.clock.now()
                 sent = send_action()
                 if send_click:
                     self.sleep(0.1, checks=self.SleepChecks.NONE)
@@ -665,7 +666,7 @@ class BaseChar:
         time_out,
         available,
     ) -> _AvailableActionStatus:
-        now = time.time()
+        now = self.clock.now()
         elapsed = now - start
 
         if elapsed > time_out:
@@ -714,7 +715,7 @@ class BaseChar:
         else:
             result = _AvailableActionResult(
                 clicked=True,
-                action_time=time.time(),
+                action_time=self.clock.now(),
                 status=_AvailableActionStatus.ANIMATION,
             )
 
@@ -729,8 +730,8 @@ class BaseChar:
                     self.sleep(0.1)
                 self.logger.info("click_ultimate unblocked")
         elif wait_if_no_cd > 0:
-            deadline = time.time() + wait_if_no_cd
-            while not self.has_cd("ultimate") and time.time() < deadline:
+            timer = self.clock.timer(timeout=wait_if_no_cd)
+            while not self.has_cd("ultimate") and not timer.expired():
                 self.sleep(0.1)
 
     def _finish_ultimate_action(self, result: _AvailableActionResult, send_click):
@@ -742,7 +743,7 @@ class BaseChar:
             return False
 
         clicked = result.clicked
-        start = result.animation_start or time.time()
+        start = result.animation_start or self.clock.now()
         ultimate_animation_click = (
             (lambda: self.click(action_name="ultimate_click", interval=0.25))
             if send_click
@@ -763,7 +764,7 @@ class BaseChar:
         duration = self._wait_ultimate_unfreeze(start)
 
         self._ultimate_available = False
-        self.last_ultimate_time = time.time()
+        self.last_ultimate_time = self.clock.now()
         if clicked:
             self.logger.info(f"click_ultimate end {duration}")
         return clicked
@@ -780,7 +781,7 @@ class BaseChar:
                 self.continues_normal_attack(wait)
             else:
                 self.sleep(wait)
-            duration = time.time() - start
+            duration = self.clock.now() - start
             self.add_freeze_duration(start, duration)
             return duration
 
@@ -812,7 +813,7 @@ class BaseChar:
             time_out=2,
             post_action=post_action,
         )
-        duration = time.time() - start
+        duration = self.clock.now() - start
         self.add_freeze_duration(start, duration)
         return duration
 
@@ -856,16 +857,17 @@ class BaseChar:
         clicked = result.clicked
         skill_click_time = result.action_time
         animation_start = result.animation_start
-        if animation_start > 0:
+        if animation_start:
             self._wait_action_animation(start=animation_start)
-            self.add_freeze_duration(animation_start, time.time() - animation_start)
+            self.add_freeze_duration(animation_start, self.clock.now() - animation_start)
         if clicked:
             self.last_skill_time = skill_click_time
             self.task.wait_until(lambda: not self.skill_available(check_color=False), time_out=1)
             self.sleep(post_sleep)
-        duration = time.time() - skill_click_time if skill_click_time != 0 else 0
+        duration = self.clock.now() - skill_click_time if skill_click_time else 0
         self.logger.debug(
-            f"click_skill end clicked {clicked} duration {duration} animated {animation_start > 0}"
+            f"click_skill end clicked {clicked} duration {duration} "
+            f"animated {bool(animation_start)}"
         )
         return clicked
 
@@ -883,7 +885,7 @@ class BaseChar:
                 animated = True
                 if on_wait is not None:
                     on_wait()
-                if timeout_start > 0 and time.time() - timeout_start > timeout:
+                if bool(timeout_start) and self.clock.now() - timeout_start > timeout:
                     self.task.raise_not_in_combat("animation too long")
                 self.sleep(0.005, checks=self.SleepChecks.NONE)
         finally:
@@ -1057,8 +1059,8 @@ class BaseChar:
                 是否立即释放并返回。默认为 False。
             until_cycle_full (bool, optional): 是否持续攻击直到协奏值满。默认为 False。
         """
-        start = time.time()
-        while time.time() - start < duration:
+        start = self.clock.now()
+        while self.clock.now() - start < duration:
             if until_skill_full and self.skill_available():
                 return
             if until_cycle_full and self.is_cycle_full():
@@ -1075,8 +1077,8 @@ class BaseChar:
             duration (float): 持续时间 (秒)。
             interval (float, optional): 每次发送按键的间隔。默认为 0.1。
         """
-        start = time.time()
-        while time.time() - start < duration:
+        start = self.clock.now()
+        while self.clock.now() - start < duration:
             self.send_key(key, interval=interval)
 
     def continues_right_click(self, duration, interval=0.1, direction_key=None):
@@ -1092,8 +1094,8 @@ class BaseChar:
             if direction_key is not None:
                 self.task.send_key_down(direction_key)
                 self.sleep(0.1)
-            start = time.time()
-            while time.time() - start < duration:
+            start = self.clock.now()
+            while self.clock.now() - start < duration:
                 self.click(interval=interval, key="right")
         finally:
             if direction_key is not None:
@@ -1141,7 +1143,7 @@ class BaseChar:
         """
         if not self.has_intro:
             return "null"
-        time = 0
+        time = self.clock.UNSET
         outro = "null"
         for char in self.task.chars:
             if char == self:
@@ -1160,9 +1162,9 @@ class BaseChar:
         """消费本场首次登场标记, 同一场战斗仅会成功一次。"""
         return self.task.consume_first_engage(self)
 
-    def now(self):
-        """Gets the current system monotonic time."""
-        return time.monotonic()
+    def now(self) -> clock.TimePoint:
+        """Compatibility alias for external characters; built-ins use self.clock."""
+        return self.clock.now()
 
     def get_teammate_by_class(self, *char_classes):
         """按角色类型查找队友, 并按参数顺序返回匹配结果。

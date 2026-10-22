@@ -1,8 +1,15 @@
-import time
+from typing import TypedDict
 
 from ok import BaseScene, Logger
 
+from src.utils import clock
+
 logger = Logger.get_logger(__name__)
+
+
+class _TeamRecord(TypedDict):
+    state: bool | None
+    timestamp: clock.TimePoint
 
 
 class NTEScene(BaseScene):
@@ -12,7 +19,7 @@ class NTEScene(BaseScene):
         self._in_combat = None
         self.cd_refreshed = False
         self._ocr_warm_up = False
-        self._is_in_team_record = {"state": None, "timestamp": 0}
+        self._is_in_team_record: _TeamRecord = {"state": None, "timestamp": clock.UNSET}
         self._logged_in = False
         self._game_capture_ready = False
         self._health_snapshot = None
@@ -50,10 +57,10 @@ class NTEScene(BaseScene):
             self._is_in_team = fun()
             if self._is_in_team is not self._is_in_team_record.get("state"):
                 self._is_in_team_record["state"] = self._is_in_team
-                self._is_in_team_record["timestamp"] = time.time()
+                self._is_in_team_record["timestamp"] = clock.now()
         return self._is_in_team
 
-    def get_is_in_team_record(self):
+    def get_is_in_team_record(self) -> tuple[bool | None, clock.TimePoint]:
         return self._is_in_team_record["state"], self._is_in_team_record["timestamp"]
 
     def health_snapshot(self, image=None):

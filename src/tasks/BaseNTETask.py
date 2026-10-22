@@ -3,7 +3,7 @@ import re
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from typing import Any, Callable, List
 
 from ok import (
@@ -27,6 +27,7 @@ from src.tasks.mixin.OgMixin import OgMixin
 from src.tasks.mixin.RoundMixin import RoundMixin
 from src.tasks.mixin.SceneFlowMixin import SceneFlowMixin
 from src.tasks.mixin.VisionMixin import VisionMixin
+from src.utils import clock
 from src.utils import image_utils as iu
 from src.utils import vision_utils as vu
 from src.utils.log_gate import LogGateMixin
@@ -59,6 +60,7 @@ class BaseNTETask(
     LogGateMixin,
     BaseTask,
 ):
+    clock = clock
     CONF_CLAIM_REWARD_COUNT = "领取奖励次数"
     DEFAULT_MOVE = False
 
@@ -70,8 +72,8 @@ class BaseNTETask(
         self.sound_config = self.get_global_config("Sound Trigger Config")
         self.pos = PositionMap(self)
         self._init_char_ui_state()
-        self.next_monthly_card_start = 0
-        self._last_interval_action_time = {}
+        self.next_monthly_card_start: datetime | None = None
+        self._last_interval_action_time: dict[Any, clock.TimePoint] = {}
         self._action_interval_lock = threading.Lock()
         self.scene_flow.interrupt(self.check_monthly_card, self.handle_monthly_card)
 
@@ -244,8 +246,8 @@ class BaseNTETask(
             return True
         # action_name must be a stable identifier, not a dynamic value.
         with self._action_interval_lock:
-            now = time.time()
-            last_time = self._last_interval_action_time.get(action_name, 0)
+            now = self.clock.now()
+            last_time = self._last_interval_action_time.get(action_name, self.clock.UNSET)
             if now - last_time < interval:
                 return False
             self._last_interval_action_time[action_name] = now
@@ -337,7 +339,7 @@ class BaseNTETask(
 
         if self.scene is not None:
             state, timestamp = self.scene.get_is_in_team_record()
-            if state and (to_sleep := 0.5 - (time.time() - timestamp)) > 0:
+            if state and (to_sleep := 0.5 - (self.clock.now() - timestamp)) > 0:
                 self.sleep(to_sleep)
 
         arr = self._update_char_ui_offset()
@@ -370,7 +372,7 @@ class BaseNTETask(
     def check_mini_map_arrow(self) -> list[dict]:
         frame = self.frame
         box = self.box_of_screen(0.0691, 0.1083, 0.0949, 0.1493, name="in_world")
-        # now = time.time()
+        # now = self.clock.now()
         res, _ = self.find_rotated_template(
             Labels.mini_map_arrow,
             box=box,
@@ -381,7 +383,7 @@ class BaseNTETask(
                 cropped, threshold=200, to_bgr=False
             ),
         )
-        # self.log_debug(f"in_world {res}, cost {time.time() - now} ms")
+        # self.log_debug(f"in_world {res}, cost {self.clock.now() - now} ms")
         return res
 
     def in_team_and_world(self):
@@ -716,9 +718,9 @@ class BaseNTETask(
         return self.find_one(Labels.monthly_card)
 
     def check_monthly_card(self):
-        if self.next_monthly_card_start > 0:
+        if self.next_monthly_card_start is not None:
             if (
-                0 < time.time() - self.next_monthly_card_start < 120
+                0 < (datetime.now(UTC) - self.next_monthly_card_start).total_seconds() < 120
                 and not self.is_in_team()
                 and self.find_monthly_card()
             ):
@@ -729,20 +731,20 @@ class BaseNTETask(
         monthly_card = self.find_monthly_card()
         if monthly_card is not None:
             self.log_info("monthly_card found click")
-            deadline = time.time() + 20
-            settle = -1
-            while time.time() < deadline:
+            timer = self.clock.timer(timeout=20)
+            settle = self.clock.UNSET
+            while not timer.expired():
                 if self.find_monthly_card():
                     self.operate_click(0.50, 0.89, after_sleep=2)
-                    settle = -1
+                    settle = self.clock.UNSET
                     continue
                 if self.find_one(Labels.reward_popup):
                     self.send_key("esc", after_sleep=2)
-                    settle = -1
+                    settle = self.clock.UNSET
                     continue
-                if settle < 0:
-                    settle = time.time()
-                elif time.time() - settle > 2:
+                if not settle:
+                    settle = self.clock.now()
+                elif self.clock.now() - settle > 2:
                     break
             else:
                 raise WaitFailedException()
@@ -761,12 +763,13 @@ class BaseNTETask(
                 next_four_am += timedelta(days=1)
             next_monthly_card_start_date_time = next_four_am - timedelta(seconds=30)
             # Subtract 1 minute from the next 4 o'clock in the morning
-            self.next_monthly_card_start = next_monthly_card_start_date_time.timestamp()
+            # Resolve the scheduled local date with OS timezone rules, including DST.
+            self.next_monthly_card_start = next_monthly_card_start_date_time.astimezone(UTC)
             logger.info(
                 "set next monthly card start time to {}".format(next_monthly_card_start_date_time)
             )
         else:
-            self.next_monthly_card_start = 0
+            self.next_monthly_card_start = None
 
     def wait_login(self):
         if not self.scene.logged_in():
@@ -797,7 +800,7 @@ class BaseNTETask(
                 return True
 
     def find_treasure(self):
-        # now = time.time()
+        # now = self.clock.now()
         result = self.find_one(
             Labels.treasure,
             box=self.pos.screen.main_viewport.to_box(),
@@ -805,7 +808,9 @@ class BaseNTETask(
             use_gray_scale=True,
         )
         # if result:
-        #     self.log_info(f"find_treasure conf {result.confidence}, cost {time.time() - now}s")
+        #     self.log_info(
+        #         f"find_treasure conf {result.confidence}, cost {self.clock.now() - now}s"
+        #     )
         return result
 
     def walk_to_treasure(self):
@@ -819,8 +824,8 @@ class BaseNTETask(
 
     def rotate_and_find(self, find, interrupt):
         def sleep(sec):
-            deadline = time.time() + sec
-            while time.time() < deadline:
+            timer = self.clock.timer(timeout=sec)
+            while not timer.expired():
                 if interrupt():
                     return True
                 self.sleep(0.1)
@@ -1096,8 +1101,8 @@ class BaseNTETask(
         )
 
     def exit_anomaly(self):
-        deadline = time.time() + 30
-        while time.time() < deadline:
+        timer = self.clock.timer(timeout=30)
+        while not timer.expired():
             if self.is_in_team() and not self.find_exit():
                 if self.wait_until(
                     lambda: self.is_in_team() and not self.find_exit(),

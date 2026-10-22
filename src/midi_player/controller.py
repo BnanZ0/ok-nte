@@ -5,6 +5,8 @@ import inspect
 import random
 from dataclasses import replace
 
+from src.utils import clock
+
 from .keyboard import KeyboardPlayer, build_key_events
 from .library import MidiLibraryService
 from .models import Instrument, PlaybackOptions, PlayMode
@@ -248,7 +250,7 @@ class MidiPlaybackController:
             )
 
         self._status(options, "playing")
-        playback_origin = asyncio.get_running_loop().time() - start_offset
+        playback_origin = clock.now() - start_offset
         progress_task = asyncio.create_task(
             self._progress_loop(lambda: playback_origin, playback_duration, options)
         )
@@ -369,24 +371,23 @@ class MidiPlaybackController:
 
     async def _wait_until_playback_time(
         self,
-        playback_origin: float,
+        playback_origin: clock.TimePoint,
         playback_time: float,
         *,
         keyboard: KeyboardPlayer | None = None,
-    ) -> float:
-        loop = asyncio.get_running_loop()
+    ) -> clock.TimePoint:
         while not self._stopped.is_set():
             if not self._pause.is_set():
-                pause_started_at = loop.time()
+                pause_started_at = clock.now()
                 if keyboard is not None:
                     keyboard.release_all()
                 await self._pause.wait()
-                playback_origin += loop.time() - pause_started_at
+                playback_origin += clock.elapsed(pause_started_at)
                 if keyboard is not None and not self._stopped.is_set():
                     keyboard.restore()
                 continue
 
-            delay = playback_origin + playback_time - loop.time()
+            delay = playback_origin + playback_time - clock.now()
             if delay <= 0:
                 return playback_origin
             await asyncio.sleep(min(delay, 0.02))
@@ -413,7 +414,7 @@ class MidiPlaybackController:
         while not self._stopped.is_set():
             if not self._pause.is_set():
                 await self._pause.wait()
-            current = asyncio.get_running_loop().time() - origin_provider()
+            current = clock.elapsed(origin_provider())
             self._progress(options, min(current, duration), duration)
             if current >= duration:
                 break

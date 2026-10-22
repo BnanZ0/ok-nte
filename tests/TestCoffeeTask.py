@@ -4,10 +4,12 @@ from unittest.mock import Mock
 
 from src.coffee import CoffeeFoodOption, CoffeeRuntime
 from src.tasks.daily.CoffeeTask import CoffeeTask
+from src.utils import clock
 
 
 def _runtime_task(config=None):
     task = Mock()
+    task.clock = clock
     task.config = {"coffee_key_settle_seconds": 0, "coffee_dry_run": True}
     task.config.update(config or {})
     task.click = Mock()

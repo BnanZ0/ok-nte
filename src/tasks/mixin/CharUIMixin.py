@@ -1,4 +1,3 @@
-import time
 from dataclasses import dataclass
 from types import MappingProxyType
 
@@ -8,6 +7,7 @@ from ok import BaseTask, Box, get_path_relative_to_exe
 
 from src.char.BaseChar import Element
 from src.Labels import Labels
+from src.utils import clock
 from src.utils import image_utils as iu
 from src.utils.current_char_detector import (
     CurrentCharConfig,
@@ -31,6 +31,8 @@ class ElementTemplate:
 
 
 class CharUIMixin(BaseTask):
+    clock = clock
+
     _CURRENT_CHAR = CurrentCharConfig()
 
     def _init_char_ui_state(self):
@@ -38,7 +40,7 @@ class CharUIMixin(BaseTask):
         self._current_char_tracker = {
             "index": -1,
             "score": 1.0,
-            "time": 0,
+            "time": self.clock.UNSET,
             "reason": "",
         }
 
@@ -121,7 +123,7 @@ class CharUIMixin(BaseTask):
         return detection
 
     def _apply_current_char_tracker(self, detection: CurrentCharDetection, char_count=None):
-        now = time.time()
+        now = self.clock.now()
         tracker = self._current_char_tracker
         candidate_count = normalize_char_count(char_count)
         if detection.accepted:
@@ -206,7 +208,7 @@ class CharUIMixin(BaseTask):
         return results
 
     def _update_char_ui_offset(self):
-        # now = time.time()
+        # now = self.clock.now()
         arr = self._multi_stage_char_match()
         results = [
             c.x < self._get_char_text_box(idx).x for idx, c in enumerate(arr) if c is not None
@@ -216,7 +218,7 @@ class CharUIMixin(BaseTask):
             self._char_ui_offset = sum(results) > (len(results) / 2)
         else:
             self._char_ui_offset = False
-        # logger.debug(f"update_char_ui_offset cost {time.time() - now:.3f}")
+        # logger.debug(f"update_char_ui_offset cost {self.clock.now() - now:.3f}")
         return arr
 
 

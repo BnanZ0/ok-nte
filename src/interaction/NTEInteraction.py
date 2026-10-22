@@ -19,6 +19,7 @@ from win32api import GetCursorPos
 from src.interaction.cursor_sync import CursorSync
 from src.interaction.keyboard_layout import QwertyPhysicalKeyMapper
 from src.interaction.mouse_blocker import MouseInputBlocker
+from src.utils import clock
 
 logger = Logger.get_logger(__name__)
 
@@ -37,7 +38,7 @@ class NTEInteraction(PostMessageInteraction):
         self.qwerty_physical_key_mapper = QwertyPhysicalKeyMapper()
         self._disable_key_mapping = 0
         self._activate_require = True
-        self._next_try_activate_at = -1
+        self._next_try_activate_at = clock.UNSET
         self._cursor_sync = CursorSync()
         self._cursor_sync.start()
         self.hwnd_window.visible_monitors.append(self)
@@ -266,7 +267,7 @@ class NTEInteraction(PostMessageInteraction):
         return SendInput(1, ctypes.pointer(i), ctypes.sizeof(INPUT))
 
     def try_activate(self):
-        now = time.monotonic()
+        now = clock.now()
         if self._activate_require:
             if not self.hwnd_window.is_foreground():
                 super().try_activate()

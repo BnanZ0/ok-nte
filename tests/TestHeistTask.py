@@ -3,6 +3,7 @@ import unittest
 import win32con
 
 from src.tasks.trigger.HeistTask import HeistTask
+from src.utils import clock
 
 
 class _KeyboardEvent:
@@ -45,10 +46,10 @@ class TestHeistTask(unittest.TestCase):
         task._log_target_key_event = lambda *args: None
         task._pick_key_pressed = False
         task._shift_pressed = True
-        task._shift_down_time = 1
+        task._shift_down_time = clock.TimePoint(1)
         task._quick_running = True
         task._quick_run_index = 1
-        task._quick_run_time = 1
+        task._quick_run_time = clock.TimePoint(1)
         task._quick_run_step = 1
 
         self.assertFalse(task._win32_filter(win32con.WM_KEYUP, _KeyboardEvent(win32con.VK_LSHIFT)))

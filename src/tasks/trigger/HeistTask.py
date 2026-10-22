@@ -44,17 +44,17 @@ class HeistTask(BaseNTETask, TriggerTask):
         super().__init__(*args, **kwargs)
         self.default_config = {"_enabled": False}
         self._submitted = False
-        self._scroll_time = 0
+        self._scroll_time = self.clock.UNSET
         self._scroll_switch = False
         self._scroll_count = 0
         self._pick_key_pressed = False
-        self._pick_key_down_time = 0
-        self._next_pick_time = 0
+        self._pick_key_down_time = self.clock.UNSET
+        self._next_pick_time = self.clock.UNSET
         self._shift_pressed = False
-        self._shift_down_time = 0
+        self._shift_down_time = self.clock.UNSET
         self._quick_running = False
         self._quick_run_index = 0
-        self._quick_run_time = 0
+        self._quick_run_time = self.clock.UNSET
         self._quick_run_step = 0
         self.name = "粉爪大劫案"
         self.description = "粉爪大劫案便利性功能"
@@ -94,13 +94,13 @@ class HeistTask(BaseNTETask, TriggerTask):
     def alternate_scroll(self, interval=0):
         if not self.config.get(self.CONF_USE_SCROLL):
             return
-        if time.time() - self._scroll_time >= interval:
+        if self.clock.now() - self._scroll_time >= interval:
             time.sleep(0.01)
             if self._scroll_switch:
                 self.scroll(0, 0, 1)
             else:
                 self.scroll(0, 0, -1)
-            self._scroll_time = time.time()
+            self._scroll_time = self.clock.now()
             self._scroll_count += 1
             if self._scroll_count >= 3:
                 self._scroll_count = 0
@@ -130,7 +130,7 @@ class HeistTask(BaseNTETask, TriggerTask):
     def _handle_pick_key(self):
         key = self._get_pick_key()
         key_pressed = self._is_key_pressed(key)
-        now = time.time()
+        now = self.clock.now()
         if not key_pressed:
             if self._is_key_down_by_async_state(key):
                 self._log_diagnostic(
@@ -147,7 +147,7 @@ class HeistTask(BaseNTETask, TriggerTask):
             self._reset_pick_key()
             return
 
-        if self._pick_key_down_time == 0:
+        if not self._pick_key_down_time:
             self._pick_key_down_time = now
             self._log_diagnostic(
                 "pick_key_hold_started",
@@ -176,8 +176,8 @@ class HeistTask(BaseNTETask, TriggerTask):
 
     def _reset_pick_key(self):
         self._pick_key_pressed = False
-        self._pick_key_down_time = 0
-        self._next_pick_time = 0
+        self._pick_key_down_time = self.clock.UNSET
+        self._next_pick_time = self.clock.UNSET
 
     def _get_pick_key(self):
         return self.config.get(self.CONF_PICK_KEY)
@@ -188,7 +188,7 @@ class HeistTask(BaseNTETask, TriggerTask):
             return
 
         shift_pressed = self._is_key_pressed("shift")
-        now = time.time()
+        now = self.clock.now()
         if not shift_pressed:
             if self._is_key_down_by_async_state("shift"):
                 self._log_diagnostic(
@@ -219,7 +219,7 @@ class HeistTask(BaseNTETask, TriggerTask):
             if now - self._shift_down_time >= self.QUICK_RUN_HOLD_INTERVAL:
                 self._quick_running = True
                 self._quick_run_index = 0
-                self._quick_run_time = 0
+                self._quick_run_time = self.clock.UNSET
                 self._quick_run_step = 0
                 self._release_shift_keys()
                 self._log_diagnostic(
@@ -244,33 +244,37 @@ class HeistTask(BaseNTETask, TriggerTask):
         if self._quick_run_step == 0:
             key = str(self._quick_run_index % char_count + 1)
             self._quick_run_index += 1
-            max_time = time.time() + 3
-            deadline = time.time() + self.QUICK_RUN_KEY_AFTER_SLEEP
-            next_send = 0
+            max_time = self.clock.timer(timeout=3)
+            timer = self.clock.timer(timeout=self.QUICK_RUN_KEY_AFTER_SLEEP)
+            next_send = self.clock.UNSET
             self.scene.clear_health_snapshot()
-            while self._is_active() and self._is_key_pressed("shift") and time.time() < max_time:
+            while (
+                self._is_active()
+                and self._is_key_pressed("shift")
+                and not max_time.expired()
+            ):
                 frame = self.next_frame()
                 if frame is not None:
-                    deadline += 0.1
+                    timer.extend(0.1)
                     if self.is_health_changed(frame):
                         break
                     if self.is_char_at_index(index=int(key) - 1, frame=frame):
                         break
 
-                if time.time() >= next_send:
+                if self.clock.now() >= next_send:
                     self._tap_key(key)
-                    next_send = time.time() + 0.5
+                    next_send = self.clock.now() + 0.5
 
-                if time.time() >= deadline:
+                if timer.expired():
                     break
                 time.sleep(0.05)
             self._quick_run_step = 1
-            self._quick_run_time = time.time()
+            self._quick_run_time = self.clock.now()
         else:
-            elapsed = time.time() - self._quick_run_time
+            elapsed = self.clock.now() - self._quick_run_time
             if elapsed >= 0.7:
                 self._quick_run_step = 0
-                self._quick_run_time = time.time()
+                self._quick_run_time = self.clock.now()
                 return
             if elapsed >= (self._quick_run_step - 1) * self.QUICK_RUN_SHIFT_INTERVAL:
                 self._tap_key("lshift")
@@ -278,10 +282,10 @@ class HeistTask(BaseNTETask, TriggerTask):
 
     def _reset_quick_run(self):
         self._shift_pressed = False
-        self._shift_down_time = 0
+        self._shift_down_time = self.clock.UNSET
         self._quick_running = False
         self._quick_run_index = 0
-        self._quick_run_time = 0
+        self._quick_run_time = self.clock.UNSET
         self._quick_run_step = 0
 
     def _reset_state(self, clear_physical_keys=False):

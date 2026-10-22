@@ -1523,8 +1523,8 @@ class CoffeeRuntime:
         return self.find_text_box("补货", self.COFFEE_SUPPLY_POPUP_REGION)
 
     def wait_for(self, predicate, timeout=4):
-        deadline = time.time() + timeout
-        while time.time() < deadline:
+        timer = self.task.clock.timer(timeout=timeout)
+        while not timer.expired():
             value = predicate()
             if value:
                 return value

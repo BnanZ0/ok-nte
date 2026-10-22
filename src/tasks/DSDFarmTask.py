@@ -1,5 +1,3 @@
-import time
-
 from ok import TaskDisabledException
 
 from src.combat.BaseCombatTask import BaseCombatTask
@@ -244,7 +242,7 @@ class DSDFarmTask(NTEOneTimeTask, BaseCombatTask):
         session = self.combat_session
         session.switch_enabled = not self.config.get(self.CONF_DONT_SWITCH, False)
         session.use_ultimate = self.config.get(self.CONF_USE_ULT, True)
-        start_combat = time.time()
+        start_combat = self.clock.now()
         self.combat_once(max_combat_time=max_combat_time)
         self.team_dead = False
         while not self.is_in_team():
@@ -255,7 +253,7 @@ class DSDFarmTask(NTEOneTimeTask, BaseCombatTask):
         if self.team_dead:
             return
         if self.config.get(self.CONF_WAIT_FULL_DURATION):
-            remaining_time = max_combat_time - (time.time() - start_combat)
+            remaining_time = max_combat_time - (self.clock.now() - start_combat)
             if remaining_time > 0:
                 self.log_info(f"战斗提前结束, 原地等待 {remaining_time:.1f} 秒以补齐时长上限。")
                 self.sleep(remaining_time)

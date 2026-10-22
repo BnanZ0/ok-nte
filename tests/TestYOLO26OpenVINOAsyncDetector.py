@@ -1,13 +1,13 @@
 import sys
 import threading
-import time
 import unittest
 from pathlib import Path
 from unittest.mock import patch
 
 import numpy as np
-
 from ok import Box
+
+from src.utils import clock
 from src.vision.openvino_detector import YOLO26OpenVINOAsyncDetector
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -189,7 +189,7 @@ class TestYOLO26OpenVINOAsyncDetector(unittest.TestCase):
                 "box": Box(x=0, y=0, width=20, height=20),
                 "threshold": 0.5,
                 "label": "target",
-                "start_time": time.time(),
+                "start_time": clock.now(),
                 "pad_x": 0,
                 "pad_y": 0,
                 "target_w": detector.model_w,

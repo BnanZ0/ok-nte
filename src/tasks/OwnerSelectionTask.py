@@ -1,5 +1,3 @@
-import time
-
 from ok import TaskDisabledException, WaitFailedException
 
 from src.tasks.NTEOneTimeTask import NTEOneTimeTask
@@ -130,8 +128,8 @@ class OwnerSelectionTask(NTEOneTimeTask, RecordTask):
     def run_round(self) -> bool:
         # 步骤1：按 F 进入店长特供页面
         self.info_set("当前阶段", "进入店长特供")
-        deadline = time.time() + 60
-        while time.time() < deadline:
+        timer = self.clock.timer(timeout=60)
+        while not timer.expired():
             if self.find_confirm(box=self.box_of_screen(0.922, 0.889, 0.969, 0.972)):
                 break
             if self.find_confirm(box=self.box_of_screen(0.514, 0.740, 0.582, 0.822)):
@@ -166,10 +164,10 @@ class OwnerSelectionTask(NTEOneTimeTask, RecordTask):
 
     # 工具方法
     def run_until_target_revenue(self) -> bool:
-        deadline = time.time() + self.CONTROL_TIMEOUT
+        timer = self.clock.timer(timeout=self.CONTROL_TIMEOUT)
 
         self.log_info("开始营业循环")
-        while time.time() < deadline:
+        while not timer.expired():
             if self.config.get(self.CONF_ROB, True):
                 self.operate_click(
                     *self.POS_TAP, interval=self.CLICK_INTERVAL, restore_cursor=False

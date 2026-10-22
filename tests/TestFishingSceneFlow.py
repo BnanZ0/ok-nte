@@ -2,8 +2,8 @@ import unittest
 from itertools import count
 from unittest.mock import patch
 
-from src.tasks.flow.scene_flow import SceneFlow, SceneReplan
 from src.tasks.FishingTask import FishingSession, FishingTask
+from src.tasks.flow.scene_flow import SceneFlow, SceneReplan
 from src.tasks.mixin.RoundMixin import RoundState
 
 
@@ -58,7 +58,7 @@ class TestFishingSceneFlow(unittest.TestCase):
 
     def _run_without_waiting(self, task, until, start):
         clock = count()
-        with patch("src.tasks.flow.scene_flow.time.monotonic", side_effect=lambda: next(clock)):
+        with patch("src.utils.clock._read_monotonic", side_effect=lambda: next(clock)):
             return task.scene_flow.run(until, start=start, poll_interval=0)
 
     def test_four_casts_route_to_restock_when_enabled(self):

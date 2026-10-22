@@ -1,5 +1,3 @@
-import time
-
 from src.heist_path.HeistPath import HeistPath
 
 
@@ -56,10 +54,11 @@ class HeistPathA(HeistPath):
         self.sleep(0.25)
 
         self.send_key_down("f")
-        start = time.time()
-        while time.time() < start + 10:
+        timer = self.clock.timer(timeout=10)
+        interact_timer = self.clock.timer(timeout=6.4)
+        while not timer.expired():
             self.send_key("space", down_time=0.14, interval=0.25)
-            if time.time() > start + 6.4 and self.find_interac():
+            if interact_timer.expired() and self.find_interac():
                 break
             self.next_frame()
 
@@ -461,8 +460,8 @@ class HeistPathA(HeistPath):
         self.send_key_down("w")
         self.sleep(0.11)
 
-        deadline = time.time() + 4.5
-        while time.time() < deadline:
+        timer = self.clock.timer(timeout=4.5)
+        while not timer.expired():
             self.send_key("lshift")
             self.sleep(0.51)
 
@@ -505,8 +504,8 @@ class HeistPathA(HeistPath):
         self.send_key_down("w")
         self.sleep(0.11)
 
-        deadline = time.time() + 4.5
-        while time.time() < deadline:
+        timer = self.clock.timer(timeout=4.5)
+        while not timer.expired():
             self.send_key("lshift")
             self.sleep(0.51)
 
@@ -531,8 +530,8 @@ class HeistPathA(HeistPath):
         self.send_key_down("w")
         self.sleep(0.11)
 
-        deadline = time.time() + 3.5
-        while time.time() < deadline:
+        timer = self.clock.timer(timeout=3.5)
+        while not timer.expired():
             self.send_key("lshift")
             self.sleep(0.51)
 
@@ -1160,8 +1159,8 @@ class HeistPathA(HeistPath):
         self.send_key_up("f")  # end pick
         self.sleep(0.11)
 
-        deadline = time.time() + 1.29
-        while time.time() < deadline:
+        timer = self.clock.timer(timeout=1.29)
+        while not timer.expired():
             self.send_key("space")
             self.sleep(0.25)
 

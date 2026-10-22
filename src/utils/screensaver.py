@@ -9,6 +9,8 @@ from ctypes import wintypes
 
 from ok.util.logger import Logger
 
+from src.utils import clock
+
 SPI_GETSCREENSAVERRUNNING = 0x0072
 DESKTOP_SWITCHDESKTOP = 0x0100
 CURSOR_NUDGE_PIXELS = 50
@@ -94,9 +96,9 @@ def _dismiss_on_input_desktop() -> bool:
             logger.warning(f"Could not get cursor position: error={ctypes.get_last_error()}")
             return False
 
-        deadline = time.monotonic() + DISMISS_TIMEOUT_SECONDS
+        timer = clock.timer(timeout=DISMISS_TIMEOUT_SECONDS)
         move_positive = True
-        while time.monotonic() < deadline:
+        while not timer.expired():
             target_x = position.x + CURSOR_NUDGE_PIXELS if move_positive else position.x
             destination = "move-positive" if move_positive else "move-negative"
             if not user32.SetCursorPos(target_x, position.y):

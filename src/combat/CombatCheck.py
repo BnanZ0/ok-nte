@@ -1,5 +1,4 @@
 import threading
-import time
 from collections import deque
 from concurrent.futures import CancelledError
 from contextlib import contextmanager
@@ -16,6 +15,7 @@ from src.Labels import Labels
 from src.tasks.BaseNTETask import BaseNTETask
 from src.utils import game_filters as gf
 from src.utils import image_utils as iu
+from src.utils.clock import TimePoint
 from src.utils.visual_template_cache import get_visual_template_cache
 
 if TYPE_CHECKING:
@@ -51,7 +51,7 @@ class CombatDetectPolicy:
 @dataclass
 class CombatDetectState:
     miss_count: int = 0
-    uncertain_until: Optional[float] = None
+    uncertain_until: TimePoint | None = None
 
     def reset(self):
         self.miss_count = 0
@@ -87,7 +87,7 @@ class CombatCheck(BaseNTETask):
         self.target_enemy_time_out = 3
         self.combat_end_condition = None
         self.target_enemy_error_notified = False
-        self.freeze_durations = deque()
+        self.freeze_durations: deque[tuple[TimePoint, float, float]] = deque()
         self.cds = {}
         self.find_lv_future = None
         self._lv_async = None
@@ -97,7 +97,7 @@ class CombatCheck(BaseNTETask):
         self._target_match_templates = None
         self._bg_ocr_lock = threading.Lock()
         self._find_lv_latency = 0
-        self._find_lv_async_started_at = 0
+        self._find_lv_async_started_at = self.clock.UNSET
         self._turn_on_retarget = False
         self._boss_fight = False
 
@@ -168,8 +168,8 @@ class CombatCheck(BaseNTETask):
             # 引入了转向，需要额外增加耗时，原本的时间不足以完成
             time_out += 2.5
         logger.info(f"targeting enemy for {time_out}s")
-        deadline = time.time() + time_out
-        while time.time() < deadline:
+        timer = self.clock.timer(timeout=time_out)
+        while not timer.expired():
             if self.is_in_team():
                 if self.wait_until(lambda: self.combat_detect(lv=lv), time_out=0.2):
                     return True
@@ -224,7 +224,7 @@ class CombatCheck(BaseNTETask):
         return self.combat_detect_state.uncertain
 
     def _update_combat_detect_state(self, combat_detect: CombatDetectResult) -> CombatDetectPhase:
-        now = time.time()
+        now = self.clock.now()
         if combat_detect.value is True:
             self.combat_detect_state.reset()
             return CombatDetectPhase.IN_COMBAT
@@ -420,12 +420,12 @@ class CombatCheck(BaseNTETask):
             old_future.cancel()
         if frame is None:
             frame = self.frame
-        now = time.time()
+        now = self.clock.now()
         self._find_lv_async_started_at = now
         self.find_lv_future = self.thread_pool_executor.submit(self.find_lv, frame=frame)
 
         def callback(f):
-            self._find_lv_latency = time.time() - now
+            self._find_lv_latency = self.clock.now() - now
             if self.find_lv_future is not f:
                 return
             try:
@@ -501,7 +501,7 @@ class CombatCheck(BaseNTETask):
         )
 
     def _log_async_combat_detect_pending(self, result: CombatDetectResult):
-        now = time.time()
+        now = self.clock.now()
         self.log_warning_gated(
             "CombatDetect pending None: "
             f"lv_ret={result.lv_ret}, lv_future={self._lv_future_debug_state(now)}, "
@@ -511,7 +511,7 @@ class CombatCheck(BaseNTETask):
             interval=1,
         )
 
-    def _lv_future_debug_state(self, now: float):
+    def _lv_future_debug_state(self, now: TimePoint):
         future = self.find_lv_future
         if future is None:
             return f"none(latency={self._find_lv_latency:.3f})"

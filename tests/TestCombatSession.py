@@ -4,6 +4,7 @@ from unittest.mock import Mock
 from src.char.BaseChar import BaseChar
 from src.combat.BaseCombatTask import BaseCombatTask, SleepCheckSkip
 from src.tasks.DSDFarmTask import DSDFarmTask
+from src.utils.clock import TimePoint
 
 
 class TestCombatSession(unittest.TestCase):
@@ -33,7 +34,7 @@ class TestCombatSession(unittest.TestCase):
         self.assertIs(session, duplicate)
         self.assertEqual(task.switch_calls, 1)
         self.assertIs(session.start_char, task.start_char)
-        self.assertGreater(session.combat_start, 0)
+        self.assertIsInstance(session.combat_start, TimePoint)
         self.assertFalse(task.sleep_check_skip.all)
 
     def test_first_engage_is_recorded_once_for_the_active_session(self):

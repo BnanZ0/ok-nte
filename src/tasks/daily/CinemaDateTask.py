@@ -92,8 +92,8 @@ class CinemaDateTask(NTEOneTimeTask, BaseNTETask):
         self.send_key_down("s")
         self.sleep(2.25)
         self.send_key_up("a")
-        deadline = time.time() + 3.5
-        while time.time() < deadline:
+        timer = self.clock.timer(timeout=3.5)
+        while not timer.expired():
             self.send_key("a", down_time=0.15, interval=0.5)
             self.sleep(0.1)
         self.send_key_up("s")

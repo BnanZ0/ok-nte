@@ -1,10 +1,11 @@
 import ctypes
 import threading
-import time
 
 import numpy as np
 from ok import Box, Logger, og
 from ok.ui.qt.Communicate import communicate
+
+from src.utils import clock
 
 logger = Logger.get_logger(__name__)
 
@@ -126,7 +127,7 @@ class YOLO26OpenVINOAsyncDetector:
             # 必须延迟销毁 request！如果因为 active_jobs 降为 0 就立刻从列表中移除对象，
             # 此时 C++ 回调线程可能尚未完全退出。Python GC 此时调用析构函数，
             # 将导致 GIL 锁死，造成软件完全卡死且无法恢复。
-            now = time.monotonic()
+            now = clock.now()
             active_records = []
             inactive_records = []
             for record in self._retired_infer_requests:
@@ -163,7 +164,7 @@ class YOLO26OpenVINOAsyncDetector:
             return self._active_request_jobs.get(id(infer_request), 0) > 0
 
     def _retire_request(self, infer_request, cancel=True):
-        retired_at = time.monotonic()
+        retired_at = clock.now()
         self._retired_infer_requests.append(
             {
                 "request": infer_request,
@@ -211,7 +212,7 @@ class YOLO26OpenVINOAsyncDetector:
                 return
 
             start_time = user_data["start_time"]
-            self.latency = time.time() - start_time
+            self.latency = clock.now() - start_time
 
             detections = infer_request.get_output_tensor().data[0]
 
@@ -384,7 +385,7 @@ class YOLO26OpenVINOAsyncDetector:
                     "box": box,
                     "threshold": threshold,
                     "label": label,
-                    "start_time": time.time(),
+                    "start_time": clock.now(),
                     # 传给回调函数，用于减去补边的偏移
                     "pad_x": pad_x,
                     "pad_y": pad_y,

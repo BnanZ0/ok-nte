@@ -56,7 +56,7 @@ class FountainTask(NTEOneTimeTask, BaseNTETask):
         sign_mode = self.config.get(self.CONF_SIGN_MODE, self.SIGN_MODE_SIGN)
         last_error = None
         for attempt in range(1, self.TASK_RETRY_COUNT + 2):
-            self._fountain_task_start = time.time()
+            self._fountain_task_start = self.clock.now()
             self.log_info(f"attempt {attempt}/{self.TASK_RETRY_COUNT + 1}")
             try:
                 if self.run_fountain_flow(sign_mode):
@@ -88,7 +88,7 @@ class FountainTask(NTEOneTimeTask, BaseNTETask):
 
     def check_fountain_task_timeout(self):
         start = getattr(self, "_fountain_task_start", None)
-        if start is not None and time.time() - start >= self.TASK_TIMEOUT:
+        if start is not None and self.clock.now() - start >= self.TASK_TIMEOUT:
             raise TimeoutError(f"timed out after {self.TASK_TIMEOUT}s")
 
     def release_fountain_move_keys(self):

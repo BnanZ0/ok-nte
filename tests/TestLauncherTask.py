@@ -8,6 +8,18 @@ from src.tasks.LauncherTask import LauncherTask
 
 
 class TestLauncherTask(unittest.TestCase):
+    def test_update_wait_extends_timeout_by_elapsed_seconds(self):
+        task = object.__new__(LauncherTask)
+        with patch("src.utils.clock._read_monotonic", return_value=100) as read_clock:
+            started = task.clock.now()
+            timer = task.clock.timer(timeout=10)
+            read_clock.return_value = 103
+            task._extend_timeout_for_update(timer, started)
+            read_clock.return_value = 110
+            self.assertFalse(timer.expired())
+            read_clock.return_value = 113
+            self.assertTrue(timer.expired())
+
     def _make_task(self):
         task = object.__new__(LauncherTask)
         task.log_info = Mock()

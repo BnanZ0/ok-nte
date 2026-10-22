@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import ctypes
 import sys
-import time
 from ctypes import wintypes
 from typing import Optional
 
@@ -25,6 +24,7 @@ from src.sound_trigger.capture.process_resolver import (
     process_is_alive,
     resolve_target_pid,
 )
+from src.utils import clock
 from src.utils.log_gate import LogGate
 
 logger = Logger.get_logger(__name__)
@@ -530,9 +530,9 @@ class ProcessLoopbackSource(AudioCaptureSource):
             audio_client.Start()
             try:
                 self._stream_started_once = True
-                next_check = time.time() + PROCESS_CHECK_INTERVAL
+                next_check = clock.now() + PROCESS_CHECK_INTERVAL
                 while not self._stop.is_set():
-                    now = time.time()
+                    now = clock.now()
                     if now >= next_check:
                         if not process_is_alive(pid, self.process_name):
                             logger.info(f"{self.process_name} pid={pid} ended; will rebind")

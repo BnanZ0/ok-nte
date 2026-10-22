@@ -1,4 +1,3 @@
-import time
 from dataclasses import dataclass
 from enum import Enum
 
@@ -344,31 +343,31 @@ class FishingTask(NTEOneTimeTask, BaseNTETask):
         session.interrupted_control_round = None
 
     def control_until_finish(self):
-        start_check_time = time.time() + 1
-        deadline = time.time() + self.CONTROL_TIMEOUT
-        bait_visible_since = 0
+        check_timer = self.clock.timer(timeout=1)
+        timer = self.clock.timer(timeout=self.CONTROL_TIMEOUT)
+        bait_visible_since = self.clock.UNSET
         try:
-            while time.time() < deadline:
+            while not timer.expired():
                 state = self.detect_fishing_bar_state()
                 if self.is_valid_bar_state(state):
                     self.apply_bar_control(state)
                 else:
                     self._clear_bar_key_if_hold_mode()
 
-                if time.time() > start_check_time:
+                if check_timer.expired():
                     self.scene_flow.safe_point()
                     if self.has_success_overlay():
                         return True
                     if self.has_fish_start():
-                        if bait_visible_since == 0:
-                            bait_visible_since = time.time()
-                        elif time.time() - bait_visible_since > self.STALLED_BAIT_SECONDS:
+                        if not bait_visible_since:
+                            bait_visible_since = self.clock.now()
+                        elif self.clock.now() - bait_visible_since > self.STALLED_BAIT_SECONDS:
                             return False
                     else:
-                        bait_visible_since = 0
+                        bait_visible_since = self.clock.UNSET
 
                 self.sleep(0.01)
-                if time.time() > deadline:
+                if timer.expired():
                     self.log_warning("溜鱼状态超时")
                     raise WaitFailedException()
         finally:

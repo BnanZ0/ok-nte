@@ -29,9 +29,12 @@ from src.combat.planner import (
     SwitchDecision,
     SwitchInGuard,
 )
+from src.utils import clock
 
 
 class FakeTask:
+    clock = clock
+
     def __init__(self):
         self.chars = []
         self.reaction_target = None
@@ -65,8 +68,8 @@ class FakeChar:
         self.index = index
         self.name = name
         self.char_name = name
-        self.last_perform = 0
-        self.last_switch_time = -1
+        self.last_perform = clock.UNSET
+        self.last_switch_time = clock.UNSET
         self.is_current_char = False
         self._field_preference = field_preference
         self._role = role
@@ -1909,7 +1912,7 @@ class TestCombatPlanner(unittest.TestCase):
         nanally.normal_attack = lambda: normal_attacks.append("normal")
         nanally.sleep = lambda _: None
 
-        with patch("src.char.Nanally.time.time", side_effect=[0, 0, 0.2, 6]):
+        with patch("src.utils.clock._read_monotonic", side_effect=[0, 0, 0.2, 6]):
             result = nanally.perform_in_ult(context, skill)
 
         self.assertTrue(result)
@@ -3544,7 +3547,7 @@ class TestSwitchDecisionExecution(unittest.TestCase):
         target = SimpleNamespace(index=2, ufn_name="new", has_intro=False)
         for skip_switch_waits in (False, True):
             with self.subTest(skip_switch_waits=skip_switch_waits):
-                task = Mock(debug=False)
+                task = Mock(debug=False, clock=clock)
                 task.skip_sleep_checks.return_value = nullcontext(
                     SimpleNamespace(check_combat=False)
                 )
@@ -3597,7 +3600,7 @@ class TestSwitchDecisionExecution(unittest.TestCase):
         )
         target = SimpleNamespace(index=2, ufn_name="new", has_intro=False)
         new_expected = ExpectedEntry(action_name="new_action")
-        task = Mock(debug=False)
+        task = Mock(debug=False, clock=clock)
         task.skip_sleep_checks.return_value = nullcontext(SimpleNamespace(check_combat=False))
         task.is_in_team.return_value = True
         task.scene.health_snapshot.return_value = object()
@@ -3637,7 +3640,7 @@ class TestSwitchDecisionExecution(unittest.TestCase):
             priority=1,
             expected_entry=ExpectedEntry(slot=ActionSlot.SKILL),
         )
-        task = Mock(debug=False)
+        task = Mock(debug=False, clock=clock)
         task.skip_sleep_checks.return_value = nullcontext(SimpleNamespace(check_combat=False))
         task.is_in_team.return_value = True
         task.scene.health_snapshot.return_value = object()
@@ -3656,7 +3659,7 @@ class TestSwitchDecisionExecution(unittest.TestCase):
         current = Mock(index=0, ufn_name="current")
         target = Mock(index=1, ufn_name="target")
         decision = SwitchDecision(target=target, reason="selected target", priority=1)
-        task = Mock(debug=False)
+        task = Mock(debug=False, clock=clock)
         task.skip_sleep_checks.return_value = nullcontext(SimpleNamespace(check_combat=False))
         task.is_in_team.return_value = True
         task.scene.health_snapshot.return_value = object()

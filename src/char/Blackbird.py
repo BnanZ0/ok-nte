@@ -99,9 +99,9 @@ class Blackbird(BaseChar):
 
     def perform_in_ult(self, context: CombatContext):
         self.logger.info("start perform_in_ult")
-        start = self.now()
+        start = self.clock.now()
         skill_count = 0
-        while (elapsed := self.now() - start) < self.ULT_DURATION:
+        while (elapsed := self.clock.now() - start) < self.ULT_DURATION:
             if elapsed > 1 and not self.ultimate_available(False):
                 break
             if (

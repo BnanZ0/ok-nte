@@ -7,7 +7,6 @@
 # This file has been modified for integration into the ok-nte project.
 # ============================================================================
 import threading
-import time
 import warnings
 from concurrent.futures import CancelledError
 from typing import Optional, cast
@@ -19,6 +18,7 @@ from scipy.signal import butter, correlate, filtfilt
 
 from src.sound_trigger.capture import MODE_PROCESS, AudioCaptureSource, create_capture_source
 from src.sound_trigger.capture.base import CAPTURE_SAMPLE_RATE
+from src.utils import clock
 from src.utils.log_gate import LogGate
 
 warnings.filterwarnings("ignore", message="data discontinuity in recording")
@@ -62,7 +62,7 @@ class SoundListener:
         self._state_lock = threading.Lock()
         self._stop_event: Optional[threading.Event] = None
         self._listener_thread: Optional[threading.Thread] = None
-        self._last_trigger_time = 0.0
+        self._last_trigger_time = clock.UNSET
         self._trigger_interval = 0.25
 
         self._sample_waveform = None
@@ -352,7 +352,7 @@ class SoundListener:
             )
 
     def _check_triggers(self, dodge_score, counter_score):
-        now = time.time()
+        now = clock.now()
         if (
             not self.is_allow_successive_trigger
             and now - self._last_trigger_time < self._trigger_interval

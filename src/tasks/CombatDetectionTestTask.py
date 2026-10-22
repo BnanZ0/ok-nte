@@ -1,10 +1,10 @@
-import time
 from dataclasses import dataclass, field
 
 from ok import Logger, TaskDisabledException, get_path_relative_to_exe, og
 
 from src.combat.CombatCheck import CombatCheck
 from src.tasks.NTEOneTimeTask import NTEOneTimeTask
+from src.utils import clock
 from src.vision.openvino_detector import YOLO26OpenVINOAsyncDetector
 
 logger = Logger.get_logger(__name__)
@@ -20,7 +20,7 @@ class _Avx2BypassYOLO26OpenVINOAsyncDetector(YOLO26OpenVINOAsyncDetector):
 
 @dataclass
 class CombatDetectionTestStats:
-    started_at: float = field(default_factory=time.monotonic)
+    started_at: clock.TimePoint = field(default_factory=clock.now)
     rounds: int = 0
     lv_hits: int = 0
     target_hits: int = 0
@@ -38,7 +38,7 @@ class CombatDetectionTestStats:
         return "n/a" if rounds == 0 else f"{hits / rounds:.1%}"
 
     def report(self, detector_state: str, using_avx2_bypass: bool, is_chinese: bool = True) -> str:
-        elapsed = time.monotonic() - self.started_at
+        elapsed = clock.now() - self.started_at
         if not is_chinese:
             lines = [
                 "CombatCheck Detection Test Report",
@@ -145,7 +145,7 @@ class CombatDetectionTestTask(NTEOneTimeTask, CombatCheck):
             if not self.scene.is_in_team(self.is_in_team):
                 self.sleep(0.1)
                 continue
-            started_at = time.monotonic()
+            started_at = self.clock.now()
             try:
                 frame = self.frame
                 lv = bool(self.find_lv(frame=frame))
@@ -159,7 +159,7 @@ class CombatDetectionTestTask(NTEOneTimeTask, CombatCheck):
                 self._record_error(error)
 
             self.next_frame()
-            remaining = self.SAMPLE_INTERVAL - (time.monotonic() - started_at)
+            remaining = self.SAMPLE_INTERVAL - (self.clock.now() - started_at)
             if remaining > 0:
                 self.sleep(remaining)
 

@@ -15,6 +15,8 @@ from typing import Callable, Optional
 import numpy as np
 from ok import Logger
 
+from src.utils import clock
+
 logger = Logger.get_logger(__name__)
 
 CAPTURE_SAMPLE_RATE = 48000
@@ -51,8 +53,8 @@ class AudioCaptureSource(ABC):
         )
         self._thread.start()
 
-        deadline = time.time() + ready_timeout
-        while time.time() < deadline:
+        timer = clock.timer(timeout=ready_timeout)
+        while not timer.expired():
             if self._ready.is_set():
                 return True
             if self._failed.is_set():

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import time
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
@@ -35,13 +34,12 @@ class HeistPath(_HeistPathTaskProxy):
     def sleep(self, timeout):
         """路径专用 sleep。
 
-        大部分时间交给任务 sleep，以便周期检查继续运行；最后一小段用忙等减少
+        大部分时间交给任务 sleep, 以便周期检查继续运行; 最后一小段用忙等减少
         录制路线的时间误差。
         """
-        target = time.perf_counter() + timeout
+        timer = self.clock.timer(timeout=timeout, precise=True)
         if timeout > 0.02:
             self.task.sleep(timeout - 0.02)
-        while True:
-            if time.perf_counter() >= target:
-                break
+        while not timer.expired():
+            pass
         return True

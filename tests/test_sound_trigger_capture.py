@@ -4,7 +4,8 @@ import threading
 import unittest
 from concurrent.futures import CancelledError
 from pathlib import Path
-from unittest.mock import patch
+from types import SimpleNamespace
+from unittest.mock import Mock, patch
 
 import numpy as np
 
@@ -125,6 +126,36 @@ class ProcessLoopbackTests(unittest.TestCase):
 
 
 class SoundListenerTests(unittest.TestCase):
+    def test_context_initializes_before_task_binding_and_preserves_action_throttles(self):
+        from src.sound_trigger.SoundCombatContext import SoundCombatContext
+
+        with (
+            patch.object(SoundCombatContext, "_instance", None),
+            patch("src.sound_trigger.SoundListener.SoundListener"),
+        ):
+            context = SoundCombatContext()
+            try:
+                context.setup(task=None)
+                self.assertTrue(context.is_active)
+                self.assertFalse(context._is_computation_required())
+
+                task = SimpleNamespace(executor=SimpleNamespace(paused=False))
+                dodge, counter = Mock(), Mock()
+                context.update_task(task, dodge_action=dodge, counter_action=counter)
+                self.assertTrue(context._is_computation_required())
+                with patch("src.utils.clock._read_monotonic", return_value=100):
+                    context.trigger.execute_dodge()
+                    context.trigger.execute_dodge()
+                    context.trigger.execute_counter_attack()
+                    context.trigger.execute_counter_attack()
+                dodge.assert_called_once_with()
+                counter.assert_called_once_with()
+
+                context.clear_task_if(task)
+                self.assertFalse(context._is_computation_required())
+            finally:
+                context.shutdown()
+
     def test_cancelled_initialization_does_not_load_samples(self):
         from src.sound_trigger.SoundListener import SoundListener
 

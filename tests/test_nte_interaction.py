@@ -57,7 +57,7 @@ class CursorSyncTest(unittest.TestCase):
 
         self.assertEqual(cursor_sync._last_cursor_position, (20, 20))
         self.assertFalse(cursor_sync._last_sample_was_outside)
-        self.assertGreater(cursor_sync._ignore_until, 0.0)
+        self.assertTrue(cursor_sync._ignore_until)
         set_cursor_pos.assert_called_once_with((100, 100))
 
     def test_geometry_uses_global_window_and_executor_method(self):

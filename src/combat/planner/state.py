@@ -1,10 +1,11 @@
 from __future__ import annotations
 
-import time
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Iterable
 
 from ok import Logger
+
+from src.utils import clock
 
 from .requests import (
     _Request,
@@ -64,7 +65,7 @@ class CombatState:
     def prune(self) -> None:
         """清理过期请求，并处理 strict route 的过期锁定行为。"""
 
-        now = time.time()
+        now = clock.now()
         self.expire_locked_route(now)
         active_requests = []
         for request in self.active_requests:
@@ -87,7 +88,7 @@ class CombatState:
         """仅检查当前 route 的过期条件, 返回是否已按过期规则结束。"""
 
         if now is None:
-            now = time.time()
+            now = clock.now()
         if self.locked_route is not None and self.locked_route.expired(now):
             step = self.locked_route.current_step()
             step_reason = step.reason if step is not None else "route completed"

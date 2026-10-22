@@ -1,6 +1,7 @@
 import threading
 import time
 from collections.abc import Callable, Iterable
+from datetime import UTC, datetime
 from typing import Any
 
 import win32gui
@@ -17,6 +18,7 @@ from src.events import (
     communicate,
 )
 from src.tasks.BaseNTETask import BaseNTETask
+from src.utils.clock import TimePoint
 
 logger = Logger.get_logger(__name__)
 
@@ -223,9 +225,9 @@ class RecordTask(BaseNTETask):
         operations: list[dict[str, Any]] = []
         records_lock = threading.Lock()
         finished = threading.Event()
-        down_times: dict[str, float] = {}
-        started_at = time.time()
-        last_operation_end_time: float | None = None
+        down_times: dict[str, tuple[TimePoint, datetime]] = {}
+        started_at = self.clock.now()
+        last_operation_end_time: TimePoint | None = None
         target_hwnd = self._record_target_hwnd()
         pending_scroll: dict[str, Any] = {}
 
@@ -233,8 +235,8 @@ class RecordTask(BaseNTETask):
 
         def append_operation(
             operation: dict[str, Any],
-            event_time: float,
-            end_time: float | None = None,
+            event_time: TimePoint,
+            end_time: TimePoint | None = None,
         ):
             nonlocal last_operation_end_time
             if len(operations) >= count:
@@ -255,26 +257,29 @@ class RecordTask(BaseNTETask):
         def flush_pending_scroll(force=False):
             if not pending_scroll:
                 return
-            now = time.time()
+            now = self.clock.now()
             if not force and now - pending_scroll["last_time"] < SCROLL_MERGE_INTERVAL:
                 return
             operation = dict(pending_scroll["operation"])
+            start = pending_scroll["started_at"]
+            end = pending_scroll["last_time"]
             pending_scroll.clear()
             if int(operation.get("count", 0)) == 0:
                 return
-            append_operation(operation, operation["time"], operation.get("end_time", now))
+            append_operation(operation, start, end)
 
         def on_click(screen_x, screen_y, button, pressed):
             button_name = self._record_button_name(button)
             if button_name not in allowed_buttons:
                 return
 
-            now = time.time()
+            now = self.clock.now()
+            wall_now = datetime.now(UTC)
             if pressed:
-                down_times[button_name] = now
+                down_times[button_name] = (now, wall_now)
                 return
 
-            down_start_time = down_times.pop(button_name, now)
+            down_start_time, down_wall_time = down_times.pop(button_name, (now, wall_now))
             down_time = now - down_start_time
             try:
                 click = self._build_operation_record(
@@ -285,14 +290,14 @@ class RecordTask(BaseNTETask):
                     down_time,
                     target_hwnd,
                     target_window_only,
-                    event_time=down_start_time,
+                    event_time=down_wall_time.timestamp(),
                 )
             except Exception as e:
                 logger.warning(f"record click failed: {e}")
                 return
             if click is None:
                 return
-            click["end_time"] = now
+            click["end_time"] = wall_now.timestamp()
 
             with records_lock:
                 flush_pending_scroll(force=True)
@@ -304,7 +309,8 @@ class RecordTask(BaseNTETask):
             count_delta = int(dy)
             if count_delta == 0:
                 return
-            now = time.time()
+            now = self.clock.now()
+            wall_now = datetime.now(UTC).timestamp()
             try:
                 scroll = self._build_operation_record(
                     "scroll",
@@ -314,7 +320,7 @@ class RecordTask(BaseNTETask):
                     0,
                     target_hwnd,
                     target_window_only,
-                    event_time=now,
+                    event_time=wall_now,
                 )
             except Exception as e:
                 logger.warning(f"record scroll failed: {e}")
@@ -330,12 +336,13 @@ class RecordTask(BaseNTETask):
                     operation["count"] += count_delta
                     operation["x"] = scroll["x"]
                     operation["y"] = scroll["y"]
-                    operation["end_time"] = now
+                    operation["end_time"] = wall_now
                     pending_scroll["last_time"] = now
                     return
                 scroll["count"] = count_delta
-                scroll["end_time"] = now
+                scroll["end_time"] = wall_now
                 pending_scroll["operation"] = scroll
+                pending_scroll["started_at"] = now
                 pending_scroll["last_time"] = now
 
         listener = mouse.Listener(on_click=on_click, on_scroll=on_scroll)
@@ -344,7 +351,7 @@ class RecordTask(BaseNTETask):
         try:
             self.log_info(f"recording {count} operation(s)")
             while not finished.is_set():
-                if timeout is not None and time.time() - started_at >= timeout:
+                if timeout is not None and self.clock.elapsed(started_at) >= timeout:
                     raise TimeoutError(
                         f"record operations timed out after {timeout}s "
                         f"({len(operations)}/{count} operation(s) recorded)"
@@ -406,7 +413,7 @@ class RecordTask(BaseNTETask):
             "x": normalized_x,
             "y": normalized_y,
             "down_time": round(max(0.0, down_time), 4),
-            "time": time.time() if event_time is None else event_time,
+            "time": datetime.now(UTC).timestamp() if event_time is None else event_time,
         }
         if op_type == "scroll":
             record.pop("down_time", None)

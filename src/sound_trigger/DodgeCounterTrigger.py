@@ -6,16 +6,20 @@
 #
 # This file has been modified for integration into the ok-nte project.
 # ============================================================================
-
 import threading
 import time
 from typing import Callable, Optional
 
 from ok import Logger
 
+from src.utils import clock
+
 logger = Logger.get_logger(__name__)
 
+
 class DodgeCounterTrigger:
+    clock = clock
+
     def __init__(
         self,
         task,
@@ -27,8 +31,8 @@ class DodgeCounterTrigger:
 
         self._is_executing = False
         self._execute_lock = threading.Lock()
-        self._last_dodge_time = 0.0
-        self._last_counter_time = 0.0
+        self._last_dodge_time = self.clock.UNSET
+        self._last_counter_time = self.clock.UNSET
         self._min_dodge_interval = 0.3
         self._min_counter_interval = 1.0
 
@@ -41,7 +45,7 @@ class DodgeCounterTrigger:
         self.counter_action = counter_action or self._default_counter_action
 
     def execute_dodge(self):
-        now = time.time()
+        now = self.clock.now()
         if now - self._last_dodge_time < self._min_dodge_interval:
             logger.debug(f"Dodge skipped, too soon: {now - self._last_dodge_time:.3f}s")
             return
@@ -55,14 +59,14 @@ class DodgeCounterTrigger:
             logger.info("Executing dodge")
             self.dodge_action()
             self._last_dodge_time = now
-            logger.info(f"Dodge executed successfully at {now:.3f}")
+            logger.info("Dodge executed successfully")
         except Exception as e:
             logger.error("Dodge execution error", e)
         finally:
             self._is_executing = False
 
     def execute_counter_attack(self):
-        now = time.time()
+        now = self.clock.now()
         if now - self._last_counter_time < self._min_counter_interval:
             return
 
@@ -75,7 +79,7 @@ class DodgeCounterTrigger:
             logger.info("Executing counter attack")
             self.counter_action()
             self._last_counter_time = now
-            logger.info(f"Counter attack executed successfully at {now:.3f}")
+            logger.info("Counter attack executed successfully")
         except Exception as e:
             logger.error("Counter execution error", e)
         finally:

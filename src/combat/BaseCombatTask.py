@@ -1,5 +1,4 @@
 import re
-import time
 from bisect import bisect_right
 from contextlib import contextmanager
 from dataclasses import dataclass, fields
@@ -20,6 +19,7 @@ from src.sound_trigger.SoundCombatContext import ACTION_UNSET, SoundCombatContex
 from src.tasks.mixin.CharUIMixin import CharElementUIMixin
 from src.utils import game_filters as gf
 from src.utils import image_utils as iu
+from src.utils.clock import TimePoint
 
 logger = Logger.get_logger(__name__)
 cd_regex = re.compile(r"\d{1,2}\.\d")
@@ -58,7 +58,7 @@ class TeamSurvivalStatus(Enum):
 class CombatSession:
     """一次实际战斗的生命周期状态。"""
 
-    combat_start: float
+    combat_start: TimePoint
     switch_enabled: bool = True
     use_ultimate: bool = True
     start_char: "BaseChar | None" = None
@@ -119,7 +119,7 @@ class BaseCombatTask(CharElementUIMixin, CombatCheck):
         """返回当前战斗会话, 必要时按默认策略创建。"""
 
         if self._combat_session is None:
-            self._combat_session = CombatSession(combat_start=time.time())
+            self._combat_session = CombatSession(combat_start=self.clock.now())
         return self._combat_session
 
     @combat_session.setter
@@ -136,7 +136,7 @@ class BaseCombatTask(CharElementUIMixin, CombatCheck):
         session = self.combat_session
         if session.start_char is None:
             self.sleep_check_skip.all = False
-            session.combat_start = time.time()
+            session.combat_start = self.clock.now()
             self.click(after_sleep=0.25)
             self.switch_to_combat_start_char()
             session.start_char = self.get_current_char(raise_exception=False)
@@ -282,18 +282,20 @@ class BaseCombatTask(CharElementUIMixin, CombatCheck):
             return previous_target
         return next_target
 
-    def add_freeze_duration(self, start, duration=-1.0, freeze_time=0.1):
+    def add_freeze_duration(self, start: float, duration=-1.0, freeze_time=0.1):
         """添加冻结持续时间。用于精确计算技能冷却等。
 
         Args:
-            start (float): 冻结开始时间。
+            start (float): 单调时钟的冻结开始时间。
             duration (float, optional): 冻结持续时间。如果为-1.0, 则根据当前时间计算。默认为 -1.0。
             freeze_time (float, optional): 认为发生冻结的最小持续时间。默认为 0.1。
         """
+        if not start or start < 0:
+            return
         if duration < 0:
-            duration = time.time() - start
-        if start > 0 and duration > freeze_time:
-            current_time = time.time()
+            duration = self.clock.now() - start
+        if duration > freeze_time:
+            current_time = self.clock.now()
             while (
                 self.freeze_durations
                 and self.freeze_durations[0][0]
@@ -311,17 +313,19 @@ class BaseCombatTask(CharElementUIMixin, CombatCheck):
             self.freeze_durations.clear()
             self.freeze_durations.extend(records)
 
-    def time_elapsed_accounting_for_freeze(self, start, intro_motion_freeze=False) -> float:
+    def time_elapsed_accounting_for_freeze(
+        self, start: float, intro_motion_freeze=False
+    ) -> float:
         """计算扣除冻结时间后经过的时间。
 
         Args:
-            start (float): 开始时间戳。
+            start (float): 单调时钟的开始时间。
             intro_motion_freeze (bool, optional): 是否考虑角色入场动画的特殊冻结。默认为 False。
 
         Returns:
             float: 扣除冻结后实际经过的时间 (秒)。
         """
-        if start < 0:
+        if not start or start < 0:
             return 10000
         to_minus = 0
         for freeze_start, duration, freeze_time in reversed(self.freeze_durations):
@@ -337,7 +341,7 @@ class BaseCombatTask(CharElementUIMixin, CombatCheck):
             to_minus += duration
         if to_minus != 0:
             self.log_debug_gated(f"time_elapsed_accounting_for_freeze to_minus {to_minus}")
-        return time.time() - start - to_minus
+        return self.clock.now() - start - to_minus
 
     def refresh_cd(self):
         if self.scene.cd_refreshed:
@@ -347,7 +351,7 @@ class BaseCombatTask(CharElementUIMixin, CombatCheck):
         if cds is None:
             cds = {}
             self.cds[index] = cds
-        cds["time"] = time.time()
+        cds["time"] = self.clock.now()
         cds["skill"] = 0
         cds["ultimate"] = 0
         cd_boxes = [
@@ -368,7 +372,7 @@ class BaseCombatTask(CharElementUIMixin, CombatCheck):
             for text in box.in_boundary(texts):
                 cds[name] = convert_cd(text)
         self.scene.cd_refreshed = True
-        # self.log_debug(f"cd refreshed: {cds} {time.time() - cds['time']}")
+        # self.log_debug(f"cd refreshed: {cds} {self.clock.now() - cds['time']}")
 
     def get_cd(self, box_name, char_index=None):
         self.refresh_cd()
@@ -442,11 +446,11 @@ class BaseCombatTask(CharElementUIMixin, CombatCheck):
             self.begin_combat_session()
             self.info["Combat Count"] = self.info.get("Combat Count", 0) + 1
             with self.retarget_turn_policy(enable=retarget_turn):
-                deadline = time.time() + max_combat_time
+                timer = self.clock.timer(timeout=max_combat_time)
                 while self.in_combat():
                     logger.debug(f"combat_once loop {self.chars}")
                     self.get_current_char(raise_exception=True).perform()
-                    if time.time() > deadline:
+                    if timer.expired():
                         self.raise_not_in_combat(
                             f"Combat maximum duration of {max_combat_time}s reached."
                         )
@@ -487,10 +491,10 @@ class BaseCombatTask(CharElementUIMixin, CombatCheck):
         if not guard.should_delay():
             return
 
-        start_time = time.time()
+        start_time = self.clock.now()
         reason = guard.reason or f"{switch_to} switch in guard"
         logger.info(f"switch in delayed: {reason}")
-        while guard.should_delay() and time.time() - start_time < guard.timeout:
+        while guard.should_delay() and self.clock.now() - start_time < guard.timeout:
             self.check_combat()
             if guard.while_waiting is None:
                 current_char.click_with_interval()
@@ -500,17 +504,19 @@ class BaseCombatTask(CharElementUIMixin, CombatCheck):
 
         if guard.should_delay():
             logger.warning(
-                f"switch in guard timeout after {time.time() - start_time:.2f}s: {reason}"
+                f"switch in guard timeout after {self.clock.now() - start_time:.2f}s: {reason}"
             )
         else:
-            logger.info(f"switch in guard released after {time.time() - start_time:.2f}s: {reason}")
+            logger.info(
+                f"switch in guard released after {self.clock.now() - start_time:.2f}s: {reason}"
+            )
 
     def _set_current_char(self, current_char: "BaseChar | None", switch_to: "BaseChar", has_intro):
         self.in_animation = False
         if current_char:
             current_char.switch_out()
             if has_intro:
-                current_char.last_outro_time = time.time()
+                current_char.last_outro_time = self.clock.now()
         switch_to.is_current_char = True
         switch_to.has_intro = has_intro
 
@@ -530,10 +536,10 @@ class BaseCombatTask(CharElementUIMixin, CombatCheck):
         self.combat_planner.prepare_switch(decision)
         switch_to.has_intro = has_intro
         intro_replanned = False
-        start_time = time.time()
+        start_time = self.clock.now()
         self.scene.clear_health_snapshot()
-        switch_key_sent_at = 0
-        last_index_check = 0
+        switch_key_sent_at = self.clock.UNSET
+        last_index_check = self.clock.UNSET
 
         logger.info(
             f"{log_prefix} {current_char_name} -> {switch_to.ufn_name}, has_intro {has_intro}"
@@ -543,7 +549,7 @@ class BaseCombatTask(CharElementUIMixin, CombatCheck):
             skip.check_combat = True
 
             while True:
-                current_time = time.time()
+                current_time = self.clock.now()
                 elapsed = current_time - start_time
                 switch_to_name = switch_to.ufn_name
                 frame = self.next_frame()
@@ -584,7 +590,7 @@ class BaseCombatTask(CharElementUIMixin, CombatCheck):
                 # A health change must belong to the target of the key already sent.
                 if (
                     retry_intro
-                    and switch_key_sent_at <= 0
+                    and not switch_key_sent_at
                     and not has_intro
                     and not intro_replanned
                     and intro_ready
@@ -619,7 +625,7 @@ class BaseCombatTask(CharElementUIMixin, CombatCheck):
                 )
                 self.sleep(0.001)
                 self.click(action_name="switch_char_click", interval=0.3)
-                if switch_key_sent_at <= 0:
+                if not switch_key_sent_at:
                     switch_key_sent_at = current_time
 
                 if elapsed > time_out:
@@ -647,7 +653,7 @@ class BaseCombatTask(CharElementUIMixin, CombatCheck):
             logger.debug(f"post_action {post_action}")
             post_action(switch_to, has_intro)
 
-        logger.info(f"{log_prefix} end {(time.time() - start_time):.3f}s")
+        logger.info(f"{log_prefix} end {(self.clock.now() - start_time):.3f}s")
 
     def _mark_dead_char_if_detected(self, switch_to: "BaseChar"):
         if self.find_confirm(self.box_of_screen(0.655, 0.694, 0.709, 0.787, hcenter=True)):
@@ -666,7 +672,7 @@ class BaseCombatTask(CharElementUIMixin, CombatCheck):
         start_time,
         time_out,
     ):
-        if switch_key_sent_at > 0 and current_time - switch_key_sent_at >= 0.04:
+        if bool(switch_key_sent_at) and current_time - switch_key_sent_at >= 0.04:
             if self.is_health_changed(frame) is True:
                 return "active health change", last_index_check
 
@@ -675,7 +681,7 @@ class BaseCombatTask(CharElementUIMixin, CombatCheck):
 
         use_index_fallback = (
             self.scene.health_snapshot() is None
-            or switch_key_sent_at <= 0
+            or not switch_key_sent_at
             or current_time - switch_key_sent_at > 0.45
             or current_time - start_time > max(time_out - 0.75, time_out * 0.8)
         )
@@ -755,8 +761,8 @@ class BaseCombatTask(CharElementUIMixin, CombatCheck):
             f"{current_char.ufn_name} on_combat_end {current_char.index} "
             f"switch next char: {next_char}"
         )
-        start = time.time()
-        while time.time() - start < 6:
+        start = self.clock.now()
+        while self.clock.now() - start < 6:
             in_team, current_index, _ = self.in_team()
             if in_team and current_index != current_char.index:
                 for char in filter(None, self.chars):
@@ -1011,7 +1017,7 @@ class BaseCombatTask(CharElementUIMixin, CombatCheck):
     def load_chars(self) -> bool:
         """加载队伍中的角色信息。"""
         ret = False
-        now = time.perf_counter()
+        timer = self.clock.timer(precise=True)
         self.load_hotkey()
         in_team, current_index, count = self.in_team()
         if not in_team or current_index == -1:
@@ -1059,7 +1065,7 @@ class BaseCombatTask(CharElementUIMixin, CombatCheck):
         if self.team_size > 0:
             ret = True
             self._apply_sound_config()
-        logger.debug(f"load_chars cost {time.perf_counter() - now:.3f}s")
+        logger.debug(f"load_chars cost {timer.elapsed():.3f}s")
         return ret
 
     def is_cycle_full(self) -> bool:

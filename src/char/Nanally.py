@@ -1,5 +1,3 @@
-import time
-
 from src.char.BaseChar import BaseChar
 from src.combat.planner import (
     ActionIntent,
@@ -36,9 +34,9 @@ class Nanally(BaseChar):
         return plan
 
     def perform_in_ult(self, context: CombatContext, skill: ActionIntent):
-        start = time.time()
+        start = self.clock.now()
         skill_used = False
-        while (elapsed := time.time() - start) < 6:
+        while (elapsed := self.clock.now() - start) < 6:
             if elapsed > 1 and not self.ultimate_available(False):
                 break
             if not skill_used and context.is_action_allowed(self, skill):

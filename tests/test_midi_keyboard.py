@@ -128,8 +128,8 @@ class TestGuitarPlayback(unittest.IsolatedAsyncioTestCase):
         with (
             patch("src.midi_player.controller.build_key_events", side_effect=prepare_events),
             patch(
-                "src.midi_player.controller.asyncio.get_running_loop",
-                return_value=SimpleNamespace(time=lambda: clock[0]),
+                "src.utils.clock._read_monotonic",
+                side_effect=lambda: clock[0],
             ),
             patch("src.midi_player.controller.asyncio.sleep", side_effect=advance_time),
             patch.object(controller, "_progress_loop", idle_progress),

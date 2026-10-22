@@ -11,7 +11,7 @@ class Akane(BaseChar):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.in_ult_start = -1
+        self.in_ult_start = self.clock.UNSET
         self.skill_2_count = 0
 
     def describe_role(self):
@@ -23,7 +23,7 @@ class Akane(BaseChar):
 
     def combat_plan(self, context):
         plan = self.plan()
-        if self.in_ult_start > 0:
+        if self.in_ult_start:
             plan.add(FieldClaim.strict(reason="in ultimate"))
 
         skill = self.click_skill_action()
@@ -31,24 +31,24 @@ class Akane(BaseChar):
         ultimate = self.click_ultimate_action(plan)
 
         def entry():
-            if not self.in_ult_start > 0:
+            if not self.in_ult_start:
                 if (yield ultimate):
-                    self.in_ult_start = self.now()
+                    self.in_ult_start = self.clock.now()
                     yield skill
-            if self.in_ult_start > 0:
+            if self.in_ult_start:
                 yield from self.perform_ult_combo(skill)
 
         plan.entry = entry
         return plan
 
     def perform_ult_combo(self, skill: ActionIntent):
-        deadline = self.now() + 13
-        while self.now() < deadline:
-            if self.in_ult_start > 0 and (
-                self.skill_2_count > 0 or self.now() - self.in_ult_start > self.ULT_DURATION - 2
+        timer = self.clock.timer(timeout=13)
+        while not timer.expired():
+            if self.in_ult_start and (
+                self.skill_2_count > 0 or self.clock.now() - self.in_ult_start > self.ULT_DURATION - 2
             ):
                 if self.click_ultimate():
-                    self.in_ult_start = -1
+                    self.in_ult_start = self.clock.UNSET
 
             self.click()
 
@@ -70,9 +70,9 @@ class Akane(BaseChar):
 
     def on_combat_end(self, chars):
         super().on_combat_end(chars)
-        self.in_ult_start = -1
+        self.in_ult_start = self.clock.UNSET
         self.skill_2_count = 0
 
     @property
     def ultimate_freeze_wait(self):
-        return None if self.in_ult_start > 0 else 1.5
+        return None if self.in_ult_start else 1.5
