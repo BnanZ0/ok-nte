@@ -11,15 +11,17 @@ class Iroi(Support):
         self._mouse_pressed = False
 
     def combat_plan(self, context):
-        skill = self.click_skill_action(add_tags=Planner.ActionTag.TEAM_BUFF)
-        ultimate = self.click_ultimate_action()
+        plan = self.plan()
+        skill = self.click_skill_action(plan, add_tags=Planner.ActionTag.TEAM_BUFF)
+        ultimate = self.click_ultimate_action(plan)
 
         def entry():
             if (yield skill) and self.ultimate_available():
                 self.sleep(0.8)
             yield ultimate
 
-        return self.plan(skill, ultimate, entry=entry)
+        plan.entry = entry
+        return plan
 
     def click_ultimate(self, send_click=True, wait_if_no_cd=0):
         try:

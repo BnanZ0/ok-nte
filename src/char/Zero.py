@@ -16,17 +16,16 @@ class Zero(BaseChar):
         )
 
     def combat_plan(self, context):
-        claims = []
+        plan = self.plan()
         if self.skill_available():
-            claims.append(FieldClaim.normal(reason="Zero skill instant cycle"))
-
-        return self.plan(
-            self.click_ultimate_action(),
-            self.click_skill_action(
-                can_execute=self.should_use_skill, add_tags=Planner.ActionTag.HIGH_PRIORITY
-            ),
-            claims=claims,
+            plan.add(FieldClaim.normal(reason="Zero skill instant cycle"))
+        self.click_ultimate_action(plan)
+        self.click_skill_action(
+            plan,
+            can_execute=self.should_use_skill,
+            add_tags=Planner.ActionTag.HIGH_PRIORITY,
         )
+        return plan
 
     def should_use_skill(self, context: CombatContext = None):
         return (

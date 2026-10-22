@@ -18,15 +18,17 @@ class Shinku(BaseChar):
         )
 
     def combat_plan(self, context):
-        skill = self.click_skill_action()
-        ultimate = self.click_ultimate_action()
+        plan = self.plan()
+        skill = self.click_skill_action(plan)
+        ultimate = self.click_ultimate_action(plan)
 
         def entry():
             yield skill
             if (yield ultimate):
                 self.perform_in_ult(context)
 
-        return self.plan(skill, ultimate, entry=entry)
+        plan.entry = entry
+        return plan
 
     def perform_in_ult(self, context: CombatContext = None):
         start = time.time()

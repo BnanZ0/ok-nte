@@ -72,9 +72,11 @@ class Baicang(BaseChar):
         )
 
     def combat_plan(self, context: CombatContext):
-        skill = self.click_skill_action()
-        ultimate = self.click_ultimate_action()
+        plan = self.plan()
+        skill = self.click_skill_action(plan)
+        ultimate = self.click_ultimate_action(plan)
         fallback_dodge = self.planner_action(
+            plan=plan,
             tags={ActionTag.DEFAULT_ACTION, ActionTag.DAMAGE},
             execute=lambda ctx: self._execute_fallback_dodge(),
             priority_ready=lambda ctx: False,
@@ -90,7 +92,8 @@ class Baicang(BaseChar):
             else:
                 yield fallback_dodge
 
-        return self.plan(skill, ultimate, fallback_dodge, entry=entry)
+        plan.entry = entry
+        return plan
 
     def _perform_burst(self, context: CombatContext = None):
         """Q 成功后的爆发输出循环: 第二套手法重击连招。

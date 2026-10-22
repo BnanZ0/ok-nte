@@ -83,18 +83,20 @@ class Hotori(BaseChar):
         )
 
     def combat_plan(self, context):
+        plan = self.plan()
         if self.max_records == 0:
-            return self.plan(self.click_ultimate_action())
+            self.click_ultimate_action(plan)
+            return plan
 
-        claims = []
         if self.records_status() is None or self._should_record():
-            claims.append(
+            plan.add(
                 FieldClaim.high(
                     reason="check Hotori team records or try start record",
                 )
             )
 
         ultimate = self.planner_action(
+            plan=plan,
             name="hotori_ultimate_with_records",
             tags={Planner.ActionTag.ULTIMATE_ACTION, Planner.ActionTag.HIGH_PRIORITY},
             execute=self._execute_hotori_ultimate,
@@ -103,6 +105,7 @@ class Hotori(BaseChar):
             priority_ready=lambda _: self.ready_for_ultimate(),
         )
         setup = self.planner_action(
+            plan=plan,
             name="hotori_team_record_setup",
             tags={Planner.ActionTag.SKILL_ACTION, Planner.ActionTag.HIGH_PRIORITY},
             execute=self._execute_hotori_setup,
@@ -115,7 +118,8 @@ class Hotori(BaseChar):
             if not (yield ultimate):
                 yield setup
 
-        return self.plan(ultimate, setup, claims=claims, entry=entry)
+        plan.entry = entry
+        return plan
 
     def _can_start_record_setup(self):
         return self.count_team_skill_records() < 1 and self._should_record()

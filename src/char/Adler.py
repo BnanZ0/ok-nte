@@ -1,4 +1,3 @@
-
 from src.char.BaseChar import BaseChar
 from src.combat.planner import (
     CombatContext,
@@ -29,8 +28,9 @@ class Adler(BaseChar):
         )
 
     def combat_plan(self, context: CombatContext):
-        skill = self.click_skill_action()
-        ultimate = self.click_ultimate_action()
+        plan = self.plan()
+        skill = self.click_skill_action(plan)
+        ultimate = self.click_ultimate_action(plan)
 
         def entry():
             if self.skill_available() and context.is_action_allowed(self, skill):
@@ -42,4 +42,5 @@ class Adler(BaseChar):
             else:
                 self.logger.info("setup skill failed, skipping ultimate")
 
-        return self.plan(skill, ultimate, entry=entry)
+        plan.entry = entry
+        return plan

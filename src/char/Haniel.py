@@ -16,8 +16,9 @@ class Haniel(Support):
     element = Support.ElementType.BLUE
 
     def combat_plan(self, context: CombatContext):
-        ultimate = self.click_ultimate_action(add_tags=Planner.ActionTag.TEAM_BUFF)
-        skill = self.click_skill_action()
+        plan = self.plan()
+        ultimate = self.click_ultimate_action(plan, add_tags=Planner.ActionTag.TEAM_BUFF)
+        skill = self.click_skill_action(plan)
 
         def entry():
             if (yield ultimate):
@@ -25,4 +26,5 @@ class Haniel(Support):
             if (yield skill):
                 self.sleep(0.3)
 
-        return self.plan(ultimate, skill, entry=entry)
+        plan.entry = entry
+        return plan

@@ -62,6 +62,7 @@ class CustomChar(BaseChar):
         if not self.parsed_combo:
             return super().combat_plan(context)
 
+        plan = self.plan()
         tags = {Planner.ActionTag.LEGACY_COMBO, Planner.ActionTag.DAMAGE}
         reason = "legacy combo ready"
         if self.skill_available():
@@ -70,15 +71,15 @@ class CustomChar(BaseChar):
         if self.ultimate_available():
             tags.add(Planner.ActionTag.ULTIMATE_ACTION)
 
-        return self.plan(
-            self.planner_action(
-                name="legacy_combo",
-                tags=tags,
-                slot=Planner.ActionSlot.LEGACY_COMBO,
-                execute=self.execute_legacy_combo_action,
-                reason=reason,
-            )
+        self.planner_action(
+            plan=plan,
+            name="legacy_combo",
+            tags=tags,
+            slot=Planner.ActionSlot.LEGACY_COMBO,
+            execute=self.execute_legacy_combo_action,
+            reason=reason,
         )
+        return plan
 
     def execute_legacy_combo_action(self, context=None):
         self._execute_parsed_combo()

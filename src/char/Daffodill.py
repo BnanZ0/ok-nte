@@ -22,9 +22,14 @@ class Daffodill(BaseChar):
     ULT_BURST_DURATION = 1.5
 
     def combat_plan(self, context: CombatContext):
-        ultimate = self.click_ultimate_action()
-        skill = self.click_skill_action()
-        claims = self.set_claims()
+        plan = self.plan()
+        ultimate = self.click_ultimate_action(plan)
+        skill = self.click_skill_action(plan)
+        if self.ultimate_available():
+            from src.char.Zankou import Zankou
+
+            if self.get_teammate_by_class(Zankou)[0] is not None:
+                plan.add(FieldClaim.high(reason="Daffodill ultimate ready with Zankou teammate"))
 
         def entry():
             if (yield ultimate):
@@ -32,7 +37,8 @@ class Daffodill(BaseChar):
                 return
             yield skill
 
-        return self.plan(ultimate, skill, claims=claims, entry=entry)
+        plan.entry = entry
+        return plan
 
     def _perform_burst(self, context: CombatContext, skill: ActionIntent):
         """Burst damage window after a successful Q (patterned on Chiz.perform_in_ult).
@@ -53,14 +59,3 @@ class Daffodill(BaseChar):
             self.sleep(0.2)
 
         self.logger.info(f"burst end (skill used={skill_used})")
-
-    def set_claims(self):
-        claims = []
-        if self.ultimate_available():
-            from src.char.Zankou import Zankou
-
-            if self.get_teammate_by_class(Zankou)[0] is not None:
-                claims.append(
-                    FieldClaim.high(reason="Daffodill ultimate ready with Zankou teammate")
-                )
-        return claims

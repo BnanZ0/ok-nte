@@ -20,9 +20,11 @@ class Jiuyuan(BaseChar):
         )
 
     def combat_plan(self, context):
-        ultimate = self.click_ultimate_action()
-        skill = self.click_skill_action()
+        plan = self.plan()
+        ultimate = self.click_ultimate_action(plan)
+        skill = self.click_skill_action(plan)
         bullets = self.planner_action(
+            plan=plan,
             tags=Planner.ActionTag.DEFAULT_ACTION,
             execute=self.fire_bullets,
         )
@@ -32,7 +34,8 @@ class Jiuyuan(BaseChar):
             if not (yield skill):
                 yield bullets
 
-        return self.plan(ultimate, skill, bullets, entry=entry)
+        plan.entry = entry
+        return plan
 
     def fire_bullets(self, context: CombatContext = None):
         if context.has_strict_route():

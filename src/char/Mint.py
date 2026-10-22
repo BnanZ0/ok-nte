@@ -16,7 +16,7 @@ class Mint(BaseChar):
         )
 
     def combat_plan(self, context):
-        return self.plan(
-            self.click_ultimate_action(),
-            self.click_skill_action(),
-        )
+        plan = self.plan()
+        self.click_ultimate_action(plan)
+        self.click_skill_action(plan)
+        return plan

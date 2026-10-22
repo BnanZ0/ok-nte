@@ -26,12 +26,14 @@ class Skia(BaseChar):
         )
 
     def combat_plan(self, context: CombatContext):
-        skill = self.click_skill_action()
-        ultimate = self.click_ultimate_action()
+        plan = self.plan()
+        skill = self.click_skill_action(plan)
+        ultimate = self.click_ultimate_action(plan)
 
         def entry():
             if (yield skill):
                 self.sleep(0.4)
             yield ultimate
 
-        return self.plan(skill, ultimate, entry=entry)
+        plan.entry = entry
+        return plan

@@ -266,10 +266,10 @@ class BaseChar:
             `CombatPlan`。
         """
 
-        return self.plan(
-            self.click_ultimate_action(name="base_ultimate"),
-            self.click_skill_action(name="base_skill"),
-        )
+        plan = self.plan()
+        self.click_ultimate_action(plan, name="base_ultimate")
+        self.click_skill_action(plan, name="base_skill")
+        return plan
 
     def combat_policies(self, context: CombatContext) -> None:
         """声明随队伍生命周期生效的 planner 策略。
