@@ -614,3 +614,13 @@ planner reset。route 步骤完成和 route 窗口过期是不同信号。
 - `can_execute=False` 是硬阻止；被阻止的 entry action 会得到失败 result，不会真实执行。
 - strict route、expected entry、active request 优先于普通 entry flow。
 - `ActionResult.tags` 不控制 entry flow。
+
+
+## 运行期计时
+
+角色从 `BaseChar` 继承 `self.clock`, 无需额外 import 即可调用 `self.clock.now()`。
+返回值 `TimePoint` 是 `float` 子类, 支持与数字比较、普通算术和格式化。
+角色状态、冷却、冻结记录和 planner 使用同一单调时钟来源; 持续时间以秒为单位。
+`self.now()` 保留为外部角色代码的兼容入口。冻结 helper 和 planner 计时参数也接受
+普通数值型单调时间。新代码优先使用 `clock.UNSET` 或 `None` 表示未发生的事件,
+冻结 helper 同时兼容旧数字哨兵。详见[运行期时钟约定](../../runtime_clock.md)。

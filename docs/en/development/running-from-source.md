@@ -27,7 +27,7 @@ python main_debug.py
 The repository uses `unittest`. When a local virtual environment is available, prefer its interpreter:
 
 ```powershell
-.\.venv\Scripts\python.exe -m unittest discover -s tests -p "*.py"
+.\.venv\Scripts\python.exe -m unittest discover -s tests -p "*.py" --top-level-directory .
 .\.venv\Scripts\python.exe -m py_compile src\flow.py
 ```
 

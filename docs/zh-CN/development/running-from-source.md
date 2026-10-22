@@ -27,7 +27,7 @@ python main_debug.py
 仓库使用 `unittest`。有本地虚拟环境时，优先使用它的解释器：
 
 ```powershell
-.\.venv\Scripts\python.exe -m unittest discover -s tests -p "*.py"
+.\.venv\Scripts\python.exe -m unittest discover -s tests -p "*.py" --top-level-directory .
 .\.venv\Scripts\python.exe -m py_compile src\flow.py
 ```
 

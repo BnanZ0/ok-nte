@@ -607,3 +607,16 @@ active action requests.
 - `can_execute=False` is a hard block; a blocked entry action receives a failure result and is not actually executed.
 - Strict routes, expected entries, and active requests take priority over ordinary entry flow.
 - `ActionResult.tags` does not control entry flow.
+
+
+## Runtime clock
+
+Characters inherit `self.clock` from `BaseChar`. `self.clock.now()` returns
+`TimePoint`, a `float` subclass supporting ordinary numeric comparisons,
+arithmetic and formatting. Character state, cooldowns, freeze records and planner
+bookkeeping use the same monotonic source; durations stay in seconds.
+`self.now()` remains a compatibility alias for external characters.
+Freeze helpers and planner time parameters also accept numeric monotonic seconds.
+Prefer `clock.UNSET` or `None` for missing events; freeze helpers retain legacy
+numeric sentinel support. See [Runtime clock](../../runtime_clock.md) for
+arithmetic, storage boundaries and checks.

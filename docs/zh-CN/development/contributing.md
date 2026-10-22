@@ -40,7 +40,7 @@ Python 源文件对应的当前解释器字节码缓存及已加载的外置模�
 ## 代码验证
 
 ```powershell
-.\.venv\Scripts\python.exe -m unittest discover -s tests -p "*.py"
+.\.venv\Scripts\python.exe -m unittest discover -s tests -p "*.py" --top-level-directory .
 ```
 
 请在提交说明中写明已运行的验证，以及因环境限制未运行的验证。

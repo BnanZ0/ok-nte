@@ -42,7 +42,7 @@ Relative imports are not a sandbox: scanning external characters still executes 
 ## Code Verification
 
 ```powershell
-.\.venv\Scripts\python.exe -m unittest discover -s tests -p "*.py"
+.\.venv\Scripts\python.exe -m unittest discover -s tests -p "*.py" --top-level-directory .
 ```
 
 State which checks you ran in the submission description, along with any checks that could not be run because of environment limitations.
