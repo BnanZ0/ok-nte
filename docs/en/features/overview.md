@@ -12,7 +12,6 @@ Automatically complete selected daily and weekly tasks.
 ### 🍹 Hobbies
 - **Auto Fishing**: Fully automated fishing process.
 - **Auto Drum Rhythm Game**: Automatically complete drum rhythm games.
-- **Auto Auction**: Automate matchmaking, bidding, and settlement in "Going, Going, Gone!" (currently supports only the Chinese game interface).
 - **Owner's Selection**: Automatically loop entering and exiting stages (requires an in-game AFK build).
 - **Auto Pink Paws Heist**: Automatically complete Pink Paws Heist (410,000+ Force/hour, 2500+ Pink Paws Coins/hour).
 - **Pink Paws Heist Convenience Features**
