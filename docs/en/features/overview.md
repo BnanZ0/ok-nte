@@ -32,6 +32,8 @@ Automatically complete selected daily and weekly tasks.
 - **Character Center**: Provides support for **Auto Combat**.
   - **Character Management**: Supports custom combo lists.
   - **Feature Management**: Adapts to different character skins.
+  - **Combo Lists**: Supports text-based combo lists, as well as built-in or external code-based combo lists.
+  - **Workshop**: Download and use combo lists shared by the community.
 - **Audio Driven**: Auto dodge and counter based on audio feedback.
 - **Skip Dialog**: Rapidly skip through story dialogs.
 - **Fast Travel**: Automatic map teleportation.
