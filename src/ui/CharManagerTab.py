@@ -61,6 +61,7 @@ from src.ui.features.characters.safety_dialog import confirm_external_code_impor
 from src.ui.foundation.dialogs import MessageBoxBase
 from src.ui.foundation.i18n import is_chinese
 from src.ui.foundation.images import cv_to_pixmap
+from src.ui.foundation.name_input_dialog import NameInputDialog
 from src.ui.foundation.text import highlight_bracketed_text
 from src.ui.foundation.widgets.cards import BorderCardWidget
 from src.ui.foundation.widgets.search import (
@@ -122,7 +123,7 @@ class CharManagerTab(CustomTab):
         self.tr_combo_invalid_title = self.tr("{combo}语法错误").replace(
             "{combo}", self.tr_combo_title
         )
-        self.tr_edit_char_name = self.tr("编辑名称")
+        self.tr_edit_char_name = self.tr("重命名")
         self.tr_rename_failed_title = self.tr("重命名失败")
         self.tr_rename_failed = self.tr("角色名称无效或已存在")
         self.tr_rename_msg = self.tr("角色已重命名为: {}")
@@ -1233,20 +1234,20 @@ class CharManagerTab(CustomTab):
         )
 
     def _show_edit_dialog(self, old_name):
-        w = MessageBoxBase(self)
-        w.viewLayout.setSpacing(20)
-        w.widget.setMinimumWidth(320)
-
-        w.viewLayout.addWidget(SubtitleLabel(self.tr_edit_char_name, self))
-
-        line_edit = LineEdit(w)
-        line_edit.setText(old_name)
-        line_edit.setClearButtonEnabled(True)
-
-        w.viewLayout.addWidget(line_edit)
-
-        if w.exec():
-            new_name = line_edit.text()
+        current_char_id = self.current_char_id
+        existing_names = {
+            char_data["char_name"]
+            for char_id, char_data in self.manager.get_all_characters().items()
+            if char_id != current_char_id
+        }
+        dialog = NameInputDialog(
+            old_name,
+            name_validator=lambda name: name not in existing_names,
+            error_message=self.tr_rename_failed,
+            parent=self.window(),
+        )
+        if dialog.exec():
+            new_name = dialog.get_name()
             if new_name and new_name != old_name:
                 return new_name, True
         return old_name, False

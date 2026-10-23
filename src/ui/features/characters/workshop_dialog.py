@@ -496,6 +496,7 @@ class WorkshopDialog(MessageBoxBase):
             self.safety_label.setText(
                 self.tr("社区方案含外置代码; 导入后会以本软件权限运行, 请仅导入可信来源.")
             )
+            self.safety_label.setTextColor(QColor("#FF0000"), QColor("#FF0000"))
             self.safety_label.setToolTip(EXTERNAL_CODE_SAFETY_NOTICE)
             self.yesButton.hide()
             self.cancelButton.setText(self.tr("关闭"))

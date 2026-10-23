@@ -357,7 +357,8 @@ class TestCustomChar(TaskTestCase):
         char_id = self.manager.create_character("preset_char", combo_a)
         tab.reload_preset_options()
 
-        tab.on_create_preset()
+        with patch("src.ui.TeamManagerTab.NameInputDialog.exec", return_value=0):
+            tab.on_create_preset()
         preset_id = tab.current_preset_id
         self.assertIsNotNone(preset_id)
         tab.preset_rows[0].set_data(char_id, combo_b)
@@ -436,7 +437,8 @@ class TestCustomChar(TaskTestCase):
         combo_id = self.manager.add_combo("combo_auto_select", "skill")
         char_id = self.manager.create_character("auto_select_char", combo_id)
         tab.reload_preset_options()
-        tab.on_create_preset()
+        with patch("src.ui.TeamManagerTab.NameInputDialog.exec", return_value=0):
+            tab.on_create_preset()
         row = tab.preset_rows[0]
 
         row.char_combo.setCurrentIndex(row.char_combo.findData(char_id))
@@ -452,7 +454,8 @@ class TestCustomChar(TaskTestCase):
         tab = TeamManagerTab(manager=self.manager)
         combo_id = self.manager.add_combo("combo_direct", "skill")
         tab.reload_preset_options()
-        tab.on_create_preset()
+        with patch("src.ui.TeamManagerTab.NameInputDialog.exec", return_value=0):
+            tab.on_create_preset()
 
         row = tab.preset_rows[0]
         row.combo_list.setCurrentIndex(row.combo_list.findData(combo_id))
@@ -480,7 +483,8 @@ class TestCustomChar(TaskTestCase):
         first_id = self.manager.create_character("first", combo_id)
         second_id = self.manager.create_character("second", combo_id)
         tab.reload_preset_options()
-        tab.on_create_preset()
+        with patch("src.ui.TeamManagerTab.NameInputDialog.exec", return_value=0):
+            tab.on_create_preset()
         tab.preset_rows[0].set_data(first_id, combo_id)
         tab.on_preset_slot_changed(0)
         tab.last_scan_results = [

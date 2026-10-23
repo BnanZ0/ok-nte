@@ -8,6 +8,7 @@ from qfluentwidgets import (
     ComboBox,
     FluentIcon,
     GroupHeaderCardWidget,
+    HeaderCardWidget,
     ImageLabel,
     InfoBar,
     InfoBarPosition,
@@ -182,6 +183,14 @@ class GiftManagerTab(CustomTab):
         hint.setWordWrap(True)
         layout.addWidget(hint)
 
+        self.name_card = SimpleCardWidget(editor)
+        name_layout = QHBoxLayout(self.name_card)
+        name_layout.setContentsMargins(14, 10, 14, 10)
+        self.name_preview = ImageLabel(self.name_card)
+        name_layout.addWidget(BodyLabel(self.tr("角色名称"), self.name_card))
+        name_layout.addWidget(self.name_preview, 1)
+        layout.addWidget(self.name_card)
+
         self.settings_card = GroupHeaderCardWidget(self.tr("设置"), editor)
 
         status_widget = QWidget(self.settings_card)
@@ -222,29 +231,21 @@ class GiftManagerTab(CustomTab):
 
         layout.addWidget(self.settings_card)
 
-        self.name_card = SimpleCardWidget(editor)
-        name_layout = QHBoxLayout(self.name_card)
-        name_layout.setContentsMargins(14, 10, 14, 10)
-        self.name_preview = ImageLabel(self.name_card)
-        name_layout.addWidget(BodyLabel(self.tr("角色名称"), self.name_card))
-        name_layout.addWidget(self.name_preview, 1)
-        layout.addWidget(self.name_card)
-
-        gifts_card = SimpleCardWidget(editor)
-        gifts_layout = QVBoxLayout(gifts_card)
-        gifts_layout.setContentsMargins(14, 14, 14, 14)
-        gifts_layout.addWidget(BodyLabel(self.tr("礼物优先级"), gifts_card))
-        self.gift_grid_widget = QWidget(gifts_card)
+        gifts_card = HeaderCardWidget(editor)
+        gifts_card.setTitle(self.tr("礼物优先级"))
+        gifts_card.viewLayout.setContentsMargins(14, 14, 14, 14)
+        self.gift_grid_widget = QWidget(gifts_card.view)
         self.gift_grid = QGridLayout(self.gift_grid_widget)
-        self.gift_grid.setContentsMargins(0, 4, 0, 0)
+        self.gift_grid.setContentsMargins(0, 0, 0, 0)
         self.gift_grid.setSpacing(10)
         self.gift_grid.setAlignment(Qt.AlignmentFlag.AlignTop)
-        gift_scroll = SmoothScrollArea(gifts_card)
+        gift_scroll = SmoothScrollArea(gifts_card.view)
         gift_scroll.setWidgetResizable(True)
+        gift_scroll.setViewportMargins(0, 0, 12, 0)
         gift_scroll.setWidget(self.gift_grid_widget)
         gift_scroll.setStyleSheet("QScrollArea { background: transparent; border: none; }")
         self.gift_grid_widget.setStyleSheet("background: transparent;")
-        gifts_layout.addWidget(gift_scroll, 1)
+        gifts_card.viewLayout.addWidget(gift_scroll, 1)
         layout.addWidget(gifts_card, 1)
         return editor
 
