@@ -24,9 +24,7 @@ from qfluentwidgets import (
     HyperlinkButton,
     IconWidget,
     ImageLabel,
-    InfoBar,
     InfoBarIcon,
-    InfoBarPosition,
     LineEdit,
     MessageBox,
     PrimaryPushButton,
@@ -59,6 +57,7 @@ from src.ui.features.characters.workshop_dialog import (
 )
 from src.ui.foundation.dialogs import MessageBoxBase
 from src.ui.foundation.images import cv_to_pixmap
+from src.ui.foundation.info_bar import show_bar
 from src.ui.foundation.widgets.cards import BorderCardWidget
 from src.ui.foundation.widgets.search import (
     SearchableComboBox,
@@ -830,7 +829,9 @@ class TeamManagerTab(CustomTab):
         def failed(error):
             if worker in self._workshop_workers:
                 self._workshop_workers.remove(worker)
-            self._show_bar(self.tr("操作失败"), self._workshop_error_text(error), success=False)
+            show_bar(
+                self.window(), self.tr("操作失败"), self._workshop_error_text(error), success=False
+            )
 
         worker.succeeded.connect(finish)
         worker.failed.connect(failed)
@@ -909,7 +910,11 @@ class TeamManagerTab(CustomTab):
     def _on_package_imported(self, imported) -> None:
         self.reload_preset_options()
         self.reload_presets(imported.preset_id)
-        self._show_bar(self.tr("导入完成"), self.tr("已创建方案: {}").format(imported.preset_name))
+        show_bar(
+            self.window(),
+            self.tr("导入完成"),
+            self.tr("已创建方案: {}").format(imported.preset_name),
+        )
         dialog = getattr(self, "_active_workshop_dialog", None)
         if dialog is not None:
             dialog.reload_catalog()
@@ -942,8 +947,11 @@ class TeamManagerTab(CustomTab):
             return
         defaults = TeamPackage(preset["name"], "", "", "1.0.0", self._export_slots(preset))
         if not defaults.slots:
-            self._show_bar(
-                self.tr("无法导出"), self.tr("当前方案没有可导出的出招表."), success=False
+            show_bar(
+                self.window(),
+                self.tr("无法导出"),
+                self.tr("当前方案没有可导出的出招表."),
+                success=False,
             )
             return
         dialog = PackageMetadataDialog(defaults, self.window(), repository=self.workshop_repository)
@@ -964,7 +972,7 @@ class TeamManagerTab(CustomTab):
         export_path = Path(path)
         self._start_workshop_call(
             lambda: self.workshop_service.export_preset(preset["id"], package, export_path),
-            lambda _result: self._show_bar(self.tr("导出完成"), export_path.name),
+            lambda _result: show_bar(self.window(), self.tr("导出完成"), export_path.name),
         )
 
     def on_upload_package(self) -> None:
@@ -1008,18 +1016,6 @@ class TeamManagerTab(CustomTab):
     @executor.setter
     def executor(self, value):
         self._executor = value
-
-    def _show_bar(self, title: str, content: str, success=True) -> None:
-        fn = InfoBar.success if success else InfoBar.error
-        fn(
-            title=title,
-            content=content,
-            orient=Qt.Orientation.Horizontal,
-            isClosable=True,
-            position=InfoBarPosition.TOP,
-            duration=2500 if success else 3500,
-            parent=self.window(),
-        )
 
     def _get_task(self) -> DebugCharTask | None:
         if self.task is None and self.executor is not None:
@@ -1107,7 +1103,7 @@ class TeamManagerTab(CustomTab):
         if not preset or name == preset["name"]:
             return
         if not self.manager.update_team_preset(self.current_preset_id, name=name):
-            self._show_bar(self.tr("无法保存"), self.tr_preset_save_failed, success=False)
+            show_bar(self.window(), self.tr("无法保存"), self.tr_preset_save_failed, success=False)
             self.render_current_preset()
             return
         self.reload_presets(self.current_preset_id)
@@ -1122,7 +1118,7 @@ class TeamManagerTab(CustomTab):
         if self._loading_preset or not self.current_preset_id:
             return
         if not self.manager.update_team_preset(self.current_preset_id, slots=self._current_slots()):
-            self._show_bar(self.tr("无法保存"), self.tr_duplicate_character, success=False)
+            show_bar(self.window(), self.tr("无法保存"), self.tr_duplicate_character, success=False)
             self.render_current_preset()
 
     def on_add_character(self) -> None:
@@ -1168,7 +1164,8 @@ class TeamManagerTab(CustomTab):
             self.reload_preset_options()
             self.reload_presets()
             if failed_impl_ids:
-                self._show_bar(
+                show_bar(
+                    self.window(),
                     self.tr("方案已删除"),
                     self.tr("部分外置代码删除失败: {}").format(
                         ", ".join(impl_id.removeprefix("external:") for impl_id in failed_impl_ids)
@@ -1176,7 +1173,7 @@ class TeamManagerTab(CustomTab):
                     success=False,
                 )
             else:
-                self._show_bar(self.tr("已删除"), self.tr_deleted_success)
+                show_bar(self.window(), self.tr("已删除"), self.tr_deleted_success)
 
     def on_apply_preset(self) -> None:
         if not self.current_preset_id:
@@ -1185,7 +1182,7 @@ class TeamManagerTab(CustomTab):
         if applied is None:
             return
         self.reload_preset_options()
-        self._show_bar(self.tr("已应用"), self.tr_apply_success.format(len(applied)))
+        show_bar(self.window(), self.tr("已应用"), self.tr_apply_success.format(len(applied)))
 
     def on_toggle_fixed_preset(self) -> None:
         preset = self._current_preset()
@@ -1200,12 +1197,12 @@ class TeamManagerTab(CustomTab):
             return
         self.reload_preset_options()
         self.reload_presets(preset["id"])
-        self._show_bar(self.tr("已应用"), self.tr_apply_success.format(len(applied)))
+        show_bar(self.window(), self.tr("已应用"), self.tr_apply_success.format(len(applied)))
 
     def on_scan_clicked(self) -> None:
         task = self._get_task()
         if task is None:
-            self._show_bar(self.tr("扫描失败"), self.tr_scan_task_missing, success=False)
+            show_bar(self.window(), self.tr("扫描失败"), self.tr_scan_task_missing, success=False)
             return
         self.scan_btn.setEnabled(False)
         self.scan_btn.setText(self.tr_scanning)
@@ -1229,7 +1226,7 @@ class TeamManagerTab(CustomTab):
         self.scan_btn.setEnabled(True)
         self.scan_btn.setText(self.tr_scan_btn)
         if error:
-            self._show_bar(self.tr("扫描失败"), error, success=False)
+            show_bar(self.window(), self.tr("扫描失败"), error, success=False)
             return
         updated_indices = set()
         for result in self.last_scan_results:
@@ -1266,13 +1263,13 @@ class TeamManagerTab(CustomTab):
                     slots[index]["impl_id"] = char_info["impl_id"]
                 filled_count += 1
         if not filled_count:
-            self._show_bar(self.tr("无法填入"), self.tr_fill_failed, success=False)
+            show_bar(self.window(), self.tr("无法填入"), self.tr_fill_failed, success=False)
             return
         if not self.manager.update_team_preset(preset["id"], slots=slots):
-            self._show_bar(self.tr("无法保存"), self.tr_duplicate_character, success=False)
+            show_bar(self.window(), self.tr("无法保存"), self.tr_duplicate_character, success=False)
             return
         self.render_current_preset()
-        self._show_bar(self.tr("已填入"), self.tr("{} 个空槽位").format(filled_count))
+        show_bar(self.window(), self.tr("已填入"), self.tr("{} 个空槽位").format(filled_count))
 
     def show_scan_flyout(self) -> None:
         Flyout.create(

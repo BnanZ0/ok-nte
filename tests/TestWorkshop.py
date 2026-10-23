@@ -892,9 +892,10 @@ class TestWorkshop(unittest.TestCase):
         with patch.object(WorkshopDialog, "reload_catalog"):
             dialog = WorkshopDialog(Mock(), parent, metadata_only=True)
         try:
-            with patch.object(dialog, "_show_bar") as show_bar:
+            with patch("src.ui.features.characters.workshop_dialog.show_bar") as show_bar:
                 dialog._catalog_failed(RuntimeError("offline"))
-                self.assertEqual(show_bar.call_args.args[1], "offline")
+                self.assertIs(show_bar.call_args.args[0], dialog)
+                self.assertEqual(show_bar.call_args.args[2], "offline")
                 self.assertFalse(show_bar.call_args.kwargs["success"])
             self.assertNotIn("offline", dialog.status_label.text())
             self.assertFalse(dialog.yesButton.isEnabled())
