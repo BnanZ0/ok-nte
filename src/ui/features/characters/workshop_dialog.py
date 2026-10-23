@@ -23,8 +23,6 @@ from qfluentwidgets import (
     FluentIcon,
     HyperlinkButton,
     IndeterminateProgressRing,
-    InfoBar,
-    InfoBarPosition,
     LineEdit,
     PrimaryPushButton,
     PrimarySplitPushButton,
@@ -57,6 +55,7 @@ from src.char.workshop.service import (
 from src.ui.features.characters.safety_dialog import EXTERNAL_CODE_SAFETY_NOTICE
 from src.ui.foundation.dialogs import MessageBoxBase
 from src.ui.foundation.i18n import is_chinese
+from src.ui.foundation.info_bar import show_bar
 from src.ui.foundation.widgets.cards import BorderCardWidget
 from src.ui.foundation.widgets.search import SearchableComboBox
 
@@ -549,19 +548,7 @@ class WorkshopDialog(MessageBoxBase):
         self.refresh_button.setEnabled(True)
         self.loading_ring.hide()
         self.status_label.setText(self.tr("加载失败"))
-        self._show_bar(self.tr("加载失败"), workshop_error_text(error, self.tr), success=False)
-
-    def _show_bar(self, title: str, content: str, success: bool = True) -> None:
-        show = InfoBar.success if success else InfoBar.error
-        show(
-            title=title,
-            content=content,
-            orient=Qt.Orientation.Horizontal,
-            isClosable=True,
-            position=InfoBarPosition.TOP,
-            duration=2500 if success else 3500,
-            parent=self,
-        )
+        show_bar(self, self.tr("加载失败"), workshop_error_text(error, self.tr), success=False)
 
     def _rebuild_filters(self) -> None:
         current_role = self.role_combo.currentText()
@@ -750,7 +737,7 @@ class WorkshopDialog(MessageBoxBase):
         try:
             self.before_update()
         except Exception as error:
-            self._show_bar(self.tr("更新失败"), workshop_error_text(error, self.tr), success=False)
+            show_bar(self, self.tr("更新失败"), workshop_error_text(error, self.tr), success=False)
             return
         self._updating = True
         self._cancel_update.clear()
@@ -792,7 +779,7 @@ class WorkshopDialog(MessageBoxBase):
         self.status_label.setText(summary)
         details = [f"{name}: {workshop_error_text(error, self.tr)}" for name, error in failures]
         if details:
-            self._show_bar(self.tr("更新失败"), "\n".join(details), success=False)
+            show_bar(self, self.tr("更新失败"), "\n".join(details), success=False)
         if updated:
             self.packages_updated.emit()
         if self._cancel_update.is_set():
@@ -801,7 +788,7 @@ class WorkshopDialog(MessageBoxBase):
     def _updates_failed(self, error: object) -> None:
         self._finish_update()
         self.status_label.setText(self.tr("更新失败"))
-        self._show_bar(self.tr("更新失败"), workshop_error_text(error, self.tr), success=False)
+        show_bar(self, self.tr("更新失败"), workshop_error_text(error, self.tr), success=False)
         if self._cancel_update.is_set():
             super().reject()
 
