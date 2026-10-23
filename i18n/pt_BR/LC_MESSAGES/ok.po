@@ -41,8 +41,8 @@ msgstr "Ative para evitar interrupção pelo passe mensal ao executar tarefas"
 msgid "Ultimate Key"
 msgstr "Tecla do Ultimate"
 
-msgid "[内置代码]"
-msgstr "[Código Interno]"
+msgid "内置代码"
+msgstr "Código Interno"
 
 msgid "{combo}: {} 删除成功"
 msgstr "{combo}: {} excluído com sucesso"
@@ -209,9 +209,6 @@ msgid "点按模式专用。用于微调每次按键的持续时间"
 msgstr ""
 "Apenas para o modo Toque. Usado para ajustar a duração de cada "
 "pressionamento de tecla."
-
-msgid "编辑名称"
-msgstr "Editar Nome"
 
 msgid "自动完成一轮或多轮钓鱼"
 msgstr "Completar automaticamente uma ou mais rodadas de pesca"
@@ -862,8 +859,8 @@ msgstr "Gerenciamento de Dados"
 msgid "关闭"
 msgstr "Fechar"
 
-msgid "[外置代码]"
-msgstr "[Código externo]"
+msgid "外置代码"
+msgstr "Código externo"
 
 msgid "打开外置代码目录"
 msgstr "Abrir pasta de código externo"
@@ -985,11 +982,11 @@ msgstr "Reconhecimento de Equipe"
 msgid "提示"
 msgstr "Dicas"
 
-msgid "<p><b style=\"color: #d83b01;\">注意：</b>此面板 <b style=\"color: #d83b01;\">不会</b> 在进入战斗或更换阵容时实时自动刷新或同步显示。<br>这是个用于向数据库关联或添加 <b style=\"color: #0078d7;\">角色特征</b> 的工具面板。<br>点击 <b style=\"color: #0078d7;\">{scan_team}</b> 后点击 <b style=\"color: #0078d7;\">关联或添加</b> 特征, 自动战斗时就会识别对应的角色。<br>如果不想管理 <b style=\"color: #0078d7;\">角色特征</b>, 可以直接使用 <b style=\"color: #0078d7;\">{fixed_team}</b> 功能。</p>"
-msgstr "<p><b style=\"color: #d83b01;\">Nota:</b> Este painel <b style=\"color: #d83b01;\">NÃO</b> atualiza ou sincroniza automaticamente em tempo real ao entrar em combate ou trocar de formação.<br>Este é um painel de ferramentas para associar ou adicionar <b style=\"color: #0078d7;\">Características de Personagem</b> ao banco de dados.<br>Clique em <b style=\"color: #0078d7;\">{scan_team}</b> e depois em <b style=\"color: #0078d7;\">Associar ou Adicionar</b> característica para que o combate automático reconheça os personagens correspondentes.<br>Se não quiser gerenciar <b style=\"color: #0078d7;\">Características de Personagem</b>, você pode usar diretamente a função <b style=\"color: #0078d7;\">{fixed_team}</b>.</p>"
+msgid "<p><b style=\"color: #d83b01;\">注意：</b>此面板 <b style=\"color: #d83b01;\">不会</b> 在进入战斗或更换阵容时实时自动刷新或同步显示。<br>这是个用于向数据库关联或添加 [角色特征] 的工具面板。<br>点击 [{scan_team}] 后点击 [关联或添加] 特征, 自动战斗时就会识别对应的角色。<br>如果不想管理 [角色特征], 可以直接使用 [{fixed_team}] 功能。</p>"
+msgstr "<p><b style=\"color: #d83b01;\">Nota:</b> Este painel <b style=\"color: #d83b01;\">NÃO</b> atualiza ou sincroniza automaticamente em tempo real ao entrar em combate ou trocar de formação.<br>Este é um painel de ferramentas para associar ou adicionar [Características de Personagem] ao banco de dados.<br>Clique em [{scan_team}] e depois em [Associar ou Adicionar] característica para que o combate automático reconheça os personagens correspondentes.<br>Se não quiser gerenciar [Características de Personagem], você pode usar diretamente a função [{fixed_team}].</p>"
 
-msgid "<p>用于配置并保存常用的 4 人队伍阵容与出招表, 修改后立即生效。<br>点击 <b style=\"color: #0078d7;\">{apply_preset}</b> 可一键更新应用方案中各角色的出招表 (未选择出招表则保持原配置不变)。<br>开启 <b style=\"color: #0078d7;\">{fixed_preset}</b> 后自动战斗将直接采用此阵容, 无需等待特征识别 (未录入特征的角色亦可直接战斗)。<br>点击 <b style=\"color: #0078d7;\">{fill_scan}</b> 可将上方特征扫描识别出的队伍角色快速填入当前方案。</p>"
-msgstr "<p>Configure e salve formações e combos de equipe de 4 personagens, com efeito imediato após a modificação.<br>Clique em <b style=\"color: #0078d7;\">{apply_preset}</b> para aplicar os combos de cada personagem neste modelo predefinido (espaços sem combo selecionado manterão a configuração original).<br>Ative <b style=\"color: #0078d7;\">{fixed_preset}</b> para que o combate automático adote diretamente esta equipe sem esperar pelo reconhecimento de características (personagens sem características registradas podem combater diretamente).<br>Clique em <b style=\"color: #0078d7;\">{fill_scan}</b> para preencher rapidamente no modelo atual os personagens reconhecidos no escaneamento acima.</p>"
+msgid "<p>用于配置并保存常用的 4 人队伍阵容与出招表, 修改后立即生效。<br>方案中的 1~4 号位仅用于 [{fixed_preset}] 功能; 已绑定特征的角色放在哪个号位都可以, 不影响识别。<br>点击 [{apply_preset}] 可一键更新应用方案中各角色的出招表 (未选择出招表则保持原配置不变)。<br>开启 [{fixed_preset}] 后自动战斗将直接采用此阵容, 无需等待特征识别 (未录入特征的角色亦可直接战斗)。<br>点击 [{fill_scan}] 可将上方特征扫描识别出的队伍角色快速填入当前方案。</p>"
+msgstr "<p>Configure e salve formações e combos de equipe de 4 personagens, com efeito imediato após a modificação.<br>As posições 1–4 deste preset são usadas apenas pela função [{fixed_preset}]. Se um personagem já tiver uma característica vinculada, ele pode ocupar qualquer posição sem afetar o reconhecimento.<br>Clique em [{apply_preset}] para aplicar os combos de cada personagem neste modelo predefinido (espaços sem combo selecionado manterão a configuração original).<br>Ative [{fixed_preset}] para que o combate automático adote diretamente esta equipe sem esperar pelo reconhecimento de características (personagens sem características registradas podem combater diretamente).<br>Clique em [{fill_scan}] para preencher rapidamente no modelo atual os personagens reconhecidos no escaneamento acima.</p>"
 
 msgid "OpenVINO 单次推理超时，已自动关闭目标检测；重启程序后会重新尝试启用。"
 msgstr "O tempo de inferência única do OpenVINO esgotou, a detecção de alvos foi desativada automaticamente. Será tentada a reativação ao reiniciar o programa."
@@ -1294,3 +1291,73 @@ msgstr "Guitarra"
 
 msgid "选择与游戏当前演奏界面一致的乐器"
 msgstr "Escolha o instrumento exibido no jogo"
+
+msgid "文件列表已变化, 无法自动更新, 请重新导入."
+msgstr "A lista de arquivos mudou. Importe o pacote novamente."
+
+msgid "本地源码已修改, 已跳过自动更新."
+msgstr "O código local foi alterado. A atualização automática foi ignorada."
+
+msgid "本地安装文件缺失, 请重新导入."
+msgstr "Faltam arquivos instalados. Importe o pacote novamente."
+
+msgid "无法读取工坊安装记录, 请检查 workshop_installs.json."
+msgstr "Não foi possível ler o registro de instalações. Verifique workshop_installs.json."
+
+msgid "下载的方案与更新信息不一致, 请刷新工坊后重试."
+msgstr "O pacote baixado não corresponde à atualização. Atualize a oficina e tente novamente."
+
+msgid "一鍵更新"
+msgstr "Atualizar"
+
+msgid "更新"
+msgstr "Atualizar"
+
+msgid "更新到 {}"
+msgstr "Atualizar para {}"
+
+msgid "已是最新"
+msgstr "Atualizado"
+
+msgid "正在更新出招表..."
+msgstr "Atualizando combos..."
+
+msgid "已更新 {} 份方案, {} 项失败"
+msgstr "{} pacotes atualizados, {} falharam"
+
+msgid "更新失败"
+msgstr "Falha na atualização"
+
+msgid "请等待当前导入或导出完成后再更新."
+msgstr "Aguarde a importação ou exportação atual terminar antes de atualizar."
+
+msgid "加载失败"
+msgstr "Falha ao carregar"
+
+msgid "方案"
+msgstr "Predefinição"
+
+msgid "重命名"
+msgstr "Renomear"
+
+msgid ""
+"角色: {character}\n"
+"出招表: {combo}\n"
+"出错位置: {location}\n"
+"{error_type}: {detail}\n"
+"可能与接口或依赖不兼容, 请至工坊更新方案或将此信息反馈给方案作者."
+msgstr ""
+"Personagem: {character}\n"
+"Lista de Combos: {combo}\n"
+"Local do erro: {location}\n"
+"{error_type}: {detail}\n"
+"Pode haver uma incompatibilidade de API ou dependências. Atualize a predefinição na Oficina ou envie estas informações ao autor."
+
+msgid "找不到模块加载器"
+msgstr "Carregador de módulo não encontrado"
+
+msgid "外置角色模块必须且只能定义一个 BaseChar 子类"
+msgstr "O módulo de personagem externo deve definir exatamente uma subclasse de BaseChar"
+
+msgid "角色实现标识重复: {impl_id}"
+msgstr "ID de implementação de personagem duplicado: {impl_id}"

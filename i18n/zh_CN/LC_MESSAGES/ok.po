@@ -42,7 +42,7 @@ msgstr "极轨技快捷键"
 msgid "Your computer's local time when the monthly card will popup, hour in (1-24)"
 msgstr "月卡弹出时的电脑本地时间，小时 (1-24)"
 
-msgid "[内置代码]"
+msgid "内置代码"
 msgstr ""
 
 msgid "{combo}: {} 删除成功"
@@ -196,9 +196,6 @@ msgid "点按时长倍率"
 msgstr ""
 
 msgid "点按模式专用。用于微调每次按键的持续时间"
-msgstr ""
-
-msgid "编辑名称"
 msgstr ""
 
 msgid "自动完成一轮或多轮钓鱼"
@@ -1102,7 +1099,7 @@ msgstr ""
 msgid "关闭"
 msgstr ""
 
-msgid "[外置代码]"
+msgid "外置代码"
 msgstr ""
 
 msgid "打开外置代码目录"
@@ -1225,11 +1222,11 @@ msgstr "队伍识别"
 msgid "提示"
 msgstr "提示"
 
-msgid "<p><b style=\"color: #d83b01;\">注意：</b>此面板 <b style=\"color: #d83b01;\">不会</b> 在进入战斗或更换阵容时实时自动刷新或同步显示。<br>这是个用于向数据库关联或添加 <b style=\"color: #0078d7;\">角色特征</b> 的工具面板。<br>点击 <b style=\"color: #0078d7;\">{scan_team}</b> 后点击 <b style=\"color: #0078d7;\">关联或添加</b> 特征, 自动战斗时就会识别对应的角色。<br>如果不想管理 <b style=\"color: #0078d7;\">角色特征</b>, 可以直接使用 <b style=\"color: #0078d7;\">{fixed_team}</b> 功能。</p>"
-msgstr "<p><b style=\"color: #d83b01;\">注意：</b>此面板 <b style=\"color: #d83b01;\">不会</b> 在进入战斗或更换阵容时实时自动刷新或同步显示。<br>这是个用于向数据库关联或添加 <b style=\"color: #0078d7;\">角色特征</b> 的工具面板。<br>点击 <b style=\"color: #0078d7;\">{scan_team}</b> 后点击 <b style=\"color: #0078d7;\">关联或添加</b> 特征, 自动战斗时就会识别对应的角色。<br>如果不想管理 <b style=\"color: #0078d7;\">角色特征</b>, 可以直接使用 <b style=\"color: #0078d7;\">{fixed_team}</b> 功能。</p>"
+msgid "<p><b style=\"color: #d83b01;\">注意：</b>此面板 <b style=\"color: #d83b01;\">不会</b> 在进入战斗或更换阵容时实时自动刷新或同步显示。<br>这是个用于向数据库关联或添加 [角色特征] 的工具面板。<br>点击 [{scan_team}] 后点击 [关联或添加] 特征, 自动战斗时就会识别对应的角色。<br>如果不想管理 [角色特征], 可以直接使用 [{fixed_team}] 功能。</p>"
+msgstr "<p><b style=\"color: #d83b01;\">注意：</b>此面板 <b style=\"color: #d83b01;\">不会</b> 在进入战斗或更换阵容时实时自动刷新或同步显示。<br>这是个用于向数据库关联或添加 [角色特征] 的工具面板。<br>点击 [{scan_team}] 后点击 [关联或添加] 特征, 自动战斗时就会识别对应的角色。<br>如果不想管理 [角色特征], 可以直接使用 [{fixed_team}] 功能。</p>"
 
-msgid "<p>用于配置并保存常用的 4 人队伍阵容与出招表, 修改后立即生效。<br>点击 <b style=\"color: #0078d7;\">{apply_preset}</b> 可一键更新应用方案中各角色的出招表 (未选择出招表则保持原配置不变)。<br>开启 <b style=\"color: #0078d7;\">{fixed_preset}</b> 后自动战斗将直接采用此阵容, 无需等待特征识别 (未录入特征的角色亦可直接战斗)。<br>点击 <b style=\"color: #0078d7;\">{fill_scan}</b> 可将上方特征扫描识别出的队伍角色快速填入当前方案。</p>"
-msgstr "<p>用于配置并保存常用的 4 人队伍阵容与出招表, 修改后立即生效。<br>点击 <b style=\"color: #0078d7;\">{apply_preset}</b> 可一键更新应用方案中各角色的出招表 (未选择出招表则保持原配置不变)。<br>开启 <b style=\"color: #0078d7;\">{fixed_preset}</b> 后自动战斗将直接采用此阵容, 无需等待特征识别 (未录入特征的角色亦可直接战斗)。<br>点击 <b style=\"color: #0078d7;\">{fill_scan}</b> 可将上方特征扫描识别出的队伍角色快速填入当前方案。</p>"
+msgid "<p>用于配置并保存常用的 4 人队伍阵容与出招表, 修改后立即生效。<br>方案中的 1~4 号位仅用于 [{fixed_preset}] 功能; 已绑定特征的角色放在哪个号位都可以, 不影响识别。<br>点击 [{apply_preset}] 可一键更新应用方案中各角色的出招表 (未选择出招表则保持原配置不变)。<br>开启 [{fixed_preset}] 后自动战斗将直接采用此阵容, 无需等待特征识别 (未录入特征的角色亦可直接战斗)。<br>点击 [{fill_scan}] 可将上方特征扫描识别出的队伍角色快速填入当前方案。</p>"
+msgstr "<p>用于配置并保存常用的 4 人队伍阵容与出招表, 修改后立即生效。<br>方案中的 1~4 号位仅用于[{fixed_preset}] 功能; 已绑定特征的角色放在哪个号位都可以, 不影响识别。<br>点击 [{apply_preset}] 可一键更新应用方案中各角色的出招表 (未选择出招表则保持原配置不变)。<br>开启 [{fixed_preset}] 后自动战斗将直接采用此阵容, 无需等待特征识别 (未录入特征的角色亦可直接战斗)。<br>点击 [{fill_scan}] 可将上方特征扫描识别出的队伍角色快速填入当前方案。</p>"
 
 msgid "OpenVINO 单次推理超时，已自动关闭目标检测；重启程序后会重新尝试启用。"
 msgstr ""
@@ -1526,3 +1523,73 @@ msgstr ""
 
 msgid "选择与游戏当前演奏界面一致的乐器"
 msgstr ""
+
+msgid "文件列表已变化, 无法自动更新, 请重新导入."
+msgstr "文件列表已变化, 无法自动更新, 请重新导入."
+
+msgid "本地源码已修改, 已跳过自动更新."
+msgstr "本地源码已修改, 已跳过自动更新."
+
+msgid "本地安装文件缺失, 请重新导入."
+msgstr "本地安装文件缺失, 请重新导入."
+
+msgid "无法读取工坊安装记录, 请检查 workshop_installs.json."
+msgstr "无法读取工坊安装记录, 请检查 workshop_installs.json."
+
+msgid "下载的方案与更新信息不一致, 请刷新工坊后重试."
+msgstr "下载的方案与更新信息不一致, 请刷新工坊后重试."
+
+msgid "一鍵更新"
+msgstr "一键更新"
+
+msgid "更新"
+msgstr "更新"
+
+msgid "更新到 {}"
+msgstr "更新到 {}"
+
+msgid "已是最新"
+msgstr "已是最新"
+
+msgid "正在更新出招表..."
+msgstr "正在更新出招表..."
+
+msgid "已更新 {} 份方案, {} 项失败"
+msgstr "已更新 {} 份方案, {} 项失败"
+
+msgid "更新失败"
+msgstr "更新失败"
+
+msgid "请等待当前导入或导出完成后再更新."
+msgstr "请等待当前导入或导出完成后再更新."
+
+msgid "加载失败"
+msgstr "加载失败"
+
+msgid "方案"
+msgstr "方案"
+
+msgid "重命名"
+msgstr "重命名"
+
+msgid ""
+"角色: {character}\n"
+"出招表: {combo}\n"
+"出错位置: {location}\n"
+"{error_type}: {detail}\n"
+"可能与接口或依赖不兼容, 请至工坊更新方案或将此信息反馈给方案作者."
+msgstr ""
+"角色: {character}\n"
+"出招表: {combo}\n"
+"出错位置: {location}\n"
+"{error_type}: {detail}\n"
+"可能与接口或依赖不兼容, 请至工坊更新方案或将此信息反馈给方案作者."
+
+msgid "找不到模块加载器"
+msgstr "找不到模块加载器"
+
+msgid "外置角色模块必须且只能定义一个 BaseChar 子类"
+msgstr "外置角色模块必须且只能定义一个 BaseChar 子类"
+
+msgid "角色实现标识重复: {impl_id}"
+msgstr "角色实现标识重复: {impl_id}"

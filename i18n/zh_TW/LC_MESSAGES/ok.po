@@ -42,8 +42,8 @@ msgstr "極軌技快速鍵"
 msgid "Your computer's local time when the monthly card will popup, hour in (1-24)"
 msgstr "月卡彈出時的電腦本地時間，小時 (1-24)"
 
-msgid "[内置代码]"
-msgstr "[內建代碼]"
+msgid "内置代码"
+msgstr "內建代碼"
 
 msgid "{combo}: {} 删除成功"
 msgstr "{combo}: {} 刪除成功"
@@ -197,9 +197,6 @@ msgstr "點按時長倍率"
 
 msgid "点按模式专用。用于微调每次按键的持续时间"
 msgstr "點按模式專用。用於微調每次按鍵的持續時間"
-
-msgid "编辑名称"
-msgstr "編輯名稱"
 
 msgid "自动完成一轮或多轮钓鱼"
 msgstr "自動完成一輪或多輪釣魚"
@@ -1126,8 +1123,8 @@ msgstr "資料管理"
 msgid "关闭"
 msgstr "關閉"
 
-msgid "[外置代码]"
-msgstr "[外置代碼]"
+msgid "外置代码"
+msgstr "外置代碼"
 
 msgid "打开外置代码目录"
 msgstr "開啟外置程式碼目錄"
@@ -1249,11 +1246,11 @@ msgstr "隊伍識別"
 msgid "提示"
 msgstr "提示"
 
-msgid "<p><b style=\"color: #d83b01;\">注意：</b>此面板 <b style=\"color: #d83b01;\">不会</b> 在进入战斗或更换阵容时实时自动刷新或同步显示。<br>这是个用于向数据库关联或添加 <b style=\"color: #0078d7;\">角色特征</b> 的工具面板。<br>点击 <b style=\"color: #0078d7;\">{scan_team}</b> 后点击 <b style=\"color: #0078d7;\">关联或添加</b> 特征, 自动战斗时就会识别对应的角色。<br>如果不想管理 <b style=\"color: #0078d7;\">角色特征</b>, 可以直接使用 <b style=\"color: #0078d7;\">{fixed_team}</b> 功能。</p>"
-msgstr "<p><b style=\"color: #d83b01;\">注意：</b>此面板 <b style=\"color: #d83b01;\">不會</b> 在進入戰鬥或更換陣容時即時自動刷新或同步顯示。<br>這是個用於向資料庫關聯或新增 <b style=\"color: #0078d7;\">角色特徵</b> 的工具面板。<br>點擊 <b style=\"color: #0078d7;\">{scan_team}</b> 後點擊 <b style=\"color: #0078d7;\">關聯或新增</b> 特徵, 自動戰鬥時就會識別對應的角色。<br>如果不想管理 <b style=\"color: #0078d7;\">角色特徵</b>, 可以直接使用 <b style=\"color: #0078d7;\">{fixed_team}</b> 功能。</p>"
+msgid "<p><b style=\"color: #d83b01;\">注意：</b>此面板 <b style=\"color: #d83b01;\">不会</b> 在进入战斗或更换阵容时实时自动刷新或同步显示。<br>这是个用于向数据库关联或添加 [角色特征] 的工具面板。<br>点击 [{scan_team}] 后点击 [关联或添加] 特征, 自动战斗时就会识别对应的角色。<br>如果不想管理 [角色特征], 可以直接使用 [{fixed_team}] 功能。</p>"
+msgstr "<p><b style=\"color: #d83b01;\">注意：</b>此面板 <b style=\"color: #d83b01;\">不會</b> 在進入戰鬥或更換陣容時即時自動刷新或同步顯示。<br>這是個用於向資料庫關聯或新增 [角色特徵] 的工具面板。<br>點擊 [{scan_team}] 後點擊 [關聯或新增] 特徵, 自動戰鬥時就會識別對應的角色。<br>如果不想管理 [角色特徵], 可以直接使用 [{fixed_team}] 功能。</p>"
 
-msgid "<p>用于配置并保存常用的 4 人队伍阵容与出招表, 修改后立即生效。<br>点击 <b style=\"color: #0078d7;\">{apply_preset}</b> 可一键更新应用方案中各角色的出招表 (未选择出招表则保持原配置不变)。<br>开启 <b style=\"color: #0078d7;\">{fixed_preset}</b> 后自动战斗将直接采用此阵容, 无需等待特征识别 (未录入特征的角色亦可直接战斗)。<br>点击 <b style=\"color: #0078d7;\">{fill_scan}</b> 可将上方特征扫描识别出的队伍角色快速填入当前方案。</p>"
-msgstr "<p>用於配置並儲存常用的 4 人隊伍陣容與出招表, 修改後立即生效。<br>點擊 <b style=\"color: #0078d7;\">{apply_preset}</b> 可一鍵更新套用方案中各角色的出招表 (未選擇出招表則保持原配置不變)。<br>開啟 <b style=\"color: #0078d7;\">{fixed_preset}</b> 後自動戰鬥將直接採用此陣容, 無需等待特徵識別 (未錄入特徵的角色亦可直接戰鬥)。<br>點擊 <b style=\"color: #0078d7;\">{fill_scan}</b> 可將上方特徵掃描識別出的隊伍角色快速填入當前方案。</p>"
+msgid "<p>用于配置并保存常用的 4 人队伍阵容与出招表, 修改后立即生效。<br>方案中的 1~4 号位仅用于 [{fixed_preset}] 功能; 已绑定特征的角色放在哪个号位都可以, 不影响识别。<br>点击 [{apply_preset}] 可一键更新应用方案中各角色的出招表 (未选择出招表则保持原配置不变)。<br>开启 [{fixed_preset}] 后自动战斗将直接采用此阵容, 无需等待特征识别 (未录入特征的角色亦可直接战斗)。<br>点击 [{fill_scan}] 可将上方特征扫描识别出的队伍角色快速填入当前方案。</p>"
+msgstr "<p>用於配置並儲存常用的 4 人隊伍陣容與出招表, 修改後立即生效。<br>方案中的 1~4 號位僅用於[{fixed_preset}]功能；已綁定特徵的角色放在哪個號位都可以，不影響識別。<br>點擊 [{apply_preset}] 可一鍵更新套用方案中各角色的出招表 (未選擇出招表則保持原配置不變)。<br>開啟 [{fixed_preset}] 後自動戰鬥將直接採用此陣容, 無需等待特徵識別 (未錄入特徵的角色亦可直接戰鬥)。<br>點擊 [{fill_scan}] 可將上方特徵掃描識別出的隊伍角色快速填入當前方案。</p>"
 
 msgid "OpenVINO 单次推理超时，已自动关闭目标检测；重启程序后会重新尝试启用。"
 msgstr "OpenVINO 單次推論超時，已自動關閉目標檢測；重啟程式後會重新嘗試啟用。"
@@ -1552,3 +1549,73 @@ msgstr "吉他"
 
 msgid "选择与游戏当前演奏界面一致的乐器"
 msgstr "選擇與遊戲目前演奏畫面一致的樂器"
+
+msgid "文件列表已变化, 无法自动更新, 请重新导入."
+msgstr "檔案清單已變更, 無法自動更新, 請重新匯入."
+
+msgid "本地源码已修改, 已跳过自动更新."
+msgstr "本機原始碼已修改, 已略過自動更新."
+
+msgid "本地安装文件缺失, 请重新导入."
+msgstr "本機安裝檔案遺失, 請重新匯入."
+
+msgid "无法读取工坊安装记录, 请检查 workshop_installs.json."
+msgstr "無法讀取工坊安裝記錄, 請檢查 workshop_installs.json."
+
+msgid "下载的方案与更新信息不一致, 请刷新工坊后重试."
+msgstr "下載的方案與更新資訊不一致, 請重新整理工坊後重試."
+
+msgid "一鍵更新"
+msgstr "一鍵更新"
+
+msgid "更新"
+msgstr "更新"
+
+msgid "更新到 {}"
+msgstr "更新至 {}"
+
+msgid "已是最新"
+msgstr "已是最新"
+
+msgid "正在更新出招表..."
+msgstr "正在更新出招表..."
+
+msgid "已更新 {} 份方案, {} 项失败"
+msgstr "已更新 {} 份方案, {} 項失敗"
+
+msgid "更新失败"
+msgstr "更新失敗"
+
+msgid "请等待当前导入或导出完成后再更新."
+msgstr "請等待目前匯入或匯出完成後再更新."
+
+msgid "加载失败"
+msgstr "載入失敗"
+
+msgid "方案"
+msgstr "方案"
+
+msgid "重命名"
+msgstr "重新命名"
+
+msgid ""
+"角色: {character}\n"
+"出招表: {combo}\n"
+"出错位置: {location}\n"
+"{error_type}: {detail}\n"
+"可能与接口或依赖不兼容, 请至工坊更新方案或将此信息反馈给方案作者."
+msgstr ""
+"角色: {character}\n"
+"出招表: {combo}\n"
+"出錯位置: {location}\n"
+"{error_type}: {detail}\n"
+"可能與介面或相依套件不相容, 請至工坊更新方案或將此資訊回報給方案作者."
+
+msgid "找不到模块加载器"
+msgstr "找不到模組載入器"
+
+msgid "外置角色模块必须且只能定义一个 BaseChar 子类"
+msgstr "外置角色模組必須且只能定義一個 BaseChar 子類別"
+
+msgid "角色实现标识重复: {impl_id}"
+msgstr "角色實作識別碼重複: {impl_id}"
