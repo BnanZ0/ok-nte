@@ -198,9 +198,6 @@ msgstr "Multiplicador de duración del toque"
 msgid "点按模式专用。用于微调每次按键的持续时间"
 msgstr "Solo para el modo Tocar. Se usa para ajustar la duración de cada pulsación de tecla."
 
-msgid "编辑名称"
-msgstr "Editar nombre"
-
 msgid "自动完成一轮或多轮钓鱼"
 msgstr "Completar automáticamente una o más rondas de pesca"
 
@@ -1251,8 +1248,8 @@ msgstr "Consejos"
 msgid "<p><b style=\"color: #d83b01;\">注意：</b>此面板 <b style=\"color: #d83b01;\">不会</b> 在进入战斗或更换阵容时实时自动刷新或同步显示。<br>这是个用于向数据库关联或添加 <b style=\"color: #0078d7;\">角色特征</b> 的工具面板。<br>点击 <b style=\"color: #0078d7;\">{scan_team}</b> 后点击 <b style=\"color: #0078d7;\">关联或添加</b> 特征, 自动战斗时就会识别对应的角色。<br>如果不想管理 <b style=\"color: #0078d7;\">角色特征</b>, 可以直接使用 <b style=\"color: #0078d7;\">{fixed_team}</b> 功能。</p>"
 msgstr "<p><b style=\"color: #d83b01;\">Nota:</b> Este panel <b style=\"color: #d83b01;\">NO</b> se actualiza ni sincroniza automáticamente en tiempo real al entrar en combate o cambiar la alineación.<br>Es un panel de herramientas para asociar o agregar <b style=\"color: #0078d7;\">Características de Personaje</b> a la base de datos.<br>Haz clic en <b style=\"color: #0078d7;\">{scan_team}</b> y luego en <b style=\"color: #0078d7;\">Asociar o Agregar</b> característica para que el combate automático reconozca a los personajes correspondientes.<br>Si no deseas gestionar las <b style=\"color: #0078d7;\">Características de Personaje</b>, puedes usar directamente la función <b style=\"color: #0078d7;\">{fixed_team}</b>.</p>"
 
-msgid "<p>用于配置并保存常用的 4 人队伍阵容与出招表, 修改后立即生效。<br>点击 <b style=\"color: #0078d7;\">{apply_preset}</b> 可一键更新应用方案中各角色的出招表 (未选择出招表则保持原配置不变)。<br>开启 <b style=\"color: #0078d7;\">{fixed_preset}</b> 后自动战斗将直接采用此阵容, 无需等待特征识别 (未录入特征的角色亦可直接战斗)。<br>点击 <b style=\"color: #0078d7;\">{fill_scan}</b> 可将上方特征扫描识别出的队伍角色快速填入当前方案。</p>"
-msgstr "<p>Configura y guarda alineaciones y combos de equipo de 4 personajes, con efecto inmediato tras su modificación.<br>Haz clic en <b style=\"color: #0078d7;\">{apply_preset}</b> para aplicar los combos de cada personaje en este ajuste (los espacios sin combo seleccionado mantendrán la configuración original).<br>Activa <b style=\"color: #0078d7;\">{fixed_preset}</b> para que el combate automático adopte directamente este equipo sin esperar al reconocimiento de características (los personajes sin características registradas pueden combatir directamente).<br>Haz clic en <b style=\"color: #0078d7;\">{fill_scan}</b> para rellenar rápidamente en el ajuste actual los personajes reconocidos en el escaneo superior.</p>"
+msgid "<p>用于配置并保存常用的 4 人队伍阵容与出招表, 修改后立即生效。<br>队伍中的 1~4 号位仅用于“{fixed_preset}”功能; 已绑定特征的角色放在哪个号位都可以, 不影响识别。<br>点击 <b style=\"color: #0078d7;\">{apply_preset}</b> 可一键更新应用方案中各角色的出招表 (未选择出招表则保持原配置不变)。<br>开启 <b style=\"color: #0078d7;\">{fixed_preset}</b> 后自动战斗将直接采用此阵容, 无需等待特征识别 (未录入特征的角色亦可直接战斗)。<br>点击 <b style=\"color: #0078d7;\">{fill_scan}</b> 可将上方特征扫描识别出的队伍角色快速填入当前方案。</p>"
+msgstr "<p>Configura y guarda alineaciones y combos de equipo de 4 personajes, con efecto inmediato tras su modificación.<br>Las posiciones 1–4 del equipo solo se usan para la función {fixed_preset}. Si un personaje ya tiene una característica vinculada, puede ocupar cualquier posición sin afectar al reconocimiento.<br>Haz clic en <b style=\"color: #0078d7;\">{apply_preset}</b> para aplicar los combos de cada personaje en este ajuste (los espacios sin combo seleccionado mantendrán la configuración original).<br>Activa <b style=\"color: #0078d7;\">{fixed_preset}</b> para que el combate automático adopte directamente este equipo sin esperar al reconocimiento de características (los personajes sin características registradas pueden combatir directamente).<br>Haz clic en <b style=\"color: #0078d7;\">{fill_scan}</b> para rellenar rápidamente en el ajuste actual los personajes reconocidos en el escaneo superior.</p>"
 
 msgid "OpenVINO 单次推理超时，已自动关闭目标检测；重启程序后会重新尝试启用。"
 msgstr "Se agotó el tiempo de inferencia única de OpenVINO, la detección de objetivos se ha desactivado automáticamente. Se intentará volver a activar al reiniciar el programa."
@@ -1593,3 +1590,9 @@ msgstr "Espera a que termine la importación o exportación actual antes de actu
 
 msgid "加载失败"
 msgstr "Error al cargar"
+
+msgid "方案"
+msgstr "Preset"
+
+msgid "重命名"
+msgstr "Renombrar"
