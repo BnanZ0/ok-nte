@@ -82,7 +82,7 @@ packaging==26.2 ; sys_platform == 'win32'
     #   mido
     #   pooch
     #   scikit-image
-pillow==12.3.0 ; sys_platform == 'win32'
+pillow==13.0.0 ; sys_platform == 'win32'
     # via
     #   imageio
     #   onnxocr-ppocrv5
