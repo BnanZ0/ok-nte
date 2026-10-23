@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Optional
 
 import cv2
 import numpy as np
-from ok import Box, Logger, TaskDisabledException, find_color_rectangles
+from ok import Box, Logger, find_color_rectangles
 
 from src.Labels import Labels
 from src.tasks.BaseNTETask import BaseNTETask
@@ -211,14 +211,6 @@ class CombatCheck(BaseNTETask):
             return True
         return False
 
-    def in_combat(self):
-        try:
-            return self.do_check_in_combat()
-        except TaskDisabledException:
-            raise
-        except Exception as e:
-            logger.error("do_check_in_combat", e)
-
     @property
     def combat_detect_uncertain(self) -> bool:
         return self.combat_detect_state.uncertain
@@ -254,7 +246,7 @@ class CombatCheck(BaseNTETask):
         self._log_combat_detect_hit(source)
         return self.scene.set_in_combat()
 
-    def do_check_in_combat(self):
+    def in_combat(self):
         if self.in_animation:
             self._log_combat_detect_hit("in_animation")
             return True

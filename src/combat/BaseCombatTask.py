@@ -4,17 +4,22 @@ from collections.abc import Generator
 from contextlib import contextmanager
 from dataclasses import dataclass, fields
 from enum import Enum
+from sys import exception
+from traceback import walk_tb
 
 import cv2
 import numpy as np
 from ok import Box, Logger, get_bounding_box, safe_get
+from ok.task.exceptions import FinishedException, TaskDisabledException
 
 from src import text_white_color
 from src.char.BaseChar import BaseChar, Element
 from src.char.core.CharFactory import get_char_by_id, get_char_by_impl_id, get_char_by_pos
+from src.char.core.CharRegistry import char_registry
 from src.char.custom.CustomCharManager import CustomCharManager
 from src.combat.CombatCheck import CombatCheck
 from src.combat.planner import CombatPlanner, SwitchDecision
+from src.events import communicate
 from src.Labels import Labels
 from src.sound_trigger.SoundCombatContext import ACTION_UNSET, SoundCombatContext
 from src.tasks.mixin.CharUIMixin import CharElementUIMixin
@@ -859,6 +864,8 @@ class BaseCombatTask(CharElementUIMixin, CombatCheck):
 
     def combat_end(self):
         """战斗结束时调用的清理方法。"""
+        # Both combat loops call this from finally, while the original error is available.
+        self._report_external_error(exception())
         self.sleep_check_skip.all = True
         try:
             self.reset_to_false()
@@ -868,12 +875,37 @@ class BaseCombatTask(CharElementUIMixin, CombatCheck):
                 try:
                     self.get_current_char().on_combat_end(self.chars)
                 except Exception as e:
+                    self._report_external_error(e)
                     self.log_error(f"{current_char.ufn_name} on_combat_end error", e)
 
             self._clear_dead_chars()
         finally:
             SoundCombatContext().clear_task_if(self)
             self.combat_session = None
+
+    def _report_external_error(self, error):
+        if not isinstance(error, Exception) or isinstance(
+            error, (NotInCombatException, TaskDisabledException, FinishedException)
+        ):
+            return
+        source = None
+        for frame, _ in walk_tb(error.__traceback__):
+            candidate = frame.f_locals.get("self")
+            if isinstance(candidate, BaseChar) and getattr(candidate, "task", None) is self:
+                source = candidate
+        character = combo = ""
+        if source is not None and getattr(source, "impl_id", ""):
+            character = source.ufn_name
+            combo = CustomCharManager().get_impl_name(source.impl_id, with_source_prefix=True)
+        message = char_registry.describe_external_error(error, character=character, combo=combo)
+        if message is not None:
+            self._notify_external_error(message)
+
+    def _notify_external_error(self, message):
+        self.log_error(message)
+        communicate.info_bar_requested.emit(
+            title=self.tr("外置代码"), content=message, success=False, duration=-1
+        )
 
     def _clear_dead_chars(self):
         for char in self.chars:
@@ -1011,6 +1043,20 @@ class BaseCombatTask(CharElementUIMixin, CombatCheck):
 
     def load_chars(self) -> bool:
         """加载队伍中的角色信息。"""
+        try:
+            return self._load_chars()
+        except Exception as error:
+            # CombatCheck handles detection failures, so diagnose before it catches them.
+            self._report_external_error(error)
+            raise
+        finally:
+            messages = set(char_registry.get_external_errors())
+            previous = getattr(self, "_reported_external_load_errors", set())
+            self._reported_external_load_errors = messages
+            for message in sorted(messages - previous):
+                self._notify_external_error(message)
+
+    def _load_chars(self) -> bool:
         ret = False
         timer = self.clock.timer(precise=True)
         self.load_hotkey()

@@ -96,14 +96,14 @@ class CustomCharManager:
     def get_builtin_prefix() -> str:
         app = getattr(og, "app", None)
         if app and hasattr(app, "tr"):
-            return f"{app.tr('[内置代码]')} "
+            return f"[{app.tr('内置代码')}] "
         return "[内置代码] "
 
     @staticmethod
     def get_external_prefix() -> str:
         app = getattr(og, "app", None)
         if app and hasattr(app, "tr"):
-            return f"{app.tr('[外置代码]')} "
+            return f"[{app.tr('外置代码')}] "
         return "[外置代码] "
 
     @classmethod

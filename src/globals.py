@@ -59,9 +59,11 @@ class Globals:
 
     def on_show_main_window(self, main_window) -> None:
         from src.ui.foundation.dialogs import install_confirmation_handler
+        from src.ui.foundation.info_bar import install_info_bar_handler
         from src.ui.foundation.overlay import install_overlay_window
 
         _install_bot_notification_filter(main_window)
+        install_info_bar_handler(main_window)
         main_window.setMinimumSize(1200, 800)
         main_window._confirmation_handler = install_confirmation_handler(main_window)
         install_overlay_window(main_window)

@@ -8,6 +8,7 @@ from ok import og
 from ok.core.events import EventMessage, EventSignal, communicate
 
 _PROJECT_EVENT_NAMES = (
+    "info_bar_requested",
     "confirmation_requested",
     "overlay_shown",
     "overlay_cleared",

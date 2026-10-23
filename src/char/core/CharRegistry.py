@@ -1,13 +1,15 @@
+import re
 from dataclasses import dataclass
 from hashlib import sha256
 from importlib import import_module, invalidate_caches
 from importlib.machinery import ModuleSpec
 from importlib.util import cache_from_source, module_from_spec, spec_from_file_location
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 from sys import modules
 from threading import RLock
+from traceback import StackSummary, walk_tb
 
-from ok import Logger
+from ok import Logger, og
 
 from src.char.BaseChar import BaseChar, Element
 
@@ -41,6 +43,69 @@ class CharRegistry:
         self._external_scanned = False
         self._external_dir = external_dir
         self._external_packages: dict[str, Path] = {}
+        self._external_errors: dict[str, str] = {}
+
+    @staticmethod
+    def tr(message: str) -> str:
+        app = getattr(og, "app", None)
+        return app.tr(message) if app is not None else message
+
+    def get_external_errors(self) -> list[str]:
+        """Read cached diagnostics without scanning or executing code again."""
+        with self._lock:
+            return list(self._external_errors.values())
+
+    def describe_external_error(
+        self,
+        error: Exception,
+        path: Path | None = None,
+        *,
+        character: str = "",
+        combo: str = "",
+    ) -> str | None:
+        """Describe the current error at its last external frame without loading source text."""
+        root = self._get_external_dir().resolve()
+        stack = StackSummary.extract(walk_tb(error.__traceback__), lookup_lines=False)
+        frames = [(frame.filename, frame.lineno) for frame in reversed(stack)]
+        if isinstance(error, SyntaxError) and error.filename:
+            frames.insert(0, (error.filename, error.lineno))
+        for filename, lineno in frames:
+            filename = Path(filename).resolve()
+            if filename.is_relative_to(root):
+                location = f"{filename.relative_to(root).as_posix()}:{lineno}"
+                break
+        else:
+            if path is None:
+                return None
+            location = path.relative_to(root).as_posix()
+
+        # Exception messages can contain absolute filenames even without a traceback.
+        detail = error.msg if isinstance(error, SyntaxError) else str(error)
+        detail = re.sub(
+            r"[\"'](?:[A-Za-z]:[\\/]|/|\\{2,})[^\"'\n]*[\"']"
+            r"|(?:[A-Za-z]:[\\/]|\\{2,})[^\s\"'()]*"
+            r"|(?<![\w:])/(?:[^\s\"'()]+/)*[^\s\"'()]*",
+            lambda match: f"<{PureWindowsPath(match.group().strip(chr(34) + chr(39))).name}>",
+            detail,
+        )
+        return self.tr(
+            "角色: {character}\n"
+            "出招表: {combo}\n"
+            "出错位置: {location}\n"
+            "{error_type}: {detail}\n"
+            "可能与接口或依赖不兼容, 请至工坊更新方案或将此信息反馈给方案作者."
+        ).format(
+            character=character or "-",
+            combo=combo or "-",
+            location=location,
+            error_type=type(error).__name__,
+            detail=detail,
+        )
+
+    def _record_external_error(self, path: Path, error: Exception) -> None:
+        message = self.describe_external_error(error, path=path.resolve())
+        self._external_errors[path.relative_to(self._get_external_dir()).as_posix()] = message
+        logger.warning(str(message))
 
     @staticmethod
     def _builtin_dir() -> Path:
@@ -78,6 +143,7 @@ class CharRegistry:
                 self._scan_external()
 
     def _scan_external(self) -> None:
+        self._external_errors.clear()
         for name in tuple(modules):
             if name.partition(".")[0] in self._external_packages:
                 modules.pop(name, None)
@@ -90,6 +156,7 @@ class CharRegistry:
                 Path(cache_from_source(str(source))).unlink(missing_ok=True)
         except OSError as error:
             logger.warning(f"Failed to scan external character modules: {error.__class__.__name__}")
+            self._record_external_error(self._get_external_dir(), error)
             external_paths = []
         for path in external_paths:
             package_name = self._external_package_name(path.parent)
@@ -186,16 +253,13 @@ class CharRegistry:
                 # Keep existing character filenames that cannot be imported as identifiers.
                 spec = spec_from_file_location(module_name, path)
                 if spec is None or spec.loader is None:
-                    raise ImportError("no module loader")
+                    raise ImportError(self.tr("找不到模块加载器"))
                 module = module_from_spec(spec)
                 modules[module_name] = module
                 spec.loader.exec_module(module)
         except Exception as error:
             modules.pop(module_name, None)
-            logger.warning(
-                "Failed to import external character module "
-                f"{path.name}: {error.__class__.__name__}"
-            )
+            self._record_external_error(path, error)
             return
 
         candidates = [
@@ -207,15 +271,18 @@ class CharRegistry:
             and value.__module__ == module.__name__
         ]
         if len(candidates) != 1:
-            logger.warning(
-                f"External character module {path.name} must define exactly one BaseChar subclass"
+            self._record_external_error(
+                path,
+                ValueError(self.tr("外置角色模块必须且只能定义一个 BaseChar 子类")),
             )
             return
 
         char_cls = candidates[0]
         impl_id = f"external:{relative_stem.lower()}"
         if impl_id in self._entries:
-            logger.warning(f"Duplicate external character implementation {impl_id} in {path.name}")
+            self._record_external_error(
+                path, ValueError(self.tr("角色实现标识重复: {impl_id}").format(impl_id=impl_id))
+            )
             return
         self._entries[impl_id] = CharImplementation(
             impl_id=impl_id,
