@@ -6,6 +6,9 @@ import uuid
 import zipfile
 from unittest.mock import Mock, patch
 
+import numpy as np
+
+from src.char.core.CharFactory import get_char_by_impl_id
 from src.char.core.CharRegistry import char_registry
 from src.char.custom.CustomChar import CustomChar
 from src.char.custom.CustomCharDb import DB_SCHEMA_VERSION, CustomCharDb
@@ -634,6 +637,105 @@ class TestCustomCharCore(unittest.TestCase):
             },
         )
         self.assertTrue(result.db["team_presets"][0]["is_fixed"])
+
+    def test_validate_db_removes_unreferenced_feature_images(self):
+        manager = CustomCharManager()
+        char_id = manager.create_character("char_cleanup", "")
+        referenced_feature_id = manager.add_feature_to_character(
+            char_id, np.zeros((10, 10, 3), dtype=np.uint8), 1920, 1080
+        )
+        orphan_feature_id = "orphan_feature"
+        manager.save_feature_image(orphan_feature_id, np.zeros((10, 10, 3), dtype=np.uint8))
+        note_path = os.path.join(self.temp_dir, "features", "note.txt")
+        with open(note_path, "w", encoding="utf-8") as file:
+            file.write("keep")
+
+        manager.validate_db()
+
+        self.assertTrue(
+            os.path.exists(os.path.join(self.temp_dir, "features", f"{referenced_feature_id}.png"))
+        )
+        self.assertFalse(
+            os.path.exists(os.path.join(self.temp_dir, "features", f"{orphan_feature_id}.png"))
+        )
+        self.assertTrue(os.path.exists(note_path))
+
+    def test_combo_compile(self):
+        """測試 CustomChar 透過 AST 語法樹將字串解析為獨立指令的容錯與精準度"""
+        manager = CustomCharManager()
+        combo_id = manager.add_combo(
+            "combo_ast", "skill, l_click(), l_hold(1.5), walk(w, 2), wait(0.5)"
+        )
+        char_id = manager.create_character("test_ast_hero", combo_id)
+
+        # 初始化 CustomChar
+        char = CustomChar(
+            task=Mock(),
+            index=0,
+            char_id=char_id,
+            impl_id=combo_id,
+        )
+        self.assertTrue(len(char.parsed_combo) > 0)
+
+        # 1. 無括號無參數的指令: skill
+        self.assertEqual(char.parsed_combo[0][0], "skill")
+        self.assertEqual(char.parsed_combo[0][2], [])
+
+        # 2. 帶有浮點數參數的指令: l_hold(1.5)
+        self.assertEqual(char.parsed_combo[2][0], "l_hold")
+        self.assertEqual(char.parsed_combo[2][2], [1.5])
+
+        # 3. 帶有裸寫字串(不用引號)與數值的混合參數: walk(w, 2)
+        self.assertEqual(char.parsed_combo[3][0], "walk")
+        self.assertEqual(char.parsed_combo[3][2], ["w", 2])
+
+    def test_char_factory_builds_direct_implementation_without_a_character_record(self):
+        manager = CustomCharManager()
+        combo_id = manager.add_combo("combo_direct_factory", "skill")
+
+        char = get_char_by_impl_id(Mock(), index=0, impl_id=combo_id)
+
+        self.assertIsInstance(char, CustomChar)
+        self.assertEqual(char.char_id, "")
+        self.assertEqual(char.impl_id, combo_id)
+
+    def test_builtin_combo_roundtrip(self):
+        manager = CustomCharManager()
+        builtin_id = PREDEFINED_CHARACTER_ID
+        builtin_name = manager.get_impl_name(builtin_id)
+        builtin_display = f"{manager.get_builtin_prefix()}{builtin_name}"
+
+        self.assertTrue(manager.is_builtin_impl(builtin_id))
+        self.assertFalse(builtin_name.startswith(manager.get_builtin_prefix()))
+
+        char_id = manager.create_character("char_builtin", builtin_id)
+        char_info = manager.get_character_info_by_id(char_id)
+        assert char_info is not None
+        self.assertEqual(char_info["impl_id"], builtin_id)
+        self.assertEqual(manager.get_impl_name(char_info["impl_id"]), builtin_name)
+
+        combo_items = manager.get_all_impl_items(with_source_prefix=True)
+        self.assertIn((builtin_display, builtin_id), combo_items)
+
+    def test_char_factory_loads_builtin_metadata_by_id(self):
+        from src.char.core.CharFactory import _build_char_instance
+        from src.char.Zero import Zero
+
+        manager = CustomCharManager()
+        char_id = manager.create_character("builtin_char", PREDEFINED_CHARACTER_ID)
+        instance = _build_char_instance(Mock(), 0, char_id, 0.95, manager)
+        self.assertIsInstance(instance, Zero)
+        self.assertEqual(instance.char_name, "builtin_char")
+        self.assertEqual(instance.impl_id, PREDEFINED_CHARACTER_ID)
+
+    def test_builtin_impl_name_uses_metadata_and_ui_prefix_is_display_only(self):
+        manager = CustomCharManager()
+        with patch.object(CustomCharManager, "_locale_name", return_value="zh_CN"):
+            self.assertEqual(manager.get_impl_name(PREDEFINED_CHARACTER_ID), "零")
+            self.assertEqual(
+                manager.get_impl_name(PREDEFINED_CHARACTER_ID, with_source_prefix=True),
+                "[内置代码] 零",
+            )
 
 
 if __name__ == "__main__":

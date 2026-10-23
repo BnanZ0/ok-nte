@@ -1,5 +1,7 @@
 import json
 import os
+import shutil
+import tempfile
 import unittest
 from unittest.mock import MagicMock, patch
 
@@ -8,16 +10,12 @@ from ok.test.TaskTestCase import TaskTestCase
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QApplication
 
-from src.char.core.CharFactory import get_char_by_impl_id
-from src.char.custom.CustomChar import CustomChar
 from src.char.custom.CustomCharDb import CustomCharDb
 from src.char.custom.CustomCharManager import CustomCharManager
 from src.config import config
 from src.tasks.DebugCharTask import DebugCharTask, TeamScanResult
 from src.ui.CharManagerTab import CharManagerTab
 from src.ui.TeamManagerTab import TeamManagerTab
-
-PREDEFINED_CHARACTER_ID = "builtin:zero"
 
 
 class TestCustomChar(TaskTestCase):
@@ -70,11 +68,6 @@ class TestCustomChar(TaskTestCase):
 
     def setUp(self):
         super().setUp()
-        import os
-        import tempfile
-        from unittest.mock import patch
-
-        self.set_image("tests/images/03.png")
 
         # 建立隔離的沙盒資料夾
         self.temp_dir = tempfile.mkdtemp()
@@ -94,8 +87,6 @@ class TestCustomChar(TaskTestCase):
             p.start()
 
         # 放個空的 DB 外殼給他
-        import json
-
         with open(db_path, "w", encoding="utf-8") as f:
             json.dump({"combos": {}, "characters": {}, "features": {}}, f)
 
@@ -106,7 +97,6 @@ class TestCustomChar(TaskTestCase):
 
     def tearDown(self):
         super().tearDown()
-        import shutil
 
         # 停止所有路徑攔截
         for p in self.patchers:
@@ -122,6 +112,8 @@ class TestCustomChar(TaskTestCase):
 
     def test_manager_crud(self):
         """測試 CustomCharManager 基本存取功能與特徵匹配"""
+        self.set_image("tests/images/03.png")
+
         # 新增 Combo 控制串
         combo_id = self.manager.add_combo("combo_test", "skill, jump")
         self.assertTrue(combo_id.startswith("combo_"))
@@ -156,55 +148,6 @@ class TestCustomChar(TaskTestCase):
         )
         self.assertTrue(is_match, f"match_char: {match_char}, similarity: {similarity}")
         self.assertEqual(match_char, char_id)
-
-    def test_validate_db_removes_unreferenced_feature_images(self):
-        char_id = self.manager.create_character("char_cleanup", "")
-        referenced_feature_id = self.manager.add_feature_to_character(
-            char_id, np.zeros((10, 10, 3), dtype=np.uint8), self.task.width, self.task.height
-        )
-        orphan_feature_id = "orphan_feature"
-        self.manager.save_feature_image(orphan_feature_id, np.zeros((10, 10, 3), dtype=np.uint8))
-        note_path = os.path.join(self.temp_dir, "features", "note.txt")
-        with open(note_path, "w", encoding="utf-8") as file:
-            file.write("keep")
-
-        self.manager.validate_db()
-
-        self.assertTrue(
-            os.path.exists(os.path.join(self.temp_dir, "features", f"{referenced_feature_id}.png"))
-        )
-        self.assertFalse(
-            os.path.exists(os.path.join(self.temp_dir, "features", f"{orphan_feature_id}.png"))
-        )
-        self.assertTrue(os.path.exists(note_path))
-
-    def test_combo_compile(self):
-        """測試 CustomChar 透過 AST 語法樹將字串解析為獨立指令的容錯與精準度"""
-        combo_id = self.manager.add_combo(
-            "combo_ast", "skill, l_click(), l_hold(1.5), walk(w, 2), wait(0.5)"
-        )
-        char_id = self.manager.create_character("test_ast_hero", combo_id)
-
-        # 初始化 CustomChar
-        char = CustomChar(
-            task=self.task,
-            index=0,
-            char_id=char_id,
-            impl_id=combo_id,
-        )
-        self.assertTrue(len(char.parsed_combo) > 0)
-
-        # 1. 無括號無參數的指令: skill
-        self.assertEqual(char.parsed_combo[0][0], "skill")
-        self.assertEqual(char.parsed_combo[0][2], [])
-
-        # 2. 帶有浮點數參數的指令: l_hold(1.5)
-        self.assertEqual(char.parsed_combo[2][0], "l_hold")
-        self.assertEqual(char.parsed_combo[2][2], [1.5])
-
-        # 3. 帶有裸寫字串(不用引號)與數值的混合參數: walk(w, 2)
-        self.assertEqual(char.parsed_combo[3][0], "walk")
-        self.assertEqual(char.parsed_combo[3][2], ["w", 2])
 
     def test_char_manager_tab_ui(self):
         """測試 CharManagerTab 角色管理 UI 行為與資料聯動"""
@@ -468,15 +411,6 @@ class TestCustomChar(TaskTestCase):
         )
         self.assertEqual(preset["slots"][0], {"char_id": "", "impl_id": combo_id})
 
-    def test_char_factory_builds_direct_implementation_without_a_character_record(self):
-        combo_id = self.manager.add_combo("combo_direct_factory", "skill")
-
-        char = get_char_by_impl_id(self.task, index=0, impl_id=combo_id)
-
-        self.assertIsInstance(char, CustomChar)
-        self.assertEqual(char.char_id, "")
-        self.assertEqual(char.impl_id, combo_id)
-
     def test_team_manager_fills_only_empty_preset_slots(self):
         tab = TeamManagerTab(manager=self.manager)
         combo_id = self.manager.add_combo("combo_scan_fill", "skill")
@@ -502,68 +436,6 @@ class TestCustomChar(TaskTestCase):
         self.assertEqual(preset["slots"][0]["char_id"], first_id)
         self.assertEqual(preset["slots"][1]["char_id"], second_id)
         self.assertEqual(preset["slots"][1]["impl_id"], combo_id)
-
-    def test_builtin_combo_roundtrip(self):
-        builtin_id = PREDEFINED_CHARACTER_ID
-        builtin_name = self.manager.get_impl_name(builtin_id)
-        builtin_display = f"{self.manager.get_builtin_prefix()}{builtin_name}"
-
-        self.assertTrue(self.manager.is_builtin_impl(builtin_id))
-        self.assertFalse(builtin_name.startswith(self.manager.get_builtin_prefix()))
-
-        char_id = self.manager.create_character("char_builtin", builtin_id)
-        char_info = self.manager.get_character_info_by_id(char_id)
-        assert char_info is not None
-        self.assertEqual(char_info["impl_id"], builtin_id)
-        self.assertEqual(self.manager.get_impl_name(char_info["impl_id"]), builtin_name)
-
-        combo_items = self.manager.get_all_impl_items(with_source_prefix=True)
-        self.assertIn((builtin_display, builtin_id), combo_items)
-
-    def test_migrate_legacy_builtin_combo_name(self):
-        import src.char.custom.CustomCharManager as manager_module
-
-        legacy_label = (
-            f"{self.manager.get_builtin_prefix()}"
-            f"{self.manager.get_impl_name(PREDEFINED_CHARACTER_ID)}"
-        )
-        with open(manager_module.DB_PATH, "w", encoding="utf-8") as f:
-            json.dump(
-                {
-                    "schema_version": 3,
-                    "combos": {},
-                    "characters": {"legacy_char": {"combo_name": legacy_label, "feature_ids": []}},
-                    "features": {},
-                },
-                f,
-                ensure_ascii=False,
-                indent=2,
-            )
-
-        CustomCharManager._instance = None
-        migrated_manager = CustomCharManager()
-        migrated_char_id = self._character_id_by_name(migrated_manager, "legacy_char")
-        migrated_info = migrated_manager.get_character_info_by_id(migrated_char_id)
-        assert migrated_info is not None
-        self.assertEqual(migrated_info["impl_id"], PREDEFINED_CHARACTER_ID)
-
-    def test_char_factory_uses_builtin_id_without_ui_import(self):
-        from src.char.core.CharFactory import _build_char_instance
-        from src.char.Zero import Zero
-
-        char_id = self.manager.create_character("builtin_char", PREDEFINED_CHARACTER_ID)
-        instance = _build_char_instance(self.task, 0, char_id, 0.95, self.manager)
-        self.assertIsInstance(instance, Zero)
-        self.assertEqual(instance.char_name, "builtin_char")
-        self.assertEqual(instance.impl_id, PREDEFINED_CHARACTER_ID)
-
-    def test_builtin_impl_name_uses_metadata_and_ui_prefix_is_display_only(self):
-        with patch.object(CustomCharManager, "_locale_name", return_value="zh_CN"):
-            self.assertEqual(self.manager.get_impl_name(PREDEFINED_CHARACTER_ID), "零")
-            self.assertEqual(
-                self.manager.get_impl_name(PREDEFINED_CHARACTER_ID, with_source_prefix=True),
-                "[内置代码] 零",
-            )
 
     @patch("requests.post")
     def test_google_translate_text_uses_post_request(self, mock_post):

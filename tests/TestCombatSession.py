@@ -1,8 +1,12 @@
 import unittest
-from unittest.mock import Mock
+from pathlib import Path
+from unittest.mock import Mock, patch
+
+from ok.task.exceptions import FinishedException, TaskDisabledException
 
 from src.char.BaseChar import BaseChar
-from src.combat.BaseCombatTask import BaseCombatTask, SleepCheckSkip
+from src.char.core.CharRegistry import CharRegistry
+from src.combat.BaseCombatTask import BaseCombatTask, NotInCombatException, SleepCheckSkip
 from src.tasks.DSDFarmTask import DSDFarmTask
 from src.utils.clock import TimePoint
 
@@ -105,6 +109,132 @@ class TestCombatSession(unittest.TestCase):
         task.combat_session.use_ultimate = False
 
         self.assertFalse(task.begin_combat_session().use_ultimate)
+
+    def _external_failure(self, error, char=None):
+        root = Path.cwd() / "external_diagnostic_test"
+        namespace = {"error": error, "char": char}
+        exec(
+            compile("def fail(self=char):\n    raise error\n", str(root / "hero.py"), "exec"),
+            namespace,
+        )
+        self.enterContext(
+            patch("src.combat.BaseCombatTask.char_registry", CharRegistry(external_dir=root))
+        )
+        return namespace["fail"]
+
+    def _cleanup_task(self):
+        task = self._task()
+        task.info = {}
+        task.log_error = Mock()
+        task.tr = lambda message: message
+        task.custom_bar = self.enterContext(
+            patch("src.combat.BaseCombatTask.communicate.info_bar_requested.emit")
+        )
+        task.reset_to_false = Mock()
+        task.get_current_char = Mock(return_value=None)
+        task._clear_dead_chars = Mock()
+        self.enterContext(patch("src.combat.BaseCombatTask.SoundCombatContext"))
+        return task
+
+    def test_external_runtime_failure_is_reported_during_cleanup_and_still_propagates(self):
+        task = self._cleanup_task()
+        fail = self._external_failure(AttributeError("removed_api"))
+        with self.assertRaises(AttributeError):
+            try:
+                fail()
+            finally:
+                task.combat_end()
+        task.log_error.assert_called_once()
+        message = task.log_error.call_args.args[0]
+        self.assertIn("hero.py:2", message)
+        self.assertIn("removed_api", message)
+        self.assertNotIn("notify", task.log_error.call_args.kwargs)
+        task.custom_bar.assert_called_once_with(
+            title="外置代码", content=message, success=False, duration=-1
+        )
+        task._clear_dead_chars.assert_called_once()
+        self.assertIsNone(task._combat_session)
+
+    def test_external_initialization_failure_is_reported_before_detection_catches_it(self):
+        task = self._cleanup_task()
+        task._load_chars = self._external_failure(TypeError("unexpected keyword"))
+        with self.assertRaises(TypeError):
+            task.load_chars()
+        task.log_error.assert_called_once()
+        self.assertIn("unexpected keyword", task.log_error.call_args.args[0])
+        self.assertNotIn("notify", task.log_error.call_args.kwargs)
+        task.custom_bar.assert_called_once()
+
+    def test_external_notice_identifies_the_failing_teammate_and_ui_combo_name(self):
+        task = self._cleanup_task()
+        source = BaseChar.__new__(BaseChar)
+        source.task = task
+        source.char_name = "我的黑鸟"
+        source.impl_id = "external:community_team/blackbird"
+        task.get_current_char = Mock(return_value=BaseChar.__new__(BaseChar))
+        fail = self._external_failure(TypeError("unexpected keyword"), char=source)
+        with (
+            patch("src.combat.BaseCombatTask.CustomCharManager") as manager,
+            patch(
+                "src.char.core.CharRegistry.CharRegistry.tr", side_effect=lambda text: text
+            ) as tr,
+        ):
+            combo_name = "[外置代码] community_team - 黑鸟"
+            manager.return_value.get_impl_name.return_value = combo_name
+            try:
+                fail()
+            except TypeError as error:
+                task._report_external_error(error)
+            manager.return_value.get_impl_name.assert_called_once_with(
+                source.impl_id, with_source_prefix=True
+            )
+        tr.assert_called_once()
+        self.assertIn(
+            "角色: {character}\n出招表: {combo}\n出错位置: {location}", tr.call_args.args[0]
+        )
+        message = task.custom_bar.call_args.kwargs["content"]
+        self.assertIn(source.char_name, message)
+        self.assertIn(combo_name, message)
+        self.assertIn("hero.py:2", message)
+
+    def test_cached_load_failures_use_custom_notifications_without_repeating(self):
+        task = self._cleanup_task()
+        task._load_chars = Mock(return_value=True)
+        with patch("src.combat.BaseCombatTask.char_registry") as registry:
+            registry.get_external_errors.return_value = ["hero.py:1: missing API"]
+            self.assertTrue(task.load_chars())
+            self.assertTrue(task.load_chars())
+            task.log_error.assert_called_once_with("hero.py:1: missing API")
+            task.custom_bar.assert_called_once()
+            registry.get_external_errors.return_value = []
+            task.load_chars()
+            registry.get_external_errors.return_value = ["hero.py:1: missing API"]
+            task.load_chars()
+        self.assertEqual(task.log_error.call_count, 2)
+        self.assertEqual(task.custom_bar.call_count, 2)
+
+    def test_normal_combat_control_exceptions_do_not_report_external_failures(self):
+        for error_type in (NotInCombatException, TaskDisabledException, FinishedException):
+            with self.subTest(error_type=error_type):
+                task = self._cleanup_task()
+                fail = self._external_failure(error_type("stop"))
+                with self.assertRaises(error_type):
+                    try:
+                        fail()
+                    finally:
+                        task.combat_end()
+                task.log_error.assert_not_called()
+                task.custom_bar.assert_not_called()
+
+    def test_builtin_error_does_not_get_an_external_code_notice(self):
+        task = self._cleanup_task()
+        with self.assertRaises(ValueError):
+            try:
+                raise ValueError("builtin failure")
+            finally:
+                task.combat_end()
+        task.log_error.assert_not_called()
+        task.custom_bar.assert_not_called()
 
 
 if __name__ == "__main__":

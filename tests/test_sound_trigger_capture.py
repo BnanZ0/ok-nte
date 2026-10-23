@@ -189,8 +189,10 @@ class SoundListenerTests(unittest.TestCase):
                     sample_path = Path(directory) / "dodge.wav"
                     sample_path.touch()
                     with (
-                        patch("src.sound_trigger.SoundListener.librosa.load", side_effect=decode)
-                        as load,
+                        patch(
+                            "src.sound_trigger.SoundListener.librosa",
+                            SimpleNamespace(load=Mock(side_effect=decode)),
+                        ) as decoder,
                         patch.object(SoundCombatContext, "_instance", None),
                     ):
                         context = SoundCombatContext()
@@ -204,7 +206,7 @@ class SoundListenerTests(unittest.TestCase):
 
                     self.assertFalse(context.is_active)
                     self.assertIsNone(context.listener)
-                    load.assert_called_once()
+                    decoder.load.assert_called_once()
                     self.assertEqual(list(Path(directory).iterdir()), [sample_path])
 
     def test_decode_failure_without_stop_preserves_original_error(self):
@@ -214,7 +216,10 @@ class SoundListenerTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             sample_path = Path(directory) / "dodge.wav"
             sample_path.touch()
-            with patch("src.sound_trigger.SoundListener.librosa.load", side_effect=error):
+            with patch(
+                "src.sound_trigger.SoundListener.librosa",
+                SimpleNamespace(load=Mock(side_effect=error)),
+            ):
                 with self.assertRaises(RuntimeError) as raised:
                     SoundListener(
                         sample_path=str(sample_path),

@@ -1,4 +1,5 @@
 import unittest
+from threading import Thread
 from types import MethodType, SimpleNamespace
 from unittest.mock import Mock, patch
 
@@ -44,6 +45,72 @@ class TestBotNotifications(unittest.TestCase):
         self.assertEqual(self.popup.call_count, 4)
         self.assertEqual(self.manager.notify_system.call_count, 4)
         self.manager.notify_system.assert_any_call("", "error", True, True)
+
+    def test_custom_bar_uses_the_ui_thread_without_replacing_framework_notifications(self):
+        from ok.ui.qt.events import QtEventDispatcher
+        from PySide6.QtCore import QCoreApplication, QEvent, QThread
+        from PySide6.QtWidgets import QApplication, QWidget
+
+        from src.ui.foundation.info_bar import install_info_bar_handler
+
+        type(self)._qt_app = QApplication.instance() or QApplication([])
+        app = type(self)._qt_app
+        parent = QWidget()
+        threads = []
+        forwarded = []
+        dispatcher = QtEventDispatcher()
+        with (
+            patch("ok.core.events._dispatcher", dispatcher.dispatch),
+            communicate.any.subscribed(forwarded.append),
+            patch(
+                "src.ui.foundation.info_bar.InfoBar.error",
+                side_effect=lambda **kwargs: threads.append(QThread.currentThread()),
+            ) as error_bar,
+            patch("src.ui.foundation.info_bar.InfoBar.success") as success_bar,
+        ):
+            install_info_bar_handler(parent)
+            install_info_bar_handler(parent)
+            self.addCleanup(communicate.info_bar_requested.disconnect, parent._info_bar_handler)
+            worker = Thread(
+                target=communicate.info_bar_requested.emit,
+                kwargs={"title": "External Code", "content": "external error", "duration": -1},
+            )
+            worker.start()
+            worker.join(timeout=5)
+            self.assertFalse(worker.is_alive())
+            error_bar.assert_not_called()
+            app.processEvents()
+            error_bar.assert_called_once()
+            self.assertEqual(threads, [app.thread()])
+            self.assertEqual(error_bar.call_args.kwargs["duration"], -1)
+            self.assertTrue(error_bar.call_args.kwargs["isClosable"])
+            self.assertIs(error_bar.call_args.kwargs["parent"], parent)
+            events = [event for event in forwarded if event.name == "info_bar_requested"]
+            self.assertEqual(len(events), 1)
+            self.assertEqual(events[0].kwargs["duration"], -1)
+            self.popup.assert_not_called()
+            self.task.log_error("ordinary error", notify=True)
+            self.popup.assert_called_once_with(None, "ordinary error", "", True)
+
+            communicate.info_bar_requested.emit(
+                title="Saved", content="custom duration", success=True, duration=12000
+            )
+            app.processEvents()
+            self.assertEqual(success_bar.call_args.kwargs["duration"], 12000)
+            pending = []
+            with patch(
+                "ok.core.events._dispatcher", side_effect=lambda *args: pending.append(args)
+            ):
+                communicate.info_bar_requested.emit(title="Queued", content="before destruction")
+            parent.deleteLater()
+            QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+            for callback, args, kwargs in pending:
+                callback(*args, **kwargs)
+            communicate.info_bar_requested.emit(title="Closed", content="after destruction")
+            app.processEvents()
+            error_bar.assert_called_once()
+
+        self.external_submit.assert_not_called()
 
     def test_queued_bot_log_sends_original_text_once(self):
         pending = []

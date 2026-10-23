@@ -3,6 +3,7 @@ import json
 import os
 import shutil
 import stat
+import tempfile
 import unittest
 import uuid
 import zipfile
@@ -52,6 +53,28 @@ SOURCE = (
 )
 
 
+def make_package(external=True):
+    slots = [
+        PackageSlot(
+            0,
+            "builtin",
+            {"zh_CN": "零", "en_US": "Zero"},
+            impl_id="builtin:zero",
+        )
+    ]
+    if external:
+        slots.append(
+            PackageSlot(
+                1,
+                "external",
+                {"zh_CN": "示例角色", "en_US": "SampleExternal"},
+                file_name="sample.py",
+                class_name="SampleExternal",
+            )
+        )
+    return TeamPackage("测试方案", "说明", "作者", "1.0.0", tuple(slots))
+
+
 class TestWorkshop(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -87,27 +110,6 @@ class TestWorkshop(unittest.TestCase):
         char_registry.rescan_external()
         shutil.rmtree(self.temp_dir, ignore_errors=True)
 
-    def _package(self, external=True):
-        slots = [
-            PackageSlot(
-                0,
-                "builtin",
-                {"zh_CN": "零", "en_US": "Zero"},
-                impl_id="builtin:zero",
-            )
-        ]
-        if external:
-            slots.append(
-                PackageSlot(
-                    1,
-                    "external",
-                    {"zh_CN": "示例角色", "en_US": "SampleExternal"},
-                    file_name="sample.py",
-                    class_name="SampleExternal",
-                )
-            )
-        return TeamPackage("测试方案", "说明", "作者", "1.0.0", tuple(slots))
-
     def test_export_and_import_only_selected_implementation_sources(self):
         source_dir = self.external_dir / "original"
         source_dir.mkdir(parents=True)
@@ -129,7 +131,7 @@ class TestWorkshop(unittest.TestCase):
             )
         )
         archive_path = self.temp_dir / "out.zip"
-        self.service.export_preset(preset["id"], self._package(), archive_path)
+        self.service.export_preset(preset["id"], make_package(), archive_path)
 
         with zipfile.ZipFile(archive_path) as archive:
             self.assertEqual(set(archive.namelist()), {"team.json", "sample.py"})
@@ -148,7 +150,7 @@ class TestWorkshop(unittest.TestCase):
         target.mkdir(parents=True)
         marker = target / "keep.py"
         marker.write_text("keep", encoding="utf-8")
-        contents = ArchiveContents(self._package(), {"sample.py": SOURCE})
+        contents = ArchiveContents(make_package(), {"sample.py": SOURCE})
 
         with self.assertRaises(WorkshopInstallError):
             self.service.install_contents(contents, "新方案", "existing")
@@ -156,7 +158,7 @@ class TestWorkshop(unittest.TestCase):
         self.assertFalse(any(item["name"] == "新方案" for item in self.manager.get_team_presets()))
 
     def test_update_preserves_all_bindings_and_records_original_directory(self):
-        contents = ArchiveContents(self._package(), {"sample.py": SOURCE + "\n    revision = 1\n"})
+        contents = ArchiveContents(make_package(), {"sample.py": SOURCE + "\n    revision = 1\n"})
         imported = self.service.install_contents(contents, "Local name", "original_1.0.0")
         impl_id = "external:original_1.0.0/sample"
         character = self.manager.create_character("Local character", impl_id)
@@ -191,7 +193,7 @@ class TestWorkshop(unittest.TestCase):
         self.assertEqual(restarted.get_installations(), [record])
 
     def test_update_rejects_any_python_file_list_change_without_mutation(self):
-        contents = ArchiveContents(self._package(), {"sample.py": SOURCE})
+        contents = ArchiveContents(make_package(), {"sample.py": SOURCE})
         self.service.install_contents(contents, "Local", "original")
         record_before = self.service.installation_store.path.read_bytes()
         new_slot = replace(contents.package.slots[1], file_name="renamed.py")
@@ -217,7 +219,7 @@ class TestWorkshop(unittest.TestCase):
                 )
 
     def test_crlf_archive_sources_can_be_updated_repeatedly_without_local_edits(self):
-        contents = ArchiveContents(self._package(), {"sample.py": SOURCE.replace("\n", "\r\n")})
+        contents = ArchiveContents(make_package(), {"sample.py": SOURCE.replace("\n", "\r\n")})
         self.service.install_contents(contents, "Local", "original")
         for version, newline in (("1.1.0", "\r\n"), ("1.2.0", "\n")):
             source = (SOURCE + f"\n    revision = '{version}'\n").replace("\n", newline)
@@ -239,7 +241,7 @@ class TestWorkshop(unittest.TestCase):
             file_name="helper.py",
             class_name="Helper",
         )
-        package = replace(self._package(), slots=(*self._package().slots, helper_slot))
+        package = replace(make_package(), slots=(*make_package().slots, helper_slot))
         helper = SOURCE.replace("SampleExternal", "Helper")
         contents = ArchiveContents(package, {"sample.py": SOURCE, "helper.py": helper})
         self.service.install_contents(contents, "Local", "original")
@@ -267,7 +269,7 @@ class TestWorkshop(unittest.TestCase):
             file_name="helper.py",
             class_name="Helper",
         )
-        package = replace(self._package(), slots=(*self._package().slots, helper_slot))
+        package = replace(make_package(), slots=(*make_package().slots, helper_slot))
         helper = SOURCE.replace("SampleExternal", "Helper") + "\nVALUE = 1\n"
         sample = "from .helper import VALUE\n" + SOURCE + "\n    revision = VALUE\n"
         contents = ArchiveContents(package, {"sample.py": sample, "helper.py": helper})
@@ -283,7 +285,7 @@ class TestWorkshop(unittest.TestCase):
         self.assertEqual(char_registry.get("external:original/sample").char_cls.revision, 2)
 
     def test_update_rolls_back_when_installation_record_cannot_be_saved(self):
-        contents = ArchiveContents(self._package(), {"sample.py": SOURCE})
+        contents = ArchiveContents(make_package(), {"sample.py": SOURCE})
         self.service.install_contents(contents, "Local", "original")
         record_before = self.service.installation_store.path.read_bytes()
         update = ArchiveContents(
@@ -301,7 +303,7 @@ class TestWorkshop(unittest.TestCase):
         self.assertEqual(self.service.installation_store.path.read_bytes(), record_before)
 
     def test_update_skips_local_edits_and_checks_before_replacing_sources(self):
-        contents = ArchiveContents(self._package(), {"sample.py": SOURCE})
+        contents = ArchiveContents(make_package(), {"sample.py": SOURCE})
         self.service.install_contents(contents, "Local", "original")
         update = ArchiveContents(
             replace(contents.package, version="1.1.0"),
@@ -320,7 +322,7 @@ class TestWorkshop(unittest.TestCase):
         self.assertEqual(self.service.get_installations()[0].version, "1.0.0")
 
     def test_record_failure_rolls_back_new_installation(self):
-        contents = ArchiveContents(self._package(), {"sample.py": SOURCE})
+        contents = ArchiveContents(make_package(), {"sample.py": SOURCE})
         with patch.object(
             self.service.installation_store,
             "save_installation",
@@ -336,7 +338,7 @@ class TestWorkshop(unittest.TestCase):
         path.write_text("invalid json", encoding="utf-8")
         with self.assertRaises(WorkshopInstallError) as caught:
             self.service.install_contents(
-                ArchiveContents(self._package(), {"sample.py": SOURCE}), "Local", "original"
+                ArchiveContents(make_package(), {"sample.py": SOURCE}), "Local", "original"
             )
         self.assertEqual(caught.exception.code, WorkshopInstallErrorCode.INVALID_INSTALLATIONS)
         self.assertEqual(path.read_text(encoding="utf-8"), "invalid json")
@@ -359,7 +361,7 @@ class TestWorkshop(unittest.TestCase):
                 self.service.get_installations()
 
     def test_bulk_update_continues_other_copies_and_checks_download_identity(self):
-        contents = ArchiveContents(self._package(), {"sample.py": SOURCE})
+        contents = ArchiveContents(make_package(), {"sample.py": SOURCE})
         for directory in ("edited", "original"):
             self.service.install_contents(contents, directory, directory)
         (self.external_dir / "edited" / "sample.py").write_text(
@@ -390,7 +392,7 @@ class TestWorkshop(unittest.TestCase):
         repository.download_archive.assert_not_called()
 
     def test_workshop_history_import_and_latest_update_follow_selected_version(self):
-        contents = ArchiveContents(self._package(), {"sample.py": SOURCE})
+        contents = ArchiveContents(make_package(), {"sample.py": SOURCE})
         self.service.install_contents(contents, "Local", "original")
         update = ArchiveContents(
             replace(contents.package, version="1.1.0"),
@@ -438,66 +440,9 @@ class TestWorkshop(unittest.TestCase):
             dialog.deleteLater()
             parent.deleteLater()
 
-    def test_invalid_archive_is_rejected_before_install(self):
-        invalid = io.BytesIO()
-        with zipfile.ZipFile(invalid, "w") as archive:
-            archive.writestr("team.json", json.dumps(self._package().to_dict()))
-            archive.writestr("folder/sample.py", SOURCE)
-        with self.assertRaises(WorkshopFormatError):
-            load_archive(invalid.getvalue())
-
-    def test_archive_rejects_directory_entries_and_symbolic_links(self):
-        archive_path = self.temp_dir / "invalid.zip"
-        with zipfile.ZipFile(archive_path, "w") as archive:
-            archive.writestr("folder/", "")
-            archive.writestr("team.json", json.dumps(self._package().to_dict()))
-            archive.writestr("sample.py", SOURCE)
-        with self.assertRaises(WorkshopFormatError):
-            load_archive(archive_path)
-
-        link_path = self.temp_dir / "link.zip"
-        link = zipfile.ZipInfo("sample.py")
-        link.external_attr = (stat.S_IFLNK | 0o777) << 16
-        with zipfile.ZipFile(link_path, "w") as archive:
-            archive.writestr("team.json", json.dumps(self._package().to_dict()))
-            archive.writestr(link, "sample.py")
-        with self.assertRaises(WorkshopFormatError):
-            load_archive(link_path)
-
-    def test_archive_syntax_check_does_not_execute_source(self):
-        contents = ArchiveContents(
-            self._package(), {"sample.py": "raise RuntimeError('must not execute')\n"}
-        )
-        archive_path = self.temp_dir / "safe_parse.zip"
-        from src.char.workshop.archive import write_archive
-
-        write_archive(archive_path, contents)
-        self.assertEqual(load_archive(archive_path).sources, contents.sources)
-
-    def test_manifest_rejects_oversized_fields_and_invalid_class_names(self):
-        data = self._package().to_dict()
-        data["name"] = "x" * 101
-        with self.assertRaises(WorkshopFormatError):
-            TeamPackage.from_dict(data)
-
-    def test_external_directory_rejects_reserved_windows_names(self):
-        with self.assertRaises(ValueError):
-            CustomCharManager.validate_external_directory("CON")
-        with self.assertRaises(ValueError):
-            CustomCharManager.validate_external_directory("team. ")
-        self.assertEqual(
-            CustomCharManager.validate_external_directory("team_author_1.0.0"),
-            "team_author_1.0.0",
-        )
-
-        data = self._package().to_dict()
-        data["slots"][1]["class_name"] = "not a class"
-        with self.assertRaises(WorkshopFormatError):
-            TeamPackage.from_dict(data)
-
     def test_failed_external_scan_rolls_back_new_directory_and_preset(self):
         source = SOURCE.replace("class SampleExternal(BaseChar):", "class NotACharacter:")
-        contents = ArchiveContents(self._package(), {"sample.py": source})
+        contents = ArchiveContents(make_package(), {"sample.py": source})
         with self.assertRaises(WorkshopInstallError):
             self.service.install_contents(contents, "失败方案", "broken")
         self.assertFalse((self.external_dir / "broken").exists())
@@ -508,7 +453,7 @@ class TestWorkshop(unittest.TestCase):
     def test_existing_external_directory_has_structured_install_error(self):
         directory = self.external_dir / "existing"
         directory.mkdir(parents=True)
-        contents = ArchiveContents(self._package(), {"sample.py": SOURCE})
+        contents = ArchiveContents(make_package(), {"sample.py": SOURCE})
 
         with self.assertRaises(WorkshopInstallError) as raised:
             self.service.install_contents(contents, "冲突方案", directory.name)
@@ -526,7 +471,7 @@ class TestWorkshop(unittest.TestCase):
         parent = QWidget()
         parent.resize(800, 600)
         dialog = PackageImportDialog(
-            self._package(),
+            make_package(),
             "existing.zip",
             parent,
             directory_exists=lambda directory: directory == "existing",
@@ -535,150 +480,9 @@ class TestWorkshop(unittest.TestCase):
         self.assertFalse(dialog.yesButton.isEnabled())
         self.assertIn("existing", dialog.error_label.text())
 
-    def test_repository_uses_chinese_source_then_falls_back(self):
-        catalog = {
-            "format_version": 1,
-            "packages": [
-                {
-                    **self._package(False).to_dict(),
-                    "archive": "codes/test.zip",
-                    "filename": "test.zip",
-                    "size": 1,
-                    "updated_at": "2026-01-01T00:00:00Z",
-                }
-            ],
-        }
-        cnb_response = Mock()
-        cnb_response.raise_for_status.side_effect = requests.RequestException("offline")
-        github_response = Mock()
-        github_response.raise_for_status.return_value = None
-        github_response.headers = {}
-        github_response.iter_content.return_value = [
-            json.dumps(catalog, ensure_ascii=False).encode("utf-8")
-        ]
-        session = Mock()
-        session.get.side_effect = [cnb_response, github_response]
-        repository = WorkshopRepository(
-            IndexSource("GitHub", "github-index", "github-base"),
-            IndexSource("CNB", "cnb-index", "cnb-base"),
-            session,
-            self.temp_dir / "catalog.json",
-        )
-        entries, source = repository.fetch_catalog(True)
-        self.assertEqual(source.name, "GitHub")
-        self.assertEqual(entries[0].filename, "test.zip")
-        self.assertEqual(
-            [call.args[0] for call in session.get.call_args_list], ["cnb-index", "github-index"]
-        )
-
-    def test_repository_reuses_preferred_source_cache_until_manual_refresh(self):
-        catalog = {
-            "format_version": 1,
-            "packages": [
-                {
-                    **self._package(False).to_dict(),
-                    "archive": "codes/test.zip",
-                    "filename": "test.zip",
-                    "size": 1,
-                    "updated_at": "2026-01-01T00:00:00Z",
-                }
-            ],
-        }
-        response = Mock()
-        response.raise_for_status.return_value = None
-        response.headers = {}
-        response.iter_content.return_value = [json.dumps(catalog).encode("utf-8")]
-        session = Mock()
-        session.get.return_value = response
-        cache_path = self.temp_dir / "catalog.json"
-        repository = WorkshopRepository(
-            IndexSource("GitHub", "github-index", "github-base"),
-            IndexSource("CNB", "cnb-index", "cnb-base"),
-            session,
-            cache_path,
-        )
-
-        repository.fetch_catalog(True)
-        repository.fetch_catalog(True)
-        repository.fetch_catalog(True, force_refresh=True)
-
-        self.assertEqual(session.get.call_count, 2)
-
-    def test_repository_ignores_expired_cache(self):
-        catalog = {
-            "format_version": 1,
-            "packages": [
-                {
-                    **self._package(False).to_dict(),
-                    "archive": "codes/test.zip",
-                    "filename": "test.zip",
-                    "size": 1,
-                    "updated_at": "2026-01-01T00:00:00Z",
-                }
-            ],
-        }
-        response = Mock()
-        response.raise_for_status.return_value = None
-        response.headers = {}
-        response.iter_content.return_value = [json.dumps(catalog).encode("utf-8")]
-        session = Mock()
-        session.get.return_value = response
-        cache_path = self.temp_dir / "catalog.json"
-        timestamp = datetime(2026, 1, 1, tzinfo=UTC)
-        sources = (
-            IndexSource("GitHub", "github-index", "github-base"),
-            IndexSource("CNB", "cnb-index", "cnb-base"),
-        )
-        WorkshopRepository(*sources, session, cache_path, now=lambda _tz: timestamp).fetch_catalog(
-            True
-        )
-
-        WorkshopRepository(
-            *sources,
-            session,
-            cache_path,
-            now=lambda _tz: timestamp + timedelta(hours=24, seconds=1),
-        ).fetch_catalog(True)
-
-        self.assertEqual(session.get.call_count, 2)
-
-    def test_repository_rejects_oversized_archive_before_loading_it(self):
-        entry = CatalogEntry(
-            self._package(False), "codes/test.zip", "test.zip", 1, "2026-01-01T00:00:00Z"
-        )
-        response = Mock()
-        response.raise_for_status.return_value = None
-        response.headers = {"Content-Length": str(MAX_ARCHIVE_BYTES + 1)}
-        session = Mock()
-        session.get.return_value = response
-        repository = WorkshopRepository(
-            IndexSource("GitHub", "github-index", "github-base"),
-            IndexSource("CNB", "cnb-index", "cnb-base"),
-            session,
-            self.temp_dir / "catalog.json",
-        )
-
-        with self.assertRaises(WorkshopRepositoryError):
-            repository.download_archive(repository.github, entry)
-        self.assertEqual(session.get.call_count, 2)
-
-    def test_catalog_filter_searches_names_roles_and_authors(self):
-        second = TeamPackage("Second", "strategy", "Other", "2.0.0", self._package(False).slots)
-        entries = [
-            CatalogEntry(
-                self._package(False), "codes/first.zip", "first.zip", 1, "2026-01-01T00:00:00Z"
-            ),
-            CatalogEntry(second, "codes/second.zip", "second.zip", 1, "2026-02-01T00:00:00Z"),
-        ]
-        self.assertEqual(
-            filter_catalog_entries(entries, keyword="strategy")[0].filename, "second.zip"
-        )
-        self.assertEqual(filter_catalog_entries(entries, role="Zero"), [entries[1], entries[0]])
-        self.assertEqual(filter_catalog_entries(entries, author="作者"), [entries[0]])
-
     def test_workshop_dialog_uses_readable_catalog_table(self):
         entry = CatalogEntry(
-            self._package(False), "codes/test.zip", "test.zip", 3041, "2026-08-18T12:09:37Z"
+            make_package(False), "codes/test.zip", "test.zip", 3041, "2026-08-18T12:09:37Z"
         )
         repository = Mock()
         parent = QWidget()
@@ -695,65 +499,13 @@ class TestWorkshop(unittest.TestCase):
         dialog.deleteLater()
         parent.deleteLater()
 
-    def test_version_format_and_numeric_order(self):
-        self.assertGreater(parse_version("1.10.0"), parse_version("1.9.9"))
-        for version in (
-            "1",
-            "1.0",
-            "v1.0.0",
-            "1.0.0-beta",
-            "01.0.0",
-            "1.00.0",
-            "-1.0.0",
-            "\uff11.0.0",
-            "1.0.0.0",
-            "1.0.0\n",
-            "1" * 33 + ".0.0",
-        ):
-            with self.subTest(version=version), self.assertRaises(WorkshopFormatError):
-                parse_version(version)
-        for version in ("0.0.0", "1.9.0", "1.10.0"):
-            data = {**self._package().to_dict(), "version": version}
-            self.assertEqual(TeamPackage.from_dict(data).version, version)
-        with self.assertRaises(WorkshopFormatError):
-            TeamPackage.from_dict({**self._package().to_dict(), "version": "1.0"})
-
-    def test_catalog_groups_by_author_and_name_not_members_or_commit_time(self):
-        old = CatalogEntry(
-            self._package(False), "codes/old.zip", "old.zip", 1, "2026-09-01T00:00:00Z"
-        )
-        latest = replace(
-            old,
-            package=replace(self._package(), version="1.10.0"),
-            archive="codes/latest.zip",
-            updated_at="2026-08-01T00:00:00Z",
-        )
-        intermediate = replace(old, package=replace(old.package, version="1.9.0"))
-        other_author = replace(old, package=replace(old.package, author="Other"))
-        other_name = replace(old, package=replace(old.package, name="Other strategy"))
-        groups = group_catalog_entries([old, intermediate, latest, other_author, other_name])
-        self.assertEqual(len(groups), 3)
-        self.assertEqual(groups[old.package.identity], (latest, intermediate, old))
-
-    def test_catalog_rejects_duplicate_named_version_even_with_different_slots(self):
-        data = {
-            **self._package().to_dict(),
-            "archive": "codes/a.zip",
-            "filename": "a.zip",
-            "size": 1,
-            "updated_at": "2026-09-01T00:00:00Z",
-        }
-        duplicate = {**data, "slots": self._package(False).to_dict()["slots"]}
-        with self.assertRaises(WorkshopFormatError):
-            parse_catalog({"format_version": 1, "packages": [data, duplicate]})
-
     def test_workshop_selects_history_for_preview_and_import(self):
         old = CatalogEntry(
-            self._package(False), "codes/old.zip", "old.zip", 1, "2026-09-01T00:00:00Z"
+            make_package(False), "codes/old.zip", "old.zip", 1, "2026-09-01T00:00:00Z"
         )
         latest = replace(
             old,
-            package=replace(self._package(), version="1.10.0", description="New rotation"),
+            package=replace(make_package(), version="1.10.0", description="New rotation"),
             archive="codes/latest.zip",
             updated_at="2026-08-01T00:00:00Z",
         )
@@ -799,7 +551,7 @@ class TestWorkshop(unittest.TestCase):
             '第一行\n\n目录 C:\\new_team\n代码 print("\\n")\n字面量 \\r\\n',
             "作者",
             "1.0.0",
-            self._package(False).slots,
+            make_package(False).slots,
         )
         entry = CatalogEntry(package, "codes/test.zip", "test.zip", 100, "2026-01-01T00:00:00Z")
         parent = QWidget()
@@ -813,9 +565,9 @@ class TestWorkshop(unittest.TestCase):
             parent.deleteLater()
 
     def test_export_fills_selected_workshop_version_without_installing_or_remembering(self):
-        defaults = TeamPackage("Local team", "", "", "1.0.0", self._package(False).slots)
+        defaults = TeamPackage("Local team", "", "", "1.0.0", make_package(False).slots)
         old = CatalogEntry(
-            replace(self._package(), description="旧版说明\nOld rotation"),
+            replace(make_package(), description="旧版说明\nOld rotation"),
             "codes/old.zip",
             "old.zip",
             100,
@@ -868,7 +620,7 @@ class TestWorkshop(unittest.TestCase):
 
         def cancel_selection(picker):
             entry = CatalogEntry(
-                self._package(), "codes/test.zip", "test.zip", 100, "2026-01-01T00:00:00Z"
+                make_package(), "codes/test.zip", "test.zip", 100, "2026-01-01T00:00:00Z"
             )
             picker._catalog_loaded(([entry], IndexSource("GitHub", "index", "base")))
             return 0
@@ -886,7 +638,7 @@ class TestWorkshop(unittest.TestCase):
 
     def test_workshop_fill_requires_selection_after_filter_or_load_failure(self):
         entry = CatalogEntry(
-            self._package(), "codes/test.zip", "test.zip", 100, "2026-01-01T00:00:00Z"
+            make_package(), "codes/test.zip", "test.zip", 100, "2026-01-01T00:00:00Z"
         )
         parent = QWidget()
         with patch.object(WorkshopDialog, "reload_catalog"):
@@ -913,9 +665,9 @@ class TestWorkshop(unittest.TestCase):
             parent.deleteLater()
 
     def test_workshop_dialog_layout_stability_and_no_shadow(self):
-        pkg1 = TeamPackage("A", "Desc 1", "Author A", "1.0.0", self._package(False).slots)
+        pkg1 = TeamPackage("A", "Desc 1", "Author A", "1.0.0", make_package(False).slots)
         pkg2 = TeamPackage(
-            "B", "Multi\nLine\nDescription\nHere", "Author B", "2.0.0", self._package(False).slots
+            "B", "Multi\nLine\nDescription\nHere", "Author B", "2.0.0", make_package(False).slots
         )
         e1 = CatalogEntry(pkg1, "codes/a.zip", "a.zip", 100, "2026-01-01T00:00:00Z")
         e2 = CatalogEntry(pkg2, "codes/b.zip", "b.zip", 200, "2026-01-02T00:00:00Z")
@@ -942,3 +694,269 @@ class TestWorkshop(unittest.TestCase):
         finally:
             dialog.deleteLater()
             parent.deleteLater()
+
+
+class TestWorkshopModels(unittest.TestCase):
+    def test_manifest_rejects_oversized_fields_and_invalid_class_names(self):
+        data = make_package().to_dict()
+        data["name"] = "x" * 101
+        with self.assertRaises(WorkshopFormatError):
+            TeamPackage.from_dict(data)
+
+    def test_external_directory_rejects_reserved_windows_names(self):
+        with self.assertRaises(ValueError):
+            CustomCharManager.validate_external_directory("CON")
+        with self.assertRaises(ValueError):
+            CustomCharManager.validate_external_directory("team. ")
+        self.assertEqual(
+            CustomCharManager.validate_external_directory("team_author_1.0.0"),
+            "team_author_1.0.0",
+        )
+
+        data = make_package().to_dict()
+        data["slots"][1]["class_name"] = "not a class"
+        with self.assertRaises(WorkshopFormatError):
+            TeamPackage.from_dict(data)
+
+    def test_catalog_filter_searches_names_roles_and_authors(self):
+        second = TeamPackage("Second", "strategy", "Other", "2.0.0", make_package(False).slots)
+        entries = [
+            CatalogEntry(
+                make_package(False), "codes/first.zip", "first.zip", 1, "2026-01-01T00:00:00Z"
+            ),
+            CatalogEntry(second, "codes/second.zip", "second.zip", 1, "2026-02-01T00:00:00Z"),
+        ]
+        self.assertEqual(
+            filter_catalog_entries(entries, keyword="strategy")[0].filename, "second.zip"
+        )
+        self.assertEqual(filter_catalog_entries(entries, role="Zero"), [entries[1], entries[0]])
+        self.assertEqual(filter_catalog_entries(entries, author="作者"), [entries[0]])
+
+    def test_version_format_and_numeric_order(self):
+        self.assertGreater(parse_version("1.10.0"), parse_version("1.9.9"))
+        for version in (
+            "1",
+            "1.0",
+            "v1.0.0",
+            "1.0.0-beta",
+            "01.0.0",
+            "1.00.0",
+            "-1.0.0",
+            "\uff11.0.0",
+            "1.0.0.0",
+            "1.0.0\n",
+            "1" * 33 + ".0.0",
+        ):
+            with self.subTest(version=version), self.assertRaises(WorkshopFormatError):
+                parse_version(version)
+        for version in ("0.0.0", "1.9.0", "1.10.0"):
+            data = {**make_package().to_dict(), "version": version}
+            self.assertEqual(TeamPackage.from_dict(data).version, version)
+        with self.assertRaises(WorkshopFormatError):
+            TeamPackage.from_dict({**make_package().to_dict(), "version": "1.0"})
+
+    def test_catalog_groups_by_author_and_name_not_members_or_commit_time(self):
+        old = CatalogEntry(
+            make_package(False), "codes/old.zip", "old.zip", 1, "2026-09-01T00:00:00Z"
+        )
+        latest = replace(
+            old,
+            package=replace(make_package(), version="1.10.0"),
+            archive="codes/latest.zip",
+            updated_at="2026-08-01T00:00:00Z",
+        )
+        intermediate = replace(old, package=replace(old.package, version="1.9.0"))
+        other_author = replace(old, package=replace(old.package, author="Other"))
+        other_name = replace(old, package=replace(old.package, name="Other strategy"))
+        groups = group_catalog_entries([old, intermediate, latest, other_author, other_name])
+        self.assertEqual(len(groups), 3)
+        self.assertEqual(groups[old.package.identity], (latest, intermediate, old))
+
+    def test_catalog_rejects_duplicate_named_version_even_with_different_slots(self):
+        data = {
+            **make_package().to_dict(),
+            "archive": "codes/a.zip",
+            "filename": "a.zip",
+            "size": 1,
+            "updated_at": "2026-09-01T00:00:00Z",
+        }
+        duplicate = {**data, "slots": make_package(False).to_dict()["slots"]}
+        with self.assertRaises(WorkshopFormatError):
+            parse_catalog({"format_version": 1, "packages": [data, duplicate]})
+
+
+class TestWorkshopArchive(unittest.TestCase):
+    def setUp(self):
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        self.temp_dir = Path(directory.name)
+
+    def test_invalid_archive_is_rejected_before_install(self):
+        invalid = io.BytesIO()
+        with zipfile.ZipFile(invalid, "w") as archive:
+            archive.writestr("team.json", json.dumps(make_package().to_dict()))
+            archive.writestr("folder/sample.py", SOURCE)
+        with self.assertRaises(WorkshopFormatError):
+            load_archive(invalid.getvalue())
+
+    def test_archive_rejects_directory_entries_and_symbolic_links(self):
+        archive_path = self.temp_dir / "invalid.zip"
+        with zipfile.ZipFile(archive_path, "w") as archive:
+            archive.writestr("folder/", "")
+            archive.writestr("team.json", json.dumps(make_package().to_dict()))
+            archive.writestr("sample.py", SOURCE)
+        with self.assertRaises(WorkshopFormatError):
+            load_archive(archive_path)
+
+        link_path = self.temp_dir / "link.zip"
+        link = zipfile.ZipInfo("sample.py")
+        link.external_attr = (stat.S_IFLNK | 0o777) << 16
+        with zipfile.ZipFile(link_path, "w") as archive:
+            archive.writestr("team.json", json.dumps(make_package().to_dict()))
+            archive.writestr(link, "sample.py")
+        with self.assertRaises(WorkshopFormatError):
+            load_archive(link_path)
+
+    def test_archive_syntax_check_does_not_execute_source(self):
+        contents = ArchiveContents(
+            make_package(), {"sample.py": "raise RuntimeError('must not execute')\n"}
+        )
+        archive_path = self.temp_dir / "safe_parse.zip"
+        from src.char.workshop.archive import write_archive
+
+        write_archive(archive_path, contents)
+        self.assertEqual(load_archive(archive_path).sources, contents.sources)
+
+
+class TestWorkshopRepository(unittest.TestCase):
+    def setUp(self):
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        self.temp_dir = Path(directory.name)
+
+    def test_repository_uses_chinese_source_then_falls_back(self):
+        catalog = {
+            "format_version": 1,
+            "packages": [
+                {
+                    **make_package(False).to_dict(),
+                    "archive": "codes/test.zip",
+                    "filename": "test.zip",
+                    "size": 1,
+                    "updated_at": "2026-01-01T00:00:00Z",
+                }
+            ],
+        }
+        cnb_response = Mock()
+        cnb_response.raise_for_status.side_effect = requests.RequestException("offline")
+        github_response = Mock()
+        github_response.raise_for_status.return_value = None
+        github_response.headers = {}
+        github_response.iter_content.return_value = [
+            json.dumps(catalog, ensure_ascii=False).encode("utf-8")
+        ]
+        session = Mock()
+        session.get.side_effect = [cnb_response, github_response]
+        repository = WorkshopRepository(
+            IndexSource("GitHub", "github-index", "github-base"),
+            IndexSource("CNB", "cnb-index", "cnb-base"),
+            session,
+            self.temp_dir / "catalog.json",
+        )
+        entries, source = repository.fetch_catalog(True)
+        self.assertEqual(source.name, "GitHub")
+        self.assertEqual(entries[0].filename, "test.zip")
+        self.assertEqual(
+            [call.args[0] for call in session.get.call_args_list], ["cnb-index", "github-index"]
+        )
+
+    def test_repository_reuses_preferred_source_cache_until_manual_refresh(self):
+        catalog = {
+            "format_version": 1,
+            "packages": [
+                {
+                    **make_package(False).to_dict(),
+                    "archive": "codes/test.zip",
+                    "filename": "test.zip",
+                    "size": 1,
+                    "updated_at": "2026-01-01T00:00:00Z",
+                }
+            ],
+        }
+        response = Mock()
+        response.raise_for_status.return_value = None
+        response.headers = {}
+        response.iter_content.return_value = [json.dumps(catalog).encode("utf-8")]
+        session = Mock()
+        session.get.return_value = response
+        cache_path = self.temp_dir / "catalog.json"
+        repository = WorkshopRepository(
+            IndexSource("GitHub", "github-index", "github-base"),
+            IndexSource("CNB", "cnb-index", "cnb-base"),
+            session,
+            cache_path,
+        )
+
+        repository.fetch_catalog(True)
+        repository.fetch_catalog(True)
+        repository.fetch_catalog(True, force_refresh=True)
+
+        self.assertEqual(session.get.call_count, 2)
+
+    def test_repository_ignores_expired_cache(self):
+        catalog = {
+            "format_version": 1,
+            "packages": [
+                {
+                    **make_package(False).to_dict(),
+                    "archive": "codes/test.zip",
+                    "filename": "test.zip",
+                    "size": 1,
+                    "updated_at": "2026-01-01T00:00:00Z",
+                }
+            ],
+        }
+        response = Mock()
+        response.raise_for_status.return_value = None
+        response.headers = {}
+        response.iter_content.return_value = [json.dumps(catalog).encode("utf-8")]
+        session = Mock()
+        session.get.return_value = response
+        cache_path = self.temp_dir / "catalog.json"
+        timestamp = datetime(2026, 1, 1, tzinfo=UTC)
+        sources = (
+            IndexSource("GitHub", "github-index", "github-base"),
+            IndexSource("CNB", "cnb-index", "cnb-base"),
+        )
+        WorkshopRepository(*sources, session, cache_path, now=lambda _tz: timestamp).fetch_catalog(
+            True
+        )
+
+        WorkshopRepository(
+            *sources,
+            session,
+            cache_path,
+            now=lambda _tz: timestamp + timedelta(hours=24, seconds=1),
+        ).fetch_catalog(True)
+
+        self.assertEqual(session.get.call_count, 2)
+
+    def test_repository_rejects_oversized_archive_before_loading_it(self):
+        entry = CatalogEntry(
+            make_package(False), "codes/test.zip", "test.zip", 1, "2026-01-01T00:00:00Z"
+        )
+        response = Mock()
+        response.raise_for_status.return_value = None
+        response.headers = {"Content-Length": str(MAX_ARCHIVE_BYTES + 1)}
+        session = Mock()
+        session.get.return_value = response
+        repository = WorkshopRepository(
+            IndexSource("GitHub", "github-index", "github-base"),
+            IndexSource("CNB", "cnb-index", "cnb-base"),
+            session,
+            self.temp_dir / "catalog.json",
+        )
+
+        with self.assertRaises(WorkshopRepositoryError):
+            repository.download_archive(repository.github, entry)
+        self.assertEqual(session.get.call_count, 2)

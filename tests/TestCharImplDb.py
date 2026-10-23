@@ -134,6 +134,94 @@ class TestCharImplDb(unittest.TestCase):
             persisted["team_presets"][0]["slots"][0]["impl_id"], "external:测试队伍/hero"
         )
 
+    def test_external_load_failure_is_reported_and_cleared_after_repair(self):
+        external_dir = Path(self.temp_dir) / "external_chars"
+        external_dir.mkdir()
+        source = external_dir / "hero.py"
+        source.write_text("from src.char.BaseChar import removed_api\n", encoding="utf-8")
+        registry = CharRegistry(external_dir=external_dir)
+        self.assertIsNone(registry.get("external:hero"))
+        errors = registry.get_external_errors()
+        self.assertEqual(len(errors), 1)
+        self.assertIn("ImportError", errors[0])
+        self.assertIn("removed_api", errors[0])
+        self.assertIn("hero.py:1", errors[0])
+        self.assertNotIn(self.temp_dir, errors[0])
+        source.write_text(
+            "from src.char.BaseChar import BaseChar\nclass Hero(BaseChar): pass\n",
+            encoding="utf-8",
+        )
+        registry.rescan_external()
+        self.assertIsNotNone(registry.get("external:hero"))
+        self.assertEqual(registry.get_external_errors(), [])
+
+    def test_external_syntax_failure_keeps_the_dependency_filename_and_line(self):
+        external_dir = Path(self.temp_dir) / "external_chars"
+        external_dir.mkdir()
+        (external_dir / "hero.py").write_text("from ._shared import helper\n", encoding="utf-8")
+        (external_dir / "_shared.py").write_text("def helper(:\n", encoding="utf-8")
+        registry = CharRegistry(external_dir=external_dir)
+        registry.ensure_scanned()
+        message = registry.get_external_errors()[0]
+        self.assertIn("_shared.py:1", message)
+        self.assertIn("SyntaxError", message)
+        self.assertNotIn(self.temp_dir, message)
+
+    def test_external_diagnostic_keeps_the_location_and_hides_absolute_paths(self):
+        registry = CharRegistry(external_dir=Path(self.temp_dir))
+        namespace = {}
+        exec(
+            compile(
+                "def fail():\n    raise FileNotFoundError(\"'C:/Private User/config.json'\")\n",
+                str(Path(self.temp_dir) / "hero.py"),
+                "exec",
+            ),
+            namespace,
+        )
+        try:
+            namespace["fail"]()
+        except FileNotFoundError as error:
+            message = registry.describe_external_error(error)
+        self.assertEqual(message.count("hero.py:2"), 1)
+        self.assertIn("FileNotFoundError", message)
+        self.assertNotIn("Private User", message)
+        self.assertNotIn(self.temp_dir, message)
+        self.assertIn("config.json", message)
+        self.assertIsNone(registry.describe_external_error(ValueError("builtin")))
+
+    def test_external_diagnostics_hide_unc_paths_in_cache_and_logs(self):
+        registry = CharRegistry(external_dir=Path(self.temp_dir))
+        private_path = r"\\private-server\private-share\private-account\config.json"
+        spaced_path = r"\\private-server\private-share\Private User\config.json"
+        errors = (
+            FileNotFoundError(2, "missing", private_path),
+            FileNotFoundError(2, "missing", spaced_path),
+            FileNotFoundError(2, "missing", r"\\?\UNC" + private_path[1:]),
+            RuntimeError(f"cannot load {private_path}"),
+            RuntimeError(f"cannot load '{spaced_path}'"),
+            RuntimeError(f'cannot load "{spaced_path}"'),
+        )
+        with patch("src.char.core.CharRegistry.logger") as logger:
+            for error in errors:
+                with self.subTest(error=error):
+                    registry._record_external_error(Path(self.temp_dir) / "hero.py", error)
+                    message = registry.get_external_errors()[0]
+                    self.assertIn("hero.py", message)
+                    self.assertIn("config.json", message)
+                    for private_part in (
+                        "private-server", "private-share", "private-account", "Private User"
+                    ):
+                        self.assertNotIn(private_part, message)
+                        self.assertNotIn(private_part, logger.warning.call_args.args[0])
+
+    def test_external_module_without_a_character_has_a_diagnostic(self):
+        external_dir = Path(self.temp_dir) / "external_chars"
+        external_dir.mkdir()
+        (external_dir / "hero.py").write_text("value = 1\n", encoding="utf-8")
+        registry = CharRegistry(external_dir=external_dir)
+        registry.ensure_scanned()
+        self.assertIn("BaseChar", registry.get_external_errors()[0])
+
     def test_presets_apply_and_fixed_projection(self):
         database = CustomCharDb(self.db_path, self.features_dir, self.context)
         combo_a = database.add_combo("A", "skill")
