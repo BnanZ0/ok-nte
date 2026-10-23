@@ -1,7 +1,9 @@
 """Application service for exporting and transactionally installing team packages."""
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from enum import StrEnum
+from hashlib import sha256
 from pathlib import Path
 
 from src.char.core.CharRegistry import char_registry
@@ -9,15 +11,24 @@ from src.char.custom.CustomCharManager import CustomCharManager
 from src.char.workshop.archive import (
     ArchiveContents,
     load_archive,
-    remap_external_slot,
     write_archive,
 )
-from src.char.workshop.models import PackageSlot, TeamPackage
+from src.char.workshop.installations import (
+    INSTALLATIONS_LOCK,
+    WorkshopInstallation,
+    WorkshopInstallationStore,
+)
+from src.char.workshop.models import CatalogEntry, PackageSlot, TeamPackage
 
 
 class WorkshopInstallErrorCode(StrEnum):
     INVALID_EXTERNAL_DIRECTORY = "invalid_external_directory"
     EXTERNAL_DIRECTORY_EXISTS = "external_directory_exists"
+    FILES_CHANGED = "files_changed"
+    LOCAL_SOURCE_CHANGED = "local_source_changed"
+    INSTALLATION_MISSING = "installation_missing"
+    INVALID_INSTALLATIONS = "invalid_installations"
+    PACKAGE_MISMATCH = "package_mismatch"
 
 
 class WorkshopInstallError(RuntimeError):
@@ -47,9 +58,190 @@ class WorkshopPackageService:
         self,
         manager: CustomCharManager | None = None,
         registry=char_registry,
+        installation_store: WorkshopInstallationStore | None = None,
     ):
+        from src.char.custom.CustomCharManager import EXTERNAL_CHARS_DIR
+
         self.manager = manager or CustomCharManager()
         self.registry = registry
+        self.external_dir = Path(EXTERNAL_CHARS_DIR)
+        self.installation_store = installation_store or WorkshopInstallationStore(
+            self.external_dir / "workshop_installs.json"
+        )
+
+    def get_installations(self) -> list[WorkshopInstallation]:
+        try:
+            return self.installation_store.load()
+        except (OSError, ValueError) as error:
+            raise WorkshopInstallError(
+                "Could not read workshop installation records",
+                WorkshopInstallErrorCode.INVALID_INSTALLATIONS,
+            ) from error
+
+    @staticmethod
+    def _source_hash(source: str) -> str:
+        return sha256(source.replace("\r\n", "\n").encode("utf-8")).hexdigest()
+
+    def _installation(
+        self, contents: ArchiveContents, directory: str, files: dict[str, str]
+    ) -> WorkshopInstallation:
+        return WorkshopInstallation.from_dict(
+            {
+                "author": contents.package.author,
+                "name": contents.package.name,
+                "version": contents.package.version,
+                "directory": directory,
+                "files": files,
+                "hashes": {
+                    name: self._source_hash(code) for name, code in contents.sources.items()
+                },
+            }
+        )
+
+    def _mapped_slots(
+        self, package: TeamPackage, directory: str, files: dict[str, str]
+    ) -> list[dict]:
+        slots = [{"char_id": "", "impl_id": ""} for _ in range(4)]
+        for slot in package.slots:
+            impl_id = slot.impl_id
+            if slot.kind == "external":
+                stem = Path(files[slot.file_name]).stem.lower()
+                impl_id = f"external:{directory.lower()}/{stem}"
+                entry = self.registry.get(impl_id)
+                if (
+                    entry is None
+                    or entry.source != "external"
+                    or entry.char_cls.__name__ != slot.class_name
+                ):
+                    raise WorkshopInstallError(
+                        f"External implementation could not be loaded: {slot.file_name}"
+                    )
+            slots[slot.index] = {"char_id": "", "impl_id": impl_id}
+        return slots
+
+    def update_contents(
+        self,
+        contents: ArchiveContents,
+        directory: str,
+        before_replace: Callable[[], None] | None = None,
+    ) -> WorkshopInstallation:
+        with INSTALLATIONS_LOCK:
+            installation = next(
+                (item for item in self.get_installations() if item.directory == directory), None
+            )
+            if installation is None:
+                raise WorkshopInstallError(
+                    "Workshop installation was not found",
+                    WorkshopInstallErrorCode.INSTALLATION_MISSING,
+                )
+            if not installation.has_update(contents.package):
+                raise WorkshopInstallError(
+                    "Package identity or version does not match the update",
+                    WorkshopInstallErrorCode.PACKAGE_MISMATCH,
+                )
+            if set(contents.sources) != set(installation.files):
+                raise WorkshopInstallError(
+                    "Python file names changed; import the package again",
+                    WorkshopInstallErrorCode.FILES_CHANGED,
+                )
+            declared_files = {
+                slot.file_name for slot in contents.package.slots if slot.kind == "external"
+            }
+            if declared_files != set(contents.sources):
+                raise WorkshopInstallError("Package sources do not match its manifest")
+            root = self.external_dir.resolve()
+            target = root / directory
+            previous = {}
+            replacements = {}
+            for remote, local in installation.files.items():
+                path = target / local
+                if (
+                    target.is_symlink()
+                    or path.is_symlink()
+                    or not path.is_file()
+                    or not path.resolve().is_relative_to(root)
+                ):
+                    raise WorkshopInstallError(
+                        "Installed source was not found",
+                        WorkshopInstallErrorCode.INSTALLATION_MISSING,
+                    )
+                previous[path] = path.read_bytes()
+                replacements[path] = contents.sources[remote]
+                compile(replacements[path], local, "exec")
+                expected_hash = installation.hashes.get(remote)
+                if (
+                    expected_hash
+                    and self._source_hash(previous[path].decode("utf-8")) != expected_hash
+                ):
+                    raise WorkshopInstallError(
+                        "Local source was edited; automatic update was skipped",
+                        WorkshopInstallErrorCode.LOCAL_SOURCE_CHANGED,
+                    )
+            updated = self._installation(contents, directory, installation.files)
+            if before_replace:
+                before_replace()
+            try:
+                for path, code in replacements.items():
+                    path.write_text(code, encoding="utf-8", newline="")
+                self.registry.rescan_external()
+                self._mapped_slots(contents.package, directory, installation.files)
+                self.installation_store.save_installation(updated)
+            except Exception as error:
+                restore_errors = []
+                for path, code in previous.items():
+                    try:
+                        path.write_bytes(code)
+                    except OSError:
+                        restore_errors.append(path.name)
+                        try:
+                            path.with_suffix(".workshop-backup").write_bytes(code)
+                        except OSError:
+                            restore_errors.append(f"{path.stem}.workshop-backup")
+                self.registry.rescan_external()
+                if restore_errors:
+                    raise WorkshopInstallError(
+                        "Could not restore sources or save .workshop-backup files: "
+                        + ", ".join(restore_errors)
+                    ) from error
+                raise
+            return updated
+
+    def update_from_catalog(
+        self,
+        entries: list[CatalogEntry],
+        repository,
+        source,
+        before_replace: Callable[[], None],
+        cancelled: Callable[[], bool] = lambda: False,
+    ) -> tuple[list[WorkshopInstallation], list[tuple[str, Exception]]]:
+        """Update each installation independently, continuing after a failed package."""
+        updated = []
+        failures = []
+        installations = self.get_installations()
+        for entry in entries:
+            if cancelled():
+                break
+            targets = [item for item in installations if item.has_update(entry.package)]
+            if not targets:
+                continue
+            try:
+                contents = self.load_archive(repository.download_archive(source, entry))
+                if contents.package.to_dict() != entry.package.to_dict():
+                    raise WorkshopInstallError(
+                        "Downloaded archive does not match the catalog",
+                        WorkshopInstallErrorCode.PACKAGE_MISMATCH,
+                    )
+            except Exception as error:
+                failures.append((entry.package.name, error))
+                continue
+            for target in targets:
+                if cancelled():
+                    break
+                try:
+                    updated.append(self.update_contents(contents, target.directory, before_replace))
+                except Exception as error:
+                    failures.append((target.directory, error))
+        return updated, failures
 
     def export_preset(self, preset_id: str, package: TeamPackage, path: Path) -> None:
         preset = next(
@@ -113,6 +305,15 @@ class WorkshopPackageService:
         preset_name: str,
         directory: str,
     ) -> ImportedTeamPackage:
+        with INSTALLATIONS_LOCK:
+            return self._install_contents(contents, preset_name, directory)
+
+    def _install_contents(
+        self,
+        contents: ArchiveContents,
+        preset_name: str,
+        directory: str,
+    ) -> ImportedTeamPackage:
         try:
             directory = self.manager.validate_external_directory(directory)
         except ValueError as error:
@@ -130,6 +331,12 @@ class WorkshopPackageService:
 
         created_preset_id = ""
         installed_sources = False
+        installation = None
+        if contents.sources:
+            self.get_installations()
+            installation = self._installation(
+                contents, directory, {name: name for name in contents.sources}
+            )
         try:
             if contents.sources:
                 if self.manager.external_directory_exists(directory):
@@ -139,7 +346,8 @@ class WorkshopPackageService:
                         directory=directory,
                     )
                 installed, error = self.manager.install_external_sources(
-                    directory, contents.sources
+                    directory,
+                    {name: code.replace("\r\n", "\n") for name, code in contents.sources.items()},
                 )
                 if not installed:
                     if self.manager.external_directory_exists(directory):
@@ -151,22 +359,9 @@ class WorkshopPackageService:
                     raise WorkshopInstallError(error)
                 installed_sources = True
 
-            mapped_slots = [{"char_id": "", "impl_id": ""} for _ in range(4)]
-            for slot in contents.package.slots:
-                impl_id = (
-                    slot.impl_id if slot.kind == "builtin" else remap_external_slot(slot, directory)
-                )
-                if slot.kind == "external":
-                    entry = self.registry.get(impl_id)
-                    if entry is None or entry.source != "external":
-                        raise WorkshopInstallError(
-                            f"external implementation could not be loaded: {slot.file_name}"
-                        )
-                    if entry.char_cls.__name__ != slot.class_name:
-                        raise WorkshopInstallError(
-                            f"external implementation class does not match: {slot.file_name}"
-                        )
-                mapped_slots[slot.index] = {"char_id": "", "impl_id": impl_id}
+            mapped_slots = self._mapped_slots(
+                contents.package, directory, {name: name for name in contents.sources}
+            )
 
             preset = self.manager.create_team_preset(preset_name)
             created_preset_id = preset["id"]
@@ -175,6 +370,8 @@ class WorkshopPackageService:
             saved_preset = next(
                 item for item in self.manager.get_team_presets() if item["id"] == created_preset_id
             )
+            if installation is not None:
+                self.installation_store.save_installation(installation)
             return ImportedTeamPackage(
                 created_preset_id,
                 saved_preset["name"],

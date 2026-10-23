@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import cast
 
 from PySide6.QtCore import QObject, Qt, Signal
-from PySide6.QtGui import QColor
+from PySide6.QtGui import QAction, QColor
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QGridLayout,
@@ -23,9 +23,13 @@ from qfluentwidgets import (
     FluentIcon,
     HyperlinkButton,
     IndeterminateProgressRing,
+    InfoBar,
+    InfoBarPosition,
     LineEdit,
     PrimaryPushButton,
+    PrimarySplitPushButton,
     PushButton,
+    RoundMenu,
     SearchLineEdit,
     SimpleCardWidget,
     StrongBodyLabel,
@@ -35,6 +39,7 @@ from qfluentwidgets import (
 )
 
 from src.char.custom.CustomCharManager import CustomCharManager
+from src.char.workshop.installations import WorkshopInstallation
 from src.char.workshop.models import (
     CatalogEntry,
     TeamPackage,
@@ -44,6 +49,11 @@ from src.char.workshop.models import (
     parse_version,
 )
 from src.char.workshop.repository import IndexSource, WorkshopRepository
+from src.char.workshop.service import (
+    WorkshopInstallError,
+    WorkshopInstallErrorCode,
+    WorkshopPackageService,
+)
 from src.ui.features.characters.safety_dialog import EXTERNAL_CODE_SAFETY_NOTICE
 from src.ui.foundation.dialogs import MessageBoxBase
 from src.ui.foundation.i18n import is_chinese
@@ -125,6 +135,24 @@ class BackgroundCall(QObject):
             self.succeeded.emit(self._action())
         except Exception as error:
             self.failed.emit(error)
+
+
+def workshop_error_text(error: object, tr: Callable[[str], str]) -> str:
+    if isinstance(error, WorkshopInstallError):
+        messages = {
+            WorkshopInstallErrorCode.FILES_CHANGED: tr("文件列表已变化, 无法自动更新, 请重新导入."),
+            WorkshopInstallErrorCode.LOCAL_SOURCE_CHANGED: tr("本地源码已修改, 已跳过自动更新."),
+            WorkshopInstallErrorCode.INSTALLATION_MISSING: tr("本地安装文件缺失, 请重新导入."),
+            WorkshopInstallErrorCode.INVALID_INSTALLATIONS: tr(
+                "无法读取工坊安装记录, 请检查 workshop_installs.json."
+            ),
+            WorkshopInstallErrorCode.PACKAGE_MISMATCH: tr(
+                "下载的方案与更新信息不一致, 请刷新工坊后重试."
+            ),
+        }
+        if error.code in messages:
+            return messages[error.code]
+    return str(error) or error.__class__.__name__
 
 
 class PackageMetadataDialog(MessageBoxBase):
@@ -288,11 +316,26 @@ class WorkshopDialog(MessageBoxBase):
     """Browse a remote static catalog without mixing remote I/O into TeamManagerTab."""
 
     import_requested = Signal(object, object)
+    packages_updated = Signal()
 
-    def __init__(self, repository: WorkshopRepository, parent=None, *, metadata_only: bool = False):
+    def __init__(
+        self,
+        repository: WorkshopRepository,
+        parent=None,
+        *,
+        metadata_only: bool = False,
+        service: WorkshopPackageService | None = None,
+        before_update: Callable[[], None] | None = None,
+    ):
         super().__init__(parent)
         self.repository = repository
         self.metadata_only = metadata_only
+        self.service = service
+        self.before_update = before_update or (lambda: None)
+        self.installations: list[WorkshopInstallation] = []
+        self._updating = False
+        self._catalog_loading = False
+        self._cancel_update = threading.Event()
         self.is_chinese = is_chinese()
         self.entries: list[CatalogEntry] = []
         self.versions: dict[tuple[str, str], tuple[CatalogEntry, ...]] = {}
@@ -328,6 +371,10 @@ class WorkshopDialog(MessageBoxBase):
         self.refresh_button = PushButton(FluentIcon.SYNC, self.tr("刷新"), self)
         for widget in (self.search_edit, self.role_combo, self.author_combo, self.refresh_button):
             toolbar.addWidget(widget)
+        self.update_all_button = PushButton(FluentIcon.UPDATE, self.tr("一鍵更新"), self)
+        self.update_all_button.setVisible(service is not None and not metadata_only)
+        self.update_all_button.setEnabled(False)
+        toolbar.addWidget(self.update_all_button)
         self.viewLayout.addLayout(toolbar)
 
         # Left-right split layout
@@ -403,6 +450,19 @@ class WorkshopDialog(MessageBoxBase):
             FluentIcon.DOWNLOAD, self.tr("导入"), self.detail_card
         )
         self.import_button.setEnabled(False)
+        self.update_button = PrimarySplitPushButton(
+            FluentIcon.UPDATE, self.tr("更新"), self.detail_card
+        )
+        self.update_button.hide()
+        self.update_button.setEnabled(False)
+        self.import_menu = RoundMenu(parent=self.update_button)
+        self.import_action = QAction(FluentIcon.DOWNLOAD.icon(), self.tr("导入"), self.import_menu)
+        self.import_action.triggered.connect(self._request_import)
+        self.import_menu.addAction(self.import_action)
+        self.update_button.setFlyout(self.import_menu)
+        self.update_button.dropButton.setToolTip(self.tr("导入"))
+        self.update_button.dropButton.setAccessibleName(self.tr("导入"))
+        action_layout.addWidget(self.update_button, alignment=Qt.AlignmentFlag.AlignVCenter)
         action_layout.addWidget(self.import_button, alignment=Qt.AlignmentFlag.AlignVCenter)
         detail_layout.addLayout(action_layout)
         split_layout.addWidget(self.detail_card)
@@ -420,7 +480,9 @@ class WorkshopDialog(MessageBoxBase):
         self.version_combo.currentIndexChanged.connect(self._show_version)
         self.refresh_button.clicked.connect(lambda: self.reload_catalog(force_refresh=True))
         self.import_button.clicked.connect(self._request_import)
-        self.reload_catalog()
+        self.update_button.clicked.connect(self._request_update)
+        self.update_all_button.clicked.connect(lambda: self._start_updates(self.entries))
+        self.reload_catalog(force_refresh=service is not None)
 
     def _configure_mode(self) -> None:
         if self.metadata_only:
@@ -440,18 +502,36 @@ class WorkshopDialog(MessageBoxBase):
             self.cancelButton.setText(self.tr("关闭"))
 
     def reload_catalog(self, force_refresh: bool = False) -> None:
+        if self._updating or self._catalog_loading:
+            return
+        self._catalog_loading = True
         self.refresh_button.setEnabled(False)
+        self.import_button.setEnabled(False)
+        self.import_action.setEnabled(False)
+        self.update_button.setEnabled(False)
+        self.update_all_button.setEnabled(False)
         self.loading_ring.show()
         self.status_label.setText(self.tr("正在加载工坊..."))
-        self._worker = BackgroundCall(
-            lambda: self.repository.fetch_catalog(self.is_chinese, force_refresh), self
-        )
+
+        def load():
+            catalog = self.repository.fetch_catalog(self.is_chinese, force_refresh)
+            installs = self.service.get_installations() if self.service else []
+            return (*catalog, installs)
+
+        self._worker = BackgroundCall(load, self)
         self._worker.succeeded.connect(self._catalog_loaded)
         self._worker.failed.connect(self._catalog_failed)
         self._worker.start()
 
-    def _catalog_loaded(self, result: object) -> None:
-        entries, self.current_source = cast(tuple[list[CatalogEntry], IndexSource], result)
+    def _catalog_loaded(
+        self,
+        result: tuple[list[CatalogEntry], IndexSource]
+        | tuple[list[CatalogEntry], IndexSource, list[WorkshopInstallation]],
+    ) -> None:
+        self._catalog_loading = False
+        entries, self.current_source = result[:2]
+        if len(result) == 3:
+            self.installations = result[2]
         self.versions = group_catalog_entries(entries)
         self.entries = [versions[0] for versions in self.versions.values()]
         self._rebuild_filters()
@@ -461,10 +541,27 @@ class WorkshopDialog(MessageBoxBase):
         self.status_label.setText(self.tr("已加载 {} 个方案").format(len(self.entries)))
 
     def _catalog_failed(self, error: object) -> None:
+        self._catalog_loading = False
+        self.current_source = None
+        self.entries = []
+        self.versions = {}
+        self._apply_filter()
         self.refresh_button.setEnabled(True)
         self.loading_ring.hide()
-        message = str(error) or error.__class__.__name__
-        self.status_label.setText(self.tr("加载失败: {}").format(message))
+        self.status_label.setText(self.tr("加载失败"))
+        self._show_bar(self.tr("加载失败"), workshop_error_text(error, self.tr), success=False)
+
+    def _show_bar(self, title: str, content: str, success: bool = True) -> None:
+        show = InfoBar.success if success else InfoBar.error
+        show(
+            title=title,
+            content=content,
+            orient=Qt.Orientation.Horizontal,
+            isClosable=True,
+            position=InfoBarPosition.TOP,
+            duration=2500 if success else 3500,
+            parent=self,
+        )
 
     def _rebuild_filters(self) -> None:
         current_role = self.role_combo.currentText()
@@ -547,7 +644,13 @@ class WorkshopDialog(MessageBoxBase):
 
     def _show_version(self, *_args) -> None:
         entry = cast(CatalogEntry | None, self.version_combo.currentData())
-        self.import_button.setEnabled(entry is not None and self.current_source is not None)
+        self.import_button.setEnabled(
+            entry is not None
+            and self.current_source is not None
+            and not self._updating
+            and not self._catalog_loading
+        )
+        self._refresh_update_actions()
         if self.metadata_only:
             self.yesButton.setEnabled(entry is not None)
         if entry is None:
@@ -591,8 +694,120 @@ class WorkshopDialog(MessageBoxBase):
         return super().validate()
 
     def _request_import(self) -> None:
-        if self.metadata_only:
+        if self.metadata_only or self._updating or self._catalog_loading:
             return
         entry = self.version_combo.currentData()
         if entry is not None and self.current_source is not None:
             self.import_requested.emit(entry, self.current_source)
+
+    def _refresh_update_actions(self) -> None:
+        available = (
+            self.service is not None
+            and self.current_source is not None
+            and not self.metadata_only
+            and not self._updating
+            and not self._catalog_loading
+        )
+        selected = self.version_combo.currentData()
+        latest = self.versions[selected.package.identity][0] if selected else None
+        installed = [
+            item
+            for item in self.installations
+            if latest and item.identity == latest.package.identity
+        ]
+        pending = (
+            selected == latest
+            and latest is not None
+            and any(item.has_update(latest.package) for item in installed)
+        )
+        show_update = bool(self.service is not None and not self.metadata_only and pending)
+        self.update_button.setVisible(show_update)
+        self.import_button.setVisible(not self.metadata_only and not show_update)
+        self.update_button.setToolTip(
+            self.tr("更新到 {}").format(latest.package.version) if pending else ""
+        )
+        self.update_button.setEnabled(bool(available and pending))
+        self.import_action.setEnabled(self.import_button.isEnabled())
+        self.update_all_button.setEnabled(
+            bool(
+                available
+                and any(
+                    item.has_update(entry.package)
+                    for item in self.installations
+                    for entry in self.entries
+                )
+            )
+        )
+
+    def _request_update(self) -> None:
+        selected = self.version_combo.currentData()
+        if selected and self.update_button.isEnabled():
+            self._start_updates([selected])
+
+    def _start_updates(self, entries: list[CatalogEntry]) -> None:
+        if self.service is None or self.current_source is None or self._updating:
+            return
+        try:
+            self.before_update()
+        except Exception as error:
+            self._show_bar(self.tr("更新失败"), workshop_error_text(error, self.tr), success=False)
+            return
+        self._updating = True
+        self._cancel_update.clear()
+        self.refresh_button.setEnabled(False)
+        self.import_button.setEnabled(False)
+        self._refresh_update_actions()
+        self.loading_ring.show()
+        self.status_label.setText(self.tr("正在更新出招表..."))
+        source = self.current_source
+
+        def update():
+            result = self.service.update_from_catalog(
+                entries, self.repository, source, self.before_update, self._cancel_update.is_set
+            )
+            return result, self.service.get_installations()
+
+        self._worker = BackgroundCall(update, self)
+        self._worker.succeeded.connect(self._updates_finished)
+        self._worker.failed.connect(self._updates_failed)
+        self._worker.start()
+
+    def _finish_update(self) -> None:
+        self._updating = False
+        self.loading_ring.hide()
+        self.refresh_button.setEnabled(True)
+        self.cancelButton.setEnabled(True)
+        self._show_version()
+
+    def _updates_finished(
+        self,
+        result: tuple[
+            tuple[list[WorkshopInstallation], list[tuple[str, Exception]]],
+            list[WorkshopInstallation],
+        ],
+    ) -> None:
+        (updated, failures), self.installations = result
+        self._finish_update()
+        summary = self.tr("已更新 {} 份方案, {} 项失败").format(len(updated), len(failures))
+        self.status_label.setText(summary)
+        details = [f"{name}: {workshop_error_text(error, self.tr)}" for name, error in failures]
+        if details:
+            self._show_bar(self.tr("更新失败"), "\n".join(details), success=False)
+        if updated:
+            self.packages_updated.emit()
+        if self._cancel_update.is_set():
+            super().reject()
+
+    def _updates_failed(self, error: object) -> None:
+        self._finish_update()
+        self.status_label.setText(self.tr("更新失败"))
+        self._show_bar(self.tr("更新失败"), workshop_error_text(error, self.tr), success=False)
+        if self._cancel_update.is_set():
+            super().reject()
+
+    def reject(self) -> None:
+        self._cancel_update.set()
+        if self._updating:
+            self.cancelButton.setEnabled(False)
+        else:
+            super().reject()

@@ -136,7 +136,7 @@ class CharManagerTab(CustomTab):
         )
         self.tr_delete = self.tr("删除")
         self.tr_combo_tips = self.tr(
-            "除了选择内建存在的 [{combo}] 外,您也可以自己输入名称来建立自己的 [{combo}]。"
+            "除了选择内建存在的 [{combo}] 外,您也可以自己输入名称来建立自己的 [文本型{combo}]。"
         ).format(combo=self.tr_combo_title)
         self.tr_combo_tips += "<br><br>" + self.tr(
             "<b>外置代码用法:</b><br>"

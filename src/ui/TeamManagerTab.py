@@ -55,6 +55,7 @@ from src.ui.features.characters.workshop_dialog import (
     PackageImportDialog,
     PackageMetadataDialog,
     WorkshopDialog,
+    workshop_error_text,
 )
 from src.ui.foundation.dialogs import MessageBoxBase
 from src.ui.foundation.images import cv_to_pixmap
@@ -842,16 +843,34 @@ class TeamManagerTab(CustomTab):
                 return self.tr("外置代码目录“{}”已存在, 请修改目录名称后重试。").format(directory)
             if error.code == WorkshopInstallErrorCode.INVALID_EXTERNAL_DIRECTORY:
                 return self.tr("外置代码目录名称无效")
-        return str(error) or error.__class__.__name__
+        return workshop_error_text(error, self.tr)
 
     def navigate_to_workshop(self) -> None:
         self.command_stack_layout.setCurrentIndex(1)
         self.on_open_workshop()
 
     def on_open_workshop(self) -> None:
-        dialog = WorkshopDialog(self.workshop_repository, self.window())
+        dialog = WorkshopDialog(
+            self.workshop_repository,
+            self.window(),
+            service=self.workshop_service,
+            before_update=self._ensure_workshop_update_idle,
+        )
+        self._active_workshop_dialog = dialog
         dialog.import_requested.connect(self.on_remote_package_requested)
-        dialog.exec()
+        dialog.packages_updated.connect(self._on_packages_updated)
+        try:
+            dialog.exec()
+        finally:
+            self._active_workshop_dialog = None
+
+    def _ensure_workshop_update_idle(self) -> None:
+        if self._workshop_workers:
+            raise RuntimeError(self.tr("请等待当前导入或导出完成后再更新."))
+
+    def _on_packages_updated(self) -> None:
+        self.reload_preset_options()
+        self.reload_presets()
 
     def on_import_package(self) -> None:
         if not confirm_external_code_import(self.window()):
@@ -891,6 +910,9 @@ class TeamManagerTab(CustomTab):
         self.reload_preset_options()
         self.reload_presets(imported.preset_id)
         self._show_bar(self.tr("导入完成"), self.tr("已创建方案: {}").format(imported.preset_name))
+        dialog = getattr(self, "_active_workshop_dialog", None)
+        if dialog is not None:
+            dialog.reload_catalog()
 
     def _export_slots(self, preset: dict) -> tuple[PackageSlot, ...]:
         slots = []
