@@ -73,6 +73,7 @@ def blur_area(width, height):
 
 config = {
     "custom_tasks": True,  # enable creating and editing custom tasks
+    "plugin": True,
     "gui": {
         "type": "qt",
     },

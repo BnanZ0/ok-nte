@@ -1,5 +1,5 @@
 version = 1
-revision = 5
+revision = 3
 requires-python = "==3.12.*"
 resolution-markers = [
     "sys_platform == 'win32'",
@@ -66,11 +66,11 @@ wheels = [
 
 [[package]]
 name = "comtypes"
-version = "1.4.16"
+version = "1.4.17"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/c6/2a/65274c13327f637ec13af8d39f2cf579d9ebe7a0e683696b5f05236d2805/comtypes-1.4.16.tar.gz", hash = "sha256:cd66d1add01265cface4df51ba1e31cd1657e04463c281c802e737e79e1ba93c", size = 260252, upload-time = "2026-03-02T23:11:42.413Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/0e/ff/c7836bd0d78fc615281016f154f514e9d523d7cb9ab9e8b4d344adc5f5e7/comtypes-1.4.17.tar.gz", hash = "sha256:3d9c1e92ad8daf7600d371e76ee16161a627a5fb70c3144f6e52e78af6034363", size = 262743, upload-time = "2026-09-21T08:08:07.687Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/5f/7c/0eb685107290b6221c03c46d39214a4e42a124189691cb83ae3228257f46/comtypes-1.4.16-py3-none-any.whl", hash = "sha256:e18d85179ff12955524c5a8c3bc09cb3c0d890f1da4d7123d14244c7b78f84c8", size = 296230, upload-time = "2026-03-02T23:11:41.049Z" },
+    { url = "https://files.pythonhosted.org/packages/89/9c/d0bc1fb69ad22a04bdc01dd9b5613a2ebc4d02ba1ec24b02127dc93791ba/comtypes-1.4.17-py3-none-any.whl", hash = "sha256:4e0a221dde2c589b82977bed802efd71cd5eb67a380347b732e02735e597f586", size = 298743, upload-time = "2026-09-21T08:08:06.461Z" },
 ]
 
 [[package]]
@@ -286,12 +286,12 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "comtypes", specifier = ">=1.4.16" },
+    { name = "comtypes", specifier = ">=1.4.17" },
     { name = "librosa", specifier = ">=1.0.0" },
     { name = "mido", specifier = ">=1.3.3" },
-    { name = "ok-script", extras = ["ocr", "qt"], specifier = ">=2.0.9" },
-    { name = "onnxocr-ppocrv5", specifier = ">=0.0.20" },
-    { name = "opencc", specifier = ">=1.4.1" },
+    { name = "ok-script", extras = ["ocr", "qt"], specifier = ">=2.0.15b1" },
+    { name = "onnxocr-ppocrv5", specifier = ">=0.0.22" },
+    { name = "opencc", specifier = ">=1.4.2" },
     { name = "opencv-python", specifier = ">=5.0.0.93" },
     { name = "openvino", specifier = ">=2026.3.0" },
     { name = "psutil", specifier = ">=7.2.2" },
@@ -314,10 +314,11 @@ dev = [
 
 [[package]]
 name = "ok-script"
-version = "2.0.9"
+version = "2.0.15b1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "mouse" },
+    { name = "packaging" },
     { name = "psutil" },
     { name = "pyappify" },
     { name = "pycaw" },
@@ -327,9 +328,9 @@ dependencies = [
     { name = "requests" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/66/d8/783c271e840bacfc72d6c068919792befb6b1b43f4f08dbd5a1f4e8b0f7e/ok_script-2.0.9.tar.gz", hash = "sha256:b3990d16eb409580eda134ea9bd4b75800b5e2ece5d46ae2097f0a200e89441c", size = 1123509, upload-time = "2026-10-09T16:08:31.036Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/75/76/7e17c4ffde1257d5d744f2e5f6dcba8281c860dbb5fe31b86aaa61cb24d4/ok_script-2.0.15b1.tar.gz", hash = "sha256:31a3d1b255c92cc7fe3c647e5ad08aec9d1a2e6a68f3eedb6c590d08a124171f", size = 1175407, upload-time = "2026-10-23T14:58:47.238Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/82/17/e4e7ae76eee6ee9b48ef9ca59fa38c28c7b0163d953120bff06aedb3220e/ok_script-2.0.9-py3-none-any.whl", hash = "sha256:cfaedf873b757369b2493f349bd477f226c8d88b23775714f01a586dd9299018", size = 1140844, upload-time = "2026-10-09T16:08:29.035Z" },
+    { url = "https://files.pythonhosted.org/packages/c0/c6/297f7bf8baeae3679df365684afcc820226540ee4f9052e5ee1a0a6ea53b/ok_script-2.0.15b1-py3-none-any.whl", hash = "sha256:80b54ca7452c1369701bb00bd80af348d392720f2115db7b6b3f55a302110bea", size = 1184539, upload-time = "2026-10-23T14:58:45.026Z" },
 ]
 
 [package.optional-dependencies]
@@ -345,25 +346,25 @@ qt = [
 
 [[package]]
 name = "onnxocr-ppocrv5"
-version = "0.0.20"
+version = "0.0.22"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "pillow" },
     { name = "pyclipper" },
     { name = "shapely" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/a5/16/8de3bfdc9e6bd3d37b216203a4d5813ae162ad40c3dd3ca2f7e20217fe34/onnxocr_ppocrv5-0.0.20.tar.gz", hash = "sha256:8e66895702d7eb6924d1c75c8e148e8e61a734be16c8cec7b09db7344558edd0", size = 19164731, upload-time = "2026-08-10T05:38:12.51Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/b5/6b/3ad789899e7da9008e83a477abf55551696622234de0e23cb96912e1e958/onnxocr_ppocrv5-0.0.22.tar.gz", hash = "sha256:08ca735a2038e5fc61038935b9010438f33b7e63f0eea7c5ecf468a56ee48bb5", size = 19168126, upload-time = "2026-08-28T09:50:29.045Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/71/18/df6ef9b68877f08afb48c80c1e30f9b310093327a94109ce9b4fbf680976/onnxocr_ppocrv5-0.0.20-py3-none-any.whl", hash = "sha256:eaa728d3a19c648bba201c92227d87f2f59f4e32d615ba06e7f6873263ab267a", size = 19176274, upload-time = "2026-08-10T05:38:02.771Z" },
+    { url = "https://files.pythonhosted.org/packages/d8/f9/84b4217ee8524d9b057523bb7deb7e339d39c7131dbe532cefdbb4955d74/onnxocr_ppocrv5-0.0.22-py3-none-any.whl", hash = "sha256:b98271ce876d9720c788c437d69f63469cad53cb19945da843dbbe46f8a1271a", size = 19176168, upload-time = "2026-08-28T09:50:26.214Z" },
 ]
 
 [[package]]
 name = "opencc"
-version = "1.4.1"
+version = "1.4.2"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/de/4a/9fdb46f75751712f5c2ea76fdffe3d08f2b833301263644e1267ef82c1cd/opencc-1.4.1.tar.gz", hash = "sha256:a2c58215626ac5131c5db277766678d552fc296e9e0299ef183cb67c1a7f30e7", size = 11592892, upload-time = "2026-07-12T14:59:55.166Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/e0/12/09e62f051af1de7ca84be1d69154bd0514416ef72237e2081584cc268bc9/opencc-1.4.2.tar.gz", hash = "sha256:47977905f131d7d9cfcec29fba5d841154907e1da73103105a4a68744e0f4f1a", size = 11637673, upload-time = "2026-08-22T19:09:31.761Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/41/85/633a7e51940db4c454c4852559b707a0e30b3edbfef1372e6cee197624d0/opencc-1.4.1-cp312-cp312-win_amd64.whl", hash = "sha256:129d2266a3a1c6e01c57344147f96cbda60557a3c91d083403066c34411aee23", size = 2795541, upload-time = "2026-07-12T15:02:58.556Z" },
+    { url = "https://files.pythonhosted.org/packages/43/83/ed548fd759ee4dfdd88a1f57f6877b5fd421f582e66bdf01979771d6cbba/opencc-1.4.2-cp312-cp312-win_amd64.whl", hash = "sha256:7025dc276b2a60b30ed3aefb99f1ceb8616076fd3eb3310c0f8f2046e79e76b1", size = 2890587, upload-time = "2026-08-22T19:13:44.385Z" },
 ]
 
 [[package]]
