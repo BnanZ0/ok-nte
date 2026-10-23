@@ -1526,3 +1526,45 @@ msgstr ""
 
 msgid "选择与游戏当前演奏界面一致的乐器"
 msgstr ""
+
+msgid "文件列表已变化, 无法自动更新, 请重新导入."
+msgstr "文件列表已变化, 无法自动更新, 请重新导入."
+
+msgid "本地源码已修改, 已跳过自动更新."
+msgstr "本地源码已修改, 已跳过自动更新."
+
+msgid "本地安装文件缺失, 请重新导入."
+msgstr "本地安装文件缺失, 请重新导入."
+
+msgid "无法读取工坊安装记录, 请检查 workshop_installs.json."
+msgstr "无法读取工坊安装记录, 请检查 workshop_installs.json."
+
+msgid "下载的方案与更新信息不一致, 请刷新工坊后重试."
+msgstr "下载的方案与更新信息不一致, 请刷新工坊后重试."
+
+msgid "一鍵更新"
+msgstr "一键更新"
+
+msgid "更新"
+msgstr "更新"
+
+msgid "更新到 {}"
+msgstr "更新到 {}"
+
+msgid "已是最新"
+msgstr "已是最新"
+
+msgid "正在更新出招表..."
+msgstr "正在更新出招表..."
+
+msgid "已更新 {} 份方案, {} 项失败"
+msgstr "已更新 {} 份方案, {} 项失败"
+
+msgid "更新失败"
+msgstr "更新失败"
+
+msgid "请等待当前导入或导出完成后再更新."
+msgstr "请等待当前导入或导出完成后再更新."
+
+msgid "加载失败"
+msgstr "加载失败"

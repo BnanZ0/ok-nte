@@ -1552,3 +1552,45 @@ msgstr "吉他"
 
 msgid "选择与游戏当前演奏界面一致的乐器"
 msgstr "選擇與遊戲目前演奏畫面一致的樂器"
+
+msgid "文件列表已变化, 无法自动更新, 请重新导入."
+msgstr "檔案清單已變更, 無法自動更新, 請重新匯入."
+
+msgid "本地源码已修改, 已跳过自动更新."
+msgstr "本機原始碼已修改, 已略過自動更新."
+
+msgid "本地安装文件缺失, 请重新导入."
+msgstr "本機安裝檔案遺失, 請重新匯入."
+
+msgid "无法读取工坊安装记录, 请检查 workshop_installs.json."
+msgstr "無法讀取工坊安裝記錄, 請檢查 workshop_installs.json."
+
+msgid "下载的方案与更新信息不一致, 请刷新工坊后重试."
+msgstr "下載的方案與更新資訊不一致, 請重新整理工坊後重試."
+
+msgid "一鍵更新"
+msgstr "一鍵更新"
+
+msgid "更新"
+msgstr "更新"
+
+msgid "更新到 {}"
+msgstr "更新至 {}"
+
+msgid "已是最新"
+msgstr "已是最新"
+
+msgid "正在更新出招表..."
+msgstr "正在更新出招表..."
+
+msgid "已更新 {} 份方案, {} 项失败"
+msgstr "已更新 {} 份方案, {} 項失敗"
+
+msgid "更新失败"
+msgstr "更新失敗"
+
+msgid "请等待当前导入或导出完成后再更新."
+msgstr "請等待目前匯入或匯出完成後再更新."
+
+msgid "加载失败"
+msgstr "載入失敗"

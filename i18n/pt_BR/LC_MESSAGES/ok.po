@@ -1294,3 +1294,45 @@ msgstr "Guitarra"
 
 msgid "选择与游戏当前演奏界面一致的乐器"
 msgstr "Escolha o instrumento exibido no jogo"
+
+msgid "文件列表已变化, 无法自动更新, 请重新导入."
+msgstr "A lista de arquivos mudou. Importe o pacote novamente."
+
+msgid "本地源码已修改, 已跳过自动更新."
+msgstr "O código local foi alterado. A atualização automática foi ignorada."
+
+msgid "本地安装文件缺失, 请重新导入."
+msgstr "Faltam arquivos instalados. Importe o pacote novamente."
+
+msgid "无法读取工坊安装记录, 请检查 workshop_installs.json."
+msgstr "Não foi possível ler o registro de instalações. Verifique workshop_installs.json."
+
+msgid "下载的方案与更新信息不一致, 请刷新工坊后重试."
+msgstr "O pacote baixado não corresponde à atualização. Atualize a oficina e tente novamente."
+
+msgid "一鍵更新"
+msgstr "Atualizar"
+
+msgid "更新"
+msgstr "Atualizar"
+
+msgid "更新到 {}"
+msgstr "Atualizar para {}"
+
+msgid "已是最新"
+msgstr "Atualizado"
+
+msgid "正在更新出招表..."
+msgstr "Atualizando combos..."
+
+msgid "已更新 {} 份方案, {} 项失败"
+msgstr "{} pacotes atualizados, {} falharam"
+
+msgid "更新失败"
+msgstr "Falha na atualização"
+
+msgid "请等待当前导入或导出完成后再更新."
+msgstr "Aguarde a importação ou exportação atual terminar antes de atualizar."
+
+msgid "加载失败"
+msgstr "Falha ao carregar"

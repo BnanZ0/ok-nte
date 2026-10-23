@@ -1551,3 +1551,45 @@ msgstr "Guitar"
 
 msgid "选择与游戏当前演奏界面一致的乐器"
 msgstr "Choose the instrument shown in-game"
+
+msgid "文件列表已变化, 无法自动更新, 请重新导入."
+msgstr "The file list has changed. Import the package again to update."
+
+msgid "本地源码已修改, 已跳过自动更新."
+msgstr "Local source was edited. Automatic update was skipped."
+
+msgid "本地安装文件缺失, 请重新导入."
+msgstr "Installed files are missing. Import the package again."
+
+msgid "无法读取工坊安装记录, 请检查 workshop_installs.json."
+msgstr "Cannot read workshop installation records. Check workshop_installs.json."
+
+msgid "下载的方案与更新信息不一致, 请刷新工坊后重试."
+msgstr "The downloaded package does not match the update. Refresh the workshop and try again."
+
+msgid "一鍵更新"
+msgstr "Update"
+
+msgid "更新"
+msgstr "Update"
+
+msgid "更新到 {}"
+msgstr "Update to {}"
+
+msgid "已是最新"
+msgstr "Up to date"
+
+msgid "正在更新出招表..."
+msgstr "Updating combos..."
+
+msgid "已更新 {} 份方案, {} 项失败"
+msgstr "Updated {} packages, {} failed"
+
+msgid "更新失败"
+msgstr "Update failed"
+
+msgid "请等待当前导入或导出完成后再更新."
+msgstr "Wait for the current import or export to finish before updating."
+
+msgid "加载失败"
+msgstr "Load failed"
