@@ -46,6 +46,10 @@ _TEST_CUSTOM_CHARS_ROOT = tempfile.TemporaryDirectory(
     prefix="ok_nte_test_custom_chars_",
     ignore_cleanup_errors=True,
 )
+_TEST_CONFIGS_ROOT = tempfile.TemporaryDirectory(
+    prefix="ok_nte_test_configs_",
+    ignore_cleanup_errors=True,
+)
 
 _OK_CLASS_STATE_ATTRS = (
     "executor",
@@ -117,6 +121,10 @@ def install_ok_test_runtime_isolation() -> None:
             test_config["analytics"] = None
             test_config["check_mutex"] = False
             test_config["debug"] = True
+            test_config["config_folder"] = tempfile.mkdtemp(
+                prefix="configs_",
+                dir=_TEST_CONFIGS_ROOT.name,
+            )
             # Test discovery starts a fresh ok runtime for each TaskTestCase
             # class. Avoid reopening the shared application log on every
             # setup, which is unnecessary for these tests and can be locked

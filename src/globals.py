@@ -7,6 +7,12 @@ from types import MethodType
 from ok import Logger
 
 from src.events import BotNotificationMessage, communicate
+from src.notifications.pushplus import (
+    PushPlusNotifier,
+    install_pushplus_notifications,
+    register_pushplus_notification_options,
+    uninstall_pushplus_notifications,
+)
 from src.runtime.services import RuntimeServices
 
 logger = Logger.get_logger(__name__)
@@ -51,11 +57,26 @@ class Globals:
         self._periodic_tasks = {}
         self._periodic_tasks_lock = threading.Lock()
         self._runtime_services = RuntimeServices()
+        self._pushplus_notifier: PushPlusNotifier | None = None
+        self._pushplus_handler = None
+        self._start_pushplus_notifications()
         exit_event.bind_stop(self)
         communicate.start_success.connect(self._start_runtime_services)
 
     def _start_runtime_services(self, *_):
         self._runtime_services.start()
+
+    def _start_pushplus_notifications(self) -> None:
+        try:
+            register_pushplus_notification_options()
+            self._pushplus_notifier = PushPlusNotifier()
+            self._pushplus_handler = install_pushplus_notifications(self._pushplus_notifier)
+        except Exception as e:
+            logger.error("Failed to start PushPlus notifications", e)
+            if self._pushplus_notifier is not None:
+                self._pushplus_notifier.stop()
+            self._pushplus_notifier = None
+            self._pushplus_handler = None
 
     def on_show_main_window(self, main_window) -> None:
         from src.ui.foundation.dialogs import install_confirmation_handler
@@ -70,6 +91,12 @@ class Globals:
 
     def stop(self):
         self._runtime_services.stop()
+        if self._pushplus_handler is not None:
+            uninstall_pushplus_notifications(self._pushplus_handler)
+            self._pushplus_handler = None
+        if self._pushplus_notifier is not None:
+            self._pushplus_notifier.stop()
+            self._pushplus_notifier = None
         self.shutdown_thread_pool_executor()
 
     def get_thread_pool_executor(self, max_workers=6):

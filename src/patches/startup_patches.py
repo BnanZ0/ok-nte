@@ -25,8 +25,14 @@ def install_startup_patches(config):
     ui_mode = resolve_runtime_ui_mode(config)
     Icon.configure(ui_mode)
 
+    from src.notifications.pushplus import (
+        install_pushplus_notification_options_patch,
+        migrate_legacy_pushplus_config,
+    )
     from src.patches.i18n_patch import install_i18n_patch
 
+    migrate_legacy_pushplus_config(config.get("config_folder", "configs"))
+    install_pushplus_notification_options_patch()
     install_i18n_patch()
     # if ui_mode == "qt":
     #     from src.patches.task_tab_patch import install_task_tab_patch
