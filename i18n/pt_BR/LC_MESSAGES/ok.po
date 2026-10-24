@@ -1361,3 +1361,33 @@ msgstr "O módulo de personagem externo deve definir exatamente uma subclasse de
 
 msgid "角色实现标识重复: {impl_id}"
 msgstr "ID de implementação de personagem duplicado: {impl_id}"
+
+msgid "PushPlus Notification"
+msgstr "Notificação PushPlus"
+
+msgid "Forward BOT notifications, such as daily routine reports, to WeChat through PushPlus. Ordinary logs and errors stay local."
+msgstr "Encaminha notificações BOT, como relatórios de tarefas diárias, para o WeChat via PushPlus. Logs e erros comuns permanecem locais."
+
+msgid "Enable PushPlus"
+msgstr "Ativar PushPlus"
+
+msgid "Send BOT notifications through PushPlus; ordinary task logs are never forwarded"
+msgstr "Enviar notificações BOT pelo PushPlus; logs comuns de tarefas nunca são encaminhados"
+
+msgid "PushPlus Token"
+msgstr "Token do PushPlus"
+
+msgid "Token from https://www.pushplus.plus/ ; keep it private and do not share it"
+msgstr "Token de https://www.pushplus.plus/ ; mantenha-o privado e não o compartilhe"
+
+msgid "PushPlus Topic"
+msgstr "Código do grupo PushPlus"
+
+msgid "Optional group code; leave empty to send to yourself"
+msgstr "Código de grupo opcional; deixe vazio para enviar a você mesmo"
+
+msgid "PushPlus Template"
+msgstr "Modelo do PushPlus"
+
+msgid "Message template: txt, markdown, or html"
+msgstr "Modelo da mensagem: txt, markdown ou html"

@@ -1618,3 +1618,33 @@ msgstr "외부 캐릭터 모듈에는 BaseChar 하위 클래스를 정확히 하
 
 msgid "角色实现标识重复: {impl_id}"
 msgstr "캐릭터 구현 ID 중복: {impl_id}"
+
+msgid "PushPlus Notification"
+msgstr "PushPlus 알림"
+
+msgid "Forward BOT notifications, such as daily routine reports, to WeChat through PushPlus. Ordinary logs and errors stay local."
+msgstr "PushPlus를 통해 BOT 알림(일일 임무 보고서 등)을 WeChat으로 전달합니다. 일반 로그와 오류는 외부로 전송되지 않습니다."
+
+msgid "Enable PushPlus"
+msgstr "PushPlus 사용"
+
+msgid "Send BOT notifications through PushPlus; ordinary task logs are never forwarded"
+msgstr "PushPlus로 BOT 알림을 보냅니다. 일반 작업 로그는 외부로 전송되지 않습니다"
+
+msgid "PushPlus Token"
+msgstr "PushPlus 토큰"
+
+msgid "Token from https://www.pushplus.plus/ ; keep it private and do not share it"
+msgstr "https://www.pushplus.plus/ 에서 발급받은 토큰입니다. 공유하지 마세요"
+
+msgid "PushPlus Topic"
+msgstr "PushPlus 그룹 코드"
+
+msgid "Optional group code; leave empty to send to yourself"
+msgstr "선택 사항인 그룹 코드입니다. 비워 두면 본인에게 전송합니다"
+
+msgid "PushPlus Template"
+msgstr "PushPlus 템플릿"
+
+msgid "Message template: txt, markdown, or html"
+msgstr "메시지 템플릿: txt, markdown, html"

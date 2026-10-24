@@ -1618,3 +1618,33 @@ msgstr "External character module must define exactly one BaseChar subclass"
 
 msgid "角色实现标识重复: {impl_id}"
 msgstr "Duplicate character implementation ID: {impl_id}"
+
+msgid "PushPlus Notification"
+msgstr "PushPlus Notification"
+
+msgid "Forward BOT notifications, such as daily routine reports, to WeChat through PushPlus. Ordinary logs and errors stay local."
+msgstr "Forward BOT notifications, such as daily routine reports, to WeChat through PushPlus. Ordinary logs and errors stay local."
+
+msgid "Enable PushPlus"
+msgstr "Enable PushPlus"
+
+msgid "Send BOT notifications through PushPlus; ordinary task logs are never forwarded"
+msgstr "Send BOT notifications through PushPlus; ordinary task logs are never forwarded"
+
+msgid "PushPlus Token"
+msgstr "PushPlus Token"
+
+msgid "Token from https://www.pushplus.plus/ ; keep it private and do not share it"
+msgstr "Token from https://www.pushplus.plus/ ; keep it private and do not share it"
+
+msgid "PushPlus Topic"
+msgstr "PushPlus Topic"
+
+msgid "Optional group code; leave empty to send to yourself"
+msgstr "Optional group code; leave empty to send to yourself"
+
+msgid "PushPlus Template"
+msgstr "PushPlus Template"
+
+msgid "Message template: txt, markdown, or html"
+msgstr "Message template: txt, markdown, or html"

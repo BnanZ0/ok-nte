@@ -1619,3 +1619,33 @@ msgstr "外置角色模組必須且只能定義一個 BaseChar 子類別"
 
 msgid "角色实现标识重复: {impl_id}"
 msgstr "角色實作識別碼重複: {impl_id}"
+
+msgid "PushPlus Notification"
+msgstr "PushPlus 通知"
+
+msgid "Forward BOT notifications, such as daily routine reports, to WeChat through PushPlus. Ordinary logs and errors stay local."
+msgstr "透過 PushPlus 將 BOT 通知（例如日常任務報告）轉發到微信。一般日誌和錯誤不會外發。"
+
+msgid "Enable PushPlus"
+msgstr "啟用 PushPlus"
+
+msgid "Send BOT notifications through PushPlus; ordinary task logs are never forwarded"
+msgstr "透過 PushPlus 傳送 BOT 通知；一般任務日誌不會外發"
+
+msgid "PushPlus Token"
+msgstr "PushPlus Token"
+
+msgid "Token from https://www.pushplus.plus/ ; keep it private and do not share it"
+msgstr "在 https://www.pushplus.plus/ 取得的 Token；請妥善保管，不要分享"
+
+msgid "PushPlus Topic"
+msgstr "PushPlus 群組編碼"
+
+msgid "Optional group code; leave empty to send to yourself"
+msgstr "選填群組編碼；留空則傳送給自己"
+
+msgid "PushPlus Template"
+msgstr "PushPlus 模板"
+
+msgid "Message template: txt, markdown, or html"
+msgstr "訊息模板：txt、markdown 或 html"
