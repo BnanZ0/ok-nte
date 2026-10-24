@@ -302,7 +302,7 @@ class TestWorkshop(unittest.TestCase):
         self.assertEqual(self.manager.get_external_impl_source("external:original/sample"), SOURCE)
         self.assertEqual(self.service.installation_store.path.read_bytes(), record_before)
 
-    def test_update_skips_local_edits_and_checks_before_replacing_sources(self):
+    def test_update_overwrites_local_edits_and_refreshes_hashes(self):
         contents = ArchiveContents(make_package(), {"sample.py": SOURCE})
         self.service.install_contents(contents, "Local", "original")
         update = ArchiveContents(
@@ -311,15 +311,21 @@ class TestWorkshop(unittest.TestCase):
         )
         path = self.external_dir / "original" / "sample.py"
         path.write_text(SOURCE + "\nLOCAL_CHANGE = True\n", encoding="utf-8")
-        with self.assertRaises(WorkshopInstallError) as caught:
-            self.service.update_contents(update, "original")
-        self.assertEqual(caught.exception.code, WorkshopInstallErrorCode.LOCAL_SOURCE_CHANGED)
-        path.write_text(SOURCE, encoding="utf-8")
+        previous_hash = self.service.get_installations()[0].hashes["sample.py"]
         guard = Mock(side_effect=RuntimeError("import or export in progress"))
         with self.assertRaises(RuntimeError):
             self.service.update_contents(update, "original", guard)
-        self.assertEqual(path.read_text(encoding="utf-8"), SOURCE)
+        self.assertIn("LOCAL_CHANGE", path.read_text(encoding="utf-8"))
         self.assertEqual(self.service.get_installations()[0].version, "1.0.0")
+        self.service.update_contents(update, "original")
+        self.assertEqual(path.read_text(encoding="utf-8"), update.sources["sample.py"])
+        installs = self.service.installation_store.load()
+        self.assertEqual(len(installs), 1)
+        self.assertEqual(installs[0].version, "1.1.0")
+        self.assertNotEqual(installs[0].hashes["sample.py"], previous_hash)
+        self.assertEqual(
+            installs[0].hashes["sample.py"], self.service._source_hash(update.sources["sample.py"])
+        )
 
     def test_record_failure_rolls_back_new_installation(self):
         contents = ArchiveContents(make_package(), {"sample.py": SOURCE})
@@ -378,9 +384,9 @@ class TestWorkshop(unittest.TestCase):
             updated, failures = self.service.update_from_catalog(
                 [entry], repository, source, Mock()
             )
-        self.assertEqual([item.directory for item in updated], ["original"])
-        self.assertEqual([name for name, _ in failures], ["edited"])
-        self.assertEqual(failures[0][1].code, WorkshopInstallErrorCode.LOCAL_SOURCE_CHANGED)
+        self.assertEqual([item.directory for item in updated], ["edited", "original"])
+        self.assertFalse(failures)
+        entry = replace(entry, package=replace(entry.package, version="1.2.0"))
         with patch.object(self.service, "load_archive", return_value=contents):
             updated, failures = self.service.update_from_catalog(
                 [entry], repository, source, Mock()
@@ -390,6 +396,134 @@ class TestWorkshop(unittest.TestCase):
         repository.reset_mock()
         self.service.update_from_catalog([entry], repository, source, Mock(), lambda: True)
         repository.download_archive.assert_not_called()
+
+    def test_refresh_prunes_renamed_paths_and_shows_import_without_touching_bindings(self):
+        contents = ArchiveContents(make_package(), {"sample.py": SOURCE})
+        imported = self.service.install_contents(contents, "Local", "original")
+        self.manager.create_character("Local character", "external:original/sample")
+        presets = self.manager.get_team_presets()
+        characters = self.manager.get_all_characters()
+        directory = self.external_dir / "original"
+        path = directory / "sample.py"
+        renamed_path = directory / "renamed.py"
+        path.rename(renamed_path)
+        latest = CatalogEntry(
+            replace(contents.package, version="1.1.0"), "codes/new.zip", "new.zip", 1, "2026-10-24Z"
+        )
+        source = IndexSource("GitHub", "index", "base")
+        repository = Mock()
+        repository.fetch_catalog.return_value = ([latest], source)
+        parent = QWidget()
+        with patch.object(BackgroundCall, "start", lambda worker: worker._run()):
+            dialog = WorkshopDialog(repository, parent, service=self.service)
+        try:
+            self.assertTrue(dialog.update_button.isHidden())
+            self.assertFalse(dialog.import_button.isHidden())
+            self.assertTrue(dialog.import_button.isEnabled())
+            self.assertFalse(dialog.update_all_button.isEnabled())
+            self.assertFalse(self.service.installation_store.load())
+            self.assertTrue(renamed_path.is_file())
+            self.assertEqual(self.manager.get_team_presets(), presets)
+            self.assertEqual(self.manager.get_all_characters(), characters)
+        finally:
+            dialog.deleteLater()
+            parent.deleteLater()
+        renamed_path.rename(path)
+        self.assertFalse(self.service.get_installations())
+        record = self.service._installation(
+            contents, imported.directory, {"sample.py": "sample.py"}
+        )
+        self.service.installation_store.save_installation(record)
+        renamed_directory = self.external_dir / "renamed"
+        self.assertTrue(directory.resolve().is_relative_to(self.temp_dir.resolve()))
+        self.assertTrue(renamed_directory.resolve().is_relative_to(self.temp_dir.resolve()))
+        directory.rename(renamed_directory)
+        self.assertFalse(self.service.get_installations())
+        self.assertFalse(self.service.installation_store.load())
+        self.assertTrue((renamed_directory / "sample.py").is_file())
+
+    def test_scan_error_preserves_records_even_if_another_installation_is_missing(self):
+        contents = ArchiveContents(make_package(), {"sample.py": SOURCE})
+        for directory in ("missing", "denied"):
+            self.service.install_contents(contents, directory, directory)
+        (self.external_dir / "missing" / "sample.py").unlink()
+        denied = self.external_dir / "denied" / "sample.py"
+        before = self.service.installation_store.path.read_bytes()
+        original_stat = Path.stat
+
+        def stat(path, *args, **kwargs):
+            if path == denied:
+                raise PermissionError("access denied")
+            return original_stat(path, *args, **kwargs)
+
+        with patch.object(Path, "stat", stat):
+            with self.assertRaises(PermissionError):
+                self.service.get_installations()
+        self.assertEqual(self.service.installation_store.path.read_bytes(), before)
+        with patch.object(Path, "read_bytes", side_effect=PermissionError("access denied")):
+            with self.assertRaises(PermissionError):
+                self.service.update_contents(
+                    ArchiveContents(replace(contents.package, version="1.1.0"), contents.sources),
+                    "denied",
+                )
+        self.assertEqual(
+            [item.directory for item in self.service.installation_store.load()], ["denied"]
+        )
+
+    def test_prune_save_failure_preserves_original_json(self):
+        contents = ArchiveContents(make_package(), {"sample.py": SOURCE})
+        self.service.install_contents(contents, "Local", "original")
+        (self.external_dir / "original" / "sample.py").unlink()
+        before = self.service.installation_store.path.read_bytes()
+        with patch.object(Path, "replace", side_effect=OSError("cannot replace record")):
+            with self.assertRaises(OSError):
+                self.service.get_installations()
+        self.assertEqual(self.service.installation_store.path.read_bytes(), before)
+        self.assertEqual(len(self.service.installation_store.load()), 1)
+        self.assertFalse(self.service.installation_store.path.with_suffix(".tmp").exists())
+
+    def test_update_rechecks_missing_files_and_prunes_before_overwriting(self):
+        contents = ArchiveContents(make_package(), {"sample.py": SOURCE})
+        self.service.install_contents(contents, "Local", "original")
+        update = ArchiveContents(replace(contents.package, version="1.1.0"), contents.sources)
+        path = self.external_dir / "original" / "sample.py"
+        with self.assertRaises(WorkshopInstallError) as caught:
+            self.service.update_contents(update, "original", path.unlink)
+        self.assertEqual(caught.exception.code, WorkshopInstallErrorCode.INSTALLATION_MISSING)
+        self.assertFalse(self.service.installation_store.load())
+        self.assertFalse(path.exists())
+
+    def test_remote_filename_change_offers_import_and_keeps_existing_installation(self):
+        contents = ArchiveContents(make_package(), {"sample.py": SOURCE})
+        imported = self.service.install_contents(contents, "Local", "original")
+        self.manager.delete_team_preset(imported.preset_id)
+        before = self.service.installation_store.path.read_bytes()
+        package = replace(
+            contents.package,
+            version="1.1.0",
+            slots=(replace(contents.package.slots[1], file_name="renamed.py"),),
+        )
+        latest = CatalogEntry(package, "codes/new.zip", "new.zip", 1, "2026-10-24Z")
+        source = IndexSource("GitHub", "index", "base")
+        repository = Mock()
+        repository.fetch_catalog.return_value = ([latest], source)
+        parent = QWidget()
+        with patch.object(BackgroundCall, "start", lambda worker: worker._run()):
+            dialog = WorkshopDialog(repository, parent, service=self.service)
+        try:
+            self.assertTrue(dialog.update_button.isHidden())
+            self.assertTrue(dialog.import_button.isEnabled())
+            self.assertFalse(dialog.update_all_button.isEnabled())
+            updated, failures = self.service.update_from_catalog(
+                [latest], repository, source, Mock()
+            )
+            self.assertFalse(updated)
+            self.assertFalse(failures)
+            repository.download_archive.assert_not_called()
+            self.assertEqual(self.service.installation_store.path.read_bytes(), before)
+        finally:
+            dialog.deleteLater()
+            parent.deleteLater()
 
     def test_workshop_history_import_and_latest_update_follow_selected_version(self):
         contents = ArchiveContents(make_package(), {"sample.py": SOURCE})

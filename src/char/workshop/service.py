@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from enum import StrEnum
 from hashlib import sha256
 from pathlib import Path
+from stat import S_ISDIR, S_ISREG
 
 from src.char.core.CharRegistry import char_registry
 from src.char.custom.CustomCharManager import CustomCharManager
@@ -70,13 +71,36 @@ class WorkshopPackageService:
         )
 
     def get_installations(self) -> list[WorkshopInstallation]:
+        with INSTALLATIONS_LOCK:
+            try:
+                installs = self.installation_store.load()
+            except (OSError, ValueError) as error:
+                raise WorkshopInstallError(
+                    "Could not read workshop installation records",
+                    WorkshopInstallErrorCode.INVALID_INSTALLATIONS,
+                ) from error
+            current = [item for item in installs if self._installation_exists(item)]
+            if current != installs:
+                self.installation_store.save_installations(current)
+            return current
+
+    def _installation_exists(self, installation: WorkshopInstallation) -> bool:
+        root = self.external_dir.resolve()
+        target = root / installation.directory
         try:
-            return self.installation_store.load()
-        except (OSError, ValueError) as error:
-            raise WorkshopInstallError(
-                "Could not read workshop installation records",
-                WorkshopInstallErrorCode.INVALID_INSTALLATIONS,
-            ) from error
+            if not S_ISDIR(target.stat().st_mode):
+                return False
+            if target.is_symlink():
+                raise ValueError("External character directory cannot be a symbolic link")
+            for local in installation.files.values():
+                path = target / local
+                if path.is_symlink() or not path.resolve().is_relative_to(root):
+                    raise ValueError("External character source path is unsafe")
+                if not S_ISREG(path.stat().st_mode):
+                    return False
+        except (FileNotFoundError, NotADirectoryError):
+            return False
+        return True
 
     @staticmethod
     def _source_hash(source: str) -> str:
@@ -161,25 +185,30 @@ class WorkshopPackageService:
                     or not path.is_file()
                     or not path.resolve().is_relative_to(root)
                 ):
+                    self.get_installations()
                     raise WorkshopInstallError(
                         "Installed source was not found",
                         WorkshopInstallErrorCode.INSTALLATION_MISSING,
                     )
-                previous[path] = path.read_bytes()
+                try:
+                    previous[path] = path.read_bytes()
+                except (FileNotFoundError, NotADirectoryError) as error:
+                    self.get_installations()
+                    raise WorkshopInstallError(
+                        "Installed source was not found",
+                        WorkshopInstallErrorCode.INSTALLATION_MISSING,
+                    ) from error
                 replacements[path] = contents.sources[remote]
                 compile(replacements[path], local, "exec")
-                expected_hash = installation.hashes.get(remote)
-                if (
-                    expected_hash
-                    and self._source_hash(previous[path].decode("utf-8")) != expected_hash
-                ):
-                    raise WorkshopInstallError(
-                        "Local source was edited; automatic update was skipped",
-                        WorkshopInstallErrorCode.LOCAL_SOURCE_CHANGED,
-                    )
             updated = self._installation(contents, directory, installation.files)
             if before_replace:
                 before_replace()
+            if not self._installation_exists(installation):
+                self.get_installations()
+                raise WorkshopInstallError(
+                    "Installed source was not found",
+                    WorkshopInstallErrorCode.INSTALLATION_MISSING,
+                )
             try:
                 for path, code in replacements.items():
                     path.write_text(code, encoding="utf-8", newline="")
@@ -221,7 +250,7 @@ class WorkshopPackageService:
         for entry in entries:
             if cancelled():
                 break
-            targets = [item for item in installations if item.has_update(entry.package)]
+            targets = [item for item in installations if item.can_update(entry.package)]
             if not targets:
                 continue
             try:

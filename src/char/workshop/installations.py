@@ -29,6 +29,11 @@ class WorkshopInstallation:
             self.version
         )
 
+    def can_update(self, package: TeamPackage) -> bool:
+        return self.has_update(package) and set(self.files) == {
+            slot.file_name for slot in package.slots if slot.kind == "external"
+        }
+
     def to_dict(self) -> dict:
         return {
             "author": self.author,
@@ -106,6 +111,10 @@ class WorkshopInstallationStore:
                 if item.directory.casefold() != installation.directory.casefold()
             ]
             installs.append(installation)
+            self.save_installations(installs)
+
+    def save_installations(self, installs: list[WorkshopInstallation]) -> None:
+        with INSTALLATIONS_LOCK:
             self.path.parent.mkdir(parents=True, exist_ok=True)
             temporary = self.path.with_suffix(".tmp")
             try:

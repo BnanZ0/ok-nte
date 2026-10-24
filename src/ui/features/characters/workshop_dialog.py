@@ -514,8 +514,8 @@ class WorkshopDialog(MessageBoxBase):
         self.status_label.setText(self.tr("正在加载工坊..."))
 
         def load():
-            catalog = self.repository.fetch_catalog(self.is_chinese, force_refresh)
             installs = self.service.get_installations() if self.service else []
+            catalog = self.repository.fetch_catalog(self.is_chinese, force_refresh)
             return (*catalog, installs)
 
         self._worker = BackgroundCall(load, self)
@@ -706,7 +706,7 @@ class WorkshopDialog(MessageBoxBase):
         pending = (
             selected == latest
             and latest is not None
-            and any(item.has_update(latest.package) for item in installed)
+            and any(item.can_update(latest.package) for item in installed)
         )
         show_update = bool(self.service is not None and not self.metadata_only and pending)
         self.update_button.setVisible(show_update)
@@ -720,7 +720,7 @@ class WorkshopDialog(MessageBoxBase):
             bool(
                 available
                 and any(
-                    item.has_update(entry.package)
+                    item.can_update(entry.package)
                     for item in self.installations
                     for entry in self.entries
                 )
