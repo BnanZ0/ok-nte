@@ -699,7 +699,6 @@ class BaseNTETask(
         self.info_set("current task", None)
 
     def is_main(self, esc=True, in_world=True):
-        in_team_or_world = False
         if in_world:
             in_team_or_world = bool(self.in_team_and_world())
         else:
@@ -708,9 +707,9 @@ class BaseNTETask(
             self.scene.set_logged_in()
             return True
         if self.handle_monthly_card(log=False):
-            return True
-        if self.wait_login():
-            return True
+            return
+        if self.check_login():
+            return
         if esc:
             self.send_key("esc", action_name="is_main", interval=2)
 
@@ -771,18 +770,14 @@ class BaseNTETask(
         else:
             self.next_monthly_card_start = None
 
-    def wait_login(self):
-        if not self.scene.logged_in():
-            if self.is_in_team():
-                return True
-            self.handle_monthly_card(log=False)
-            if self.find_one(Labels.login_setting):
-                self.log_info("found login_setting, bring_to_front and click")
-                if not self.is_foreground():
-                    self.bring_to_front()
-                    self.sleep(3)
-                self.operate_click(0.499, 0.865, after_sleep=3)
-                return False
+    def check_login(self):
+        if not self.scene.logged_in() and self.find_one(Labels.login_setting):
+            self.log_info("found login_setting, bring_to_front and click")
+            if not self.is_foreground():
+                self.bring_to_front()
+                self.sleep(2)
+            self.operate_click(0.499, 0.865, after_sleep=3)
+            return True
 
     def back_to_login(self):
         self.ensure_main(in_world=False)

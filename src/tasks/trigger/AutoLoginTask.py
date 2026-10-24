@@ -19,4 +19,4 @@ class AutoLoginTask(BaseNTETask, TriggerTask):
         elif self.scene.is_in_team(self.is_in_team):
             self.scene.set_logged_in()
         else:
-            self.wait_login()
+            self.check_login()
