@@ -34,7 +34,7 @@ class Zankou(BaseChar):
                     self.task.wait_until(
                         self.find_ult_purple,
                         post_action=self.click_with_interval,
-                        time_out=2,
+                        time_out=0.6,
                     )
 
             if self.find_ult_purple():
@@ -82,9 +82,13 @@ class Zankou(BaseChar):
         purple_skill = False
         if feature_name := self.find_zankou_skill():
             if click_skill := self.click_skill():
-                if feature_name == Labels.zankou_skill_purple:
-                    self.sleep(2)
-                    purple_skill = True
+                with self.task.skip_sleep_checks() as skip:
+                    skip.sound_combat_context=True
+                    if feature_name == Labels.zankou_skill_purple:
+                        self.continues_normal_attack(2)
+                        purple_skill = True
+                    else:
+                        self.continues_normal_attack(1)
         return click_skill, purple_skill
 
     def find_ult_purple(self):
