@@ -152,7 +152,7 @@ class CombatContext:
 
     def request_route(
         self,
-        steps: list[FollowupStep],
+        steps: FollowupStep | list[FollowupStep],
         reason: str = "",
         until: RequestDeadline | None = None,
         return_to_source: bool = False,
@@ -165,9 +165,10 @@ class CombatContext:
         其他动作；窗口保留请单独搭配 `reserve_actions()`。
 
         Args:
-            steps: 路线步骤。支持指定动作、入场反应或 `for_switch()` 纯切人。
-                切人步骤默认等待目标正常执行完本轮; wait_for_turn=False 时切入即完成。
-                为空时不会发布请求，并返回 None。
+            steps: 单个 FollowupStep 或按执行顺序排列的步骤列表。
+                支持指定动作、入场反应或 for_switch() 切人步骤。
+                for_switch() 默认等待目标执行完一轮正常出招流程后再推进路线。
+                列表为空时不会发布请求, 并返回 None。
             reason: 日志和调试用理由；为空时会自动使用当前角色生成默认理由。
             until: 过期条件。为 None 时不会因时间/机制条件过期；传 callable 时，
                 每次 planner prune 都会调用，返回 True 则 route 以 EXPIRED 结束。
@@ -181,6 +182,8 @@ class CombatContext:
             传给其他 request 的 `until=`。
         """
 
+        if isinstance(steps, FollowupStep):
+            steps = [steps]
         if not steps:
             return None
         request = _RouteRequest(

@@ -59,10 +59,9 @@ class Blackbird(BaseChar):
             if (yield ultimate.repeat_for_entry()):
                 self.in_ult = True
                 self.perform_in_ult(context)
-                dps_list = self.get_teammates_by_role(Planner.Role.MAIN_DPS)
                 steps = [
                     FollowupStep.for_switch(char, reason="Blackbird request dps")
-                    for char in dps_list
+                    for char in self.get_teammates_by_role(Planner.Role.MAIN_DPS)
                 ]
                 if steps:
                     context.request_route(steps)

@@ -690,9 +690,18 @@ class FollowupStep:
     def for_switch(
         cls, target: "BaseChar", reason: str = "", *, wait_for_turn: bool = True
     ) -> "FollowupStep":
-        """切入后默认等待目标正常执行完本轮, 再推进 route。
+        """创建切入指定角色的 route 步骤, 可等待其完成一轮正常出招流程。
 
-        wait_for_turn=False 时切入即完成, 不保证目标执行任何动作。
+        Args:
+            target: 要切入的目标角色。
+            reason: 日志和调试用理由; 为空时根据目标角色自动生成。
+            wait_for_turn: 是否等待目标执行完本轮后再完成步骤, 默认 True。
+                True 时, 切入后按目标的正常 entry 流程执行一轮; 目标已在场时
+                也要执行本轮。False 时, 切入成功或目标已在场即完成步骤,
+                立即推进 route, 不保证目标执行任何动作。
+
+        Returns:
+            供 CombatContext.request_route() 使用的切人步骤。
         """
 
         return cls(
