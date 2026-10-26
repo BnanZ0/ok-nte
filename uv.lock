@@ -273,6 +273,7 @@ dependencies = [
     { name = "pywin32" },
     { name = "scikit-image" },
     { name = "sounddevice" },
+    { name = "typing-extensions" },
 ]
 
 [package.dev-dependencies]
@@ -289,7 +290,7 @@ requires-dist = [
     { name = "comtypes", specifier = ">=1.4.17" },
     { name = "librosa", specifier = ">=1.0.0" },
     { name = "mido", specifier = ">=1.3.3" },
-    { name = "ok-script", extras = ["ocr", "qt"], specifier = ">=2.0.15b1" },
+    { name = "ok-script", extras = ["ocr", "qt"], specifier = ">=2.0.15" },
     { name = "onnxocr-ppocrv5", specifier = ">=0.0.22" },
     { name = "opencc", specifier = ">=1.4.2" },
     { name = "opencv-python", specifier = ">=5.0.0.93" },
@@ -301,6 +302,7 @@ requires-dist = [
     { name = "pywin32", specifier = "==311" },
     { name = "scikit-image", specifier = ">=0.26.0" },
     { name = "sounddevice", specifier = ">=0.5.6" },
+    { name = "typing-extensions", specifier = ">=4.9" },
 ]
 
 [package.metadata.requires-dev]
@@ -314,11 +316,10 @@ dev = [
 
 [[package]]
 name = "ok-script"
-version = "2.0.15b1"
+version = "2.0.15"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "mouse" },
-    { name = "packaging" },
     { name = "psutil" },
     { name = "pyappify" },
     { name = "pycaw" },
@@ -328,9 +329,9 @@ dependencies = [
     { name = "requests" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/75/76/7e17c4ffde1257d5d744f2e5f6dcba8281c860dbb5fe31b86aaa61cb24d4/ok_script-2.0.15b1.tar.gz", hash = "sha256:31a3d1b255c92cc7fe3c647e5ad08aec9d1a2e6a68f3eedb6c590d08a124171f", size = 1175407, upload-time = "2026-10-23T14:58:47.238Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/86/c1/3919e15dc22ae04ae2404cd3c6fa1fe8a0ca8a819b5f44ec1df244184505/ok_script-2.0.15.tar.gz", hash = "sha256:cce2a07e2cb38f48fc1bebefcdc8be72ef29d3e4bf50e6ef1023518f0a329309", size = 954866, upload-time = "2026-10-26T16:20:51.531Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/c0/c6/297f7bf8baeae3679df365684afcc820226540ee4f9052e5ee1a0a6ea53b/ok_script-2.0.15b1-py3-none-any.whl", hash = "sha256:80b54ca7452c1369701bb00bd80af348d392720f2115db7b6b3f55a302110bea", size = 1184539, upload-time = "2026-10-23T14:58:45.026Z" },
+    { url = "https://files.pythonhosted.org/packages/7e/16/d8fe8ca5bf8990dae3bc34b67e75bf95abbe597296e284e1ca3d46ed7c2d/ok_script-2.0.15-py3-none-any.whl", hash = "sha256:6d454a65cb0293dba88172a06d3ea7bdb5f6a908bd8bb7ae9a42e906dc3d71b0", size = 958592, upload-time = "2026-10-26T16:20:49.588Z" },
 ]
 
 [package.optional-dependencies]

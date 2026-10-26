@@ -62,7 +62,7 @@ numpy==2.4.6 ; sys_platform == 'win32'
     #   soundfile
     #   soxr
     #   tifffile
-ok-script==2.0.15b1 ; sys_platform == 'win32'
+ok-script==2.0.15 ; sys_platform == 'win32'
     # via ok-nte
 onnxocr-ppocrv5==0.0.22 ; sys_platform == 'win32'
     # via
@@ -80,7 +80,6 @@ packaging==26.2 ; sys_platform == 'win32'
     # via
     #   lazy-loader
     #   mido
-    #   ok-script
     #   pooch
     #   scikit-image
 pillow==13.0.0 ; sys_platform == 'win32'
@@ -163,6 +162,7 @@ tifffile==2026.7.14 ; sys_platform == 'win32'
     # via scikit-image
 typing-extensions==4.16.0 ; sys_platform == 'win32'
     # via
+    #   ok-nte
     #   ok-script
     #   soundfile
 urllib3==2.8.0 ; sys_platform == 'win32'
