@@ -5,6 +5,11 @@ from enum import StrEnum
 from itertools import count
 from typing import TYPE_CHECKING, Callable, Generator, Iterable, Self, cast
 
+from typing_extensions import deprecated
+
+from .binding import _bind_action_method, _original_method
+from .errors import _raise_errors
+
 if TYPE_CHECKING:
     from src.char.BaseChar import BaseChar
 
@@ -22,6 +27,80 @@ class Planner:
     """PyQt-style public namespace for planner enum groups."""
 
     NEVER_EXPIRES = _NeverExpires()
+
+    @dataclass(slots=True)
+    class Reserve:
+        """按目标角色和槽位声明动作保留。"""
+
+        slots: set[Planner.ActionSlot]
+        target_indices: set[int] = field(default_factory=set)
+        target_names: set[str] = field(default_factory=set)
+        _target: BaseChar | None = field(default=None, repr=False, compare=False)
+
+        @classmethod
+        def action(cls, char: BaseChar, *, slot: Planner.ActionSlot) -> Self:
+            """保留 char 的指定动作槽位; 生命周期由 reserve_actions(until=...) 决定。"""
+
+            return cls(slots={slot}, _target=char)
+
+        def matches_char(self, char: BaseChar) -> bool:
+            if self._target is not None:
+                return self._target is char
+            if self.target_indices and char.index not in self.target_indices:
+                return False
+            if self.target_names:
+                names = {char.name, str(getattr(char, "char_name", ""))}
+                if not self.target_names.intersection(names):
+                    return False
+            return True
+
+        def reserves_action(self, char: BaseChar, action: _Action | ActionResult) -> bool:
+            return self.matches_char(char) and action.slot in self.slots
+
+    @dataclass(frozen=True, slots=True)
+    class Route:
+        """路线中的动作筛选、可选方法调用或环合反应要求。"""
+
+        _method: Callable[..., ActionResult | bool | None] | None = field(default=None, repr=False)
+        _source: BaseChar | None = field(default=None, repr=False)
+        _target: BaseChar | None = field(default=None, repr=False)
+        _optional: bool = False
+        _slot: Planner.ActionSlot | None = field(default=None, repr=False)
+        _tags: frozenset[Planner.ActionTag] = field(default_factory=frozenset, repr=False)
+
+        @classmethod
+        def action(
+            cls,
+            char: BaseChar,
+            *,
+            slot: Planner.ActionSlot | None = None,
+            tags: set[Planner.ActionTag] | None = None,
+            optional: bool = False,
+        ) -> Self:
+            """从 char 已注册的动作中选择首个满足条件且可执行的动作。
+
+            slot 和 tags 同时提供时需同时满足; tags 命中任一标签即可。
+            至少提供一个筛选条件。默认以短暂普攻等待不可用动作, 失败后重试;
+            optional=True 时, 不可用或返回 False 均跳过整步。
+            """
+
+            if slot is None and not tags:
+                raise ValueError("Route.action() requires slot or nonempty tags")
+            return cls(_target=char, _slot=slot, _tags=frozenset(tags or ()), _optional=optional)
+
+        @classmethod
+        def optional(cls, method: Callable[..., ActionResult | bool | None]) -> Self:
+            """方法暂时不可用或返回失败时跳过; 程序异常仍正常抛出。"""
+
+            return cls(_method=method, _optional=True)
+
+        @classmethod
+        def reaction(cls, source: BaseChar, target: BaseChar, *, optional: bool = False) -> Self:
+            """等待来源满资源并确认指定反应; optional=True 时跳过不可用或未确认反应。"""
+
+            if source is target:
+                raise ValueError("a reaction requires different source and target characters")
+            return cls(_source=source, _target=target, _optional=optional)
 
     class Role(StrEnum):
         """角色战斗定位。
@@ -105,6 +184,7 @@ class Planner:
         PENDING = "pending"
         FULFILLED = "fulfilled"
         EXPIRED = "expired"
+        FAILED = "failed"
 
 
 Role = Planner.Role
@@ -140,20 +220,18 @@ FIELD_CLAIM_SCORES = {
 
 @dataclass(slots=True)
 class RequestHandle:
-    """角色代码可用来观察 request 生命周期的轻量句柄。
-
-    `request_route()`、`reserve_actions()`、`request_switch()` 和
-    `request_tags()` 会返回此对象。它不控制 request 本身，只让角色代码查询
-    request 当前是否仍在进行，以及把 request 的生命周期信号组合成其他 request 的
-    `until` 条件。
-    """
+    """查询请求状态或订阅生命周期信号。"""
 
     _fulfilled: bool = False
     _expired: bool = False
     _closed: bool = False
-    _on_finish: list[Callable[[], None]] = field(default_factory=list)
-    _on_fulfilled: list[Callable[[], None]] = field(default_factory=list)
-    _on_expired: list[Callable[[], None]] = field(default_factory=list)
+    _failed: bool = False
+    _bind_callback: Callable[[Callable], Callable] | None = field(default=None, repr=False)
+    _dispatch: Callable[[Callable[[], None]], None] | None = field(default=None, repr=False)
+    _flush: Callable[[], None] | None = field(default=None, repr=False)
+    _listeners: list[tuple[RequestStatus | None, Callable[[], None]]] = field(
+        default_factory=list, repr=False
+    )
 
     @property
     def status(self) -> RequestStatus:
@@ -165,6 +243,8 @@ class RequestHandle:
         planner 影响面信号，不由 `RequestStatus` 表达。
         """
 
+        if self._failed:
+            return RequestStatus.FAILED
         if self._expired:
             return RequestStatus.EXPIRED
         if self._fulfilled:
@@ -179,7 +259,11 @@ class RequestHandle:
         planner 影响面中移除。
         """
 
-        return not self._fulfilled and not self._expired and not self._closed
+        return not self._fulfilled and not self._expired and not self._failed and not self._closed
+
+    @property
+    def is_failed(self) -> bool:
+        return self._failed
 
     @property
     def is_fulfilled(self) -> bool:
@@ -225,68 +309,66 @@ class RequestHandle:
 
         return RequestWhenPredicates(self)
 
-    def on_finish(self, callback: Callable[[], None]) -> "RequestHandle":
-        """注册首次结束信号回调。
+    def _deliver(self, callbacks):
+        errors = []
+        for callback in callbacks:
+            if self._dispatch is not None:
+                self._dispatch(callback)
+            else:
+                try:
+                    callback()
+                except Exception as error:
+                    errors.append(error)
+        _raise_errors(errors)
 
-        request 首次进入 `FULFILLED` 或 `EXPIRED` 时调用一次。若注册时 request
-        已经出现过任一信号，callback 会立即执行一次。需要分别处理成功和过期时，
-        使用 `on_fulfilled()` / `on_expired()`。
-        """
-
-        if self.is_pending:
-            self._on_finish.append(callback)
+    def _subscribe(self, signal, callback):
+        callback = self._bind_callback(callback) if self._bind_callback else callback
+        happened = {
+            None: not self.is_pending,
+            RequestStatus.FULFILLED: self.is_fulfilled,
+            RequestStatus.EXPIRED: self.is_expired,
+            RequestStatus.FAILED: self.is_failed,
+        }[signal]
+        if happened:
+            self._deliver([callback])
+            if self._flush is not None:
+                self._flush()
         else:
-            callback()
+            self._listeners.append((signal, callback))
         return self
+
+    def on_finish(self, callback: Callable[[], None]) -> "RequestHandle":
+        """Subscribe once to the first completion, failure or expiration signal."""
+        return self._subscribe(None, callback)
 
     def on_fulfilled(self, callback: Callable[[], None]) -> "RequestHandle":
-        """注册成功完成回调。
-
-        只在 request 进入 `FULFILLED` 时调用。若注册时已经 fulfilled，callback
-        会立即执行。
-        """
-
-        if self.is_fulfilled:
-            callback()
-        else:
-            self._on_fulfilled.append(callback)
-        return self
+        return self._subscribe(RequestStatus.FULFILLED, callback)
 
     def on_expired(self, callback: Callable[[], None]) -> "RequestHandle":
-        """注册过期/失效回调。
+        return self._subscribe(RequestStatus.EXPIRED, callback)
 
-        只在 request 进入 `EXPIRED` 时调用。若注册时已经 expired，callback
-        会立即执行。即使 request 已经 fulfilled，也可以继续等待后续 expired。
-        """
-
-        if self.is_expired:
-            callback()
-        else:
-            self._on_expired.append(callback)
-        return self
+    def on_failed(self, callback: Callable[[], None]) -> "RequestHandle":
+        return self._subscribe(RequestStatus.FAILED, callback)
 
     def _finish(self, status: RequestStatus) -> bool:
-        first_signal = self.is_pending
-        callbacks = []
-        if status is RequestStatus.FULFILLED:
-            if self._fulfilled:
-                return False
-            self._fulfilled = True
-            callbacks.extend(self._on_fulfilled)
-            self._on_fulfilled.clear()
-        elif status is RequestStatus.EXPIRED:
-            if self._expired:
-                return False
-            self._expired = True
-            callbacks.extend(self._on_expired)
-            self._on_expired.clear()
-        else:
+        attribute = {
+            RequestStatus.FULFILLED: "_fulfilled",
+            RequestStatus.FAILED: "_failed",
+            RequestStatus.EXPIRED: "_expired",
+        }.get(status)
+        if attribute is None or getattr(self, attribute):
             return False
-        if first_signal:
-            callbacks = list(self._on_finish) + callbacks
-            self._on_finish.clear()
-        for callback in callbacks:
-            callback()
+        first_signal = self.is_pending
+        setattr(self, attribute, True)
+        callbacks = []
+        remaining = []
+        for signal, callback in self._listeners:
+            if signal is status or (signal is None and first_signal):
+                callbacks.append(callback)
+            else:
+                remaining.append((signal, callback))
+        self._listeners = remaining
+        self._deliver(callbacks)
         return first_signal
 
     def _close(self) -> bool:
@@ -310,7 +392,10 @@ class RequestWhenPredicates:
         """返回“request fulfilled、expired 或 closed 后为 True”的条件。"""
 
         return lambda: (
-            self._handle.is_fulfilled or self._handle.is_expired or self._handle.is_closed
+            self._handle.is_fulfilled
+            or self._handle.is_expired
+            or self._handle.is_failed
+            or self._handle.is_closed
         )
 
     @property
@@ -324,6 +409,10 @@ class RequestWhenPredicates:
         """返回“request 过期或失效时为 True”的条件。"""
 
         return lambda: self._handle.is_expired
+
+    @property
+    def failed(self) -> Callable[[], bool]:
+        return lambda: self._handle.is_failed
 
     @property
     def closed(self) -> Callable[[], bool]:
@@ -521,6 +610,9 @@ class ActionResult:
     tags: set[ActionTag] = field(default_factory=set)
     slot: ActionSlot | None = None
     reason: str = ""
+    _registered_method: Callable[..., ActionResult | bool | None] | None = field(
+        default=None, repr=False, compare=False, kw_only=True
+    )
 
     def __bool__(self) -> bool:
         """让 entry flow 可以用普通 Python truthiness 判断动作是否成功。"""
@@ -531,28 +623,39 @@ class ActionResult:
 ActionExecutor = Callable[["CombatContext"], ActionResult | bool | None]
 ActionPredicate = Callable[["CombatContext"], bool]
 EntryFlow = Generator["ActionIntent", ActionResult, None]
-EntryFactory = Callable[[], EntryFlow]
+EntryFactory = Callable[[], EntryFlow | ActionResult | bool | None]
 
 
 _ENTRY_REPEAT_IDS = count()
 
 
 @dataclass(slots=True)
-class ActionIntent:
+class _ActionBase[**P]:
     """角色声明给 `CombatPlanner` 的候选动作。"""
 
     tags: set[ActionTag]
-    execute: ActionExecutor
+    execute: Callable[P, ActionResult | bool | None]
     name: str = ""
     slot: ActionSlot | None = None
     reason: str = ""
-    can_execute: ActionPredicate | None = None
-    priority_ready: ActionPredicate | None = None
-    _entry_repeat_id: int | None = field(default=None, repr=False, compare=False)
+    can_execute: Callable[P, bool] | None = None
+    priority_ready: Callable[P, bool] | None = None
+    _key: str = field(default="", repr=False, compare=False, kw_only=True)
+    methods: tuple[Callable[..., ActionResult | bool | None], ...] = field(
+        default=(), repr=False, compare=False, kw_only=True
+    )
+    _registered_method: Callable[..., ActionResult | bool | None] | None = field(
+        default=None, repr=False, compare=False, kw_only=True
+    )
 
     def identity_key(self) -> str:
         """返回 planner 内部使用的动作身份。"""
 
+        if self._key:
+            return self._key
+        if self._registered_method is not None:
+            method = self._registered_method
+            return f"method:{id(method.__self__)}:{id(method.__func__)}"
         if self.name:
             identity = f"name:{self.name}"
         elif self.slot is not None:
@@ -563,20 +666,7 @@ class ActionIntent:
         else:
             tag_key = ",".join(sorted(str(tag) for tag in self.tags))
             identity = f"tags:{tag_key}|reason:{self.reason}"
-        if self._entry_repeat_id is not None:
-            return f"{identity}|entry_repeat:{self._entry_repeat_id}"
         return identity
-
-    def repeat_for_entry(self) -> Self:
-        """返回可在同一次 entry 中再次 yield 的动作副本。
-
-        副本保留原 action 的执行器, 槽位, 标签和权限限制, 仅增加 entry 内部的
-        去重标识。每次调用都会生成一个新的标识, 因此循环中可以自然重试动作。
-        它适合大招窗口内再次施放 E 这类机制; 通常只在 entry flow 里 yield,
-        不加入 `CombatPlan.actions`, 因此不参与切人评分。
-        """
-
-        return replace(self, _entry_repeat_id=next(_ENTRY_REPEAT_IDS))
 
     def display_name(self) -> str:
         """返回仅用于日志的人类可读动作名。"""
@@ -589,26 +679,13 @@ class ActionIntent:
             return f"<{self.reason}>"
         return "<anonymous_action>"
 
-    def is_allowed(self, context: "CombatContext") -> bool:
-        """返回 planner 层是否允许该动作执行。"""
+    def _return_succeeded(self, result: bool | None) -> bool:
+        return result is not False
 
-        if self.can_execute is None:
-            return True
-        return self.can_execute(context)
-
-    def is_priority_ready(self, context: "CombatContext") -> bool:
-        """返回该动作当前是否值得参与评分和切人。"""
-
-        if not self.is_allowed(context):
-            return False
-        if self.priority_ready is None:
-            return True
-        return self.priority_ready(context)
-
-    def run(self, context: "CombatContext") -> ActionResult:
+    def run(self, *args: P.args, **kwargs: P.kwargs) -> ActionResult:
         """执行动作并标准化为 `ActionResult`。"""
 
-        result = self.execute(context)
+        result = self.execute(*args, **kwargs)
         if isinstance(result, ActionResult):
             if not result.name and self.name:
                 result.name = self.name
@@ -620,11 +697,62 @@ class ActionIntent:
         else:
             action_result = ActionResult(
                 name=self.name,
-                success=result is True,
+                success=self._return_succeeded(result),
                 tags=set(self.tags),
                 slot=self.slot,
             )
+        action_result._registered_method = self._registered_method or next(iter(self.methods), None)
         return action_result
+
+
+@dataclass(slots=True)
+class _Action(_ActionBase[[]]):
+    def is_allowed(self) -> bool:
+        return self.can_execute is None or self.can_execute()
+
+    def is_priority_ready(self) -> bool:
+        return self.is_allowed() and (self.priority_ready is None or self.priority_ready())
+
+
+@deprecated("Register bound methods with plan.register()", category=None)
+@dataclass(slots=True)
+class ActionIntent(_ActionBase[["CombatContext"]]):
+    """Compatibility declaration for published generator-based character plans."""
+
+    _entry_repeat_id: int | None = field(default=None, repr=False, compare=False)
+    _legacy_method: Callable[..., ActionResult | bool | None] | None = field(
+        default=None, repr=False, compare=False, kw_only=True
+    )
+
+    def _return_succeeded(self, result: bool | None) -> bool:
+        """Keep the published protocol's implicit-None failure behavior."""
+        return result is True
+
+    def is_allowed(self, context: "CombatContext") -> bool:
+        return self.can_execute is None or self.can_execute(context)
+
+    def is_priority_ready(self, context: "CombatContext") -> bool:
+        return self.is_allowed(context) and (
+            self.priority_ready is None or self.priority_ready(context)
+        )
+
+    def identity_key(self) -> str:
+        identity = super(ActionIntent, self).identity_key()
+        if self._entry_repeat_id is not None:
+            return f"{identity}|entry_repeat:{self._entry_repeat_id}"
+        return identity
+
+    @deprecated("Register the method with plan.register() and call it directly", category=None)
+    def repeat_for_entry(self) -> Self:
+        """返回可在同一次 entry 中再次 yield 的动作副本。
+
+        副本保留原 action 的执行器, 槽位, 标签和权限限制, 仅增加 entry 内部的
+        去重标识。每次调用都会生成一个新的标识, 因此循环中可以自然重试动作。
+        它适合大招窗口内再次施放 E 这类机制; 通常只在 entry flow 里 yield,
+        不加入 `CombatPlan.actions`, 因此不参与切人评分。
+        """
+
+        return replace(self, _entry_repeat_id=next(_ENTRY_REPEAT_IDS))
 
 
 @dataclass(slots=True)
@@ -632,11 +760,12 @@ class CombatPlan:
     """角色一次 planner 查询的完整计划。
 
     `actions` 是 planner 可见的动作目录，用于切人评分、route、request 和 reservation。
-    `claims` 是入场诉求。`entry` 是普通入场后的 Python generator 流程；未提供时
-    planner 会按 `actions` 声明顺序执行。
+    `claims` 是入场诉求。`entry` 是普通入场后的函数或 generator 流程;
+    普通函数直接调用已登记的角色方法, generator 仍兼容旧动作声明。
+    未提供 entry 时, planner 按 actions 声明顺序执行。
     """
 
-    actions: Iterable[ActionIntent] = field(default_factory=tuple)
+    actions: Iterable[_Action | ActionIntent] = field(default_factory=tuple)
     claims: Iterable[FieldClaim] = field(default_factory=tuple)
     entry: EntryFactory | None = None
 
@@ -644,15 +773,83 @@ class CombatPlan:
         self.actions = list(self.actions)
         self.claims = list(self.claims)
 
-    def add[T: ActionIntent | FieldClaim | None](self, item: T) -> T:
+    def register(
+        self,
+        method: Callable[..., ActionResult | bool | None],
+        *,
+        name: str | None = None,
+        tags: set[ActionTag] | None = None,
+        add_tags: set[ActionTag] | ActionTag | None = None,
+        reason: str = "",
+        can_execute: Callable[[], bool] | None = None,
+        priority_ready: Callable[[], bool] | None = None,
+        slot: ActionSlot | None = None,
+    ) -> None:
+        """登记角色方法的动作信息; 不执行方法, 也不返回动作对象。
+
+        一个计划内每个绑定方法只能登记一次。slot、tags 和条件均使用显式配置,
+        不根据方法名称推断动作含义。执行阶段直接调用原方法, 每次调用均重新
+        检查权限并记录结果, 保留原方法的参数和返回值。
+        """
+
+        method = _original_method(method)
+        owner = getattr(method, "__self__", None)
+        if owner is None or not hasattr(owner, "index"):
+            raise TypeError("plan.register() requires a bound character method")
+        if any(a._registered_method == method for a in self.actions):
+            raise ValueError("a method can only be registered once per plan")
+        if any(
+            a._registered_method is not None
+            and getattr(a._registered_method, "__self__", None) is not owner
+            for a in self.actions
+        ):
+            raise ValueError("all registered methods in a plan must belong to the same character")
+        action_tags = set(tags) if tags is not None else set()
+        if add_tags:
+            action_tags.update({add_tags} if isinstance(add_tags, ActionTag) else add_tags)
+        action = _Action(
+            name=name or f"{owner}_{method.__name__}",
+            tags=action_tags,
+            slot=slot,
+            reason=reason,
+            execute=method,
+            can_execute=can_execute,
+            priority_ready=priority_ready,
+            _registered_method=method,
+        )
+        _bind_action_method(method)
+        self.add(action)
+        context = getattr(owner, "_combat_context", None)
+        if context is not None:
+            context._planner._metadata_registered(owner, action)
+
+    def _prepare(self, owner):
+        """Compile published protocols at the plan boundary, before scheduling."""
+        from .compatibility import action_definition, entry_callable
+
+        actions = [action for action in self.actions if action is not None]
+        legacy = any(isinstance(action, ActionIntent) for action in actions)
+        entry = entry_callable(self.entry, actions, owner) if self.entry or legacy else None
+        definitions = []
+        for action in actions:
+            definition = action_definition(action, owner)
+            if definition._registered_method is not None:
+                definition = replace(
+                    definition,
+                    _key=(f"cycle:{owner.combat_context._generation}|{definition.identity_key()}"),
+                )
+            definitions.append(definition)
+        return definitions, entry
+
+    def add[T: _Action | ActionIntent | FieldClaim | None](self, item: T) -> T:
         """加入动作或入场诉求并返回原对象; None 会被忽略。
 
         在创建 plan 时调用, 不要在 entry 执行期间修改动作目录。
         动作按 add 顺序加入目录, 不会立即执行。
         """
 
-        if isinstance(item, ActionIntent):
-            cast(list[ActionIntent], self.actions).append(item)
+        if isinstance(item, (_Action, ActionIntent)):
+            cast(list[_Action | ActionIntent], self.actions).append(item)
         elif isinstance(item, FieldClaim):
             cast(list[FieldClaim], self.claims).append(item)
         elif item is not None:
@@ -671,7 +868,7 @@ def _display_result_name(result: ActionResult) -> str:
 
 
 @dataclass(slots=True)
-class FollowupStep:
+class _RouteStep:
     """`CombatContext.request_route()` 中的一步协作要求。"""
 
     reason: str
@@ -685,6 +882,56 @@ class FollowupStep:
 
     switch_step: bool = False
     wait_for_turn: bool = False
+    _method: Callable[..., ActionResult | bool | None] | None = field(
+        default=None, repr=False, compare=False
+    )
+    _reaction_source: int | None = None
+    invalid_status: RequestStatus = RequestStatus.FAILED
+
+    def matches_char(self, char: "BaseChar") -> bool:
+        """判断角色是否符合此步骤的目标条件。"""
+
+        if self.target_indices and char.index not in self.target_indices:
+            return False
+        if self.target_names:
+            names = {char.name, str(getattr(char, "char_name", ""))}
+            if not self.target_names.intersection(names):
+                return False
+        return True
+
+    def wants(self, char: "BaseChar", action: _Action | ActionResult) -> bool:
+        """判断某角色动作是否满足此步骤。"""
+
+        if self.switch_step or self.requires_entry_reaction:
+            return False
+        if not self.matches_char(char):
+            return False
+        if self._method is not None:
+            return self._method == action._registered_method or self._method in getattr(
+                action, "methods", ()
+            )
+        if self.action_names and action.name not in self.action_names:
+            return False
+        if self.slot is not None and action.slot != self.slot:
+            return False
+        if self.required_tags and not self.required_tags.intersection(action.tags):
+            return False
+        return bool(self.action_names or self.slot is not None or self.required_tags)
+
+    def wants_entry_reaction(self, source_char: "BaseChar", target_char: "BaseChar") -> bool:
+        """判断一次入场/环合反应是否满足此步骤。"""
+
+        if not self.requires_entry_reaction:
+            return False
+        if self._reaction_source is not None and source_char.index != self._reaction_source:
+            return False
+        return self.matches_char(target_char)
+
+
+@deprecated("Pass bound methods or characters to request_route()", category=None)
+@dataclass(slots=True)
+class FollowupStep(_RouteStep):
+    """Compatibility selectors for published character routes."""
 
     @classmethod
     def for_switch(
@@ -749,47 +996,11 @@ class FollowupStep:
             optional=optional,
         )
 
-    def matches_char(self, char: "BaseChar") -> bool:
-        """判断角色是否符合此步骤的目标条件。"""
 
-        if self.target_indices and char.index not in self.target_indices:
-            return False
-        if self.target_names:
-            names = {char.name, str(getattr(char, "char_name", ""))}
-            if not self.target_names.intersection(names):
-                return False
-        return True
-
-    def wants(self, char: "BaseChar", action: ActionIntent | ActionResult) -> bool:
-        """判断某角色动作是否满足此步骤。"""
-
-        if self.switch_step or self.requires_entry_reaction:
-            return False
-        if not self.matches_char(char):
-            return False
-        if self.action_names and action.name not in self.action_names:
-            return False
-        if self.slot is not None and action.slot != self.slot:
-            return False
-        if self.required_tags and not self.required_tags.intersection(action.tags):
-            return False
-        return bool(self.action_names or self.slot is not None or self.required_tags)
-
-    def wants_entry_reaction(self, source_char: "BaseChar", target_char: "BaseChar") -> bool:
-        """判断一次入场/环合反应是否满足此步骤。"""
-
-        if not self.requires_entry_reaction:
-            return False
-        return self.matches_char(target_char)
-
-
+@deprecated("Use Planner.Reserve.action(char, slot=...)", category=None)
 @dataclass(slots=True)
-class ActionReservation:
-    """planner 层的动作保留。"""
-
-    slots: set[ActionSlot]
-    target_indices: set[int] = field(default_factory=set)
-    target_names: set[str] = field(default_factory=set)
+class ActionReservation(Planner.Reserve):
+    """Compatibility constructors for published reservation declarations."""
 
     @classmethod
     def for_action(
@@ -810,24 +1021,6 @@ class ActionReservation:
         """创建单一目标角色、多个动作槽位的保留。"""
 
         return cls(slots=set(slots), target_indices={target.index})
-
-    def matches_char(self, char: "BaseChar") -> bool:
-        """判断角色是否是此保留的目标。"""
-
-        if self.target_indices and char.index not in self.target_indices:
-            return False
-        if self.target_names:
-            names = {char.name, str(getattr(char, "char_name", ""))}
-            if not self.target_names.intersection(names):
-                return False
-        return True
-
-    def reserves_action(self, char: "BaseChar", action: ActionIntent | ActionResult) -> bool:
-        """判断此保留是否会阻止某角色动作。"""
-
-        if not self.matches_char(char):
-            return False
-        return action.slot in self.slots
 
 
 @dataclass(slots=True)
@@ -862,12 +1055,12 @@ class ExpectedEntry:
     action_name: str = ""
 
     @classmethod
-    def from_action(cls, action: ActionIntent) -> "ExpectedEntry":
+    def from_action(cls, action: _Action) -> "ExpectedEntry":
         """从 `ActionIntent` 创建切入期望。"""
 
         return cls(slot=action.slot, action_name=action.name)
 
-    def matches(self, action: ActionIntent) -> bool:
+    def matches(self, action: _Action) -> bool:
         """判断动作是否符合此切入期望。"""
 
         if self.action_name and action.name != self.action_name:

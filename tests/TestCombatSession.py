@@ -1,5 +1,6 @@
 import unittest
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from unittest.mock import Mock, patch
 
 from ok.task.exceptions import FinishedException, TaskDisabledException
@@ -7,6 +8,7 @@ from ok.task.exceptions import FinishedException, TaskDisabledException
 from src.char.BaseChar import BaseChar
 from src.char.core.CharRegistry import CharRegistry
 from src.combat.BaseCombatTask import BaseCombatTask, NotInCombatException, SleepCheckSkip
+from src.combat.planner import CombatPlanner
 from src.tasks.DSDFarmTask import DSDFarmTask
 from src.utils.clock import TimePoint
 
@@ -196,6 +198,59 @@ class TestCombatSession(unittest.TestCase):
         self.assertIn(source.char_name, message)
         self.assertIn(combo_name, message)
         self.assertIn("hero.py:2", message)
+
+    def test_hook_binding_error_reports_registered_combo_without_an_external_traceback(self):
+        task = self._cleanup_task()
+        root = Path(self.enterContext(TemporaryDirectory()))
+        folder = root / "test1"
+        folder.mkdir()
+        (folder / "_shared.py").write_text(
+            "class RotationPuppet:\n    def combat_policies(self, context):\n        return None\n",
+            encoding="utf-8",
+        )
+        (folder / "blackbird.py").write_text(
+            "from src.char.BaseChar import BaseChar\n"
+            "from ._shared import RotationPuppet\n"
+            "class BlackbirdPuppet(RotationPuppet, BaseChar):\n"
+            "    cn_name = 'Blackbird Puppet'\n",
+            encoding="utf-8",
+        )
+        registry = CharRegistry(external_dir=root)
+        entry = registry.get("external:test1/blackbird")
+        self.assertIsNotNone(entry)
+        source = entry.char_cls(task, index=1)
+        source.char_name = "我的黑鸟"
+        current = BaseChar(task, index=0)
+        task.get_current_char = Mock(return_value=current)
+        task.clock = BaseChar.clock
+        planner = CombatPlanner(task)
+
+        def load_chars():
+            planner.reset([current, source])
+
+        task._load_chars = load_chars
+        with (
+            patch("src.combat.BaseCombatTask.char_registry", registry),
+            patch("src.combat.BaseCombatTask.CustomCharManager") as manager,
+        ):
+            combo_name = "[外置代码] test1 - 黑鸟固定轴"
+            manager.return_value.get_impl_name.return_value = combo_name
+            for impl_id in (entry.impl_id, "builtin:blackbird", "external:unregistered"):
+                with self.subTest(impl_id=impl_id):
+                    source.impl_id = impl_id
+                    task.custom_bar.reset_mock()
+                    with self.assertRaisesRegex(TypeError, "required positional argument"):
+                        task.load_chars()
+                    if impl_id != entry.impl_id:
+                        task.custom_bar.assert_not_called()
+                        continue
+                    task.custom_bar.assert_called_once()
+                    message = task.custom_bar.call_args.kwargs["content"]
+                    self.assertIn(source.char_name, message)
+                    self.assertIn(combo_name, message)
+                    self.assertIn("test1/blackbird.py", message)
+                    self.assertIn("RotationPuppet.combat_policies", message)
+                    self.assertNotIn(str(root), message)
 
     def test_cached_load_failures_use_custom_notifications_without_repeating(self):
         task = self._cleanup_task()

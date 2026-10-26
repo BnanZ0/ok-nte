@@ -1,8 +1,12 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Callable
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Callable, Sequence
 
+from typing_extensions import deprecated
+
+from .binding import _original_method
+from .compatibility import route_deadline, route_step
 from .requests import (
     RequestDeadline,
     RequestLifetime,
@@ -12,61 +16,65 @@ from .requests import (
     _RouteRequest,
     _SwitchRequest,
     _TagRequest,
+    _WindowRequest,
     request_counts_as_active,
     request_reserves_action,
 )
-from .state import CombatState, _PlanSnapshot
 from .types import (
     NEVER_EXPIRES,
     ActionIntent,
-    ActionReservation,
     ActionResult,
     ActionSlot,
     ActionTag,
     FollowupStep,
+    Planner,
     RequestHandle,
     Role,
+    _RouteStep,
 )
 
 if TYPE_CHECKING:
     from src.char.BaseChar import BaseChar
     from src.combat.BaseCombatTask import BaseCombatTask
 
+    from .core import CombatPlanner
 
-@dataclass(slots=True)
+
+@dataclass(frozen=True, slots=True)
 class CombatContext:
-    """角色动作执行时收到的 planner 上下文。
+    """通过 BaseChar.combat_context 查询队伍、发布路线、保留动作和管理窗口。"""
 
-    `ActionIntent.execute` 会收到此对象。角色可用它查询 strict route、检查
-    planner 是否允许某槽位动作、或向 `CombatPlanner` 发布协作请求。
-    """
-
-    task: "BaseCombatTask"
-    _state: CombatState
+    _planner: CombatPlanner
+    _generation: int
     current_char: "BaseChar"
-    _published_requests: list[_Request] = field(default_factory=list)
-    _plan_cache: dict[int, _PlanSnapshot] | None = None
+
+    @property
+    def task(self) -> "BaseCombatTask":
+        return self._planner.task
 
     @property
     def chars(self) -> list["BaseChar"]:
         """当前 planner 管理的队伍角色列表。"""
 
-        return self._state.chars
+        return self._planner._read(self, lambda: list(self._planner.state.chars))
 
     def has_active_request(self) -> bool:
-        """返回当前是否存在未完成的协作请求或 strict route。"""
+        """查询已提交的协作请求, 包括等待当前 entry 结束后启用的路线。"""
 
-        self._state.prune()
-        return bool(
-            self._state.locked_route
-            or any(request_counts_as_active(request) for request in self._state.active_requests)
+        return self._planner._read(
+            self,
+            lambda: bool(
+                self._planner.state.locked_route
+                or self._planner.state.pending_routes
+                or any(
+                    request_counts_as_active(request)
+                    for request in self._planner.state.active_requests
+                )
+            ),
         )
 
     def has_strict_route(self) -> bool:
-        """返回当前是否存在正在锁定执行的 strict route。"""
-
-        self._state.prune()
-        return self._state.locked_route is not None
+        return self._planner._read(self, lambda: self._planner.state.locked_route is not None)
 
     def strict_route_wants_action(
         self,
@@ -87,14 +95,23 @@ class CombatContext:
             如果当前 strict route 的当前步骤想要该角色执行这个动作，返回 True。
         """
 
-        request = self._state.locked_route
-        if request is None:
-            return False
-        step = request.current_step()
-        if step is None:
-            return False
-        action = ActionResult(name=action_name, tags=set(tags or set()), slot=slot)
-        return step.wants(char, action)
+        def query():
+            request = self._planner.state.locked_route
+            step = request.current_step() if request else None
+            if step is None:
+                return False
+            if step._method is not None:
+                action = self._planner._resolve_route_method(char, step._method)
+                if action is None:
+                    action = self._planner._unregistered_route_action(char, step._method)
+                return step.wants(char, action) and (
+                    (slot is None or action.slot == slot)
+                    and (not action_name or action.name == action_name)
+                    and (not tags or bool(tags.intersection(action.tags)))
+                )
+            return step.wants(char, ActionResult(name=action_name, tags=set(tags or ()), slot=slot))
+
+        return self._planner._read(self, query)
 
     def is_slot_available(
         self,
@@ -119,18 +136,18 @@ class CombatContext:
             正在要求此动作；False 表示动作被其他角色的 reservation 保留。
         """
 
-        self._state.prune()
-        action = ActionResult(name=action_name, tags=set(tags or set()), slot=slot)
-        request = self._state.locked_route
-        if request is not None:
-            step = request.current_step()
-            if step is not None and step.wants(char, action):
+        def query():
+            action = ActionResult(name=action_name, tags=set(tags or ()), slot=slot)
+            if self.strict_route_wants_action(char, slot, action_name, tags):
                 return True
-        for active_request in self._state.active_requests:
-            if request_reserves_action(active_request, char, action):
-                return False
-        return True
+            return not any(
+                request_reserves_action(request, char, action)
+                for request in self._planner.state.active_requests
+            )
 
+        return self._planner._read(self, query)
+
+    @deprecated("Call the registered method; planner checks execution permission", category=None)
     def is_action_allowed(self, char: "BaseChar", action: ActionIntent) -> bool:
         """返回 planner 是否允许指定角色执行完整 action 声明。
 
@@ -139,67 +156,167 @@ class CombatContext:
         `yield action`，由 planner 在执行前统一检查。
         """
 
-        if not action.is_allowed(self):
-            return False
-        if action.slot is None:
-            return True
-        return self.is_slot_available(
-            char,
-            slot=action.slot,
-            action_name=action.name,
-            tags=set(action.tags),
+        from .compatibility import action_definition
+
+        return self._planner._read(
+            self, lambda: self._planner._action_allowed(char, action_definition(action, char))
         )
+
+    def open_window(
+        self,
+        *,
+        until: RequestDeadline,
+        reason: str = "",
+        on_finish: Callable[[], None] | None = None,
+    ) -> CombatWindow:
+        """创建独立协作窗口; 子路线完成或失败均不会提前结束窗口。"""
+
+        request = _WindowRequest(
+            reason=reason or f"{self.current_char} cooperation window",
+            _source=self.current_char.index,
+            until=until,
+            on_finish=on_finish,
+        )
+        self._publish_request(request)
+        return CombatWindow(self._planner, self._generation, self.current_char, request)
 
     def request_route(
         self,
-        steps: FollowupStep | list[FollowupStep],
+        steps: (
+            Callable[..., ActionResult | bool | None]
+            | BaseChar
+            | Planner.Route
+            | FollowupStep
+            | Sequence[
+                Callable[..., ActionResult | bool | None] | BaseChar | Planner.Route | FollowupStep
+            ]
+        ),
         reason: str = "",
         until: RequestDeadline | None = None,
         return_to_source: bool = False,
         on_finish: Callable[[], None] | None = None,
+        *,
+        timeout: float | None = None,
     ) -> RequestHandle | None:
         """发布固定顺序协作路线。
 
-        route 是 strict request：planner 会按 `steps` 顺序调度目标角色，并尽量让
-        每一步指定的动作先执行。route 只表达“谁按什么顺序做什么”，不保留窗口内
-        其他动作；窗口保留请单独搭配 `reserve_actions()`。
+        新路线在当前 entry 结束后启用, 不打断后续状态更新或合法动作。
+        方法步骤按默认参数调用绑定方法; 已注册时沿用登记信息, 未注册也可执行。
+        角色步骤执行目标的整轮 entry。
+        必需动作不可用时以短暂普攻等待; 执行失败时保留当前步骤, 下次调度重试。
+        全部步骤完成后继续当前角色的普通 entry。
 
         Args:
-            steps: 单个 FollowupStep 或按执行顺序排列的步骤列表。
-                支持指定动作、入场反应或 for_switch() 切人步骤。
-                for_switch() 默认等待目标执行完一轮正常出招流程后再推进路线。
+            steps: 队伍角色的绑定方法、角色、Planner.Route 步骤, 或按顺序排列的列表。
+                action(char, slot=..., tags=...) 按注册顺序选择满足条件的可执行动作。
+                optional(method) 在不可用或执行失败时跳过; reaction(A, B) 要求
+                A 满资源后切入 B, 并等待对应的实际环合确认事件。
+                旧 FollowupStep 已弃用, 仍可使用或与新步骤混合。
                 列表为空时不会发布请求, 并返回 None。
             reason: 日志和调试用理由；为空时会自动使用当前角色生成默认理由。
             until: 过期条件。为 None 时不会因时间/机制条件过期；传 callable 时，
                 每次 planner prune 都会调用，返回 True 则 route 以 EXPIRED 结束。
             return_to_source: route 成功完成后，是否提高发起者重新入场的优先级。
-            on_finish: route 首次出现 FULFILLED 或 EXPIRED 信号时调用一次。
+            on_finish: route 首次出现 FULFILLED、EXPIRED 或 FAILED 信号时调用一次。
                 需要分别处理成功和过期时，保存返回的 handle 后使用
                 `handle.on_fulfilled(...)` / `handle.on_expired(...)`。
+            timeout: 整条路线的超时秒数, 不与 until 同时使用。
 
         Returns:
             `RequestHandle`，可用于查询 route 状态，或把 `handle.when.*`
             传给其他 request 的 `until=`。
         """
 
-        if isinstance(steps, FollowupStep):
+        if timeout is not None:
+            if until is not None:
+                raise ValueError("use either timeout or until, not both")
+            if timeout < 0:
+                raise ValueError("timeout must be nonnegative")
+            until = self.task.clock.timer(timeout=timeout).expired
+        if not isinstance(steps, Sequence):
             steps = [steps]
         if not steps:
             return None
+        legacy = all(isinstance(step, FollowupStep) for step in steps)
+        normalized = []
+        for step in steps:
+            optional = False
+            if isinstance(step, Planner.Route):
+                if step._slot is not None or step._tags:
+                    target = step._target
+                    if target is None or not any(target is char for char in self.chars):
+                        raise ValueError("route action target must be a current character")
+                    normalized.append(
+                        _RouteStep(
+                            reason=f"{target} action selection",
+                            slot=step._slot,
+                            required_tags=set(step._tags),
+                            optional=step._optional,
+                            target_indices={target.index},
+                        )
+                    )
+                    continue
+                if step._method is None:
+                    source, target = step._source, step._target
+                    if not all(
+                        any(char is member for member in self.chars) for char in (source, target)
+                    ):
+                        raise ValueError("reaction source and target must be current characters")
+                    normalized.append(
+                        _RouteStep(
+                            reason=f"{source} -> {target} reaction",
+                            slot=ActionSlot.ENTRY_REACTION,
+                            target_indices={target.index},
+                            requires_entry_reaction=True,
+                            optional=step._optional,
+                            _reaction_source=source.index,
+                        )
+                    )
+                    continue
+                optional = step._optional
+                step = step._method
+            if isinstance(step, FollowupStep):
+                normalized.append(route_step(step))
+            elif any(step is char for char in self.chars):
+                normalized.append(
+                    _RouteStep(
+                        reason=f"{step} normal turn",
+                        target_indices={step.index},
+                        switch_step=True,
+                        wait_for_turn=True,
+                    )
+                )
+            elif callable(step):
+                method = _original_method(step)
+                owner = getattr(method, "__self__", None)
+                if not any(owner is char for char in self.chars):
+                    raise ValueError("route methods must belong to a current teammate")
+                normalized.append(
+                    _RouteStep(
+                        reason=f"{owner}.{method.__name__}",
+                        target_indices={owner.index},
+                        _method=method,
+                        optional=optional,
+                    )
+                )
+            else:
+                raise TypeError("route steps must be character methods or current characters")
         request = _RouteRequest(
             reason=reason or f"{self.current_char} route request",
             _source=self.current_char.index,
             until=until,
             return_to_source=return_to_source,
             on_finish=on_finish,
-            steps=steps,
+            steps=normalized,
         )
         self._publish_request(request)
+        if legacy:
+            route_deadline(self, request, until)
         return request.handle
 
     def reserve_actions(
         self,
-        reservations: list[ActionReservation],
+        reservations: Sequence[Planner.Reserve],
         reason: str = "",
         *,
         until: RequestLifetime,
@@ -211,13 +328,11 @@ class CombatContext:
         不代表请求完成，也不会主动要求目标角色执行动作。
 
         Args:
-            reservations: 要保留的动作集合。每个 `ActionReservation` 描述目标角色
-                和被保留的 slot。为空时不会发布请求，并返回 None。
+            reservations: 用 Planner.Reserve.action(...) 声明的保留集合; 为空时不发布请求。
             reason: 日志和调试用理由；为空时会自动使用当前角色生成默认理由。
             until: 必填生命周期。传 callable 时，返回 True 就释放 reservation；
                 传 `NEVER_EXPIRES` 表示持续到 planner reset，不会自动结束。
-            on_finish: reservation 释放时调用的无参回调。`until=NEVER_EXPIRES`
-                时不允许传入，因为永久 reservation 不会自动 finish。
+            on_finish: reservation 到期时调用的无参回调; 永久保留不接受此参数。
 
         Returns:
             `RequestHandle`，可用于查询 reservation 是否仍 pending，或组合其他
@@ -235,7 +350,7 @@ class CombatContext:
             _source=self.current_char.index,
             until=until,
             on_finish=on_finish,
-            reservations=reservations,
+            reservations=list(reservations),
         )
         self._publish_request(request)
         return request.handle
@@ -364,11 +479,52 @@ class CombatContext:
         """在当前动作执行期间发布新的内部协作请求。"""
 
         if request is not None:
-            self._published_requests.append(request)
+            self._planner._submit_request(self, request)
 
-    def _consume_published_requests(self) -> list[_Request]:
-        """取出并清空本次动作发布的协作请求。"""
 
-        requests = list(self._published_requests)
-        self._published_requests.clear()
-        return requests
+@dataclass(slots=True)
+class CombatWindow:
+    """A cycle-owned lifetime shared by its routes and reservations."""
+
+    _planner: CombatPlanner
+    _generation: int
+    _source: BaseChar
+    _request: _WindowRequest
+
+    @property
+    def handle(self) -> RequestHandle:
+        return self._request.handle
+
+    def request_route(
+        self,
+        steps: Callable[..., ActionResult | bool | None]
+        | BaseChar
+        | Planner.Route
+        | Sequence[Callable[..., ActionResult | bool | None] | BaseChar | Planner.Route],
+        reason: str = "",
+        on_finish: Callable[[], None] | None = None,
+        *,
+        return_to_source: bool = False,
+    ) -> RequestHandle | None:
+        if isinstance(steps, Sequence) and not steps:
+            return None
+        return self._planner._window_call(
+            self,
+            lambda context: context.request_route(
+                steps, reason=reason, on_finish=on_finish, return_to_source=return_to_source
+            ),
+        )
+
+    def reserve_actions(
+        self,
+        reservations: Sequence[Planner.Reserve],
+        reason: str = "",
+    ) -> RequestHandle | None:
+        if not reservations:
+            return None
+        return self._planner._window_call(
+            self,
+            lambda context: context.reserve_actions(
+                reservations, reason=reason, until=NEVER_EXPIRES
+            ),
+        )
