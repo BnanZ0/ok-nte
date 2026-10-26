@@ -8,6 +8,7 @@ from unittest.mock import Mock, patch
 
 from src.char.Akane import Akane
 from src.char.BaseChar import BaseChar
+from src.char.Blackbird import Blackbird
 from src.char.Nanally import Nanally
 from src.char.Sakiri import Sakiri
 from src.char.Support import Support
@@ -4790,31 +4791,6 @@ class TestCombatPlannerCompatibility(_PlannerTestCase):
                     char.click_skill.assert_not_called()
                     char.click_ultimate.assert_not_called()
 
-    def test_akane_binds_skill_parameters_and_passes_action_to_combo(self):
-        for boss_fight, down_time in ((False, 0.3), (True, 0.01)):
-            with self.subTest(boss_fight=boss_fight):
-                task = FakeTask()
-                task._boss_fight = boss_fight
-                task.time_elapsed_accounting_for_freeze = Mock(return_value=0)
-                char = Akane(task, 0)
-                char.skill_available = Mock(return_value=True)
-                char.ultimate_available = Mock(return_value=True)
-                char.click_skill = Mock(return_value=True)
-                char.click_ultimate = Mock(return_value=True)
-                char.perform_ult_combo = Mock(return_value=iter(()))
-                task.chars = [char]
-                planner = CombatPlanner(task)
-                planner.reset(task.chars)
-
-                planner.perform_current_char(char)
-
-                char.click_skill.assert_called_once_with(down_time=down_time, post_sleep=0.2)
-                char.click_ultimate.assert_called_once_with()
-                char.perform_ult_combo.assert_called_once()
-                action = char.perform_ult_combo.call_args.args[0]
-                self.assertIsInstance(action, ActionIntent)
-                self.assertEqual(action.slot, ActionSlot.SKILL)
-
     def test_action_calls_reject_metadata_overrides(self):
         char = BaseChar(FakeTask(), 0)
         plan = char.plan()
@@ -5071,28 +5047,6 @@ class TestCombatPlannerCompatibility(_PlannerTestCase):
                 self.assertEqual(len(attempts), 2 if succeeds_on == 2 else 19)
                 self.assertEqual(char.ultimate_clicked, 1)
                 self.assertEqual(result.success, succeeds_on == 2)
-
-    def test_nanally_ultimate_loop_retries_skill_without_yielding_entry_actions(self):
-        task = FakeTask()
-        nanally = Nanally(task, 0, char_id="nanally")
-        context = type(
-            "AllowedContext",
-            (),
-            {"is_action_allowed": lambda _, char, action: True},
-        )()
-        skill = ActionIntent(name="skill", tags=set(), execute=lambda _: True)
-        skill_results = iter([False, True])
-        normal_attacks = []
-        nanally.skill_available = lambda: True
-        nanally.click_skill = lambda: next(skill_results)
-        nanally.normal_attack = lambda: normal_attacks.append("normal")
-        nanally.sleep = lambda _: None
-
-        with patch("src.utils.clock._read_monotonic", side_effect=[0, 0, 0.2, 6]):
-            result = nanally.perform_in_ult(context, skill)
-
-        self.assertTrue(result)
-        self.assertEqual(normal_attacks, ["normal", "normal"])
 
     def test_entry_flow_yielded_action_respects_slot_reservation(self):
         task = FakeTask()
@@ -5554,19 +5508,107 @@ class TestCombatPlannerCompatibility(_PlannerTestCase):
         planner._settle()
         self.assertFalse(handle.is_expired)
 
+
+class TestBuiltinPlannerRegistration(_PlannerTestCase):
+    """Registered native/composite actions at real character boundaries."""
+
+    def test_blackbird_burst_skill_keeps_stage_permission_and_reservation(self):
+        for in_ult in (False, True):
+            for reserved in (False, True):
+                with self.subTest(in_ult=in_ult, reserved=reserved):
+                    task = FakeTask()
+                    char = Blackbird(task, 0)
+                    source = FakeChar(1, "source")
+                    task.chars = [char, source]
+                    task.reaction_target = source
+                    char.in_ult = in_ult
+                    char.skill_available = lambda: True
+                    char.ultimate_available = lambda *args: True
+                    char.is_cycle_full = lambda: True
+                    char.normal_attack = Mock()
+                    char.sleep = Mock()
+                    timer = SimpleNamespace(
+                        expired=Mock(side_effect=[False, True]), elapsed=lambda: 0
+                    )
+                    char.clock = SimpleNamespace(timer=lambda **kwargs: timer)
+                    original_plan = char.combat_plan
+
+                    def build():
+                        plan = original_plan()
+                        plan.entry = char.perform_in_ult if in_ult else char.click_skill
+                        return plan
+
+                    char.combat_plan = build
+                    planner = CombatPlanner(task)
+                    planner.reset(task.chars)
+                    if reserved:
+                        self._publish(
+                            planner,
+                            source,
+                            lambda context: context.reserve_actions(
+                                [Planner.Reserve.action(char, slot=ActionSlot.SKILL)],
+                                until=NEVER_EXPIRES,
+                            ),
+                        )
+
+                    with patch.object(
+                        BaseChar, "click_skill", autospec=True, return_value=True
+                    ) as skill:
+                        planner.perform_current_char(char)
+
+                    self.assertEqual(skill.call_count, int(in_ult and not reserved))
+
+    def test_akane_registered_skill_keeps_parameters_and_plain_combo_call(self):
+        for boss_fight, down_time in ((False, 0.3), (True, 0.01)):
+            with self.subTest(boss_fight=boss_fight):
+                task = FakeTask()
+                task._boss_fight = boss_fight
+                task.time_elapsed_accounting_for_freeze = Mock(return_value=0)
+                char = Akane(task, 0)
+                char.skill_available = Mock(return_value=True)
+                char.ultimate_available = Mock(return_value=True)
+                char.click_skill = Mock(return_value=True)
+                char.perform_ult_combo = Mock()
+                task.chars = [char]
+                planner = CombatPlanner(task)
+                planner.reset(task.chars)
+
+                with patch.object(
+                    BaseChar, "click_ultimate", autospec=True, return_value=True
+                ) as ultimate:
+                    planner.perform_current_char(char)
+
+                char.click_skill.assert_called_once_with(down_time=down_time, post_sleep=0.2)
+                ultimate.assert_called_once_with(char)
+                char.perform_ult_combo.assert_called_once_with()
+
+    def test_nanally_burst_retries_failed_skill_until_success(self):
+        nanally = Nanally(FakeTask(), 0, char_id="nanally")
+        skill_results = iter([False, True])
+        normal_attacks = []
+        nanally.click_skill = lambda: next(skill_results)
+        nanally.normal_attack = lambda: normal_attacks.append("normal")
+        nanally.sleep = lambda _: None
+
+        with patch("src.utils.clock._read_monotonic", side_effect=[0, 0, 0.2, 6]):
+            result = nanally.perform_in_ult()
+
+        self.assertTrue(result)
+        self.assertEqual(normal_attacks, ["normal", "normal"])
+
     def test_sakiri_keeps_registered_skill_duration(self):
         task = FakeTask()
         char = Sakiri(task, 0)
         char.skill_available = Mock(return_value=True)
         char.ultimate_available = Mock(return_value=False)
-        char.click_skill = Mock(return_value=True)
         task.chars = [char]
         planner = CombatPlanner(task)
         planner.reset(task.chars)
 
-        result = planner.perform_current_char(char)
+        with patch.object(BaseChar, "click_skill", autospec=True, return_value=True) as skill:
+            result = planner.perform_current_char(char)
 
-        char.click_skill.assert_called_once_with(down_time=0.25)
+        skill.assert_called_once_with(char, 0.25, 0, True, 0)
         self.assertTrue(result.success)
         self.assertEqual(result.slot, ActionSlot.SKILL)
 

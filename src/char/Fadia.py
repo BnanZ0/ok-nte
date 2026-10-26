@@ -12,14 +12,13 @@ class Fadia(BaseChar):
     def describe_role(self):
         return RoleProfile(role=Planner.Role.SUB_DPS)
 
-    def combat_plan(self, context):
+    def combat_plan(self):
         plan = self.plan()
-        ultimate = self.click_ultimate_action(plan)
-        skill = self.click_skill_action(plan)
-
-        def entry():
-            if not (yield ultimate):
-                yield skill
-
-        plan.entry = entry
+        self.register_ultimate(plan)
+        self.register_skill(plan)
+        plan.entry = self.perform_entry
         return plan
+
+    def perform_entry(self):
+        if not self.click_ultimate():
+            self.click_skill()

@@ -10,18 +10,17 @@ class Iroi(Support):
         super().__init__(*args, **kwargs)
         self._mouse_pressed = False
 
-    def combat_plan(self, context):
+    def combat_plan(self):
         plan = self.plan()
-        skill = self.click_skill_action(plan, add_tags=Planner.ActionTag.TEAM_BUFF)
-        ultimate = self.click_ultimate_action(plan)
-
-        def entry():
-            if (yield skill) and self.ultimate_available():
-                self.sleep(0.8)
-            yield ultimate
-
-        plan.entry = entry
+        self.register_skill(plan, add_tags=Planner.ActionTag.TEAM_BUFF)
+        self.register_ultimate(plan)
+        plan.entry = self.perform_entry
         return plan
+
+    def perform_entry(self):
+        if self.click_skill() and self.ultimate_available():
+            self.sleep(0.8)
+        self.click_ultimate()
 
     def click_ultimate(self, send_click=True, wait_if_no_cd=0):
         try:

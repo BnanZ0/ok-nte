@@ -1,13 +1,11 @@
 from dataclasses import dataclass, field
+from typing import Callable
 
 import numpy as np
 
 from src.char.BaseChar import BaseChar
 from src.combat.planner import (
-    ActionReservation,
-    CombatContext,
     FieldClaim,
-    FollowupStep,
     Planner,
     RoleProfile,
 )
@@ -24,14 +22,10 @@ class HotoriRecordPlan:
     - `combat_reservations`：队伍加载后整场常驻保留。
     """
 
-    steps: list[FollowupStep] = field(default_factory=list)
-    record_window_holds: list[ActionReservation] = field(default_factory=list)
-    after_ultimate_reservations: list[ActionReservation] = field(default_factory=list)
-    combat_reservations: list[ActionReservation] = field(default_factory=list)
-
-    @property
-    def has_required_record_step(self):
-        return any(not step.optional for step in self.steps)
+    steps: list[Callable[..., bool] | Planner.Route] = field(default_factory=list)
+    record_window_holds: list[Planner.Reserve] = field(default_factory=list)
+    after_ultimate_reservations: list[Planner.Reserve] = field(default_factory=list)
+    combat_reservations: list[Planner.Reserve] = field(default_factory=list)
 
 
 @dataclass(slots=True)
@@ -70,21 +64,21 @@ class Hotori(BaseChar):
             max_field_time=0,
         )
 
-    def combat_policies(self, context: CombatContext) -> None:
+    def combat_policies(self) -> None:
         if len(self.task.chars) <= 1:
             return
 
         plan = self._team_record_plan()
-        context.reserve_actions(
+        self.combat_context.reserve_actions(
             plan.combat_reservations,
             reason="hotori reserves Zero skill for combat",
             until=Planner.NEVER_EXPIRES,
         )
 
-    def combat_plan(self, context):
+    def combat_plan(self):
         plan = self.plan()
         if self.max_records == 0:
-            self.click_ultimate_action(plan)
+            self.register_ultimate(plan)
             return plan
 
         if self.records_status() is None or self._should_record():
@@ -93,32 +87,30 @@ class Hotori(BaseChar):
                     reason="check Hotori team records or try start record",
                 )
             )
-
-        ultimate = self.planner_action(
-            plan=plan,
+        plan.register(
+            self._execute_hotori_ultimate,
             name="hotori_ultimate_with_records",
             tags={Planner.ActionTag.ULTIMATE_ACTION, Planner.ActionTag.HIGH_PRIORITY},
-            execute=self._execute_hotori_ultimate,
-            can_execute=lambda _: self.ready_for_ultimate(),
+            slot=Planner.ActionSlot.ULTIMATE,
+            can_execute=self.ready_for_ultimate,
             reason="team skill records ready",
-            priority_ready=lambda _: self.ready_for_ultimate(),
         )
-        setup = self.planner_action(
-            plan=plan,
+        plan.register(
+            self._execute_hotori_setup,
             name="hotori_team_record_setup",
             tags={Planner.ActionTag.SKILL_ACTION, Planner.ActionTag.HIGH_PRIORITY},
-            execute=self._execute_hotori_setup,
+            slot=Planner.ActionSlot.SKILL,
             reason="open team skill record window",
-            can_execute=lambda _: self._can_start_record_setup(),
-            priority_ready=lambda _: self._should_record(),
+            can_execute=self._can_start_record_setup,
+            priority_ready=self._should_record,
         )
 
-        def entry():
-            if not (yield ultimate):
-                yield setup
-
-        plan.entry = entry
+        plan.entry = self.perform_entry
         return plan
+
+    def perform_entry(self):
+        if not self._execute_hotori_ultimate():
+            self._execute_hotori_setup()
 
     def _can_start_record_setup(self):
         return self.count_team_skill_records() < 1 and self._should_record()
@@ -128,25 +120,18 @@ class Hotori(BaseChar):
         cond2 = self.records_status() is False
         return cond1 and cond2
 
-    def _execute_hotori_setup(self, context: CombatContext = None):
+    def _execute_hotori_setup(self):
         if self.click_skill(time_out=3):
-            self.clear_reservation()
+            self.pending_team_record_setup_reservation = False
             self.start_records()
-            if context is not None:
-                plan = self._team_record_plan()
-                route = context.request_route(
-                    plan.steps,
-                    reason="hotori team skill record window",
-                    until=self.is_record_expire,
-                    on_finish=self._record_route_finish,
-                )
-                if route:
-                    context.reserve_actions(
-                        plan.record_window_holds,
-                        reason="hotori team skill record window",
-                        until=route.when.expired,
-                        on_finish=self._record_window_reservation_finish,
-                    )
+            plan = self._team_record_plan()
+            window = self.combat_context.open_window(
+                until=self.is_record_expire,
+                reason="hotori team skill record window",
+                on_finish=self._record_window_reservation_finish,
+            )
+            window.reserve_actions(plan.record_window_holds)
+            window.request_route(plan.steps, on_finish=self._record_route_finish)
             return True
         return False
 
@@ -164,47 +149,53 @@ class Hotori(BaseChar):
     def _team_record_plan(self) -> HotoriRecordPlan:
         team = self._record_team()
         plan = HotoriRecordPlan()
+        record_targets = team.teammates
 
         if team.has_zero_nanally_route:
+            record_targets = [team.zero]
             if team.other:
-                self._add_skill_record_steps(
-                    plan,
-                    team.other,
-                    "teammate Q before recording skill for Hotori",
-                    "teammate E records skill for Hotori",
-                    optional=True,
+                record_targets.insert(0, team.other)
+                plan.steps.extend(
+                    [
+                        Planner.Route.action(
+                            team.other, slot=Planner.ActionSlot.ULTIMATE, optional=True
+                        ),
+                        Planner.Route.action(
+                            team.other, slot=Planner.ActionSlot.SKILL, optional=True
+                        ),
+                    ]
                 )
-
-            self._add_skill_record_steps(
-                plan,
-                team.zero,
-                "Zero Q before recording skill for Hotori",
-                "Zero E records skill for Hotori and prepares entry reaction",
-            )
-
-            plan.steps.append(
-                FollowupStep.for_entry_reaction(
-                    team.nanally,
-                    reason="Nanally records entry reaction for Hotori after Zero E",
-                )
+            plan.steps.extend(
+                [
+                    Planner.Route.action(
+                        team.zero, slot=Planner.ActionSlot.ULTIMATE, optional=True
+                    ),
+                    Planner.Route.action(team.zero, slot=Planner.ActionSlot.SKILL),
+                    Planner.Route.reaction(team.zero, team.nanally),
+                ]
             )
             plan.record_window_holds.append(
-                ActionReservation.for_action(team.nanally, Planner.ActionSlot.SKILL)
+                Planner.Reserve.action(team.nanally, slot=Planner.ActionSlot.SKILL)
             )
             plan.combat_reservations.append(
-                ActionReservation.for_action(team.zero, Planner.ActionSlot.SKILL)
+                Planner.Reserve.action(team.zero, slot=Planner.ActionSlot.SKILL)
             )
         else:
-            self._add_skill_record_steps(
-                plan,
-                team.teammates,
-                "Q before recording skill for Hotori",
-                "E records skill for Hotori",
-                optional=True,
-            )
-
-        if self.max_records > 0 and not plan.has_required_record_step:
-            plan.steps = []
+            for teammate in team.teammates:
+                plan.steps.extend(
+                    [
+                        Planner.Route.action(
+                            teammate, slot=Planner.ActionSlot.ULTIMATE, optional=True
+                        ),
+                        Planner.Route.action(
+                            teammate, slot=Planner.ActionSlot.SKILL, optional=True
+                        ),
+                    ]
+                )
+        plan.after_ultimate_reservations = [
+            Planner.Reserve.action(target, slot=Planner.ActionSlot.SKILL)
+            for target in record_targets
+        ]
         return plan
 
     def _record_team(self) -> HotoriRecordTeam:
@@ -224,71 +215,29 @@ class Hotori(BaseChar):
                 team.other = char
         return team
 
-    def _add_skill_record_steps(
-        self,
-        plan: HotoriRecordPlan,
-        targets: list[BaseChar] | BaseChar,
-        ultimate_reason: str,
-        skill_reason: str,
-        optional=False,
-    ) -> None:
-        if not isinstance(targets, list):
-            targets = [targets]
-        for target in targets:
-            plan.steps.append(
-                FollowupStep.for_action(
-                    target,
-                    Planner.ActionSlot.ULTIMATE,
-                    reason=ultimate_reason,
-                    optional=True,
-                )
-            )
-            plan.steps.append(
-                FollowupStep.for_action(
-                    target,
-                    Planner.ActionSlot.SKILL,
-                    reason=skill_reason,
-                    optional=optional,
-                )
-            )
-            plan.after_ultimate_reservations.append(
-                ActionReservation.for_action(target, Planner.ActionSlot.SKILL)
-            )
-
-    def _execute_hotori_ultimate(self, context: CombatContext = None):
+    def _execute_hotori_ultimate(self):
         success = self.click_ultimate()
         if success:
             self.records_ready = False
             self.record_window_start = self.clock.UNSET
-            should_publish_pending = not self.has_reservation()
-            self.start_reservation()
-            if context is not None:
-                if should_publish_pending:
-                    plan = self._team_record_plan()
-                    context.reserve_actions(
-                        plan.after_ultimate_reservations,
-                        reason="hotori reserve route skills after ultimate",
-                        until=lambda: not self.has_reservation(),
-                    )
-                team = self._record_team()
-                if team.zero is not None:
-                    context.request_switch(
-                        team.zero,
-                        reason="switch to Zero after Hotori ultimate",
-                        until=lambda: bool(self.record_window_start),
-                    )
+            if not self.pending_team_record_setup_reservation:
+                self.pending_team_record_setup_reservation = True
+                plan = self._team_record_plan()
+                self.combat_context.reserve_actions(
+                    plan.after_ultimate_reservations,
+                    reason="hotori reserve route skills after ultimate",
+                    until=lambda: not self.pending_team_record_setup_reservation,
+                )
+            team = self._record_team()
+            if team.zero is not None:
+                self.combat_context.request_switch(
+                    team.zero,
+                    reason="switch to Zero after Hotori ultimate",
+                    until=lambda: bool(self.record_window_start),
+                )
         else:
             self.continues_normal_attack(0.2)
         return success
-
-    def start_reservation(self):
-        self.pending_team_record_setup_reservation = True
-
-    def clear_reservation(self):
-        self.pending_team_record_setup_reservation = False
-
-    def has_reservation(self):
-        return self.pending_team_record_setup_reservation
 
     def start_records(self):
         self.record_window_start = self.last_skill_time or self.clock.now()
@@ -354,11 +303,11 @@ class Hotori(BaseChar):
     def reset_state(self):
         super().reset_state()
         self.clear_records()
-        self.clear_reservation()
+        self.pending_team_record_setup_reservation = False
 
     def on_combat_end(self, chars):
         self.clear_records()
-        self.clear_reservation()
+        self.pending_team_record_setup_reservation = False
 
     def _wait_ultimate_unfreeze(self, start, click=True):
         self.logger.debug("waiting for time unfrozen")

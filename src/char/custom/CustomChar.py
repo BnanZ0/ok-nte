@@ -71,17 +71,16 @@ class CustomChar(BaseChar):
         if self.ultimate_available():
             tags.add(Planner.ActionTag.ULTIMATE_ACTION)
 
-        self.planner_action(
-            plan=plan,
+        plan.register(
+            self.execute_legacy_combo_action,
             name="legacy_combo",
             tags=tags,
             slot=Planner.ActionSlot.LEGACY_COMBO,
-            execute=self.execute_legacy_combo_action,
             reason=reason,
         )
         return plan
 
-    def execute_legacy_combo_action(self, context=None):
+    def execute_legacy_combo_action(self):
         self._execute_parsed_combo()
         return True
 

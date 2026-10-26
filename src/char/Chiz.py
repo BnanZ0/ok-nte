@@ -14,18 +14,17 @@ class Chiz(BaseChar):
     def describe_role(self):
         return RoleProfile(role=Planner.Role.MAIN_DPS)
 
-    def combat_plan(self, context):
+    def combat_plan(self):
         plan = self.plan()
-        ultimate = self.click_ultimate_action(plan)
-        skill = self.click_skill_action(plan)
-
-        def entry():
-            if (yield ultimate):
-                self.perform_in_ult()
-            yield skill
-
-        plan.entry = entry
+        self.register_ultimate(plan)
+        self.register_skill(plan)
+        plan.entry = self.perform_entry
         return plan
+
+    def perform_entry(self):
+        if self.click_ultimate():
+            self.perform_in_ult()
+        self.click_skill()
 
     def perform_in_ult(self):
         box = self.task.box_of_screen(0.487, 0.775, 0.514, 0.798, name="percentage")

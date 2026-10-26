@@ -1,6 +1,6 @@
 from src.char.BaseChar import BaseChar
 from src.combat.planner import (
-    CombatContext,
+    ActionSlot,
     FieldPreference,
     Role,
     RoleProfile,
@@ -27,20 +27,21 @@ class Adler(BaseChar):
             max_field_time=0,
         )
 
-    def combat_plan(self, context: CombatContext):
+    def combat_plan(self):
         plan = self.plan()
-        skill = self.click_skill_action(plan)
-        ultimate = self.click_ultimate_action(plan)
-
-        def entry():
-            if self.skill_available() and context.is_action_allowed(self, skill):
-                self.continues_normal_attack(1.5)
-            if (yield skill):
-                self.logger.info("shield deployed")
-                self.sleep(0.5)
-                yield ultimate
-            else:
-                self.logger.info("setup skill failed, skipping ultimate")
-
-        plan.entry = entry
+        self.register_skill(plan)
+        self.register_ultimate(plan)
+        plan.entry = self.perform_entry
         return plan
+
+    def perform_entry(self):
+        if self.skill_available() and self.combat_context.is_slot_available(
+            self, slot=ActionSlot.SKILL
+        ):
+            self.continues_normal_attack(1.5)
+        if self.click_skill():
+            self.logger.info("shield deployed")
+            self.sleep(0.5)
+            self.click_ultimate()
+        else:
+            self.logger.info("setup skill failed, skipping ultimate")
