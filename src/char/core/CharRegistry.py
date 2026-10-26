@@ -62,8 +62,9 @@ class CharRegistry:
         *,
         character: str = "",
         combo: str = "",
+        impl_id: str = "",
     ) -> str | None:
-        """Describe the current error at its last external frame without loading source text."""
+        """Use the last external frame or its registered implementation without rescanning."""
         root = self._get_external_dir().resolve()
         stack = StackSummary.extract(walk_tb(error.__traceback__), lookup_lines=False)
         frames = [(frame.filename, frame.lineno) for frame in reversed(stack)]
@@ -75,9 +76,14 @@ class CharRegistry:
                 location = f"{filename.relative_to(root).as_posix()}:{lineno}"
                 break
         else:
-            if path is None:
-                return None
-            location = path.relative_to(root).as_posix()
+            if path is not None:
+                location = path.relative_to(root).as_posix()
+            else:
+                with self._lock:
+                    implementation = self._entries.get(impl_id)
+                if implementation is None or implementation.source != "external":
+                    return None
+                location = f"{implementation.impl_id.removeprefix('external:')}.py"
 
         # Exception messages can contain absolute filenames even without a traceback.
         detail = error.msg if isinstance(error, SyntaxError) else str(error)

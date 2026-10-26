@@ -393,6 +393,13 @@ class TestCustomChar(TaskTestCase):
         self.assertEqual(row.get_data(), ("", combo_id))
         self.assertEqual(row.combo_list.currentIndex(), row.combo_list.findData(combo_id))
 
+        other_combo_id = self.manager.add_combo("combo_other", "ultimate")
+        other_char_id = self.manager.create_character("other_char", other_combo_id)
+        tab.reload_preset_options()
+        row.char_combo.setCurrentIndex(row.char_combo.findData(other_char_id))
+
+        self.assertEqual(row.get_data(), (other_char_id, combo_id))
+
     def test_team_manager_preset_slot_allows_an_implementation_without_a_character(self):
         tab = TeamManagerTab(manager=self.manager)
         combo_id = self.manager.add_combo("combo_direct", "skill")
@@ -410,6 +417,19 @@ class TestCustomChar(TaskTestCase):
             if preset["id"] == tab.current_preset_id
         )
         self.assertEqual(preset["slots"][0], {"char_id": "", "impl_id": combo_id})
+
+        default_combo_id = self.manager.add_combo("combo_default", "ultimate")
+        char_id = self.manager.create_character("char_with_default", default_combo_id)
+        tab.reload_preset_options()
+        row.char_combo.setCurrentIndex(row.char_combo.findData(char_id))
+
+        self.assertEqual(row.get_data(), (char_id, combo_id))
+        preset = next(
+            preset
+            for preset in self.manager.get_team_presets()
+            if preset["id"] == tab.current_preset_id
+        )
+        self.assertEqual(preset["slots"][0], {"char_id": char_id, "impl_id": combo_id})
 
     def test_team_manager_fills_only_empty_preset_slots(self):
         tab = TeamManagerTab(manager=self.manager)

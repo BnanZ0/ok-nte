@@ -509,7 +509,7 @@ class PresetSlotRow(QWidget):
             return
         char_info = self.manager.get_character_info_by_id(self._selected_char_id())
         self.combo_list.blockSignals(True)
-        if char_info is not None:
+        if char_info is not None and not self._selected_combo_id():
             self._set_combo_by_id(char_info["impl_id"])
         self.combo_list.blockSignals(False)
         self.changed.emit(self.index)
@@ -576,9 +576,9 @@ class TeamManagerTab(CustomTab):
         # ruff: disable[E501]
         self.tr_scan_tips = self.tr(
             '<p><b style="color: #d83b01;">注意：</b>此面板 <b style="color: #d83b01;">不会</b> 在进入战斗或更换阵容时实时自动刷新或同步显示。<br>'
-            '这是个用于向数据库关联或添加 [角色特征] 的工具面板。<br>'
-            '点击 [{scan_team}] 后点击 [关联或添加] 特征, 自动战斗时就会识别对应的角色。<br>'
-            '如果不想管理 [角色特征], 可以直接使用 [{fixed_team}] 功能。</p>',
+            "这是个用于向数据库关联或添加 [角色特征] 的工具面板。<br>"
+            "点击 [{scan_team}] 后点击 [关联或添加] 特征, 自动战斗时就会识别对应的角色。<br>"
+            "如果不想管理 [角色特征], 可以直接使用 [{fixed_team}] 功能。</p>",
         ).format(
             fixed_team=self.tr("队伍方案"),
             scan_team=self.tr("扫描队伍"),
@@ -587,9 +587,9 @@ class TeamManagerTab(CustomTab):
         self.tr_preset_tips = self.tr(
             "<p>用于配置并保存常用的 4 人队伍阵容与出招表, 修改后立即生效。<br>"
             "方案中的 1~4 号位仅用于 [{fixed_preset}] 功能; 已绑定特征的角色放在哪个号位都可以, 不影响识别。<br>"
-            '点击 [{apply_preset}] 可一键更新应用方案中各角色的出招表 (未选择出招表则保持原配置不变)。<br>'
-            '开启 [{fixed_preset}] 后自动战斗将直接采用此阵容, 无需等待特征识别 (未录入特征的角色亦可直接战斗)。<br>'
-            '点击 [{fill_scan}] 可将上方特征扫描识别出的队伍角色快速填入当前方案。</p>',
+            "点击 [{apply_preset}] 可一键更新应用方案中各角色的出招表 (未选择出招表则保持原配置不变)。<br>"
+            "开启 [{fixed_preset}] 后自动战斗将直接采用此阵容, 无需等待特征识别 (未录入特征的角色亦可直接战斗)。<br>"
+            "点击 [{fill_scan}] 可将上方特征扫描识别出的队伍角色快速填入当前方案。</p>",
         ).format(
             apply_preset=self.tr("应用方案"),
             fixed_preset=self.tr("固定"),

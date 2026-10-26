@@ -896,16 +896,21 @@ class BaseCombatTask(CharElementUIMixin, CombatCheck):
             error, (NotInCombatException, TaskDisabledException, FinishedException)
         ):
             return
-        source = None
-        for frame, _ in walk_tb(error.__traceback__):
-            candidate = frame.f_locals.get("self")
-            if isinstance(candidate, BaseChar) and getattr(candidate, "task", None) is self:
-                source = candidate
+        source = getattr(error, "_combat_char", None)
+        if not isinstance(source, BaseChar) or getattr(source, "task", None) is not self:
+            source = None
+            for frame, _ in walk_tb(error.__traceback__):
+                candidate = frame.f_locals.get("self")
+                if isinstance(candidate, BaseChar) and getattr(candidate, "task", None) is self:
+                    source = candidate
         character = combo = ""
-        if source is not None and getattr(source, "impl_id", ""):
+        impl_id = getattr(source, "impl_id", "")
+        if impl_id:
             character = source.ufn_name
-            combo = CustomCharManager().get_impl_name(source.impl_id, with_source_prefix=True)
-        message = char_registry.describe_external_error(error, character=character, combo=combo)
+            combo = CustomCharManager().get_impl_name(impl_id, with_source_prefix=True)
+        message = char_registry.describe_external_error(
+            error, character=character, combo=combo, impl_id=impl_id
+        )
         if message is not None:
             self._notify_external_error(message)
 
