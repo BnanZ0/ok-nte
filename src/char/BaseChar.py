@@ -1,13 +1,12 @@
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass
 from enum import Enum, IntFlag, StrEnum, auto
-from inspect import signature
-from typing import TYPE_CHECKING, Callable, Concatenate, Self, cast
+from typing import TYPE_CHECKING, Callable, Concatenate
 
 from ok import Logger
+from typing_extensions import deprecated
 
 from src import text_white_color
 from src.combat.planner import (
-    ActionExecutor,
     ActionIntent,
     ActionPredicate,
     ActionResult,
@@ -17,6 +16,13 @@ from src.combat.planner import (
     Planner,
     RoleProfile,
     SwitchInGuard,
+)
+from src.combat.planner.compatibility import (
+    _BoundAction,
+    adapt_character_hooks,
+    custom_action,
+    legacy_context_hook,
+    native_action,
 )
 from src.Labels import Labels
 from src.utils import clock
@@ -45,17 +51,6 @@ class _AvailableActionResult:
     timed_out: bool = False
 
 
-@dataclass(slots=True)
-class _BoundAction[**P](ActionIntent):
-    """保留执行函数签名, 调用时只绑定本次 execute。"""
-
-    bind: Callable[P, ActionExecutor] = field(kw_only=True, repr=False, compare=False)
-
-    def __call__(self, *args: P.args, **kwargs: P.kwargs) -> Self:
-        execute = self.bind(*args, **kwargs) if args or kwargs else self.execute
-        return replace(self, execute=execute)
-
-
 class Element(StrEnum):
     """定义角色元素枚举。"""
 
@@ -81,6 +76,7 @@ class BaseChar:
 
     ElementType = Element
     clock = clock
+    _combat_context: CombatContext | None = None
     INTRO_MOTION_FREEZE_DURATION = 1.5
     en_name = ""
     cn_name = ""
@@ -88,6 +84,7 @@ class BaseChar:
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
+        adapt_character_hooks(cls)
         cls.en_name = cls.__dict__.get("en_name", "") or cls.__name__
         cls.cn_name = cls.__dict__.get("cn_name", "") or cls.en_name
 
@@ -233,9 +230,9 @@ class BaseChar:
     def describe_role(self):
         return RoleProfile(role=Planner.Role.SUB_DPS)
 
+    @legacy_context_hook
     def switch_in_guard(
         self,
-        context: CombatContext,
         from_char: "BaseChar",
         has_intro: bool,
     ) -> SwitchInGuard:
@@ -247,7 +244,8 @@ class BaseChar:
 
         return SwitchInGuard.allow()
 
-    def combat_plan(self, context: CombatContext) -> CombatPlan:
+    @legacy_context_hook
+    def combat_plan(self) -> CombatPlan:
         """声明角色交给 planner 的完整战斗计划。
 
         `CombatPlan.actions` 表达“进场后有哪些 planner 可见动作”，用于评分、
@@ -258,21 +256,19 @@ class BaseChar:
             - 这里只创建 plan，不要在创建 plan 时发送输入或发布一次性请求。
             - 普通进场默认按 actions 声明顺序尝试 allowed action。
             - 切人评分会从该角色 ready actions 中挑最高分 action 代表角色参赛。
-            - 复杂角色可传入 entry generator，用普通 Python 控制动作之间的分支。
-
-        Args:
-            context: planner 上下文，仅用于查询，不应用来发布一次性请求。
+            - 复杂角色可传入普通 entry 方法或 generator, 用 Python 控制出招分支。
 
         Returns:
             `CombatPlan`。
         """
 
         plan = self.plan()
-        self.click_ultimate_action(plan, name="base_ultimate")
-        self.click_skill_action(plan, name="base_skill")
+        self.register_ultimate(plan, name="base_ultimate")
+        self.register_skill(plan, name="base_skill")
         return plan
 
-    def combat_policies(self, context: CombatContext) -> None:
+    @legacy_context_hook
+    def combat_policies(self) -> None:
         """声明随队伍生命周期生效的 planner 策略。
 
         这里适合发布常驻 reservation 这类长期策略。普通角色通常不需要覆盖。
@@ -281,11 +277,19 @@ class BaseChar:
         planner reset 当前队伍后会调用此方法。适合发布由队伍组成决定的长期规则，
         不适合发布“本次 Q/E 成功后才出现”的临时窗口。
 
-        Args:
-            context: 可用于 `reserve_actions()` 等长期策略发布。
+        通过 self.combat_context 发布长期策略。
         """
 
         return None
+
+    @property
+    def combat_context(self) -> CombatContext:
+        """返回当前规划、策略或执行阶段的上下文, 无需在角色方法间传递。"""
+
+        if self._combat_context is None:
+            raise RuntimeError("combat_context requires an active planner cycle")
+        self._combat_context._planner._validate_context(self._combat_context)
+        return self._combat_context
 
     def plan(
         self,
@@ -298,7 +302,7 @@ class BaseChar:
         用法:
             return self.plan(action_or_none, claims=[claim], entry=entry)
 
-        也可以先创建空 plan, 用 self.click_skill_action(plan, ...) 登记动作,
+        也可以先创建空 plan, 用 self.register_skill(plan, ...) 登记动作,
         用 plan.add(claim) 声明入场诉求, 设置 plan.entry 后直接返回 plan。
         """
 
@@ -308,6 +312,95 @@ class BaseChar:
             entry=entry,
         )
 
+    def register_skill(
+        self,
+        plan: CombatPlan,
+        *,
+        name: str | None = None,
+        tags: set[Planner.ActionTag] | None = None,
+        add_tags: set[Planner.ActionTag] | Planner.ActionTag | None = None,
+        reason: str = "skill action available",
+        can_execute: Callable[[], bool] | None = None,
+        priority_ready: Callable[[], bool] | None = None,
+    ) -> None:
+        """登记 E 的槽位、默认标签和就绪检查, 不执行或返回动作。
+
+        tags 替换默认 SKILL_ACTION, add_tags 追加标签。每次执行均检查技能
+        可用性和 can_execute; priority_ready 仅影响切人评分, 默认检查技能就绪。
+        实际释放参数直接传给 click_skill()。
+        """
+
+        condition = can_execute
+        plan.register(
+            self.click_skill,
+            name=name or f"{self}_skill",
+            slot=Planner.ActionSlot.SKILL,
+            tags={Planner.ActionTag.SKILL_ACTION} if tags is None else tags,
+            add_tags=add_tags,
+            reason=reason,
+            can_execute=lambda: self.skill_available() and (condition is None or condition()),
+            priority_ready=priority_ready,
+        )
+
+    def register_ultimate(
+        self,
+        plan: CombatPlan,
+        *,
+        name: str | None = None,
+        tags: set[Planner.ActionTag] | None = None,
+        add_tags: set[Planner.ActionTag] | Planner.ActionTag | None = None,
+        reason: str = "ultimate action available",
+        can_execute: Callable[[], bool] | None = None,
+        priority_ready: Callable[[], bool] | None = None,
+    ) -> None:
+        """登记 Q 的槽位、默认标签和就绪检查, 不执行或返回动作。
+
+        tags 替换默认 ULTIMATE_ACTION, add_tags 追加标签。每次执行均检查
+        终结技可用性和 can_execute; priority_ready 默认检查终结技就绪。
+        实际释放参数直接传给 click_ultimate()。
+        """
+
+        condition = can_execute
+        plan.register(
+            self.click_ultimate,
+            name=name or f"{self}_ultimate",
+            slot=Planner.ActionSlot.ULTIMATE,
+            tags={Planner.ActionTag.ULTIMATE_ACTION} if tags is None else tags,
+            add_tags=add_tags,
+            reason=reason,
+            can_execute=lambda: self.ultimate_available() and (condition is None or condition()),
+            priority_ready=priority_ready,
+        )
+
+    def register_arc(
+        self,
+        plan: CombatPlan,
+        *,
+        name: str | None = None,
+        tags: set[Planner.ActionTag] | None = None,
+        add_tags: set[Planner.ActionTag] | Planner.ActionTag | None = None,
+        reason: str = "arc action available",
+        can_execute: Callable[[], bool] | None = None,
+        priority_ready: Callable[[], bool] | None = None,
+    ) -> None:
+        """登记弧盘的槽位和默认 ARC_ACTION 标签, 默认不因弧盘主动切人。
+
+        tags 替换默认标签, add_tags 追加标签。priority_ready 仅影响切人评分;
+        已在场时仍可执行弧盘。实际释放参数直接传给 click_arc()。
+        """
+
+        plan.register(
+            self.click_arc,
+            name=name or f"{self}_arc",
+            slot=Planner.ActionSlot.ARC,
+            tags={Planner.ActionTag.ARC_ACTION} if tags is None else tags,
+            add_tags=add_tags,
+            reason=reason,
+            can_execute=can_execute,
+            priority_ready=priority_ready or (lambda: False),
+        )
+
+    @deprecated("Use self.register_arc(plan, ...)", category=None)
     def click_arc_action(
         self,
         name: str | None = None,
@@ -330,40 +423,19 @@ class BaseChar:
             `ActionIntent`。
         """
 
-        name = name or f"{self.__str__()}_arc"
-        tags = set(tags) if tags else {Planner.ActionTag.ARC_ACTION}
-        if add_tags:
-            if isinstance(add_tags, (set, list, tuple)):
-                tags.update(add_tags)
-            else:
-                tags.add(add_tags)
-
-        return self.planner_action(
-            tags=tags,
+        action = native_action(
+            self.click_arc,
+            name=name or f"{self}_arc",
+            tags=tags or {Planner.ActionTag.ARC_ACTION},
+            add_tags=add_tags,
             slot=Planner.ActionSlot.ARC,
-            execute=lambda context: self.click_arc(),
-            name=name,
             reason=reason,
             can_execute=can_execute,
             priority_ready=priority_ready or (lambda _: False),
         )
+        return action
 
-    @staticmethod
-    def _defer_action[**P](
-        perform: Callable[P, ActionResult | bool | None], **defaults: object
-    ) -> Callable[P, ActionExecutor]:
-        def bind(*args: P.args, **kwargs: P.kwargs) -> ActionExecutor:
-            parameters = signature(perform)
-            arguments = parameters.bind_partial(*args, **kwargs)
-            call_kwargs = {
-                name: value for name, value in defaults.items() if name not in arguments.arguments
-            }
-            call_kwargs.update(kwargs)
-            arguments = parameters.bind(*args, **call_kwargs)
-            return lambda context: perform(*arguments.args, **arguments.kwargs)
-
-        return bind
-
+    @deprecated("Use self.register_ultimate(plan, ...)", category=None)
     def click_ultimate_action(
         self,
         plan: CombatPlan | None = None,
@@ -403,26 +475,21 @@ class BaseChar:
             ultimate = self.click_ultimate_action(plan)
             yield ultimate(send_click=False)
         """
-        tags = set(tags) if tags else {Planner.ActionTag.ULTIMATE_ACTION}
-        if add_tags:
-            tags.update(add_tags if isinstance(add_tags, (set, list, tuple)) else {add_tags})
-        bind = self._defer_action(self.click_ultimate)
-        action = _BoundAction(
+        action = native_action(
+            self.click_ultimate,
             name=name or f"{self}_ultimate",
-            tags=tags,
+            tags=tags or {Planner.ActionTag.ULTIMATE_ACTION},
+            add_tags=add_tags,
             slot=Planner.ActionSlot.ULTIMATE,
-            execute=bind(),
-            bind=bind,
             reason=reason,
-            can_execute=lambda context: (
-                self.ultimate_available() and (can_execute is None or can_execute(context))
-            ),
-            priority_ready=lambda _: self.ultimate_available(),
+            can_execute=can_execute,
+            availability=self.ultimate_available,
         )
         if plan is not None:
             plan.add(action)
         return action
 
+    @deprecated("Use self.register_skill(plan, ...)", category=None)
     def click_skill_action(
         self,
         plan: CombatPlan | None = None,
@@ -465,26 +532,22 @@ class BaseChar:
             skill = plan.add(skill(down_time=0.3, post_sleep=0.2))
             yield skill
         """
-        tags = set(tags) if tags else {Planner.ActionTag.SKILL_ACTION}
-        if add_tags:
-            tags.update(add_tags if isinstance(add_tags, (set, list, tuple)) else {add_tags})
-        bind = self._defer_action(self.click_skill, down_time=0.01)
-        action = _BoundAction(
+        action = native_action(
+            self.click_skill,
             name=name or f"{self}_skill",
-            tags=tags,
+            tags=tags or {Planner.ActionTag.SKILL_ACTION},
+            add_tags=add_tags,
             slot=Planner.ActionSlot.SKILL,
-            execute=bind(),
-            bind=bind,
             reason=reason,
-            can_execute=lambda context: (
-                self.skill_available() and (can_execute is None or can_execute(context))
-            ),
-            priority_ready=lambda _: self.skill_available(),
+            can_execute=can_execute,
+            availability=self.skill_available,
+            down_time=0.01,
         )
         if plan is not None:
             plan.add(action)
         return action
 
+    @deprecated("Use plan.register(self.method, ...)", category=None)
     def planner_action[**P](
         self,
         tags: set[Planner.ActionTag] | Planner.ActionTag,
@@ -525,16 +588,11 @@ class BaseChar:
             - 动作执行时长由 execute 负责, 长动作应自行设置退出条件。
         """
 
-        def bind(*args: P.args, **kwargs: P.kwargs) -> ActionExecutor:
-            signature(execute).bind(None, *args, **kwargs)
-            return lambda context: execute(context, *args, **kwargs)
-
-        action = _BoundAction(
+        action = custom_action(
+            execute,
             name=name or "",
             tags=set(tags) if isinstance(tags, set) else {tags},
             slot=slot,
-            execute=cast(ActionExecutor, execute),
-            bind=bind,
             reason=reason,
             can_execute=can_execute,
             priority_ready=priority_ready,
@@ -1201,7 +1259,9 @@ class BaseChar:
             char = self
         return self.task.find_element_reaction_target(char)
 
-    def should_instant_cycle(self, context: CombatContext = None):
+    @legacy_context_hook
+    def should_instant_cycle(self):
+        context = self._combat_context
         return self.skill_available() and (
             not self.has_element_reaction_teammate()
             or not self.is_cycle_full()

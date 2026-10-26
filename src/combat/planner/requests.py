@@ -5,15 +5,15 @@ from typing import TYPE_CHECKING, Callable
 
 from .types import (
     NEVER_EXPIRES,
-    ActionIntent,
-    ActionReservation,
     ActionResult,
     ActionTag,
-    FollowupStep,
+    Planner,
     RequestHandle,
     RequestStatus,
     Role,
+    _Action,
     _NeverExpires,
+    _RouteStep,
 )
 
 if TYPE_CHECKING:
@@ -35,7 +35,11 @@ class _RequestLifetime:
     on_finish: Callable[[], None] | None = None
     handle: RequestHandle = field(default_factory=RequestHandle)
 
+    parent: _WindowRequest | None = field(default=None, repr=False)
+
     def expired(self, now: float) -> bool:
+        if self.handle.is_expired or (self.parent is not None and self.parent.handle.is_closed):
+            return True
         if self.until is None or self.until is NEVER_EXPIRES:
             return False
         return self.until()
@@ -44,9 +48,7 @@ class _RequestLifetime:
         return False
 
     def finish(self, status: RequestStatus) -> None:
-        first_signal = self.handle._finish(status)
-        if first_signal and self.on_finish is not None:
-            self.on_finish()
+        self.handle._finish(status)
 
     def close(self) -> None:
         self.handle._close()
@@ -54,18 +56,19 @@ class _RequestLifetime:
 
 @dataclass(slots=True)
 class _RouteRequest(_RequestLifetime):
-    steps: list[FollowupStep] = field(default_factory=list)
+    steps: list[_RouteStep] = field(default_factory=list)
     _progress: int = 0
+    _selected_action: str | None = field(default=None, repr=False)
 
     def fulfilled(self) -> bool:
         return self._progress >= len(self.steps)
 
-    def current_step(self) -> FollowupStep | None:
+    def current_step(self) -> _RouteStep | None:
         if not self.steps or self.fulfilled():
             return None
         return self.steps[self._progress]
 
-    def wants(self, char: "BaseChar", action: ActionIntent) -> bool:
+    def wants(self, char: "BaseChar", action: _Action) -> bool:
         step = self.current_step()
         return step.wants(char, action) if step is not None else False
 
@@ -73,15 +76,20 @@ class _RouteRequest(_RequestLifetime):
         step = self.current_step()
         return step.wants_entry_reaction(source_char, target_char) if step is not None else False
 
-    def complete_step(self, char: "BaseChar", action: ActionIntent | ActionResult) -> bool:
+    def complete_step(self, char: "BaseChar", action: _Action | ActionResult) -> bool:
         step = self.current_step()
         if step is None:
             return False
         if isinstance(action, ActionResult) and not action.success:
             return False
+        if self._selected_action is not None and (
+            isinstance(action, ActionResult) or action.identity_key() != self._selected_action
+        ):
+            return False
         if not step.wants(char, action):
             return False
         self._progress += 1
+        self._selected_action = None
         return True
 
     def skip_current_step(self) -> bool:
@@ -89,6 +97,7 @@ class _RouteRequest(_RequestLifetime):
         if step is None or not step.optional:
             return False
         self._progress += 1
+        self._selected_action = None
         return True
 
     def complete_switch(self, target_char: "BaseChar") -> bool:
@@ -125,12 +134,17 @@ class _RouteRequest(_RequestLifetime):
 
 @dataclass(slots=True)
 class _ReservationRequest(_RequestLifetime):
-    reservations: list[ActionReservation] = field(default_factory=list)
+    reservations: list[Planner.Reserve] = field(default_factory=list)
 
-    def reserves_action(self, char: "BaseChar", action: ActionIntent | ActionResult) -> bool:
+    def reserves_action(self, char: "BaseChar", action: _Action | ActionResult) -> bool:
         if char.index == self._source:
             return False
         return any(reservation.reserves_action(char, action) for reservation in self.reservations)
+
+
+@dataclass(slots=True)
+class _WindowRequest(_RequestLifetime):
+    """Independent lifetime; it does not score actions or interrupt entry."""
 
 
 @dataclass(slots=True)
@@ -150,9 +164,11 @@ class _SwitchRequest(_RequestLifetime):
 @dataclass(slots=True)
 class _RoleRequest(_RequestLifetime):
     role: Role = Role.SUB_DPS
+    _describe: Callable | None = field(default=None, repr=False)
 
     def matches(self, char: "BaseChar") -> bool:
-        return char.describe_role().role == self.role
+        profile = self._describe(char) if self._describe is not None else char.describe_role()
+        return profile.role == self.role
 
 
 @dataclass(slots=True)
@@ -165,14 +181,14 @@ class _TagRequest(_RequestLifetime):
     def fulfilled(self) -> bool:
         return len(self._completed_chars) >= self.count
 
-    def wants(self, char: "BaseChar", action: ActionIntent) -> bool:
+    def wants(self, char: "BaseChar", action: _Action) -> bool:
         if self.avoid_source and char.index == self._source and not self.fulfilled():
             return False
         if char.index in self._completed_chars and not self.fulfilled():
             return False
         return bool(self.required_tags.intersection(action.tags))
 
-    def complete_step(self, char: "BaseChar", action: ActionIntent | ActionResult) -> bool:
+    def complete_step(self, char: "BaseChar", action: _Action | ActionResult) -> bool:
         if self.avoid_source and char.index == self._source:
             return False
         if isinstance(action, ActionResult) and not action.success:
@@ -183,7 +199,14 @@ class _TagRequest(_RequestLifetime):
         return True
 
 
-_Request = _RouteRequest | _ReservationRequest | _SwitchRequest | _RoleRequest | _TagRequest
+_Request = (
+    _RouteRequest
+    | _ReservationRequest
+    | _SwitchRequest
+    | _RoleRequest
+    | _TagRequest
+    | _WindowRequest
+)
 
 
 def request_fulfilled(request: _Request) -> bool:
@@ -197,18 +220,14 @@ def request_fulfilled(request: _Request) -> bool:
 def request_has_expiration(request: _Request) -> bool:
     """判断请求 fulfilled 后是否仍需要等待生命周期过期信号。"""
 
-    return request.until is not None and request.until is not NEVER_EXPIRES
+    return (
+        not isinstance(request, _RouteRequest)
+        and request.until is not None
+        and request.until is not NEVER_EXPIRES
+    )
 
 
-def request_current_step(request: _Request) -> FollowupStep | None:
-    """返回请求当前步骤；只有 route 有步骤。"""
-
-    if isinstance(request, _RouteRequest):
-        return request.current_step()
-    return None
-
-
-def request_wants_action(request: _Request, char: "BaseChar", action: ActionIntent) -> bool:
+def request_wants_action(request: _Request, char: "BaseChar", action: _Action) -> bool:
     """判断请求是否需要某角色动作。"""
 
     if isinstance(request, (_RouteRequest, _TagRequest)):
@@ -219,7 +238,7 @@ def request_wants_action(request: _Request, char: "BaseChar", action: ActionInte
 def request_complete_action(
     request: _Request,
     char: "BaseChar",
-    action: ActionIntent | ActionResult,
+    action: _Action | ActionResult,
 ) -> bool:
     """用一次动作推进请求；reservation 不参与完成进度。"""
 
@@ -228,22 +247,10 @@ def request_complete_action(
     return False
 
 
-def request_complete_entry_reaction(
-    request: _Request,
-    source_char: "BaseChar",
-    target_char: "BaseChar",
-) -> bool:
-    """用一次入场/环合反应推进请求；当前只有 route 支持。"""
-
-    if isinstance(request, _RouteRequest):
-        return request.complete_entry_reaction(source_char, target_char)
-    return False
-
-
 def request_reserves_action(
     request: _Request,
     char: "BaseChar",
-    action: ActionIntent | ActionResult,
+    action: _Action | ActionResult,
 ) -> bool:
     """判断请求是否保留某角色动作；当前只有 reservation 支持。"""
 

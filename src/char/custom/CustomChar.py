@@ -58,9 +58,9 @@ class CustomChar(BaseChar):
     def describe_role(self):
         return RoleProfile(role=Planner.Role.SUB_DPS)
 
-    def combat_plan(self, context):
+    def combat_plan(self):
         if not self.parsed_combo:
-            return super().combat_plan(context)
+            return super().combat_plan()
 
         plan = self.plan()
         tags = {Planner.ActionTag.LEGACY_COMBO, Planner.ActionTag.DAMAGE}

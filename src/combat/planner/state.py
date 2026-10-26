@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Iterable
+from typing import TYPE_CHECKING, Callable, Iterable
 
 from ok import Logger
 
@@ -10,19 +10,18 @@ from src.utils import clock
 from .requests import (
     _Request,
     _RouteRequest,
+    _WindowRequest,
     request_complete_action,
-    request_complete_entry_reaction,
     request_complete_switch,
     request_fulfilled,
     request_has_expiration,
 )
 from .types import (
-    ActionIntent,
     ActionResult,
-    EntryFactory,
     ExpectedEntry,
     FieldClaim,
     RequestStatus,
+    _Action,
     _display_result_name,
 )
 
@@ -45,7 +44,9 @@ class CombatState:
     active_requests: list[_Request] = field(default_factory=list)
     lifecycle_requests: list[_Request] = field(default_factory=list)
     locked_route: _RouteRequest | None = None
+    pending_routes: list[_RouteRequest] = field(default_factory=list)
     pending_entry_expectations: dict[int, ExpectedEntry] = field(default_factory=dict)
+    _pruning: bool = field(default=False, repr=False)
 
     def reset(self, chars: Iterable["BaseChar"]) -> None:
         """用当前队伍重置 planner 状态。"""
@@ -54,24 +55,42 @@ class CombatState:
             request.close()
         for request in self.lifecycle_requests:
             request.close()
+        for request in self.pending_routes:
+            request.close()
         if self.locked_route is not None:
             self.locked_route.close()
         self.chars = [char for char in chars if char is not None]
         self.active_requests.clear()
         self.lifecycle_requests.clear()
+        self.pending_routes.clear()
         self.locked_route = None
         self.pending_entry_expectations.clear()
 
-    def prune(self) -> None:
-        """清理过期请求，并处理 strict route 的过期锁定行为。"""
+    def prune(self) -> bool:
+        """清理过期请求, 返回请求状态是否发生变化。"""
 
+        if self._pruning:
+            return False
+        self._pruning = True
+        try:
+            return self._prune_requests()
+        finally:
+            self._pruning = False
+
+    def _prune_requests(self) -> bool:
         now = clock.now()
-        self.expire_locked_route(now)
+        # Parent lifetimes are committed before checking their children.
+        for request in self.active_requests:
+            if isinstance(request, _WindowRequest) and request.expired(now):
+                request.finish(RequestStatus.EXPIRED)
+                request.close()
+        changed = self.expire_locked_route(now)
         active_requests = []
         for request in self.active_requests:
             if request.expired(now):
                 request.finish(RequestStatus.EXPIRED)
                 request.close()
+                changed = True
                 continue
             active_requests.append(request)
         self.active_requests = active_requests
@@ -80,9 +99,20 @@ class CombatState:
             if request.expired(now):
                 request.finish(RequestStatus.EXPIRED)
                 request.close()
+                changed = True
                 continue
             lifecycle_requests.append(request)
         self.lifecycle_requests = lifecycle_requests
+        pending_routes = []
+        for request in self.pending_routes:
+            if request.expired(now):
+                request.finish(RequestStatus.EXPIRED)
+                request.close()
+                changed = True
+            else:
+                pending_routes.append(request)
+        self.pending_routes = pending_routes
+        return changed
 
     def expire_locked_route(self, now: float | None = None) -> bool:
         """仅检查当前 route 的过期条件, 返回是否已按过期规则结束。"""
@@ -90,15 +120,17 @@ class CombatState:
         if now is None:
             now = clock.now()
         if self.locked_route is not None and self.locked_route.expired(now):
-            step = self.locked_route.current_step()
+            request = self.locked_route
+            self.locked_route = None
+            step = request.current_step()
             step_reason = step.reason if step is not None else "route completed"
             logger.warning(
-                f"strict route deadline expired, route unlocked: "
-                f"{self.locked_route.reason} / {step_reason}"
+                f"strict route deadline expired, route unlocked: {request.reason} / {step_reason}"
             )
-            self.locked_route.finish(RequestStatus.EXPIRED)
-            self.locked_route.close()
-            self.locked_route = None
+            try:
+                request.finish(RequestStatus.EXPIRED)
+            finally:
+                request.close()
             return True
         return False
 
@@ -124,19 +156,30 @@ class CombatState:
                 continue
             self.active_requests.append(request)
 
-    def record_action(self, char: "BaseChar", result: ActionResult) -> None:
+    def record_action(
+        self,
+        char: "BaseChar",
+        result: ActionResult,
+        action: _Action | None = None,
+        *,
+        eligible: set[int] | None = None,
+    ) -> None:
         """记录一次角色动作，并推进相关协作请求。"""
 
         for request in self.active_requests:
+            if eligible is not None and id(request) not in eligible:
+                continue
             request_complete_action(request, char, result)
             if request_fulfilled(request):
                 request.finish(RequestStatus.FULFILLED)
-        self.active_requests = self._keep_active_after_progress(char.index)
+        self.active_requests = self._keep_active_after_progress(char.index, eligible)
         if self.locked_route is None:
+            return
+        if eligible is not None and id(self.locked_route) not in eligible:
             return
 
         step = self.locked_route.current_step()
-        if self.locked_route.complete_step(char, result):
+        if result.success and self.locked_route.complete_step(char, action or result):
             result_name = _display_result_name(result)
             step_reason = step.reason if step is not None else result_name
             logger.info(
@@ -149,10 +192,6 @@ class CombatState:
     def record_entry_reaction(self, source_char: "BaseChar", target_char: "BaseChar") -> None:
         """记录一次入场/环合反应，并推进相关协作请求。"""
 
-        for request in self.active_requests:
-            request_complete_entry_reaction(request, source_char, target_char)
-            if request_fulfilled(request):
-                request.finish(RequestStatus.FULFILLED)
         self.active_requests = self._keep_active_after_progress(target_char.index)
         if self.locked_route is None:
             return
@@ -190,26 +229,48 @@ class CombatState:
             if self.locked_route.fulfilled():
                 self.fulfill_locked_route()
 
+    def fail_locked_route(self) -> None:
+        """结束实际执行失败的路线, 不再执行后续步骤。"""
+
+        self.finish_locked_route(RequestStatus.FAILED)
+
+    def finish_locked_route(self, status: RequestStatus) -> None:
+        """Detach the current route before notifying its finish callbacks."""
+
+        request = self.locked_route
+        if request is not None:
+            self.locked_route = None
+            if request_has_expiration(request):
+                self.lifecycle_requests.append(request)
+            try:
+                request.finish(status)
+            finally:
+                request.close()
+
     def fulfill_locked_route(self) -> None:
         """完成当前 strict route，并按配置清除或转为返回发起者请求。"""
 
         if self.locked_route is None:
             return
-        self.locked_route.finish(RequestStatus.FULFILLED)
-        if not self.locked_route.return_to_source:
-            logger.info(f"strict route fulfilled: {self.locked_route.reason}")
-            self.locked_route.close()
-            if request_has_expiration(self.locked_route):
-                self.lifecycle_requests.append(self.locked_route)
-            self.locked_route = None
-            return
-        self.active_requests.append(self.locked_route)
-        logger.info(f"strict route fulfilled: {self.locked_route.reason}")
+        request = self.locked_route
         self.locked_route = None
+        if request.return_to_source:
+            self.active_requests.append(request)
+        logger.info(f"strict route fulfilled: {request.reason}")
+        try:
+            request.finish(RequestStatus.FULFILLED)
+        finally:
+            if not request.return_to_source:
+                request.close()
 
-    def _keep_active_after_progress(self, actor_index: int) -> list[_Request]:
+    def _keep_active_after_progress(
+        self, actor_index: int, eligible: set[int] | None = None
+    ) -> list[_Request]:
         active_requests = []
         for request in self.active_requests:
+            if eligible is not None and id(request) not in eligible:
+                active_requests.append(request)
+                continue
             if not request_fulfilled(request):
                 active_requests.append(request)
                 continue
@@ -251,6 +312,6 @@ class CombatState:
 class _PlanSnapshot:
     """一次 planner 决策内缓存的角色 plan 快照。"""
 
-    actions: list[ActionIntent] = field(default_factory=list)
+    actions: list[_Action] = field(default_factory=list)
     claims: list[FieldClaim] = field(default_factory=list)
-    entry: EntryFactory | None = None
+    entry: Callable | None = None
