@@ -15,8 +15,8 @@ class Mint(BaseChar):
             max_field_time=1.0,
         )
 
-    def combat_plan(self, context):
+    def combat_plan(self):
         plan = self.plan()
-        self.click_ultimate_action(plan)
-        self.click_skill_action(plan)
+        self.register_ultimate(plan)
+        self.register_skill(plan)
         return plan

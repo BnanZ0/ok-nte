@@ -1,6 +1,5 @@
 from src.char.BaseChar import BaseChar
 from src.combat.planner import (
-    CombatContext,
     Planner,
     RoleProfile,
 )
@@ -19,26 +18,21 @@ class Jiuyuan(BaseChar):
             max_field_time=1.0,
         )
 
-    def combat_plan(self, context):
+    def combat_plan(self):
         plan = self.plan()
-        ultimate = self.click_ultimate_action(plan)
-        skill = self.click_skill_action(plan)
-        bullets = self.planner_action(
-            plan=plan,
-            tags=Planner.ActionTag.DEFAULT_ACTION,
-            execute=self.fire_bullets,
-        )
-
-        def entry():
-            yield ultimate
-            if not (yield skill):
-                yield bullets
-
-        plan.entry = entry
+        self.register_ultimate(plan)
+        self.register_skill(plan)
+        plan.register(self.fire_bullets, tags={Planner.ActionTag.DEFAULT_ACTION})
+        plan.entry = self.perform_entry
         return plan
 
-    def fire_bullets(self, context: CombatContext = None):
-        if context.has_strict_route():
+    def perform_entry(self):
+        self.click_ultimate()
+        if not self.click_skill():
+            self.fire_bullets()
+
+    def fire_bullets(self):
+        if self.combat_context.has_strict_route():
             return
         box = self.task.box_of_screen(
             0.4191, 0.8799, 0.4348, 0.9076, name="jiuyuan_bullet", hcenter=True

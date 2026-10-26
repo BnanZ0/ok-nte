@@ -2,7 +2,6 @@ from src.char.BaseChar import BaseChar
 from src.combat.planner import (
     ActionSlot,
     ActionTag,
-    CombatContext,
     Role,
     RoleProfile,
 )
@@ -61,7 +60,7 @@ class Baicang(BaseChar):
         self.planner_handles_arc = True
         self._baicang_last_arc_time = self.clock.UNSET
 
-    def combat_policies(self, context: CombatContext) -> None:
+    def combat_policies(self) -> None:
         return None
 
     def describe_role(self):
@@ -70,31 +69,28 @@ class Baicang(BaseChar):
             max_field_time=self.MAX_FIELD_TIME,
         )
 
-    def combat_plan(self, context: CombatContext):
+    def combat_plan(self):
         plan = self.plan()
-        skill = self.click_skill_action(plan)
-        ultimate = self.click_ultimate_action(plan)
-        fallback_dodge = self.planner_action(
-            plan=plan,
+        self.register_skill(plan)
+        self.register_ultimate(plan)
+        plan.register(
+            self._execute_fallback_dodge,
             tags={ActionTag.DEFAULT_ACTION, ActionTag.DAMAGE},
-            execute=lambda ctx: self._execute_fallback_dodge(),
-            priority_ready=lambda ctx: False,
+            priority_ready=lambda: False,
         )
-
-        def entry():
-            if (yield ultimate):
-                self._perform_burst(context)
-                return
-
-            if (yield skill):
-                self._post_skill_dodge()
-            else:
-                yield fallback_dodge
-
-        plan.entry = entry
+        plan.entry = self.perform_entry
         return plan
 
-    def _perform_burst(self, context: CombatContext = None):
+    def perform_entry(self):
+        if self.click_ultimate():
+            self._perform_burst()
+            return
+        if self.click_skill():
+            self._post_skill_dodge()
+        else:
+            self._execute_fallback_dodge()
+
+    def _perform_burst(self):
         """Q 成功后的爆发输出循环: 第二套手法重击连招。
 
         - 每轮: 点按普攻两下 → 长按重击(后跳丢符) → 往前走一段重置连招, 避开低伤的第四五段普攻
@@ -151,7 +147,7 @@ class Baicang(BaseChar):
                 continue
 
             if self.SECOND_SKILL_MODE == "execute":
-                if self._try_second_skill(context):
+                if self._try_second_skill():
                     ready_streak = 0  # allow E to fire again after next cooldown
             else:
                 self.logger.info("skill armed (observe mode)")
@@ -188,9 +184,9 @@ class Baicang(BaseChar):
         finally:
             self.task.send_key_up(key)
 
-    def _try_second_skill(self, context: CombatContext = None):
+    def _try_second_skill(self):
         """检查 reservation 后发送第二 E。"""
-        if context is not None and not context.is_slot_available(self, slot=ActionSlot.SKILL):
+        if not self.combat_context.is_slot_available(self, slot=ActionSlot.SKILL):
             self.logger.info("second skill blocked by reservation")
             return False
 

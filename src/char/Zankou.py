@@ -13,40 +13,36 @@ class Zankou(BaseChar):
     def describe_role(self):
         return RoleProfile(role=Planner.Role.MAIN_DPS)
 
-    def combat_plan(self, context):
+    def combat_plan(self):
         plan = self.plan()
-        skill_combo = self.planner_action(
-            plan=plan,
-            tags=Planner.ActionTag.DEFAULT_ACTION,
+        plan.register(
+            self.perform_skill_combo,
+            tags={Planner.ActionTag.DEFAULT_ACTION},
             slot=Planner.ActionSlot.SKILL,
-            execute=lambda _: self.perform_skill_combo(),
             name="zankou_skill_combo",
             reason="skill action available",
-            can_execute=lambda _: self.skill_available(),
-            priority_ready=lambda _: self.skill_available(),
+            can_execute=self.skill_available,
+            priority_ready=self.skill_available,
         )
-
-        ultimate = self.click_ultimate_action(plan)
-
-        def entry():
-            if not self.find_ult_purple():
-                if (yield skill_combo) and self.ultimate_available():
-                    self.task.wait_until(
-                        self.find_ult_purple,
-                        post_action=self.click_with_interval,
-                        time_out=0.6,
-                    )
-
-            if self.find_ult_purple():
-                yield ultimate
-                self.task.wait_until(
-                    self.ultimate_available, post_action=self.click_with_interval, time_out=3
-                )
-                self.sync_check_combat()
-                yield ultimate.repeat_for_entry()
-
-        plan.entry = entry
+        self.register_ultimate(plan)
+        plan.entry = self.perform_entry
         return plan
+
+    def perform_entry(self):
+        if not self.find_ult_purple():
+            if self.perform_skill_combo() and self.ultimate_available():
+                self.task.wait_until(
+                    self.find_ult_purple,
+                    post_action=self.click_with_interval,
+                    time_out=0.6,
+                )
+        if self.find_ult_purple():
+            self.click_ultimate()
+            self.task.wait_until(
+                self.ultimate_available, post_action=self.click_with_interval, time_out=3
+            )
+            self.sync_check_combat()
+            self.click_ultimate()
 
     def perform_skill_combo(self):
         timer = self.clock.timer(timeout=10)
@@ -83,7 +79,7 @@ class Zankou(BaseChar):
         if feature_name := self.find_zankou_skill():
             if click_skill := self.click_skill():
                 with self.task.skip_sleep_checks() as skip:
-                    skip.sound_combat_context=True
+                    skip.sound_combat_context = True
                     if feature_name == Labels.zankou_skill_purple:
                         self.continues_normal_attack(2)
                         purple_skill = True

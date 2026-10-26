@@ -9,9 +9,17 @@ class Sakiri(Support):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-    def combat_plan(self, context):
+    def combat_plan(self):
         plan = self.plan()
-        self.click_ultimate_action(plan, add_tags=Planner.ActionTag.TEAM_BUFF)
-        skill = self.click_skill_action(add_tags=Planner.ActionTag.TEAM_BUFF)
-        plan.add(skill(down_time=0.25))
+        self.register_ultimate(plan, add_tags=Planner.ActionTag.TEAM_BUFF)
+        self.register_skill(plan, add_tags=Planner.ActionTag.TEAM_BUFF)
         return plan
+
+    def click_skill(
+        self,
+        down_time: float = 0.25,
+        post_sleep: float = 0,
+        send_click: bool = True,
+        time_out: float = 0,
+    ) -> bool:
+        return super().click_skill(down_time, post_sleep, send_click, time_out)

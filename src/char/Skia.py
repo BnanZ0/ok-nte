@@ -1,6 +1,5 @@
 from src.char.BaseChar import BaseChar
 from src.combat.planner import (
-    CombatContext,
     FieldPreference,
     Role,
     RoleProfile,
@@ -25,15 +24,14 @@ class Skia(BaseChar):
             field_preference=FieldPreference.SETUP_ONLY,
         )
 
-    def combat_plan(self, context: CombatContext):
+    def combat_plan(self):
         plan = self.plan()
-        skill = self.click_skill_action(plan)
-        ultimate = self.click_ultimate_action(plan)
-
-        def entry():
-            if (yield skill):
-                self.sleep(0.4)
-            yield ultimate
-
-        plan.entry = entry
+        self.register_skill(plan)
+        self.register_ultimate(plan)
+        plan.entry = self.perform_entry
         return plan
+
+    def perform_entry(self):
+        if self.click_skill():
+            self.sleep(0.4)
+        self.click_ultimate()

@@ -1,7 +1,5 @@
 from src.char.BaseChar import BaseChar
 from src.combat.planner import (
-    ActionIntent,
-    CombatContext,
     FieldClaim,
 )
 
@@ -21,26 +19,25 @@ class Daffodill(BaseChar):
     element = BaseChar.ElementType.PURPLE
     ULT_BURST_DURATION = 1.5
 
-    def combat_plan(self, context: CombatContext):
+    def combat_plan(self):
         plan = self.plan()
-        ultimate = self.click_ultimate_action(plan)
-        skill = self.click_skill_action(plan)
+        self.register_ultimate(plan)
+        self.register_skill(plan)
         if self.ultimate_available():
             from src.char.Zankou import Zankou
 
             if self.get_teammate_by_class(Zankou)[0] is not None:
                 plan.add(FieldClaim.high(reason="Daffodill ultimate ready with Zankou teammate"))
-
-        def entry():
-            if (yield ultimate):
-                self._perform_burst(context, skill)
-                return
-            yield skill
-
-        plan.entry = entry
+        plan.entry = self.perform_entry
         return plan
 
-    def _perform_burst(self, context: CombatContext, skill: ActionIntent):
+    def perform_entry(self):
+        if self.click_ultimate():
+            self._perform_burst()
+            return
+        self.click_skill()
+
+    def _perform_burst(self):
         """Burst damage window after a successful Q (patterned on Chiz.perform_in_ult).
 
         - Attack continuously and probe whether E is available.
@@ -53,7 +50,7 @@ class Daffodill(BaseChar):
         skill_used = False
 
         while not timer.expired():
-            if not skill_used and context.is_action_allowed(self, skill):
+            if not skill_used:
                 skill_used = self.click_skill()
             self.normal_attack()
             self.sleep(0.2)

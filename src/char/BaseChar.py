@@ -706,15 +706,15 @@ class BaseChar:
                 return result
             else:
                 self.logger.debug(f"{action_type} available click/send")
-                action_time = self.clock.now()
+                if send_click and self.click(action_name=f"{action_type}_click", interval=0.3):
+                    self.sleep(0.1)
                 sent = send_action()
-                if send_click:
-                    self.sleep(0.1, checks=self.SleepChecks.NONE)
-                    self.click(action_name=f"{action_type}_click", interval=0.3)
-                if sent is not False:
+                if not result.clicked and sent is not False:
                     result.clicked = True
-                    result.action_time = action_time
-            self.sleep(0.1, checks=self.SleepChecks.NONE)
+                    result.action_time = self.clock.now()
+                    self.sleep(0.1, checks=self.SleepChecks.NONE)
+                    continue
+            self.sleep(0.1)
 
     def _check_available_action_result(
         self,
