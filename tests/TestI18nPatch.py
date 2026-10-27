@@ -3,6 +3,7 @@ import unittest
 import src.patches.i18n_patch as i18n_patch
 from src.patches.i18n_patch import _translate_key
 from src.tasks.AnomalyTask import AnomalyTask
+from src.tasks.BaseStaminaTask import BaseStaminaTask
 
 
 class FakeApp:
@@ -57,6 +58,17 @@ class TestI18nPatch(unittest.TestCase):
 
         self.assertEqual(translated, "Ability Upgrade: 5")
         self.assertEqual(app.to_translate, {AnomalyTask.TASK_ABILITY})
+
+    def test_stamina_description_reuses_translated_template_for_both_reward_costs(self):
+        template = BaseStaminaTask.DESC_STAMINA_TARGET_FMT
+        for cost in (40, 60):
+            with self.subTest(cost=cost):
+                app = FakeApp({template: "Each reward costs {cost} stamina.\nDaily target."})
+
+                translated = _translate_key(app, template.format(cost=cost), FakeApp.original_tr)
+
+                self.assertEqual(translated, f"Each reward costs {cost} stamina.\nDaily target.")
+                self.assertEqual(app.to_translate, {template})
 
     def test_unregistered_text_uses_original_translation_behavior(self):
         app = FakeApp({"普通: 5": "Regular text"})

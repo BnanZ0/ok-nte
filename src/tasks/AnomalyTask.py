@@ -91,6 +91,7 @@ class AnomalyTask(BaseStaminaTask, BaseCombatTask):
         self.description = "自动进行异象界域任务"
         self.setup_config(self)
 
+    # ruff: disable[E501]
     @classmethod
     def setup_config(cls, instance: "BaseNTETask", daily=False):
         """
@@ -98,7 +99,7 @@ class AnomalyTask(BaseStaminaTask, BaseCombatTask):
         """
         config_updates = {}
         if daily:
-            cls.setup_daily_stamina_config(instance)
+            cls.setup_daily_stamina_config(instance, reward_cost=cls.TASK_COST)
         config_updates.update(
             {
                 cls.CONF_TASK_TYPE: cls.TASK_EXP_COIN,
@@ -163,11 +164,31 @@ class AnomalyTask(BaseStaminaTask, BaseCombatTask):
                 cls.CONF_ABILITY_ID: cls.DESC_ID_RANGE_FMT.format(*cls.ABILITY_ID_RANGE),
                 cls.CONF_ARC_ID: cls.DESC_ID_RANGE_FMT.format(*cls.ARC_ID_RANGE),
                 cls.CONF_CONSOLE_ID: cls.DESC_ID_RANGE_FMT.format(*cls.CONSOLE_ID_RANGE),
-                cls.CONF_CYCLEB_TASK_MODE: "任务完成后自动切换至下一个项目",
             }
         )
+        if daily:
+            instance.config_description.update(
+                {
+                    cls.CONF_TASK_TYPE: (
+                        "本次仅刷所选类型及其目标; 成功结束后才按循环模式更新下次目标。"
+                    ),
+                    cls.CONF_CYCLEB_TASK_MODE: (
+                        "每次日常仅刷当前目标, 本次不在多个目标间分配体力。\n"
+                        "停用: 下次仍刷当前目标。\n"
+                        "自动循环序号/目标: 成功结束后切到同类型的下一个序号或奖励目标, 末项后回到首项。\n"
+                        "自定义循环: 成功结束后按下方序列更新下次目标; 失败或跳过时不切换。"
+                    ),
+                    cls.CONF_CUSTOM_CYCLE: (
+                        "按列表顺序轮换, 末项后回到首项; 每次日常只刷一个目标, 下次运行才刷下一个。\n"
+                        "数字是副本序号, 不是次数; 例如「异能升级材料: 1」表示该类型的第1项。\n"
+                        "首次仍刷上方当前目标; 若其不在序列中, 成功后将下次目标设为序列首项; 空序列不切换。"
+                    ),
+                }
+            )
         if not daily:
             instance.add_claim_reward_count_config()
+
+    # ruff: enable[E501]
 
     def run(self):
         super().run()

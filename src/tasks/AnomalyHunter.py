@@ -61,7 +61,7 @@ class AnomalyHunter(BaseStaminaTask, BaseCombatTask):
     def setup_config(cls, instance: "BaseNTETask", daily=False):
         """初始化异象追猎配置。"""
         if daily:
-            cls.setup_daily_stamina_config(instance)
+            cls.setup_daily_stamina_config(instance, reward_cost=cls.TASK_COST)
         instance.default_config.update(
             {
                 cls.CONF_HUNTER_TARGET: cls.TARGET_SOUND_KING,

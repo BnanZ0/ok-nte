@@ -6,6 +6,7 @@ from ok import CannotFindException
 from src.Labels import Labels
 from src.tasks.BaseNTETask import BaseNTETask
 from src.tasks.NTEOneTimeTask import NTEOneTimeTask
+from src.utils.i18n_format import register_i18n_format
 
 
 @dataclass(frozen=True)
@@ -18,6 +19,10 @@ class BaseStaminaTask(NTEOneTimeTask, BaseNTETask):
     CONF_STAMINA_TARGET = "目标消耗体力"
     DAILY_STAMINA_REQUIREMENT = 180
     DAILY_ACTIVITY_REQUIREMENT = 100
+    DESC_STAMINA_TARGET_FMT = (
+        "按今日累计消耗计算, 扣除已消耗体力; 每份奖励{cost}体力, 剩余目标向上取整。\n"
+        "今日已消耗180体力或活跃度达100时跳过; 体力不足时仅刷可领取的次数。"
+    )
 
     def open_activity_panel(self) -> bool:
         def action():
@@ -73,8 +78,11 @@ class BaseStaminaTask(NTEOneTimeTask, BaseNTETask):
         return DailyActivity(used_stamina, daily_activity)
 
     @classmethod
-    def setup_daily_stamina_config(cls, instance: "BaseNTETask"):
+    def setup_daily_stamina_config(cls, instance: "BaseNTETask", *, reward_cost: int):
         instance.default_config[cls.CONF_STAMINA_TARGET] = cls.DAILY_STAMINA_REQUIREMENT
+        instance.config_description[cls.CONF_STAMINA_TARGET] = cls.DESC_STAMINA_TARGET_FMT.format(
+            cost=reward_cost
+        )
 
     @classmethod
     def daily_activity_complete(cls, activity: DailyActivity) -> bool:
@@ -115,3 +123,6 @@ class BaseStaminaTask(NTEOneTimeTask, BaseNTETask):
         if must_use == 0:
             self.log_info("体力消耗目标或每日活跃度已达标, 跳过每日体力任务")
         return must_use
+
+
+register_i18n_format(BaseStaminaTask.DESC_STAMINA_TARGET_FMT)

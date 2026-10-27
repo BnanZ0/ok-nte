@@ -1630,3 +1630,16 @@ msgstr "Espera tras entrar (segundos)"
 
 msgid "确认进入对局后等待的秒数, 设置为0则立即退出"
 msgstr "Segundos de espera tras confirmar la entrada en la partida, usa 0 para salir de inmediato"
+
+msgid "本次仅刷所选类型及其目标; 成功结束后才按循环模式更新下次目标。"
+msgstr "Esta ejecución solo farmea el tipo y objetivo seleccionados. El modo de ciclo actualiza el objetivo de la próxima ejecución tras finalizar con éxito."
+
+msgid "每次日常仅刷当前目标, 本次不在多个目标间分配体力。\n停用: 下次仍刷当前目标。\n自动循环序号/目标: 成功结束后切到同类型的下一个序号或奖励目标, 末项后回到首项。\n自定义循环: 成功结束后按下方序列更新下次目标; 失败或跳过时不切换。"
+msgstr "Cada ejecución diaria farmea solo el objetivo actual, sin repartir energía entre varios objetivos.\nDesactivado: mantener el objetivo actual para la próxima ejecución.\nCiclo automático de números/objetivos: tras el éxito, pasar al siguiente número u objetivo de recompensa del mismo tipo; después del último, volver al primero.\nCiclo personalizado: tras el éxito, actualizar el objetivo de la próxima ejecución según la lista inferior. Los fallos y las omisiones no avanzan el ciclo."
+
+msgid "按列表顺序轮换, 末项后回到首项; 每次日常只刷一个目标, 下次运行才刷下一个。\n数字是副本序号, 不是次数; 例如「异能升级材料: 1」表示该类型的第1项。\n首次仍刷上方当前目标; 若其不在序列中, 成功后将下次目标设为序列首项; 空序列不切换。"
+msgstr "Rotar en el orden de la lista y volver al principio tras el último elemento. Cada ejecución diaria farmea un solo objetivo; el siguiente se farmea en la próxima ejecución.\nLos números son índices de mazmorra, no cantidades de ejecuciones. Por ejemplo, Materiales de mejora de habilidad: 1 indica la primera mazmorra de ese tipo.\nLa primera ejecución usa el objetivo actual de arriba. Si no está en la lista, al finalizar con éxito se selecciona el primer elemento para la próxima ejecución. Una lista vacía no cambia el objetivo."
+
+#, python-brace-format
+msgid "按今日累计消耗计算, 扣除已消耗体力; 每份奖励{cost}体力, 剩余目标向上取整。\n今日已消耗180体力或活跃度达100时跳过; 体力不足时仅刷可领取的次数。"
+msgstr "Objetivo de gasto total de energía de hoy, menos la energía ya gastada. Cada recompensa cuesta {cost}; el objetivo restante se redondea hacia arriba.\nSe omite si ya se han gastado 180 de energía hoy o la actividad llega a 100. Si falta energía, solo se reclaman las recompensas posibles."

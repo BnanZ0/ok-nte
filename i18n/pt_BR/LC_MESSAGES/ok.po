@@ -1373,3 +1373,16 @@ msgstr "Espera após entrar (segundos)"
 
 msgid "确认进入对局后等待的秒数, 设置为0则立即退出"
 msgstr "Segundos de espera após confirmar a entrada na partida, use 0 para sair imediatamente"
+
+msgid "本次仅刷所选类型及其目标; 成功结束后才按循环模式更新下次目标。"
+msgstr "Esta execução farma apenas o tipo e o alvo selecionados. O modo de ciclo atualiza o alvo da próxima execução somente após concluir com sucesso."
+
+msgid "每次日常仅刷当前目标, 本次不在多个目标间分配体力。\n停用: 下次仍刷当前目标。\n自动循环序号/目标: 成功结束后切到同类型的下一个序号或奖励目标, 末项后回到首项。\n自定义循环: 成功结束后按下方序列更新下次目标; 失败或跳过时不切换。"
+msgstr "Cada execução diária farma apenas o alvo atual, sem dividir energia entre vários alvos.\nDesativado: manter o alvo atual na próxima execução.\nCiclo automático de números/alvos: após o sucesso, selecionar o próximo número ou alvo de recompensa do mesmo tipo; após o último, voltar ao primeiro.\nCiclo personalizado: após o sucesso, atualizar o alvo da próxima execução conforme a lista abaixo. Falhas e execuções puladas não avançam o ciclo."
+
+msgid "按列表顺序轮换, 末项后回到首项; 每次日常只刷一个目标, 下次运行才刷下一个。\n数字是副本序号, 不是次数; 例如「异能升级材料: 1」表示该类型的第1项。\n首次仍刷上方当前目标; 若其不在序列中, 成功后将下次目标设为序列首项; 空序列不切换。"
+msgstr "Alternar na ordem da lista e voltar ao início após o último item. Cada execução diária farma um único alvo; o próximo é farmado na próxima execução.\nOs números são índices de masmorra, não quantidades de execuções. Por exemplo, Materiais de melhoria de habilidade: 1 indica a primeira masmorra desse tipo.\nA primeira execução usa o alvo atual acima. Se ele não estiver na lista, o sucesso define o primeiro item como alvo da próxima execução. Uma lista vazia não altera o alvo."
+
+#, python-brace-format
+msgid "按今日累计消耗计算, 扣除已消耗体力; 每份奖励{cost}体力, 剩余目标向上取整。\n今日已消耗180体力或活跃度达100时跳过; 体力不足时仅刷可领取的次数。"
+msgstr "Meta de gasto total de energia de hoje, descontando a energia já gasta. Cada recompensa custa {cost}; a meta restante é arredondada para cima.\nPula se já foram gastos 180 de energia hoje ou a atividade chegou a 100. Se faltar energia, resgata apenas as recompensas possíveis."
