@@ -44,7 +44,7 @@ class _AvailableActionStatus(Enum):
 
 @dataclass(slots=True)
 class _AvailableActionResult:
-    clicked: bool = False
+    sent: bool = False
     action_time: clock.TimePoint = clock.UNSET
     animation_start: clock.TimePoint = clock.UNSET
     status: _AvailableActionStatus = _AvailableActionStatus.UNAVAILABLE
@@ -705,16 +705,16 @@ class BaseChar:
                 result.status = status
                 return result
             else:
+                self.sleep(0.1, checks=self.SleepChecks.SOUND)
                 self.logger.debug(f"{action_type} available click/send")
                 if send_click and self.click(action_name=f"{action_type}_click", interval=0.3):
-                    self.sleep(0.1)
+                    self.sleep(0.01, checks=self.SleepChecks.NONE)
                 sent = send_action()
-                if not result.clicked and sent is not False:
-                    result.clicked = True
-                    result.action_time = self.clock.now()
+                if sent is not False:
+                    if not result.sent:
+                        result.sent = True
+                        result.action_time = self.clock.now()
                     self.sleep(0.1, checks=self.SleepChecks.NONE)
-                    continue
-            self.sleep(0.1)
 
     def _check_available_action_result(
         self,
@@ -732,17 +732,19 @@ class BaseChar:
             return _AvailableActionStatus.TIMEOUT
 
         if not self.task.is_in_team():
+            if not result.sent:
+                return _AvailableActionStatus.UNAVAILABLE
+            self.logger.debug(f"{action_type} in_animation, sent={result.sent}")
             self.task.in_animation = True
             result.animation_start = result.action_time or now
             return _AvailableActionStatus.ANIMATION
         elif not available():
-            self.logger.debug(f"{action_type} not available break")
-            return (
-                _AvailableActionStatus.RELEASED
-                if result.clicked
-                else _AvailableActionStatus.UNAVAILABLE
-            )
-        self.sleep(0.1, checks=self.SleepChecks.NONE)
+            if not result.sent:
+                return _AvailableActionStatus.UNAVAILABLE
+            self.logger.debug(f"{action_type} not available, sent={result.sent}")
+            return _AvailableActionStatus.RELEASED
+        else:
+            self.check_combat()
         return _AvailableActionStatus.CONTINUE
 
     def click_ultimate(self, send_click: bool = True, wait_if_no_cd: float = 0) -> bool:
@@ -772,7 +774,7 @@ class BaseChar:
             )
         else:
             result = _AvailableActionResult(
-                clicked=True,
+                sent=True,
                 action_time=self.clock.now(),
                 status=_AvailableActionStatus.ANIMATION,
             )
@@ -797,10 +799,10 @@ class BaseChar:
             self.alert_skill_failed()
             self.task.raise_not_in_combat("too long clicking a ultimate")
 
-        if not result.clicked:
+        if not result.sent:
             return False
 
-        clicked = result.clicked
+        sent = result.sent
         start = result.animation_start or self.clock.now()
         ultimate_animation_click = (
             (lambda: self.click(action_name="ultimate_click", interval=0.25))
@@ -811,21 +813,21 @@ class BaseChar:
         with self.task.skip_sleep_checks() as skip:
             skip.all = True
             if result.status is _AvailableActionStatus.ANIMATION:
-                self.logger.debug("clicked ultimate has animation")
+                self.logger.debug("click ultimate has animation")
                 animated = self._wait_action_animation(
                     start=start,
                     on_wait=ultimate_animation_click,
                 )
-                clicked = clicked or animated
+                sent = sent or animated
             elif result.status is _AvailableActionStatus.RELEASED:
-                self.logger.debug("clicked ultimate no animation")
+                self.logger.debug("click ultimate no animation")
             duration = self._wait_ultimate_unfreeze(start)
 
         self._ultimate_available = False
         self.last_ultimate_time = self.clock.now()
-        if clicked:
+        if sent:
             self.logger.info(f"click_ultimate end {duration}")
-        return clicked
+        return sent
 
     def _wait_ultimate_unfreeze(self, start, click=True):
         self.logger.info("waiting for ultimate unfrozen")
@@ -912,13 +914,13 @@ class BaseChar:
             self.alert_skill_failed()
             self.task.raise_not_in_combat("too long clicking a ultimate")
 
-        clicked = result.clicked
+        sent = result.sent
         skill_click_time = result.action_time
         animation_start = result.animation_start
         if animation_start:
             self._wait_action_animation(start=animation_start)
             self.add_freeze_duration(animation_start, self.clock.now() - animation_start)
-        if clicked:
+        if sent:
             self.last_skill_time = skill_click_time
             with self.task.skip_sleep_checks() as skip:
                 skip.all = True
@@ -928,10 +930,9 @@ class BaseChar:
             self.sleep(post_sleep)
         duration = self.clock.now() - skill_click_time if skill_click_time else 0
         self.logger.debug(
-            f"click_skill end clicked {clicked} duration {duration} "
-            f"animated {bool(animation_start)}"
+            f"click_skill end sent {sent} duration {duration} animated {bool(animation_start)}"
         )
-        return clicked
+        return sent
 
     def _wait_action_animation(
         self,

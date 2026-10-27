@@ -817,29 +817,6 @@ class BaseNTETask(
     def rotate_and_find_treasure(self):
         return self.rotate_and_find(self.find_treasure, self.find_interac)
 
-    def rotate_and_find(self, find, interrupt):
-        def sleep(sec):
-            timer = self.clock.timer(timeout=sec)
-            while not timer.expired():
-                if interrupt():
-                    return True
-                self.sleep(0.1)
-
-        if result := find():
-            return result
-        if interrupt():
-            return
-
-        for _ in range(4):
-            self.send_key("a")
-            if sleep(0.3):
-                return
-            self.middle_click()
-            if sleep(1):
-                return
-            if result := find():
-                return result
-
     def send_interac(self, handle_claim=True):
         if self.find_interac():
             self.send_key("f", after_sleep=0.8)

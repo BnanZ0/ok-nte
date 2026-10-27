@@ -8,6 +8,7 @@ logger = Logger.get_logger(__name__)
 
 LATERAL_DIRECTION_CHANGE_LIMIT = 4
 LATERAL_DIRECTION_CHANGE_WINDOW = 3.0
+TARGET_LOST_TIMEOUT = 1.0
 
 
 class MovementMixin(BaseTask):
@@ -33,6 +34,29 @@ class MovementMixin(BaseTask):
             y_offset=y_offset,
             x_threshold=x_threshold,
         )
+
+    def rotate_and_find(self, find, interrupt):
+        def sleep(sec):
+            timer = self.clock.timer(timeout=sec)
+            while not timer.expired():
+                if interrupt():
+                    return True
+                self.sleep(0.1)
+
+        if result := find():
+            return result
+        if interrupt():
+            return
+
+        for _ in range(4):
+            self.send_key("a")
+            if sleep(0.3):
+                return
+            self.middle_click()
+            if sleep(1):
+                return
+            if result := find():
+                return result
 
     @staticmethod
     def _resolve_target(result):
@@ -81,13 +105,14 @@ class MovementMixin(BaseTask):
         self, find_function, time_out=30, end_condition=None, y_offset=0.05, x_threshold=0.07
     ):
         last_direction = None
-        start = self.clock.now()
+        timer = self.clock.timer(timeout=time_out)
         ended = False
         last_target = None
+        target_lost_timer = None
         centered = False
         lateral_change_times = deque()
         try:
-            while self.clock.now() - start < time_out:
+            while not timer.expired():
                 self.next_frame()
                 if end_condition:
                     ended = end_condition()
@@ -97,8 +122,37 @@ class MovementMixin(BaseTask):
                 target = self._resolve_target(find_function())
                 if target:
                     last_target = target
+                    target_lost_timer = None
+                else:
+                    if target_lost_timer is None:
+                        target_lost_timer = self.clock.timer(timeout=TARGET_LOST_TIMEOUT)
+                    if target_lost_timer.expired():
+                        if last_direction:
+                            self.send_key_up(last_direction)
+                            last_direction = None
+                            self.sleep(0.001)
+                        last_target = None
+                        centered = False
+                        lateral_change_times.clear()
+                        self.log_info("Target lost for 1s; rotating to find it again")
+                        search_timer = self.clock.timer()
+                        target = self._resolve_target(
+                            self.rotate_and_find(
+                                find_function,
+                                lambda: bool(end_condition and end_condition()),
+                            )
+                        )
+                        timer.extend(search_timer.elapsed())
+                        if end_condition:
+                            ended = end_condition()
+                            if ended:
+                                break
+                        if not target:
+                            return False
+                        last_target = target
+                        target_lost_timer = None
                 if last_target is None:
-                    self.log_info("find_function not found, change to opposite direction")
+                    continue
                 next_direction, centered = self._calc_walk_direction(
                     last_target, last_direction, y_offset, x_threshold, centered
                 )
@@ -117,7 +171,7 @@ class MovementMixin(BaseTask):
                             self.sleep(0.001)
                         self.send_key("s", after_sleep=0.3)
                         self.middle_click(after_sleep=1)
-                        time_out += 5
+                        timer.extend(5)
                         last_direction = None
                         lateral_change_times.clear()
                         continue

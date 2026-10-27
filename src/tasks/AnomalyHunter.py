@@ -131,6 +131,7 @@ class AnomalyHunter(BaseStaminaTask, BaseCombatTask):
         failed_count = 0
         consecutive_failures = 0
         attempt_count = 0
+        ret = True
         while success_count < stamina_units:
             attempt_count += 1
             self.info_set("当前目标", target)
@@ -155,6 +156,7 @@ class AnomalyHunter(BaseStaminaTask, BaseCombatTask):
 
             if consecutive_failures >= self.MAX_CONSECUTIVE_FAILURES:
                 self.log_warning("连续失败已达上限，将传送最近的电话亭传送点", notify=True)
+                ret = False
                 break
 
         self.log_info("异象追猎任务完成，尝试传送到最近的电话亭")
@@ -166,7 +168,7 @@ class AnomalyHunter(BaseStaminaTask, BaseCombatTask):
             f"异象追猎执行结果: 成功次数: {success_count},"
             f"失败次数: {failed_count}，共计消耗体力: {success_count * self.TASK_COST}"
         )
-        return True
+        return ret
 
     def start_hunter_attempt(self, target: str, target_idx: int, reopen_page=False):
         if reopen_page:

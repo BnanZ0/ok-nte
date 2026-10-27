@@ -263,8 +263,8 @@ class AnomalyTask(BaseStaminaTask, BaseCombatTask):
             completed_count += 1
             self.sleep(2)
             if completed_count < total_count:
-                self.operate_click(0.621, 0.864)
-        self.operate_click(0.381, 0.861)
+                self.wait_click_confirm(range=(0.6469, 0.8174, 0.7027, 0.9097))
+        self.wait_click_confirm(range=(0.4074, 0.8174, 0.4578, 0.9056))
         self.log_info("任务执行完毕")
         return True
 
