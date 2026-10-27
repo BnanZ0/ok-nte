@@ -1643,3 +1643,38 @@ msgstr "Rotate in list order, wrapping to the first item. Each daily run farms o
 #, python-brace-format
 msgid "按今日累计消耗计算, 扣除已消耗体力; 每份奖励{cost}体力, 剩余目标向上取整。\n今日已消耗180体力或活跃度达100时跳过; 体力不足时仅刷可领取的次数。"
 msgstr "Today's total stamina spending target, minus stamina already spent. Each reward costs {cost} stamina; the remaining target is rounded up.\nSkipped if 180 stamina has already been spent today or activity reaches 100. If stamina is low, only affordable rewards are claimed."
+
+msgid "筛选"
+msgstr "Filters"
+
+msgid "阵容关键词"
+msgstr "Lineup keywords"
+
+msgid "输入关键词后按 Enter 添加"
+msgstr "Type a keyword and press Enter"
+
+msgid "移除关键词 {}"
+msgstr "Remove keyword {}"
+
+msgid "展开筛选"
+msgstr "Show filters"
+
+msgid "收起筛选"
+msgstr "Hide filters"
+
+msgid "清空筛选"
+msgstr "Clear filters"
+
+#, python-brace-format
+msgid "已安装: {installed}\n最新版本: {latest}"
+msgstr "Installed: {installed}\nLatest version: {latest}"
+
+#, python-brace-format
+msgid "显示 {} / {} 个方案"
+msgstr "Showing {} / {} packages"
+
+msgid "没有匹配的方案"
+msgstr "No matching packages"
+
+msgid "Cancel"
+msgstr "Cancel"

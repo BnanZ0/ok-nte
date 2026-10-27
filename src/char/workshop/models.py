@@ -216,7 +216,9 @@ def group_catalog_entries(
     for entry in entries:
         groups.setdefault(entry.package.identity, []).append(entry)
     return {
-        identity: tuple(sorted(versions, key=lambda e: parse_version(e.package.version), reverse=True))
+        identity: tuple(
+            sorted(versions, key=lambda e: parse_version(e.package.version), reverse=True)
+        )
         for identity, versions in groups.items()
     }
 
@@ -230,10 +232,13 @@ def filter_catalog_entries(
     keyword: str = "",
     role: str = "",
     author: str = "",
+    *,
+    role_keywords: Iterable[str] = (),
 ) -> list[CatalogEntry]:
     keyword = str(keyword or "").strip().casefold()
     role = str(role or "").strip()
     author = str(author or "").strip()
+    role_keywords = tuple(word.strip().casefold() for word in role_keywords if word.strip())
     filtered = []
     for entry in entries:
         package = entry.package
@@ -245,6 +250,10 @@ def filter_catalog_entries(
             continue
         if role and role not in names:
             continue
+        if role_keywords:
+            role_names = [name.casefold() for name in names]
+            if not all(any(word in name for name in role_names) for word in role_keywords):
+                continue
         if author and author != package.author:
             continue
         filtered.append(entry)

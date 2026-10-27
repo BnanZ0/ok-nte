@@ -1643,3 +1643,38 @@ msgstr "목록 순서대로 순환하며 마지막 다음은 처음으로 돌아
 #, python-brace-format
 msgid "按今日累计消耗计算, 扣除已消耗体力; 每份奖励{cost}体力, 剩余目标向上取整。\n今日已消耗180体力或活跃度达100时跳过; 体力不足时仅刷可领取的次数。"
 msgstr "오늘의 누적 소모 목표에서 이미 소모한 스태미나를 뺍니다. 보상 1회당 {cost}을 소모하며 남은 목표는 올림 처리합니다.\n오늘 이미 180을 소모했거나 활동도가 100이면 건너뜁니다. 스태미나가 부족하면 수령 가능한 횟수만 진행합니다."
+
+msgid "筛选"
+msgstr "필터"
+
+msgid "阵容关键词"
+msgstr "편성 키워드"
+
+msgid "输入关键词后按 Enter 添加"
+msgstr "키워드 입력 후 Enter로 추가"
+
+msgid "移除关键词 {}"
+msgstr "키워드 {} 제거"
+
+msgid "展开筛选"
+msgstr "필터 펼치기"
+
+msgid "收起筛选"
+msgstr "필터 접기"
+
+msgid "清空筛选"
+msgstr "필터 초기화"
+
+#, python-brace-format
+msgid "已安装: {installed}\n最新版本: {latest}"
+msgstr "설치된 버전: {installed}\n최신 버전: {latest}"
+
+#, python-brace-format
+msgid "显示 {} / {} 个方案"
+msgstr "전체 {} / {}개 구성 표시"
+
+msgid "没有匹配的方案"
+msgstr "일치하는 구성이 없습니다"
+
+msgid "Cancel"
+msgstr "취소"

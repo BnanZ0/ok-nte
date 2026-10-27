@@ -1643,3 +1643,38 @@ msgstr "Rotar en el orden de la lista y volver al principio tras el último elem
 #, python-brace-format
 msgid "按今日累计消耗计算, 扣除已消耗体力; 每份奖励{cost}体力, 剩余目标向上取整。\n今日已消耗180体力或活跃度达100时跳过; 体力不足时仅刷可领取的次数。"
 msgstr "Objetivo de gasto total de energía de hoy, menos la energía ya gastada. Cada recompensa cuesta {cost}; el objetivo restante se redondea hacia arriba.\nSe omite si ya se han gastado 180 de energía hoy o la actividad llega a 100. Si falta energía, solo se reclaman las recompensas posibles."
+
+msgid "筛选"
+msgstr "Filtros"
+
+msgid "阵容关键词"
+msgstr "Palabras clave del equipo"
+
+msgid "输入关键词后按 Enter 添加"
+msgstr "Escribe una palabra clave y pulsa Enter"
+
+msgid "移除关键词 {}"
+msgstr "Quitar palabra clave {}"
+
+msgid "展开筛选"
+msgstr "Mostrar filtros"
+
+msgid "收起筛选"
+msgstr "Ocultar filtros"
+
+msgid "清空筛选"
+msgstr "Limpiar filtros"
+
+#, python-brace-format
+msgid "已安装: {installed}\n最新版本: {latest}"
+msgstr "Versión instalada: {installed}\nÚltima versión: {latest}"
+
+#, python-brace-format
+msgid "显示 {} / {} 个方案"
+msgstr "Mostrando {} / {} paquetes"
+
+msgid "没有匹配的方案"
+msgstr "No hay paquetes coincidentes"
+
+msgid "Cancel"
+msgstr "Cancelar"

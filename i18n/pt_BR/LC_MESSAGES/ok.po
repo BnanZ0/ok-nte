@@ -1386,3 +1386,38 @@ msgstr "Alternar na ordem da lista e voltar ao início após o último item. Cad
 #, python-brace-format
 msgid "按今日累计消耗计算, 扣除已消耗体力; 每份奖励{cost}体力, 剩余目标向上取整。\n今日已消耗180体力或活跃度达100时跳过; 体力不足时仅刷可领取的次数。"
 msgstr "Meta de gasto total de energia de hoje, descontando a energia já gasta. Cada recompensa custa {cost}; a meta restante é arredondada para cima.\nPula se já foram gastos 180 de energia hoje ou a atividade chegou a 100. Se faltar energia, resgata apenas as recompensas possíveis."
+
+msgid "筛选"
+msgstr "Filtros"
+
+msgid "阵容关键词"
+msgstr "Palavras-chave da equipe"
+
+msgid "输入关键词后按 Enter 添加"
+msgstr "Digite uma palavra-chave e pressione Enter"
+
+msgid "移除关键词 {}"
+msgstr "Remover palavra-chave {}"
+
+msgid "展开筛选"
+msgstr "Mostrar filtros"
+
+msgid "收起筛选"
+msgstr "Ocultar filtros"
+
+msgid "清空筛选"
+msgstr "Limpar filtros"
+
+#, python-brace-format
+msgid "已安装: {installed}\n最新版本: {latest}"
+msgstr "Versão instalada: {installed}\nVersão mais recente: {latest}"
+
+#, python-brace-format
+msgid "显示 {} / {} 个方案"
+msgstr "Exibindo {} / {} pacotes"
+
+msgid "没有匹配的方案"
+msgstr "Nenhum pacote correspondente"
+
+msgid "Cancel"
+msgstr "Cancelar"

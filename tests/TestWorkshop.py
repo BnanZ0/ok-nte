@@ -13,8 +13,9 @@ from pathlib import Path
 from unittest.mock import Mock, patch
 
 import requests
-from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QApplication, QWidget
+from PySide6.QtCore import QPoint, Qt
+from PySide6.QtTest import QTest
+from PySide6.QtWidgets import QApplication, QToolButton, QWidget
 
 from src.char.core.CharFactory import get_char_by_impl_id
 from src.char.core.CharRegistry import char_registry
@@ -79,6 +80,15 @@ class TestWorkshop(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.qt_app = QApplication.instance() or QApplication([])
+
+    def assert_update_indicator_visible(self, item, expected):
+        image = item.icon().pixmap(12, 12).toImage()
+        visible = any(
+            image.pixelColor(x, y).alpha()
+            for y in range(image.height())
+            for x in range(image.width())
+        )
+        self.assertEqual(visible, expected)
 
     def setUp(self):
         root = Path(os.getcwd()) / "tests" / ".tmp"
@@ -514,6 +524,7 @@ class TestWorkshop(unittest.TestCase):
             self.assertTrue(dialog.update_button.isHidden())
             self.assertTrue(dialog.import_button.isEnabled())
             self.assertFalse(dialog.update_all_button.isEnabled())
+            self.assert_update_indicator_visible(dialog.table.item(0, 3), False)
             updated, failures = self.service.update_from_catalog(
                 [latest], repository, source, Mock()
             )
@@ -541,6 +552,11 @@ class TestWorkshop(unittest.TestCase):
             dialog = WorkshopDialog(repository, parent, service=self.service)
         try:
             dialog._catalog_loaded(([old, latest], source, self.service.get_installations()))
+            version_item = dialog.table.item(0, 3)
+            self.assert_update_indicator_visible(version_item, True)
+            self.assertEqual(version_item.text(), "1.1.0")
+            self.assertIn("1.0.0", version_item.toolTip())
+            self.assertIn("1.1.0", version_item.toolTip())
             self.assertTrue(dialog.update_button.isEnabled())
             self.assertTrue(dialog.import_button.isHidden())
             self.assertTrue(dialog.update_all_button.isEnabled())
@@ -570,6 +586,8 @@ class TestWorkshop(unittest.TestCase):
             self.assertFalse(dialog.import_button.isHidden())
             self.assertFalse(dialog.update_all_button.isEnabled())
             self.assertEqual(self.service.get_installations()[0].version, "1.1.0")
+            self.assert_update_indicator_visible(version_item, False)
+            self.assertEqual(version_item.toolTip(), "1.1.0")
         finally:
             dialog.deleteLater()
             parent.deleteLater()
@@ -614,6 +632,34 @@ class TestWorkshop(unittest.TestCase):
         self.assertFalse(dialog.yesButton.isEnabled())
         self.assertIn("existing", dialog.error_label.text())
 
+    def test_workshop_filter_header_stays_anchored_during_collapse(self):
+        parent = QWidget()
+        parent.resize(1400, 960)
+        parent.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen)
+        with patch.object(WorkshopDialog, "reload_catalog"):
+            dialog = WorkshopDialog(Mock(), parent)
+        dialog.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen)
+        parent.show()
+        dialog.show()
+        try:
+            for _ in range(3):
+                dialog.filter_button.click()
+                self.qt_app.processEvents()
+                tools = dialog.tools_card
+                position = dialog.search_edit.mapTo(tools, QPoint())
+                dialog.filter_button.click()
+                # Check the layout before its parent has consumed the vacated space.
+                tools.layout().activate()
+                self.assertEqual(dialog.search_edit.mapTo(tools, QPoint()), position)
+                self.qt_app.processEvents()
+                self.assertEqual(dialog.search_edit.mapTo(tools, QPoint()), position)
+                self.assertFalse(dialog.filter_panel.isVisible())
+        finally:
+            dialog.hide()
+            parent.hide()
+            dialog.deleteLater()
+            parent.deleteLater()
+
     def test_workshop_dialog_uses_readable_catalog_table(self):
         entry = CatalogEntry(
             make_package(False), "codes/test.zip", "test.zip", 3041, "2026-08-18T12:09:37Z"
@@ -632,6 +678,72 @@ class TestWorkshop(unittest.TestCase):
         self.assertTrue(dialog.import_button.isEnabled())
         dialog.deleteLater()
         parent.deleteLater()
+
+    def test_workshop_lineup_filters_compose_and_preserve_the_current_preview(self):
+        old = CatalogEntry(make_package(), "codes/old.zip", "old.zip", 1, "2026-01-01T00:00:00Z")
+        latest = replace(old, package=replace(old.package, version="1.1.0", description="updated"))
+        other = replace(
+            old,
+            package=replace(
+                make_package(False), name="Other", author="Other", description="updated"
+            ),
+            filename="other.zip",
+            updated_at="2026-02-01T00:00:00Z",
+        )
+        parent = QWidget()
+        with patch.object(WorkshopDialog, "reload_catalog"):
+            dialog = WorkshopDialog(Mock(), parent)
+
+        def add_keyword(word):
+            dialog.keyword_edit.setText(word)
+            QTest.keyClick(dialog.keyword_edit, Qt.Key.Key_Return)
+
+        try:
+            catalog = ([old, latest, other], IndexSource("GitHub", "index", "base"))
+            dialog._catalog_loaded(catalog)
+            dialog.table.selectRow(1)
+            dialog.version_combo.setCurrentIndex(1)
+            self.assertEqual(dialog.selected_package(), old.package)
+            add_keyword("zE")
+            self.assertEqual(dialog.table.rowCount(), 2)
+            self.assertEqual(dialog.selected_package(), old.package)
+            add_keyword("sAMPle")
+            self.assertEqual(dialog.table.rowCount(), 1)
+            self.assertEqual(dialog.selected_package(), old.package)
+            self.assertIn("1 / 2", dialog.status_label.text())
+            dialog._catalog_loaded(catalog)
+            self.assertEqual(dialog.table.rowCount(), 1)
+            self.assertEqual(dialog.selected_package(), old.package)
+            dialog.search_edit.setText("updated")
+            self.assertEqual(dialog.table.rowCount(), 1)
+            dialog.author_combo.setCurrentText("Other")
+            self.assertEqual(dialog.table.rowCount(), 0)
+            self.assertIsNone(dialog.selected_package())
+            self.assertFalse(dialog.import_button.isEnabled())
+            dialog.clear_filters_button.click()
+            self.assertEqual(dialog.search_edit.text(), "updated")
+            self.assertEqual(dialog.table.rowCount(), 2)
+            self.assertEqual(dialog.keyword_edit.keywords, [])
+            dialog.keyword_edit.setText("not yet committed")
+            self.assertEqual(dialog.table.rowCount(), 2)
+            add_keyword("sample")
+            self.assertEqual(dialog.table.rowCount(), 1)
+            remove_label = dialog.tr("移除关键词 {}").format("sample")
+            next(
+                button
+                for button in dialog.keyword_edit.chip_view.findChildren(QToolButton)
+                if button.accessibleName() == remove_label
+            ).click()
+            self.assertEqual(dialog.table.rowCount(), 2)
+            self.assertEqual(dialog.keyword_edit.keywords, [])
+            dialog._toggle_filters(True)
+            add_keyword("sample")
+            dialog._toggle_filters(False)
+            self.assertEqual(dialog.table.rowCount(), 1)
+            self.assertEqual(dialog.keyword_edit.keywords, ["sample"])
+        finally:
+            dialog.deleteLater()
+            parent.deleteLater()
 
     def test_workshop_selects_history_for_preview_and_import(self):
         old = CatalogEntry(
@@ -653,9 +765,7 @@ class TestWorkshop(unittest.TestCase):
             for chinese, role in ((True, "零"), (False, "Zero")):
                 dialog.is_chinese = chinese
                 dialog._catalog_loaded(([old, latest], source))
-                roles = [dialog.role_combo.itemText(i) for i in range(dialog.role_combo.count())]
-                self.assertIn(role, roles)
-                self.assertNotIn("Zero" if chinese else "零", roles)
+                self.assertEqual(dialog.slot_cards[0].title_label.text(), role)
                 self.assertEqual(dialog.table.rowCount(), 1)
                 self.assertEqual(dialog.table.item(0, 3).text(), "1.10.0")
                 self.assertEqual(dialog.detail_body.toPlainText(), "New rotation")
@@ -865,6 +975,74 @@ class TestWorkshopModels(unittest.TestCase):
         )
         self.assertEqual(filter_catalog_entries(entries, role="Zero"), [entries[1], entries[0]])
         self.assertEqual(filter_catalog_entries(entries, author="作者"), [entries[0]])
+
+    def test_catalog_lineup_keywords_match_substrings_across_roles_and_locales(self):
+        base = make_package()
+        slots = (
+            replace(
+                base.slots[0],
+                display={"zh_CN": "残虹 (社区版)", "en_US": "Zankou (Community)"},
+            ),
+            replace(
+                base.slots[1],
+                display={"zh_CN": "早雾 (固定轴)", "en_US": "Sakiri (Fixed rotation)"},
+            ),
+        )
+        full = CatalogEntry(
+            replace(base, slots=slots), "codes/full.zip", "full.zip", 1, "2026-01-01Z"
+        )
+        single = replace(
+            full,
+            package=replace(full.package, name="Single", slots=slots[:1]),
+            filename="single.zip",
+            updated_at="2026-02-01Z",
+        )
+        entries = [full, single]
+        for words, expected in (
+            (("残虹",), [single, full]),
+            (("残虹", "早雾"), [full]),
+            (("zAnK", " sAKiRi "), [full]),
+            (("社区版", "固定轴"), [full]),
+            (("残虹", "不存在"), []),
+            (("残虹 (社区版) 早雾",), []),
+            (("", "  "), [single, full]),
+        ):
+            with self.subTest(words=words):
+                self.assertEqual(filter_catalog_entries(entries, role_keywords=words), expected)
+        self.assertEqual(full.package.slots[0].display["zh_CN"], "残虹 (社区版)")
+
+    def test_catalog_lineup_keywords_do_not_match_other_package_fields(self):
+        base = make_package(False)
+        match = CatalogEntry(
+            replace(
+                base,
+                slots=(replace(base.slots[0], display={"zh_CN": "残虹", "en_US": "Zankou"}),),
+            ),
+            "codes/match.zip",
+            "match.zip",
+            1,
+            "2026-01-01Z",
+        )
+        decoy = replace(
+            match,
+            package=replace(base, name="残虹", description="残虹", author="残虹"),
+            filename="decoy.zip",
+        )
+        self.assertEqual(filter_catalog_entries([match, decoy], role_keywords=("残虹",)), [match])
+        self.assertEqual(
+            filter_catalog_entries(
+                [match, decoy], keyword="说明", author="作者", role_keywords=("残虹",)
+            ),
+            [match],
+        )
+        self.assertEqual(
+            filter_catalog_entries([match, decoy], author="Other", role_keywords=("残虹",)),
+            [],
+        )
+        self.assertEqual(
+            filter_catalog_entries([match, decoy], keyword="missing", role_keywords=("残虹",)),
+            [],
+        )
 
     def test_version_format_and_numeric_order(self):
         self.assertGreater(parse_version("1.10.0"), parse_version("1.9.9"))
