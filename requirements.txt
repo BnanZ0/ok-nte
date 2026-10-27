@@ -40,7 +40,7 @@ mido==1.3.3 ; sys_platform == 'win32'
     # via ok-nte
 mouse==0.7.1 ; sys_platform == 'win32'
     # via ok-script
-msgpack==1.2.1 ; sys_platform == 'win32'
+msgpack==1.2.4 ; sys_platform == 'win32'
     # via librosa
 narwhals==2.24.0 ; sys_platform == 'win32'
     # via scikit-learn
@@ -62,7 +62,7 @@ numpy==2.4.6 ; sys_platform == 'win32'
     #   soundfile
     #   soxr
     #   tifffile
-ok-script==2.0.15 ; sys_platform == 'win32'
+ok-script==2.0.17 ; sys_platform == 'win32'
     # via ok-nte
 onnxocr-ppocrv5==0.0.22 ; sys_platform == 'win32'
     # via

@@ -9,7 +9,10 @@ supported-markers = [
 ]
 
 [manifest]
-excludes = [{ package = { name = "pyside6-fluent-widgets" }, dependencies = ["pyside6"] }]
+excludes = [
+    { package = { name = "ok-script" }, dependencies = ["mcp"] },
+    { package = { name = "pyside6-fluent-widgets" }, dependencies = ["pyside6"] },
+]
 
 [[package]]
 name = "altgraph"
@@ -359,13 +362,13 @@ wheels = [
 
 [[package]]
 name = "msgpack"
-version = "1.2.1"
+version = "1.2.4"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/31/f9/c0a1c127f9049db9155afc316952ea571720dd01833ff5e4d7e8e6352dbb/msgpack-1.2.1.tar.gz", hash = "sha256:04c721c2c7448767e9e3f2520a475663d8ee0f09c31890f6d2bd70fd636a9647", size = 183960, upload-time = "2026-06-18T16:13:52.594Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/cc/52/1ec7ead2c7528bf3d1db73e886fa4df10f9e6f0eb7854a448b7090cfcef7/msgpack-1.2.4.tar.gz", hash = "sha256:475c44e12f2a5de766a8448783f149c9b33f3f49b88953c6cd739a77d93c732c", size = 197764, upload-time = "2026-10-26T17:55:48.593Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/2e/b9/8377a5ad8953fc0437c70cc98d9ae29f27fe5ac5109fbec0812085865735/msgpack-1.2.1-cp312-cp312-win32.whl", hash = "sha256:0c0d9802354507bcba62af19c17918e3eb437cc25e6f50657d511b5856a77aac", size = 64504, upload-time = "2026-06-18T16:13:08.822Z" },
-    { url = "https://files.pythonhosted.org/packages/57/7f/ce1e377df7e62461fefd9eb23bfb93a4a523f40a517b377b8f844d836828/msgpack-1.2.1-cp312-cp312-win_amd64.whl", hash = "sha256:5c24aa15d5963051e1a5c62b12c50cd705992502b5ec1f3bece6046f33c9fc24", size = 71421, upload-time = "2026-06-18T16:13:09.828Z" },
-    { url = "https://files.pythonhosted.org/packages/8f/32/ebfe84c9929f08f188d56c7a2fd913406a9ddad76a634697c1c43b8112e6/msgpack-1.2.1-cp312-cp312-win_arm64.whl", hash = "sha256:4227224aaec8f7fbcbfbd4272319347b2bb4030366502600f8c45588c5187b07", size = 64775, upload-time = "2026-06-18T16:13:11.056Z" },
+    { url = "https://files.pythonhosted.org/packages/c9/74/d75bf61aab9cb88b84f7d3a8eca8dd92e19a742b77ded300a1177e88d031/msgpack-1.2.4-cp312-cp312-win32.whl", hash = "sha256:2b0b7dff5beddc10f16ecea6b28c6b98014d1135d7015bd83adff5037f35848d", size = 68786, upload-time = "2026-10-26T17:54:15.049Z" },
+    { url = "https://files.pythonhosted.org/packages/81/c5/dd0e78eb04f9a0773a810d25ef2cd8f16bb941487567d0c63f814881133c/msgpack-1.2.4-cp312-cp312-win_amd64.whl", hash = "sha256:6e38b123681df22373d545520f54bbeddc4706d9235a1161061f12bd6648497d", size = 77272, upload-time = "2026-10-26T17:54:16.491Z" },
+    { url = "https://files.pythonhosted.org/packages/65/e7/b38f63ae82777c0077daa56c4b09af39d29dcb8927ab2ff59268094069c5/msgpack-1.2.4-cp312-cp312-win_arm64.whl", hash = "sha256:6795c588b210b2f13d62c8fcc23bf779b509b839ec5c197a7ab4f5191459e126", size = 71884, upload-time = "2026-10-26T17:54:17.995Z" },
 ]
 
 [[package]]
@@ -435,7 +438,7 @@ dependencies = [
 
 [package.dev-dependencies]
 dev = [
-    { name = "ok-script", extra = ["mcp"] },
+    { name = "mcp" },
     { name = "pillow" },
     { name = "polib" },
     { name = "pyinstaller" },
@@ -448,7 +451,7 @@ requires-dist = [
     { name = "comtypes", specifier = ">=1.4.17" },
     { name = "librosa", specifier = ">=1.0.0" },
     { name = "mido", specifier = ">=1.3.3" },
-    { name = "ok-script", extras = ["ocr", "qt"], specifier = ">=2.0.15" },
+    { name = "ok-script", extras = ["ocr", "qt"], specifier = ">=2.0.17" },
     { name = "onnxocr-ppocrv5", specifier = ">=0.0.22" },
     { name = "opencc", specifier = ">=1.4.2" },
     { name = "opencv-python", specifier = ">=5.0.0.93" },
@@ -465,7 +468,7 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 dev = [
-    { name = "ok-script", extras = ["mcp"], specifier = ">=2.0.15" },
+    { name = "mcp", specifier = "==2.3.0" },
     { name = "pillow", specifier = ">=13.0.0" },
     { name = "polib", specifier = ">=1.2.0" },
     { name = "pyinstaller", specifier = "==6.22.3" },
@@ -475,7 +478,7 @@ dev = [
 
 [[package]]
 name = "ok-script"
-version = "2.0.15"
+version = "2.0.17"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "mouse" },
@@ -488,15 +491,12 @@ dependencies = [
     { name = "requests" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/86/c1/3919e15dc22ae04ae2404cd3c6fa1fe8a0ca8a819b5f44ec1df244184505/ok_script-2.0.15.tar.gz", hash = "sha256:cce2a07e2cb38f48fc1bebefcdc8be72ef29d3e4bf50e6ef1023518f0a329309", size = 954866, upload-time = "2026-10-26T16:20:51.531Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/e7/4e/5c4fccfedc774b587b9b1d02e73d2d21b5216de6017d160e5914d9e1d9d8/ok_script-2.0.17.tar.gz", hash = "sha256:040a50e7ff1e08ee2f9425b8f56158f1fe2f2e3b1a3056f8c3b11afb6f93c261", size = 967102, upload-time = "2026-10-27T15:41:12.586Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/7e/16/d8fe8ca5bf8990dae3bc34b67e75bf95abbe597296e284e1ca3d46ed7c2d/ok_script-2.0.15-py3-none-any.whl", hash = "sha256:6d454a65cb0293dba88172a06d3ea7bdb5f6a908bd8bb7ae9a42e906dc3d71b0", size = 958592, upload-time = "2026-10-26T16:20:49.588Z" },
+    { url = "https://files.pythonhosted.org/packages/73/7e/af20af9c019fd2d01f5ab49fdfd1f852eb43a61179a165d8c3611279ba1b/ok_script-2.0.17-py3-none-any.whl", hash = "sha256:49720827f267297620208bc5fe6981203eb6472868fe2de59d12329ed7494e44", size = 966861, upload-time = "2026-10-27T15:41:10.689Z" },
 ]
 
 [package.optional-dependencies]
-mcp = [
-    { name = "mcp" },
-]
 ocr = [
     { name = "onnxocr-ppocrv5" },
 ]
