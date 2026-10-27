@@ -1618,3 +1618,15 @@ msgstr "External character module must define exactly one BaseChar subclass"
 
 msgid "角色实现标识重复: {impl_id}"
 msgstr "Duplicate character implementation ID: {impl_id}"
+
+msgid "咔滋!黄金双脆"
+msgstr "Snap! Golden Crackshot"
+
+msgid "从活动详情页或匹配大厅开始, 进入对局后等待指定秒数再退出并重复运行"
+msgstr "Start on the event details page or matchmaking lobby, wait the configured number of seconds after entering a match, then leave and repeat"
+
+msgid "进入后等待秒数"
+msgstr "Wait after entering (seconds)"
+
+msgid "确认进入对局后等待的秒数, 设置为0则立即退出"
+msgstr "Seconds to wait after confirming match entry, set to 0 to leave immediately"

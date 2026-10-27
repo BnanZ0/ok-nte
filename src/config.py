@@ -206,6 +206,7 @@ config = {
         ["src.tasks.DSDFarmTask", "DSDFarmTask"],
         ["src.tasks.VolleyballTask", "VolleyballTask"],
         ["src.tasks.DartTask", "DartTask"],
+        ["src.tasks.GoldenCrunchTask", "GoldenCrunchTask"],
         # 测试相关
         ["src.tasks.CombatDetectionTestTask", "CombatDetectionTestTask"],
         ["src.tasks.DebugCharTask", "DebugCharTask"],

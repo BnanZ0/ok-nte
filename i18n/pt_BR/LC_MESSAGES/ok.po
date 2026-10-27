@@ -1361,3 +1361,15 @@ msgstr "O módulo de personagem externo deve definir exatamente uma subclasse de
 
 msgid "角色实现标识重复: {impl_id}"
 msgstr "ID de implementação de personagem duplicado: {impl_id}"
+
+msgid "咔滋!黄金双脆"
+msgstr "Snap! Golden Crackshot"
+
+msgid "从活动详情页或匹配大厅开始, 进入对局后等待指定秒数再退出并重复运行"
+msgstr "Comece na página do evento ou no lobby, espere os segundos configurados após entrar na partida, saia e repita"
+
+msgid "进入后等待秒数"
+msgstr "Espera após entrar (segundos)"
+
+msgid "确认进入对局后等待的秒数, 设置为0则立即退出"
+msgstr "Segundos de espera após confirmar a entrada na partida, use 0 para sair imediatamente"
