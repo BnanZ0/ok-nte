@@ -84,7 +84,7 @@ class AudioRoutingTests(unittest.TestCase):
                 "/scomma",
                 "",
                 "/Columns",
-                "Command-LineFriendlyID,ItemID,DeviceState,Direction,ProcessID",
+                "Command-LineFriendlyID,ItemID,DeviceState,Direction,ProcessID,Default",
             ],
         )
 
@@ -162,6 +162,7 @@ class AudioRoutingTests(unittest.TestCase):
                 "type": "Device",
                 "direction": "Render",
                 "Device": "Headphone Audio",
+                "default": "Render",
             },
             {
                 "name": GAME_EXE,
@@ -188,11 +189,27 @@ class AudioRoutingTests(unittest.TestCase):
                 audio_routing.subprocess,
                 "run",
                 return_value=SimpleNamespace(returncode=0),
-            ):
+            ) as run:
                 router._run_pending_routes("svcl.exe")
 
-        self.assertEqual(router._original_device, "Headphone Audio\\Device\\Headphones\\Render")
-        self.assertEqual(router._requested_device, "Speakers")
+                self.assertEqual(
+                    router._original_device, "Headphone Audio\\Device\\Headphones\\Render"
+                )
+                self.assertEqual(router._requested_device, "Speakers")
+                data[1]["default"] = ""
+                data.append(
+                    {
+                        "commandlinefriendlyid": "New Default Audio\\Device\\Speakers\\Render",
+                        "default": "Render",
+                    }
+                )
+                data[2]["devicestate"] = "Inactive"
+                data[3]["devicestate"] = "Active"
+                router._pending_route = _RouteRequest(router._original_device)
+                router._run_pending_routes("svcl.exe")
+
+        self.assertEqual(run.call_args.args[0][2], DEFAULT_RENDER_DEVICE)
+        self.assertFalse(router._restore_needed)
 
     def test_router_saves_default_when_current_device_is_background_target(self):
         router = _BackgroundAudioRouter()
@@ -505,17 +522,72 @@ class AudioRoutingTests(unittest.TestCase):
         router = _BackgroundAudioRouter()
         router._pending_route = _RouteRequest("USB Audio\\Device\\Headphones\\Render")
         router._original_device = "USB Audio\\Device\\Headphones\\Render"
+        router._background_device = audio_routing._RenderOutputDevice("background", "background")
 
-        with patch.object(
-            audio_routing.subprocess,
-            "run",
-            return_value=SimpleNamespace(returncode=0),
+        with (
+            patch.object(audio_routing, "_export_sound_items", return_value=[]),
+            patch.object(
+                audio_routing,
+                "_current_process_render_output_device",
+                return_value=router._background_device,
+            ),
+            patch.object(
+                audio_routing.subprocess, "run", return_value=SimpleNamespace(returncode=0)
+            ) as run,
         ):
             router._run_pending_routes("svcl.exe")
 
+        self.assertEqual(run.call_args.args[0][2], "USB Audio\\Device\\Headphones\\Render")
         self.assertIsNone(router._requested_device)
         self.assertIsNone(router._original_device)
         self.assertFalse(router._restore_needed)
+
+    def test_restore_keeps_output_manually_changed_while_backgrounded(self):
+        for on_exit in (False, True):
+            with self.subTest(on_exit=on_exit):
+                router = _BackgroundAudioRouter()
+                router._background_device = audio_routing._RenderOutputDevice(
+                    DEFAULT_RENDER_DEVICE
+                    if on_exit
+                    else "Background Audio\\Device\\Speakers\\Render",
+                    "background",
+                )
+                router._original_device = "Original Audio\\Device\\Speakers\\Render"
+                router._requested_device = router._background_device.route_device
+                router._restore_exe_path = "svcl.exe"
+                router._restore_needed = True
+                data = [
+                    {
+                        "commandlinefriendlyid": "Background Audio\\Device\\Speakers\\Render",
+                        "default": "Render",
+                    },
+                    {
+                        "commandlinefriendlyid": "Background Audio\\Device\\Headphones\\Render",
+                        "itemid": "{0.0.0.00000000}.{headphones}",
+                    },
+                    {
+                        "commandlinefriendlyid": "Background Audio\\Application\\game",
+                        "itemid": "{0.0.0.00000000}.{headphones}|app",
+                        "direction": "Render",
+                        "devicestate": "Active",
+                        "processid": "80940",
+                    },
+                ]
+                with (
+                    patch.object(audio_routing, "_export_sound_items", return_value=data),
+                    patch.object(audio_routing, "_is_svcl_path", return_value=True),
+                    patch.object(audio_routing.subprocess, "run") as run,
+                ):
+                    if on_exit:
+                        router.restore_on_exit()
+                    else:
+                        router._pending_route = _RouteRequest(router._original_device)
+                        router._run_pending_routes("svcl.exe")
+
+                run.assert_not_called()
+                self.assertFalse(router._restore_needed)
+                self.assertIsNone(router._requested_device)
+                self.assertIsNone(router._original_device)
 
     def test_restore_updates_requested_device_after_disable(self):
         router = _BackgroundAudioRouter()
@@ -659,6 +731,42 @@ class AudioRoutingTests(unittest.TestCase):
             router._pending_route,
             _RouteRequest("USB Audio\\Device\\Headphones\\Render"),
         )
+
+    def test_window_change_during_audio_route_is_not_dropped(self):
+        original = "USB Audio\\Device\\Headphones\\Render"
+        background = "Virtual Audio\\Device\\Speakers\\Render"
+        config = {
+            CONF_ENABLE: True,
+            CONF_SVCL_PATH: "svcl.exe",
+            audio_routing.CONF_BACKGROUND_DEVICE: background,
+        }
+        for first_visible in (True, False):
+            with self.subTest(first_visible=first_visible):
+                router = _BackgroundAudioRouter()
+                router._original_device = original
+                router._requested_device = background if first_visible else None
+                router._restore_needed = first_visible
+                router._last_visible = not first_visible
+                router._worker = SimpleNamespace(is_alive=lambda: True)
+                calls = []
+
+                def switch(_exe_path, device, save_current=False):
+                    calls.append(device)
+                    if len(calls) == 1:
+                        router.on_window(not first_visible)
+                    return device
+
+                with (
+                    patch.object(audio_routing, "_routing_config", return_value=config),
+                    patch.object(audio_routing, "_is_svcl_path", return_value=True),
+                    patch.object(router, "_switch_process_device", side_effect=switch),
+                ):
+                    router.on_window(first_visible)
+                    router._run_pending_routes("svcl.exe")
+
+                expected = [original, background] if first_visible else [background, original]
+                self.assertEqual(calls, expected)
+                self.assertEqual(router._requested_device, background if first_visible else None)
 
     def test_router_binds_to_ok_exit_event_for_forced_terminal_exit(self):
         router = _BackgroundAudioRouter()

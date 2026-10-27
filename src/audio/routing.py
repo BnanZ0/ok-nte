@@ -29,7 +29,7 @@ DEFAULT_DEVICE_OPTIONS = [DEFAULT_RENDER_DEVICE]
 _COMMAND_TIMEOUT_SECONDS = 5
 _WINDOW_ROUTE_CHECK_INTERVAL_SECONDS = 2
 _IGNORED_SOUNDDEVICE_HOST_APIS = {"MME", "Windows WDM-KS"}
-_SOUND_ITEM_COLUMNS = "Command-LineFriendlyID,ItemID,DeviceState,Direction,ProcessID"
+_SOUND_ITEM_COLUMNS = "Command-LineFriendlyID,ItemID,DeviceState,Direction,ProcessID,Default"
 _RESET_PATCH_ATTR = "_background_audio_routing_reset_patched"
 
 
@@ -270,7 +270,7 @@ def _resolved_output_devices_match(
         return True
     if left.endpoint_key and right.endpoint_key:
         return left.endpoint_key == right.endpoint_key
-    return left.match_key == right.match_key
+    return _device_match_key(left.route_device) == _device_match_key(right.route_device)
 
 
 def _sounddevice_name_matches_output(
@@ -344,6 +344,13 @@ def _render_output_devices(data: list[dict[str, str]]) -> list[_RenderOutputDevi
     return devices
 
 
+def _default_render_output_device(data: list[dict[str, str]]) -> _RenderOutputDevice | None:
+    defaults = _render_output_devices(
+        [record for record in data if record.get("default", "").casefold() == "render"]
+    )
+    return defaults[0] if len(defaults) == 1 else None
+
+
 def audio_route_command(device: str, process_name: str = GAME_EXE) -> list[str]:
     if device != DEFAULT_RENDER_DEVICE and not _is_svcl_render_device_id(device):
         raise ValueError(f"expected a render output device id, got: {device}")
@@ -374,6 +381,8 @@ class _BackgroundAudioRouter:
         self._pending_route: _RouteRequest | None = None
         self._requested_device: str | None = None
         self._original_device: str | None = None
+        self._background_device: _RenderOutputDevice | None = None
+        self._original_default_device: _RenderOutputDevice | None = None
         self._restore_exe_path: str | None = None
         self._restore_needed = False
         self._worker: threading.Thread | None = None
@@ -481,6 +490,12 @@ class _BackgroundAudioRouter:
             )
             if routed_device:
                 self._mark_route_success(route, routed_device)
+                # A window event may have been deduplicated against the old device
+                # while this command was running. Reconcile after updating its state.
+                with self._lock:
+                    visible = self._last_visible
+                if visible is not None:
+                    self.request_route(visible)
 
     def _route_device(self, visible: bool, config) -> str | None:
         if not visible:
@@ -501,10 +516,16 @@ class _BackgroundAudioRouter:
                 return
             self._requested_device = None
             self._original_device = None
+            self._background_device = None
+            self._original_default_device = None
             self._restore_needed = False
 
     def _switch_process_device(self, exe_path: str, device: str, save_current: bool = False) -> str:
-        route_device = self._prepare_background_route(exe_path, device) if save_current else device
+        route_device = (
+            self._prepare_background_route(exe_path, device)
+            if save_current
+            else self._prepare_restore_route(exe_path, device)
+        )
         if not route_device:
             return ""
 
@@ -563,7 +584,60 @@ class _BackgroundAudioRouter:
         )
         with self._lock:
             self._original_device = original_device
+            self._background_device = target_device
+            default_device = _default_render_output_device(data)
+            self._original_default_device = (
+                default_device
+                if default_device
+                and _resolved_output_devices_match(current_render_device, default_device)
+                else None
+            )
         return target_device.route_device
+
+    def _prepare_restore_route(self, exe_path: str, device: str) -> str:
+        with self._lock:
+            expected = self._background_device
+            original_default = self._original_default_device
+        if expected is None:
+            return ""
+        try:
+            data = _export_sound_items(exe_path)
+            current = _current_process_render_output_device(data, GAME_EXE)
+            default_device = _default_render_output_device(data)
+            if expected.route_device == DEFAULT_RENDER_DEVICE:
+                if default_device is None:
+                    return ""
+                expected = default_device
+        except Exception as exc:
+            logger.warning(f"game audio restore skipped: cannot read current output device: {exc}")
+            return ""
+        if current is None:
+            logger.warning("game audio restore skipped: current output device is unknown")
+            return ""
+        logger.info(
+            "check game audio output before restore: "
+            f"current={current.route_device} background={expected.route_device} restore={device} "
+            f"system_default={default_device.route_device if default_device else 'unknown'}"
+        )
+        if not _resolved_output_devices_match(current, expected):
+            logger.info("game audio output device changed externally; keeping the new selection")
+            with self._lock:
+                self._requested_device = None
+                self._original_device = None
+                self._background_device = None
+                self._original_default_device = None
+                self._restore_needed = False
+            return ""
+        if (
+            original_default is not None
+            and default_device is not None
+            and not _resolved_output_devices_match(original_default, default_device)
+        ):
+            logger.info(
+                "system default output changed while backgrounded; restoring system default"
+            )
+            return DEFAULT_RENDER_DEVICE
+        return device
 
     def restore_on_exit(self) -> None:
         with self._lock:
@@ -588,6 +662,8 @@ class _BackgroundAudioRouter:
             with self._lock:
                 self._requested_device = None
                 self._original_device = None
+                self._background_device = None
+                self._original_default_device = None
                 self._restore_needed = False
 
 
