@@ -53,6 +53,9 @@ class FountainTask(NTEOneTimeTask, BaseNTETask):
             raise
 
     def do_run(self) -> bool:
+        # try init ocr
+        self.ocr(box=self.pos.screen.center.to_box())
+
         sign_mode = self.config.get(self.CONF_SIGN_MODE, self.SIGN_MODE_SIGN)
         last_error = None
         for attempt in range(1, self.TASK_RETRY_COUNT + 2):
@@ -194,7 +197,6 @@ class FountainTask(NTEOneTimeTask, BaseNTETask):
 
         try:
             self.send_key_down("w", after_sleep=0.2)
-            self.send_key("lshift", after_sleep=0.2)
             self.wait_until(
                 find_sign,
                 time_out=self.INTERAC_TIMEOUT,
@@ -312,12 +314,17 @@ class FountainTask(NTEOneTimeTask, BaseNTETask):
         )
 
     def read_fountain_sign_count(self):
-        results = self.wait_ocr(
-            *self.FOUNTAIN_SIGN_COUNT_BOX,
-            match=self.FOUNTAIN_SIGN_COUNT_RE,
-            time_out=3,
-            raise_if_not_found=False,
-        )
+        timer = self.clock.timer(timeout=10)
+        while not timer.expired():
+            if results := self.wait_ocr(
+                *self.FOUNTAIN_SIGN_COUNT_BOX,
+                match=self.FOUNTAIN_SIGN_COUNT_RE,
+                time_out=2,
+                raise_if_not_found=False,
+            ):
+                break
+            else:
+                self.send_key("a")
         if not results:
             self.log_warning("fountain sign OCR raw results: []")
             return -1, None
