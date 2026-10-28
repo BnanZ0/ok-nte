@@ -66,6 +66,7 @@ class VolleyballTask(NTEOneTimeTask, RecordTask):
         self.instructions = INST if self.is_chinese() else EN_INST
         self.sleep_check_interval = 0.2
         self._play_count = 0
+        self._wc_next = False
         self.RECORD_NOTIFICATION = (
             RECORD_NOTIFICATION if self.is_chinese() else EN_RECORD_NOTIFICATION
         )
@@ -101,7 +102,8 @@ class VolleyballTask(NTEOneTimeTask, RecordTask):
         while True:
             if self.find_exit():
                 if not in_game:
-                    self.log_info("game begin")
+                    self._wc_next = False
+                    self.log_info("round begin")
                     in_game = True
                     self.wait_until(self.find_exit, settle_time=1, time_out=1.5)
                     if self.is_service():
@@ -120,6 +122,8 @@ class VolleyballTask(NTEOneTimeTask, RecordTask):
 
                 key, switch_key = self.play_once(key, switch_key)
             else:
+                if in_game:
+                    self.log_info("round end")
                 in_game = False
                 self.handle_match_end()
                 skip_task.check_skip()
@@ -170,6 +174,7 @@ class VolleyballTask(NTEOneTimeTask, RecordTask):
                 pass
             case self.MODE_WC:
                 if box := self.find_one(Labels.volleyball_wc_next):
+                    self._wc_next = True
                     self.operate_click(box, after_sleep=0.5)
                 elif wc_start := self.find_one(
                     Labels.volleyball_wc_start, horizontal_variance=0.05, vertical_variance=0.05
@@ -182,7 +187,7 @@ class VolleyballTask(NTEOneTimeTask, RecordTask):
                         )
                         self.sleep(1)
                     self.operate_click(wc_start, after_sleep=0.5)
-                else:
+                elif self._wc_next:
                     self.click(0.9859, 0.9764, interval=1)
 
     def is_service(self):
