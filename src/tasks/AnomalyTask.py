@@ -198,6 +198,8 @@ class AnomalyTask(BaseStaminaTask, BaseCombatTask):
             pass
         except Exception as e:
             self.log_error("AnomalyTask Error", e)
+        finally:
+            self.exit_anomaly()
 
     def do_run(self) -> bool | None:
         task_type = self.config.get(self.CONF_TASK_TYPE)
