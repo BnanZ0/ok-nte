@@ -29,7 +29,7 @@ class Blackbird(BaseChar):
             can_execute=self._can_use_skill,
             priority_ready=self.should_instant_cycle,
         )
-        self.register_ultimate(plan)
+        self.register_ultimate(plan, add_tags=Planner.ActionTag.TEAM_BUFF)
 
         if self._should_return_from_ult():
             plan.add(FieldClaim.low(reason="in ultimate"))
@@ -56,6 +56,15 @@ class Blackbird(BaseChar):
 
         if self.click_skill() and not self.claim_after_skill:
             self.claim_after_skill = True
+            if next_char := self.find_element_reaction_target():
+                if next_char.describe_role().role is Planner.Role.MAIN_DPS:
+                    self.combat_context.request_route(
+                        next_char.normal_attack, return_to_source=True
+                    )
+                else:
+                    self.combat_context.request_route(
+                        next_char, return_to_source=True
+                    )
             return
 
         self.claim_after_skill = False
