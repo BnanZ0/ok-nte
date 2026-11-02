@@ -43,10 +43,10 @@ class MovementMixin(BaseTask):
                     return True
                 self.sleep(0.1)
 
-        if result := find():
-            return result
         if interrupt():
             return
+        if result := find():
+            return result
 
         for _ in range(4):
             self.send_key("a")

@@ -39,7 +39,7 @@ class AnomalyHunter(BaseStaminaTask, BaseCombatTask):
     DEFAULT_TREASURE_FEATURES = [
         Labels.boss_treasure,
     ]
-    BOSS_TREASURE_THRESHOLD = 0.65
+    BOSS_TREASURE_THRESHOLD = 0.7
     BOSS_TREASURE_ONCE_SEARCH_TIME = 2
     BOSS_TREASURE_WALK_TIMEOUT = 15
 
