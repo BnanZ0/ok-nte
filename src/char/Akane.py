@@ -66,7 +66,7 @@ class Akane(BaseChar):
     def perform_ult_combo(self):
         timer = self.clock.timer(timeout=13)
         while not timer.expired():
-            if self.skill_2_count > 0 and self.in_ult(time_offset=2):
+            if self.skill_2_count > 0 or not self.in_ult(time_offset=2):
                 if self.click_ultimate():
                     self.in_ult_start = self.clock.UNSET
                     self.skill_2_count = 0

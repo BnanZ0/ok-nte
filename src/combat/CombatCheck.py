@@ -84,7 +84,7 @@ class CombatCheck(BaseNTETask):
         super().__init__(*args, **kwargs)
         self._in_animation = False
         self._in_combat = False
-        self.target_enemy_time_out = 3
+        self.target_enemy_time_out = 2
         self.combat_end_condition = None
         self.target_enemy_error_notified = False
         self.freeze_durations: deque[tuple[TimePoint, float, float]] = deque()
