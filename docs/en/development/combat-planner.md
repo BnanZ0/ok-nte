@@ -176,8 +176,8 @@ an ActionResult uses its own success flag.
 An optional reaction checks resources and element compatibility after A is actually on field.
 It skips if unavailable. Arrival at B without a confirmed reaction skips an optional step and
 retries a required step. Optional steps can skip dead targets; required steps end as failed.
-After completion, continue the final on-field character's ordinary entry, subject to existing
-coordination requests and return_to_source.
+After completion, continue the final on-field character's ordinary entry, subject to other
+unfinished coordination requests and Reserve.
 
 A route published during an entry activates after that entry returns. It neither interrupts
 remaining code nor consumes actions from the publishing entry:
@@ -191,8 +191,9 @@ self.click_ultimate()  # Attempt normally if its conditions and Reserve allow it
 
 An existing route is replaced only after the current entry ends. Later publications replace earlier
 routes; waiting for activation does not extend a deadline. Choose either `timeout` or a no-argument
-`until` condition. Omit both for no such deadline. A route does not force a return by default;
-`return_to_source=True` raises the requester's switch priority after completion.
+`until` condition. Omit both for no such deadline.
+`return_to_source=True` prefers switching back to the requester after completion without
+interrupting other characters' actions. The return ends on arrival; no skill use is required.
 
 ## Reserve actions and share a window
 

@@ -59,7 +59,7 @@ class CombatContext:
         return self._planner._read(self, lambda: list(self._planner.state.chars))
 
     def has_active_request(self) -> bool:
-        """查询已提交的协作请求, 包括等待当前 entry 结束后启用的路线。"""
+        """查询未完成的协作请求, 包括待启用路线; 不包括已完成后的返场偏好。"""
 
         return self._planner._read(
             self,
@@ -216,7 +216,8 @@ class CombatContext:
             reason: 日志和调试用理由；为空时会自动使用当前角色生成默认理由。
             until: 过期条件。为 None 时不会因时间/机制条件过期；传 callable 时，
                 每次 planner prune 都会调用，返回 True 则 route 以 EXPIRED 结束。
-            return_to_source: route 成功完成后，是否提高发起者重新入场的优先级。
+            return_to_source: route 成功完成后, 给发起者的普通切人评分加 700。
+                不阻止其他角色出招, 确认发起者登场即关闭请求, 无需执行动作。
             on_finish: route 首次出现 FULFILLED、EXPIRED 或 FAILED 信号时调用一次。
                 需要分别处理成功和过期时，保存返回的 handle 后使用
                 `handle.on_fulfilled(...)` / `handle.on_expired(...)`。
@@ -453,7 +454,8 @@ class CombatContext:
             until: 过期条件。为 None 时不会因时间/机制条件过期；返回 True 时
                 request 以 EXPIRED 结束。
             avoid_source: 未完成前是否避免让发起者自己满足这个 tag request。
-            return_to_source: request 成功完成后，是否提高发起者重新入场优先级。
+            return_to_source: request 成功完成后, 给发起者的普通切人评分加 700。
+                不阻止其他角色出招, 确认发起者登场即关闭请求, 无需执行动作。
             on_finish: 请求首次出现 FULFILLED 或 EXPIRED 信号时调用一次。
 
         Returns:

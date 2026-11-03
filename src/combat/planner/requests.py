@@ -231,7 +231,7 @@ def request_wants_action(request: _Request, char: "BaseChar", action: _Action) -
     """判断请求是否需要某角色动作。"""
 
     if isinstance(request, (_RouteRequest, _TagRequest)):
-        return request.wants(char, action)
+        return not request_fulfilled(request) and request.wants(char, action)
     return False
 
 
@@ -243,7 +243,7 @@ def request_complete_action(
     """用一次动作推进请求；reservation 不参与完成进度。"""
 
     if isinstance(request, (_RouteRequest, _TagRequest)):
-        return request.complete_step(char, action)
+        return not request_fulfilled(request) and request.complete_step(char, action)
     return False
 
 
@@ -293,9 +293,7 @@ def request_counts_as_active(request: _Request) -> bool:
     提供动作许可限制和下一次普通切人偏好。
     """
 
-    return isinstance(request, (_RouteRequest, _TagRequest)) and (
-        not request_fulfilled(request) or request.return_to_source
-    )
+    return isinstance(request, (_RouteRequest, _TagRequest)) and not request_fulfilled(request)
 
 
 def request_blocks_entry_flow(request: _Request) -> bool:

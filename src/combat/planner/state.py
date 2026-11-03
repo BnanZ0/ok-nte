@@ -187,7 +187,7 @@ class CombatState:
                 f"{self.locked_route.reason} / {step_reason} -> {result_name}"
             )
             if self.locked_route.fulfilled():
-                self.fulfill_locked_route()
+                self.fulfill_locked_route(char)
 
     def record_entry_reaction(self, source_char: "BaseChar", target_char: "BaseChar") -> None:
         """记录一次入场/环合反应，并推进相关协作请求。"""
@@ -204,10 +204,10 @@ class CombatState:
                 f"{self.locked_route.reason} / {step_reason}"
             )
             if self.locked_route.fulfilled():
-                self.fulfill_locked_route()
+                self.fulfill_locked_route(target_char)
 
     def record_switch(self, target_char: "BaseChar") -> None:
-        """记录一次实际切人，并消费匹配的 switch request。"""
+        """记录确认登场, 消费匹配的切人请求和已完成的返场偏好。"""
 
         active_requests = []
         for request in self.active_requests:
@@ -219,6 +219,7 @@ class CombatState:
             active_requests.append(request)
         self.active_requests = active_requests
         self.complete_route_arrival_steps(target_char)
+        self.active_requests = self._keep_active_after_progress(target_char.index)
 
     def complete_route_arrival_steps(self, target_char: "BaseChar") -> None:
         """完成目标已在场的纯切人步骤, 包括连续指向同一角色的步骤。"""
@@ -227,7 +228,7 @@ class CombatState:
             if not self.locked_route.complete_switch(target_char):
                 return
             if self.locked_route.fulfilled():
-                self.fulfill_locked_route()
+                self.fulfill_locked_route(target_char)
 
     def fail_locked_route(self) -> None:
         """结束实际执行失败的路线, 不再执行后续步骤。"""
@@ -247,8 +248,8 @@ class CombatState:
             finally:
                 request.close()
 
-    def fulfill_locked_route(self) -> None:
-        """完成当前 strict route，并按配置清除或转为返回发起者请求。"""
+    def fulfill_locked_route(self, current_char: "BaseChar") -> None:
+        """完成当前 strict route; 仅在发起者尚未在场时保留返场偏好。"""
 
         if self.locked_route is None:
             return
@@ -260,7 +261,9 @@ class CombatState:
         try:
             request.finish(RequestStatus.FULFILLED)
         finally:
-            if not request.return_to_source:
+            if request.return_to_source:
+                self.active_requests = self._keep_active_after_progress(current_char.index)
+            else:
                 request.close()
 
     def _keep_active_after_progress(

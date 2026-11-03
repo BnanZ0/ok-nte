@@ -2954,9 +2954,134 @@ class TestCombatPlanner(_PlannerTestCase):
         self.assertEqual(decision.target, source)
         self.assertIn("return to requester", decision.reason)
 
-        planner.perform_current_char(source)
+        planner.complete_switch(decision, previous_char=recorder)
 
         self.assertEqual(planner.state.active_requests, [])
+
+    def test_return_preference_allows_actions_and_closes_on_arrival(self):
+        for request_kind in ("route_action", "route_turn", "tags"):
+            with self.subTest(request_kind=request_kind):
+                planner, requester, teammate, _ = self._registered_team()
+                baseline_priority = planner.decide_switch(teammate).priority
+                handles = []
+
+                def publish(context):
+                    if request_kind == "tags":
+                        handle = context.request_tags(
+                            {ActionTag.SKILL_ACTION}, return_to_source=True
+                        )
+                    else:
+                        target = teammate if request_kind == "route_turn" else teammate.click_skill
+                        handle = context.request_route(target, return_to_source=True)
+                    handles.append(handle)
+
+                self._publish(planner, requester, publish)
+                planner.perform_current_char(teammate)
+                handle = handles[0]
+                self.assertTrue(handle.is_fulfilled)
+                self.assertFalse(handle.is_closed)
+                self.assertEqual(teammate.ultimate_clicked, 1)
+                self.assertFalse(planner.context_for(teammate).has_active_request())
+
+                teammate_skill_count = teammate.skill_clicked
+                teammate_ultimate_count = teammate.ultimate_clicked
+                planner.perform_current_char(teammate)
+                self.assertEqual(teammate.skill_clicked, teammate_skill_count + 1)
+                self.assertEqual(teammate.ultimate_clicked, teammate_ultimate_count + 1)
+                self.assertFalse(handle.is_closed)
+
+                decision = planner.decide_switch(teammate)
+                self.assertEqual(decision.target, requester)
+                self.assertEqual(decision.priority, baseline_priority + 700)
+                planner.prepare_switch(decision)
+                self.assertFalse(handle.is_closed)
+                planner.complete_switch(decision, previous_char=teammate)
+                self.assertTrue(handle.is_closed)
+                self.assertEqual(requester.skill_clicked, 0)
+                self.assertEqual(requester.ultimate_clicked, 0)
+                planner.perform_current_char(requester)
+
+                self.assertEqual(requester.skill_clicked, 1)
+                self.assertEqual(requester.ultimate_clicked, 1)
+                self.assertTrue(handle.is_closed)
+
+                planner.perform_current_char(teammate)
+                self.assertEqual(teammate.skill_clicked, teammate_skill_count + 2)
+                self.assertEqual(teammate.ultimate_clicked, teammate_ultimate_count + 2)
+                self.assertEqual(planner.decide_switch(teammate).priority, baseline_priority)
+
+    def test_return_preference_does_not_require_ready_actions_or_block_field_time(self):
+        requester = FakeChar(0, "requester", can_execute=lambda: False, max_field_time=0)
+        teammate = FakeChar(1, "teammate", tags={ActionTag.SKILL_ACTION})
+        idle = FakeChar(2, "idle", can_execute=lambda: False)
+        planner = self._planner([requester, teammate, idle])
+        handle = self._publish_method_route(
+            planner, requester, teammate, return_to_source=True
+        )
+        planner.perform_current_char(teammate)
+
+        planner.perform_current_char(idle)
+        self.assertGreater(idle.waited, 0)
+        self.assertFalse(handle.is_closed)
+
+        decision = planner.decide_switch(teammate)
+        self.assertIs(decision.target, requester)
+        planner.complete_switch(decision, previous_char=teammate)
+        self.assertTrue(handle.is_closed)
+        self.assertEqual(planner.decide_switch(teammate).target, idle)
+
+    def test_return_preference_closes_when_route_finishes_on_requester(self):
+        for final_step in ("action", "arrival", "optional"):
+            with self.subTest(final_step=final_step):
+                planner, requester, teammate, _ = self._registered_team()
+                requester._plan_factory = lambda char, _: self._skill_only_plan(char)
+                steps = [teammate.click_skill]
+                if final_step == "action":
+                    steps.append(requester.click_skill)
+                elif final_step == "arrival":
+                    steps.append(FollowupStep.for_switch(requester, wait_for_turn=False))
+                else:
+                    requester.skill_ready = False
+                    steps.extend([
+                        FollowupStep.for_switch(requester, wait_for_turn=False),
+                        Planner.Route.optional(requester.click_skill),
+                    ])
+                handle = self._publish_method_route(
+                    planner, requester, steps, return_to_source=True
+                )
+                planner.perform_current_char(teammate)
+                decision = planner.decide_switch(teammate)
+                planner.complete_switch(decision, previous_char=teammate)
+                planner.perform_current_char(requester)
+
+                self.assertTrue(handle.is_fulfilled)
+                self.assertTrue(handle.is_closed)
+
+    def test_return_preference_can_expire_before_arrival(self):
+        for request_kind in ("route", "tags"):
+            with self.subTest(request_kind=request_kind):
+                planner, requester, teammate, _ = self._registered_team()
+                expired = {"value": False}
+                handles = []
+
+                def publish(context):
+                    options = dict(return_to_source=True, until=lambda: expired["value"])
+                    if request_kind == "route":
+                        handle = context.request_route(teammate.click_skill, **options)
+                    else:
+                        handle = context.request_tags({ActionTag.SKILL_ACTION}, **options)
+                    handles.append(handle)
+
+                self._publish(planner, requester, publish)
+                planner.perform_current_char(teammate)
+                self.assertTrue(handles[0].is_fulfilled)
+                self.assertFalse(handles[0].is_closed)
+
+                expired["value"] = True
+                decision = planner.decide_switch(teammate)
+                self.assertTrue(handles[0].is_expired)
+                self.assertTrue(handles[0].is_closed)
+                self.assertEqual(decision.priority, 240)
 
     def test_request_route_forces_declared_switch_order(self):
         hotori = FakeChar(0, "hotori", field_preference=FieldPreference.SETUP_ONLY)
@@ -3351,7 +3476,7 @@ class TestCombatPlanner(_PlannerTestCase):
         self.assertFalse(handles["route"].is_closed)
         self.assertFalse(context.is_slot_available(nanally, ActionSlot.SKILL))
 
-        planner.perform_current_char(hotori)
+        planner.complete_switch(planner.decide_switch(zero), previous_char=zero)
 
         self.assertTrue(handles["route"].is_closed)
         self.assertTrue(context.is_slot_available(nanally, ActionSlot.SKILL))

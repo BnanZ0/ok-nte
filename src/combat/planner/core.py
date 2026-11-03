@@ -287,7 +287,7 @@ class CombatPlanner(_PlannerRuntime):
         ):
             route.skip_current_step()
             if route.fulfilled():
-                self.state.fulfill_locked_route()
+                self.state.fulfill_locked_route(target_char)
         self.record_switch(target_char)
 
     @operation("entry")
@@ -310,9 +310,6 @@ class CombatPlanner(_PlannerRuntime):
 
     def _run_normal_entry(self, session: _EntrySession) -> None:
         if self.state.locked_route is not None and not self._route_waits_for_turn(session.char):
-            session.yielded_before_action = True
-            return
-        if self._should_return_to_requester_before_action(session.char):
             session.yielded_before_action = True
             return
         route = self.state.locked_route
@@ -352,7 +349,7 @@ class CombatPlanner(_PlannerRuntime):
         ):
             route.complete_turn(session.char)
             if route.fulfilled():
-                self.state.fulfill_locked_route()
+                self.state.fulfill_locked_route(session.char)
 
     def _attempt_entry_action(self, session: _EntrySession, action: _Action) -> ActionResult:
         result, executed = self._execute_entry_action(session.char, action)
@@ -398,8 +395,6 @@ class CombatPlanner(_PlannerRuntime):
         if action is not None and action.identity_key() not in excluded_action_names:
             return action
 
-        if self._should_return_to_requester_before_action(char):
-            return None
         actions = self._actions_for(char)
         if not self.state.active_requests:
             return None
@@ -441,10 +436,12 @@ class CombatPlanner(_PlannerRuntime):
             if session is not None:
                 session.yielded_before_action = session.steps == 0
             return False
+        method = action._registered_method
+        assert method is not None, "registered action must have an original method"
         raw_results = []
 
         def execute():
-            value = action._registered_method(*args, **kwargs)
+            value = method(*args, **kwargs)
             raw_results.append(value)
             return value
 
@@ -518,7 +515,7 @@ class CombatPlanner(_PlannerRuntime):
                     return
                 route.skip_current_step()
                 if route.fulfilled():
-                    self.state.fulfill_locked_route()
+                    self.state.fulfill_locked_route(session.char)
             elif self.state.locked_route is route and route.current_step() is step:
                 return
         if route.handle.is_fulfilled and self._can_switch_to(session.char):
@@ -690,16 +687,6 @@ class CombatPlanner(_PlannerRuntime):
             return None
         return max(actions, key=lambda action: self._score_action(char, action))
 
-    def _should_return_to_requester_before_action(self, current_char: "BaseChar") -> bool:
-        for request in self.state.active_requests:
-            if (
-                request.return_to_source
-                and request_fulfilled(request)
-                and current_char.index != request._source
-            ):
-                return True
-        return False
-
     def _should_continue_entry(self, current_char: "BaseChar", result: ActionResult) -> bool:
         if not result.success:
             return self._can_try_next_action_after_failure(current_char)
@@ -719,8 +706,6 @@ class CombatPlanner(_PlannerRuntime):
     def _ordinary_entry_blocked(self, current_char: "BaseChar") -> bool:
         if self.state.locked_route is not None:
             return not self._locked_route_can_continue_on_current(current_char)
-        if self._should_return_to_requester_before_action(current_char):
-            return True
         return any(request_blocks_entry_flow(request) for request in self.state.active_requests)
 
     def _can_use_field_time_fallback(self, current_char: "BaseChar") -> bool:
@@ -929,7 +914,7 @@ class CombatPlanner(_PlannerRuntime):
                 if step.optional:
                     request.skip_current_step()
                     if request.fulfilled():
-                        self.state.fulfill_locked_route()
+                        self.state.fulfill_locked_route(context.current_char)
                         return skipped_actions
                     continue
                 self.state.finish_locked_route(step.invalid_status)
@@ -955,7 +940,7 @@ class CombatPlanner(_PlannerRuntime):
                     )
                 if unavailable and request.skip_current_step():
                     if request.fulfilled():
-                        self.state.fulfill_locked_route()
+                        self.state.fulfill_locked_route(context.current_char)
                         return skipped_actions
                     continue
                 return skipped_actions
@@ -963,7 +948,7 @@ class CombatPlanner(_PlannerRuntime):
             if target is None:
                 if request.skip_current_step():
                     if request.fulfilled():
-                        self.state.fulfill_locked_route()
+                        self.state.fulfill_locked_route(context.current_char)
                         return skipped_actions
                     continue
                 return skipped_actions
@@ -977,7 +962,7 @@ class CombatPlanner(_PlannerRuntime):
             if not request.skip_current_step():
                 return skipped_actions
             if request.fulfilled():
-                self.state.fulfill_locked_route()
+                self.state.fulfill_locked_route(context.current_char)
                 return skipped_actions
         return skipped_actions
 
@@ -1155,11 +1140,7 @@ class CombatPlanner(_PlannerRuntime):
     ) -> int:
         score = self._base_action_score(action, breakdown, "action_tags")
         for request in self.state.active_requests:
-            if request_fulfilled(request) and char.index == request._source:
-                score += 250
-                if breakdown is not None:
-                    breakdown.add("request_fulfilled_source", 250)
-            elif request_wants_action(request, char, action):
+            if request_wants_action(request, char, action):
                 score += 300
                 if breakdown is not None:
                     breakdown.add("request_wants_action", 300)
@@ -1229,10 +1210,6 @@ class CombatPlanner(_PlannerRuntime):
         field_claim = self._best_field_claim_for(char)
         field_action = self._field_time_action(char)
 
-        if action is None and field_claim is None and field_action is None:
-            breakdown.add("no_available_action", -10000)
-            return -10000, "no available action", None, breakdown
-
         score = 0
         reason = "no ready action"
         expected = None
@@ -1252,21 +1229,24 @@ class CombatPlanner(_PlannerRuntime):
             reason = f"field claim: {field_claim.reason}"
             expected = field_claim.expected_entry or expected
 
-        if action is not None:
-            for request in self.state.active_requests:
-                if (
-                    request.return_to_source
-                    and request_fulfilled(request)
-                    and char.index == request._source
-                ):
-                    score += 700
-                    breakdown.add("return_to_source", 700)
-                    reason = f"return to requester: {request.reason}"
-                    expected = None
-                elif request_wants_action(request, char, action):
-                    score += 600
-                    breakdown.add("fulfill_request", 600)
-                    reason = f"fulfill request: {request.reason}"
+        for request in self.state.active_requests:
+            if (
+                request.return_to_source
+                and request_fulfilled(request)
+                and char.index == request._source
+            ):
+                score += 700
+                breakdown.add("return_to_source", 700)
+                reason = f"return to requester: {request.reason}"
+                expected = None
+            elif action is not None and request_wants_action(request, char, action):
+                score += 600
+                breakdown.add("fulfill_request", 600)
+                reason = f"fulfill request: {request.reason}"
+
+        if action is None and field_claim is None and field_action is None and not score:
+            breakdown.add("no_available_action", -10000)
+            return -10000, "no available action", None, breakdown
 
         profile = self._describe_role(char)
         field_preference_score = self._field_preference_score(profile, context, current_char)
