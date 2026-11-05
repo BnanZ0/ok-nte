@@ -120,6 +120,8 @@ class AnomalyHunter(BaseStaminaTask, BaseCombatTask):
             return
         try:
             self.switch_team_preset(idx)
+        except TaskDisabledException:
+            raise
         except Exception as e:
             self.log_error("切换队伍方案失败", e)
             self.send_key("esc")
@@ -186,10 +188,11 @@ class AnomalyHunter(BaseStaminaTask, BaseCombatTask):
         self.log_info(f"开始异象追猎任务: {target}, 目标索引: {target_idx}")
 
         self.ensure_main()
-        self.switch_team_from_config()
         stamina_target = self.resolve_stamina_target()
         if stamina_target == 0:
             return None
+        # 仅在确有体力目标时才切队, 避免目标已完成时改动玩家当前队伍
+        self.switch_team_from_config()
 
         self.open_hunter_page()
 
