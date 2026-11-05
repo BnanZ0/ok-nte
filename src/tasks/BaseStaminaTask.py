@@ -94,8 +94,6 @@ class BaseStaminaTask(NTEOneTimeTask, BaseNTETask):
             and activity.daily_activity >= cls.DAILY_ACTIVITY_REQUIREMENT
         ):
             return True
-        if activity.used_stamina is None or activity.daily_activity is None:
-            raise ValueError("无法识别每日体力消耗或活跃度")
         return False
 
     @classmethod
@@ -104,7 +102,12 @@ class BaseStaminaTask(NTEOneTimeTask, BaseNTETask):
             return 0
         if cls.daily_activity_complete(activity):
             return 0
-        assert activity.used_stamina is not None
+        if activity.used_stamina is None:
+            if activity.daily_activity is None:
+                raise ValueError("无法识别每日体力消耗或活跃度")
+            # 新版活跃度面板已移除 x/180 已消耗体力显示:
+            # 活跃度可读时按未消耗处理, 由活跃度达标校验与体力池余量兜底
+            return target
         return max(0, target - activity.used_stamina)
 
     def check_activity(self) -> bool:

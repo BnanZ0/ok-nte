@@ -30,14 +30,15 @@ class TestStaminaTask(unittest.TestCase):
         )
 
     def test_unknown_progress_cannot_be_treated_as_zero(self):
-        for activity in (
-            DailyActivity(None, 40),
-            DailyActivity(60, None),
-            DailyActivity(None, None),
-        ):
-            with self.subTest(activity=activity):
-                with self.assertRaises(ValueError):
-                    BaseStaminaTask.calculate_remaining_stamina(activity, 180)
+        with self.assertRaises(ValueError):
+            BaseStaminaTask.calculate_remaining_stamina(DailyActivity(None, None), 180)
+
+    def test_missing_used_stamina_with_readable_activity_falls_back_to_target(self):
+        # 新版活跃度面板移除了 x/180 显示: 活跃度可读但未达标时,
+        # 按未消耗体力处理 (由活跃度达标校验与体力池余量兜底)
+        self.assertEqual(
+            BaseStaminaTask.calculate_remaining_stamina(DailyActivity(None, 40), 180), 180
+        )
 
     def _task(self):
         task = object.__new__(AnomalyTask)
