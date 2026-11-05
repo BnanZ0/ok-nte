@@ -705,6 +705,8 @@ class BaseNTETask(
             in_team_or_world = bool(self.is_in_team())
         if in_team_or_world:
             self.scene.set_logged_in()
+            if self.find_exit():
+                self.exit_anomaly()
             return True
         if self.handle_monthly_card(log=False):
             return

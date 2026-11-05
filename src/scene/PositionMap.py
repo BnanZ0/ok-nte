@@ -14,12 +14,9 @@ class Position_6_panels__3_esc:
 class Position_6_panels__2_f1__6_domain:
     arc = ScreenRatio(0.417969, 0.151389)
     console = ScreenRatio(0.543359, 0.151389)
-    entry = ScreenRatio(0.055859, 0.491667)
+    entry = ScreenRatio(0.055469, 0.5625)
     exp = ScreenRatio(0.171094, 0.15)
-    goto = ScreenRatio(0.916406, 0.334028)
     hunter = ScreenRatio(0.913281, 0.151389)
-    scroll_area = ScreenRatio(0.419922, 0.415278, 0.494141, 0.680556)
-    search_area = ScreenRatio(0.679297, 0.269444, 0.735547, 0.809722)
     skill = ScreenRatio(0.294922, 0.152778)
 
     def __init__(self, parent):
@@ -27,7 +24,7 @@ class Position_6_panels__2_f1__6_domain:
 
 
 class Position_6_panels__2_f1:
-    activity = ScreenRatio(0.055078, 0.383333)
+    activity = ScreenRatio(0.055469, 0.30625)
 
     def __init__(self, parent):
         self._parent = parent
@@ -60,16 +57,6 @@ class Position_6_panels:
         self.f5 = Position_6_panels__2_f5(parent)
 
 
-class ScreenPosition:
-    center = ScreenRatio(0.25, 0.25, 0.75, 0.75)
-    dialog_icon = ScreenRatio(0.844922, 0.047222, 0.975, 0.074306)
-    main_viewport = ScreenRatio(0.098437, 0.104167, 0.896094, 0.894444)
-
-    def __init__(self, parent):
-        self._parent = parent
-
-
 class PositionMap:
     def __init__(self, parent):
         self.panels = Position_6_panels(parent)
-        self.screen = ScreenPosition(parent)
