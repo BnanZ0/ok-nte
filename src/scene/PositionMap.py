@@ -14,10 +14,10 @@ class Position_6_panels__3_esc:
 class Position_6_panels__2_f1__6_domain:
     arc = ScreenRatio(0.417969, 0.151389)
     console = ScreenRatio(0.543359, 0.151389)
-    entry = ScreenRatio(0.055859, 0.491667)
+    entry = ScreenRatio(0.0574, 0.5676)  # 「探索指南」新版: 左侧第4个图标
     exp = ScreenRatio(0.171094, 0.15)
     goto = ScreenRatio(0.916406, 0.334028)
-    hunter = ScreenRatio(0.913281, 0.151389)
+    hunter = ScreenRatio(0.9028, 0.1398)  # 「探索指南」新版子页签行
     scroll_area = ScreenRatio(0.419922, 0.415278, 0.494141, 0.680556)
     search_area = ScreenRatio(0.679297, 0.269444, 0.735547, 0.809722)
     skill = ScreenRatio(0.294922, 0.152778)
@@ -27,7 +27,7 @@ class Position_6_panels__2_f1__6_domain:
 
 
 class Position_6_panels__2_f1:
-    activity = ScreenRatio(0.055078, 0.383333)
+    activity = ScreenRatio(0.0574, 0.3120)  # 「探索指南」新版: 左侧第2个图标
 
     def __init__(self, parent):
         self._parent = parent

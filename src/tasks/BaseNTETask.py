@@ -974,9 +974,11 @@ class BaseNTETask(
     def open_f1_domain_page(self):
         self.openF1panel()
 
-        box = self.box_of_screen(0.785, 0.022, 0.814, 0.076, name="stamina_icon")
+        # 新版「探索指南」面板中旧模板 stamina_icon 已失效,
+        # 改用 OCR 识别资源副本页的子页签行
+        domain_tabs = ["异象追猎", "异象巡礼", "轨外之境", "空幕", "弧盘突破材料", "异能升级材料", "经验及甲硬币"]
         self.wait_until(
-            lambda: self.find_one(Labels.stamina_icon, box=box),
+            lambda: self.ocr(0.10, 0.09, 0.97, 0.20, match=domain_tabs),
             post_action=lambda: self.operate_click(*self.pos.panels.f1.domain.entry, interval=1),
             settle_time=0.5,
             time_out=10,

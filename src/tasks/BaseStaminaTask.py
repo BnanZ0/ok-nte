@@ -29,7 +29,13 @@ class BaseStaminaTask(NTEOneTimeTask, BaseNTETask):
             self.openF1panel()
             self.operate_click(*self.pos.panels.f1.activity)
             self.sleep(0.5)
-            return self.wait_panel(Labels.f1_activity_panel)
+            # 新版「探索指南」面板中旧模板 f1_activity_panel 已失效,
+            # 改用 OCR 识别页面上的「活跃度」标题
+            return self.wait_until(
+                lambda: self.ocr(0.10, 0.14, 0.35, 0.30, match="活跃度"),
+                time_out=5,
+                raise_if_not_found=False,
+            )
 
         self.log_info("开启活跃度面板")
         result = self.retry_on_action(action, self.ensure_main)
@@ -47,7 +53,8 @@ class BaseStaminaTask(NTEOneTimeTask, BaseNTETask):
         used_stamina = None
         daily_activity = None
         mission_box = self.box_of_screen(0.184, 0.652, 0.781, 0.710, name="mission", hcenter=True)
-        activity_box = self.box_of_screen(0.184, 0.188, 0.256, 0.255, name="activity", hcenter=True)
+        # 新版面板中「100 活跃度」大字位置移动, 扩大识别区域避免截断首位数字
+        activity_box = self.box_of_screen(0.130, 0.170, 0.300, 0.290, name="activity", hcenter=True)
 
         activity = self.ocr(box=activity_box, match=activity_re)
         for attempt in range(2):
