@@ -268,20 +268,17 @@ jobs:
           approve: 'false'
           output_directory: pyappify_dist
 
-      - name: Release
+      - name: Prepare release notes
         if: steps.release_version.outputs.is_release == 'true' && startsWith(github.ref, 'refs/tags/')
-        uses: softprops/action-gh-release@v3
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          body: |
+          BODY: |
             ### 简体中文
 
             #### 更新日志 ${{ steps.sync.outputs.start_tag }} -> ${{ steps.sync.outputs.end_tag }}
               ${{ steps.sync.outputs.changes_with_asterisk }}
             #### 下载包说明
               * [ok-nte-win32-China-setup-${{ steps.release_version.outputs.version }}.exe](https://github.com/BnanZ0/ok-nte/releases/download/${{ github.ref_name }}/ok-nte-win32-China-setup-${{ steps.release_version.outputs.version }}.exe) 中国区完整安装包, 更新使用阿里云和腾讯 CNB.
-              ${{ env.SYNC_GITHUB_REPO == 'true' && format('* [ok-nte-win32-Global-setup-{0}.exe](https://github.com/BnanZ0/ok-nte/releases/download/{1}/ok-nte-win32-Global-setup-{0}.exe) Global 完整安装包, 包含运行依赖, 更新使用 GitHub 和 PyPI.', steps.release_version.outputs.version, github.ref_name) || '' }}
+              * [ok-nte-win32-Global-setup-${{ steps.release_version.outputs.version }}.exe](https://github.com/BnanZ0/ok-nte/releases/download/${{ github.ref_name }}/ok-nte-win32-Global-setup-${{ steps.release_version.outputs.version }}.exe) Global 完整安装包, 包含运行依赖, 更新使用 GitHub 和 PyPI.
               * [ok-nte-win32-online-setup-${{ steps.release_version.outputs.version }}.exe](https://github.com/BnanZ0/ok-nte/releases/download/${{ github.ref_name }}/ok-nte-win32-online-setup-${{ steps.release_version.outputs.version }}.exe) 在线安装包会在安装和更新时下载文件; 免费服务器可能不稳定, 建议优先使用完整包.
               * [ok-nte-win-x86_64-${{ github.ref_name }}-full.zip](https://github.com/BnanZ0/ok-nte/releases/download/${{ github.ref_name }}/ok-nte-win-x86_64-${{ github.ref_name }}-full.zip) 完整便携压缩包, 包含更新启动器和程序本体. 解压后运行文件夹中的 `ok-nte.exe`. 更新使用 [Mirror酱](https://mirrorchyan.com/zh/get-start), 需要 CD-KEY.
               * [ok-nte-win-x86_64-${{ github.ref_name }}-body.zip](https://github.com/BnanZ0/ok-nte/releases/download/${{ github.ref_name }}/ok-nte-win-x86_64-${{ github.ref_name }}-body.zip) 程序本体压缩包, 包含运行依赖. 解压后运行 `ok-nte.exe`, 不含更新启动器.
@@ -299,7 +296,7 @@ jobs:
               ${{ steps.sync.outputs.changes_with_asterisk }}
             #### Downloads
               * [ok-nte-win32-China-setup-${{ steps.release_version.outputs.version }}.exe](https://github.com/BnanZ0/ok-nte/releases/download/${{ github.ref_name }}/ok-nte-win32-China-setup-${{ steps.release_version.outputs.version }}.exe) Full installer for China; updates use Alibaba Cloud and Tencent CNB.
-              ${{ env.SYNC_GITHUB_REPO == 'true' && format('* [ok-nte-win32-Global-setup-{0}.exe](https://github.com/BnanZ0/ok-nte/releases/download/{1}/ok-nte-win32-Global-setup-{0}.exe) Full installer with dependencies; updates use GitHub and PyPI.', steps.release_version.outputs.version, github.ref_name) || '' }}
+              * [ok-nte-win32-Global-setup-${{ steps.release_version.outputs.version }}.exe](https://github.com/BnanZ0/ok-nte/releases/download/${{ github.ref_name }}/ok-nte-win32-Global-setup-${{ steps.release_version.outputs.version }}.exe) Full installer with dependencies; updates use GitHub and PyPI.
               * [ok-nte-win32-online-setup-${{ steps.release_version.outputs.version }}.exe](https://github.com/BnanZ0/ok-nte/releases/download/${{ github.ref_name }}/ok-nte-win32-online-setup-${{ steps.release_version.outputs.version }}.exe) Online installer that downloads files during installation and updates. Its free hosting servers may be unreliable, so the full installer is recommended.
               * [ok-nte-win-x86_64-${{ github.ref_name }}-full.zip](https://github.com/BnanZ0/ok-nte/releases/download/${{ github.ref_name }}/ok-nte-win-x86_64-${{ github.ref_name }}-full.zip) Portable package with the update launcher and the app. Extract it and run `ok-nte.exe` from the extracted folder. Updates use [MirrorChyan](https://mirrorchyan.com/zh/get-start); a CD-KEY is required.
               * [ok-nte-win-x86_64-${{ github.ref_name }}-body.zip](https://github.com/BnanZ0/ok-nte/releases/download/${{ github.ref_name }}/ok-nte-win-x86_64-${{ github.ref_name }}-body.zip) App package with runtime dependencies. Extract it and run `ok-nte.exe`. It does not include the update launcher.
@@ -308,6 +305,20 @@ jobs:
               * [MirrorChyan](https://mirrorchyan.com/zh/projects?rid=ok-nte-zip&channel=stable) provides direct downloads in China. A CD-KEY is required; existing key holders can download for free.
               * [Baidu Netdisk](https://pan.baidu.com/s/102Mh1djq2B1T-cIJhct9Gg?pwd=okww) Free download.
               * [Quark Drive](https://pan.quark.cn/s/24433f3febc1) Free download.
+        run: |
+          $content = $env:BODY
+          if ($env:SYNC_GITHUB_REPO -eq 'false') {
+            $content = $content -replace '(?m)^[ \t]*\* \[ok-nte-win32-Global-setup-[^\r\n]*\r?\n', ''
+          }
+          [System.IO.File]::WriteAllText('release_body.md', $content)
+
+      - name: Release
+        if: steps.release_version.outputs.is_release == 'true' && startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v3
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          body_path: release_body.md
           draft: false
           prerelease: false
           make_latest: true
