@@ -35,14 +35,14 @@ class TestDailyActivity(unittest.TestCase):
         self.assertEqual(task.info, {"used stamina": 60, "daily activity": 40})
         task.scroll_relative.assert_called_once()
 
-    def test_missing_ocr_clears_stale_observations(self):
+    def test_missing_ocr_defaults_stamina_to_zero_and_clears_stale_activity(self):
         task = self._reader()
         task.ocr.return_value = None
 
         activity = task.read_daily_activity()
 
-        self.assertEqual(activity, DailyActivity(None, None))
-        self.assertEqual(task.info, {"used stamina": None, "daily activity": None})
+        self.assertEqual(activity, DailyActivity(0, None))
+        self.assertEqual(task.info, {"used stamina": 0, "daily activity": None})
 
     def test_panel_failure_stops_before_ocr(self):
         task = self._reader()

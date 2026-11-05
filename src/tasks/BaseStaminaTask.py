@@ -73,6 +73,10 @@ class BaseStaminaTask(NTEOneTimeTask, BaseNTETask):
                 daily_activity = int(match.group(1))
                 self.log_info(f"ocr found daily activity {daily_activity}")
 
+        if used_stamina is None:
+            self.log_info("未识别到今日已消耗体力, 按0计算")
+            used_stamina = 0
+
         self.info_set("used stamina", used_stamina)
         self.info_set("daily activity", daily_activity)
         return DailyActivity(used_stamina, daily_activity)
