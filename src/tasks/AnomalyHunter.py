@@ -11,6 +11,16 @@ from src.tasks.BaseStaminaTask import BaseStaminaTask
 class AnomalyHunter(BaseStaminaTask, BaseCombatTask):
     # --- 配置项键名 ---
     CONF_HUNTER_TARGET = "追猎目标"
+    CONF_TEAM_INDEX = "战斗队伍方案"
+
+    # --- 编队界面坐标 (相对比例, 适配任意分辨率) ---
+    TEAM_CIRCLE_X = 0.0643
+    TEAM_CIRCLE_Y0 = 0.2525
+    TEAM_CIRCLE_STEP = 0.0845
+
+    # --- 战斗队伍方案选项 ---
+    TEAM_NONE = "不切换"
+    TEAM_OPTIONS = ["不切换", "队伍1", "队伍2", "队伍3", "队伍4", "队伍5", "队伍6"]
 
     # --- 追猎目标选项 ---
     TARGET_SOUND_KING = "音霸魔王"
@@ -65,6 +75,7 @@ class AnomalyHunter(BaseStaminaTask, BaseCombatTask):
         instance.default_config.update(
             {
                 cls.CONF_HUNTER_TARGET: cls.TARGET_SOUND_KING,
+                cls.CONF_TEAM_INDEX: cls.TEAM_OPTIONS[1],
             }
         )
 
@@ -73,7 +84,11 @@ class AnomalyHunter(BaseStaminaTask, BaseCombatTask):
                 cls.CONF_HUNTER_TARGET: {
                     "type": "drop_down",
                     "options": cls.HUNTER_TARGETS,
-                }
+                },
+                cls.CONF_TEAM_INDEX: {
+                    "type": "drop_down",
+                    "options": cls.TEAM_OPTIONS,
+                },
             }
         )
         if not daily:
@@ -90,6 +105,78 @@ class AnomalyHunter(BaseStaminaTask, BaseCombatTask):
         finally:
             self.exit_anomaly()
 
+    def switch_team_from_config(self):
+        """按配置切换战斗队伍方案 (编队界面, L 键)。"""
+        team_cfg = self.config.get(self.CONF_TEAM_INDEX, self.TEAM_NONE)
+        if not team_cfg or team_cfg == self.TEAM_NONE:
+            return
+        try:
+            idx = int(str(team_cfg).replace("队伍", ""))
+        except ValueError:
+            self.log_warning(f"无效的队伍方案配置: {team_cfg}, 跳过切队")
+            return
+        if idx < 1 or idx > 6:
+            self.log_warning(f"无效的队伍编号: {idx}, 跳过切队")
+            return
+        try:
+            self.switch_team_preset(idx)
+        except Exception as e:
+            self.log_error("切换队伍方案失败", e)
+            self.send_key("esc")
+
+    def switch_team_preset(self, idx: int) -> bool:
+        """在编队界面切换到第 idx 个队伍方案 (1-6), 返回是否成功。"""
+        self.info_set("切换队伍", f"队伍{idx}")
+        opened = False
+        for _ in range(3):
+            self.send_key("l", action_name="open_team_ui")
+            if self.wait_until(
+                lambda: self.ocr(0.0, 0.0, 0.3, 0.15, match="编队"),
+                time_out=6,
+                raise_if_not_found=False,
+            ):
+                opened = True
+                break
+            self.send_key("esc")
+            self.sleep(1)
+        if not opened:
+            self.log_warning("无法打开编队界面, 跳过切队", notify=True)
+            return False
+        self.sleep(1)
+
+        # 1. 点左侧队伍编号圆点
+        y = self.TEAM_CIRCLE_Y0 + (idx - 1) * self.TEAM_CIRCLE_STEP
+        self.click_relative(self.TEAM_CIRCLE_X, y, after_sleep=1.5)
+
+        # 2. 点底部"选择队伍"按钮 (OCR 定位, 失败则退回固定坐标)
+        btn = self.ocr(0.18, 0.80, 0.62, 0.96, match="选择队伍")
+        if btn:
+            self.click_box(btn[0], after_sleep=1.5)
+        else:
+            self.log_warning("未找到选择队伍按钮, 使用固定坐标")
+            self.click_relative(0.306, 0.88, after_sleep=1.5)
+
+        # 3. 处理可能的确认弹窗
+        confirm = self.ocr(0.25, 0.40, 0.75, 0.80, match="确认")
+        if confirm:
+            self.log_info("检测到确认弹窗, 点击确认")
+            self.click_box(confirm[0], after_sleep=1.5)
+
+        # 4. 验证顶部标题已是目标队伍
+        ok = self.wait_until(
+            lambda: self.ocr(0.38, 0.02, 0.62, 0.14, match=f"队伍{idx}"),
+            time_out=5,
+            raise_if_not_found=False,
+        )
+        self.send_key("esc")
+        self.sleep(1.5)
+        self.ensure_main(esc=False, in_world=True, time_out=15)
+        if ok:
+            self.log_info(f"已切换到队伍{idx}")
+        else:
+            self.log_warning(f"切换队伍{idx}未确认成功, 请检查编队界面", notify=True)
+        return bool(ok)
+
     def do_run(self) -> bool | None:
         target = self.normalize_target(
             self.config.get(self.CONF_HUNTER_TARGET, self.TARGET_SOUND_KING)
@@ -99,6 +186,7 @@ class AnomalyHunter(BaseStaminaTask, BaseCombatTask):
         self.log_info(f"开始异象追猎任务: {target}, 目标索引: {target_idx}")
 
         self.ensure_main()
+        self.switch_team_from_config()
         stamina_target = self.resolve_stamina_target()
         if stamina_target == 0:
             return None
