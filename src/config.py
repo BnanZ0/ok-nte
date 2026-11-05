@@ -235,8 +235,8 @@ config = {
     ],
     "scene": ["src.scene.NTEScene", "NTEScene"],
     "update_pyappify": {
-        "to_version": "1.2.5",
-        "zip_url": "https://github.com/BnanZ0/ok-nte/releases/download/v1.4.14/ok-nte-win32.zip",
-        "sha256": "b9552c209d2b11bd4921e023387ff8a9ab6591c267b3677ae5472db65d1d7e73",
+        "to_version": "1.2.6",
+        "zip_url": "https://github.com/BnanZ0/ok-nte/releases/download/v1.5.0/ok-nte-win32.zip",
+        "sha256": "2d2a6dee7970e626cc3ed4ec8a3078f0808c3a01b9cf45551a94403a0c1749b2",
     },
 }
