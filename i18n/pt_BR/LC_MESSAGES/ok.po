@@ -569,8 +569,8 @@ msgstr "Móveis de Anomalia"
 msgid "每2小时重新登入"
 msgstr "Fazer login novamente a cada 2 horas"
 
-msgid "除了选择内建存在的 [{combo}] 外,您也可以自己输入名称来建立自己的 [{combo}]。"
-msgstr "Além de selecionar um [{combo}] integrado, você também pode inserir um nome para criar seu próprio [{combo}]."
+msgid "除了选择内建存在的 [{combo}] 外,您也可以自己输入名称来建立自己的 [文本型{combo}]。"
+msgstr "Além de selecionar uma [{combo}] integrada, você também pode inserir um nome para criar a sua própria [{combo} em formato de texto]."
 
 msgid ""
 "<b>外置代码用法:</b><br>"
@@ -1361,18 +1361,6 @@ msgstr "O módulo de personagem externo deve definir exatamente uma subclasse de
 
 msgid "角色实现标识重复: {impl_id}"
 msgstr "ID de implementação de personagem duplicado: {impl_id}"
-
-msgid "咔滋!黄金双脆"
-msgstr "Snap! Golden Crackshot"
-
-msgid "从活动详情页或匹配大厅开始, 进入对局后等待指定秒数再退出并重复运行"
-msgstr "Comece na página do evento ou no lobby, espere os segundos configurados após entrar na partida, saia e repita"
-
-msgid "进入后等待秒数"
-msgstr "Espera após entrar (segundos)"
-
-msgid "确认进入对局后等待的秒数, 设置为0则立即退出"
-msgstr "Segundos de espera após confirmar a entrada na partida, use 0 para sair imediatamente"
 
 msgid "本次仅刷所选类型及其目标; 成功结束后才按循环模式更新下次目标。"
 msgstr "Esta execução farma apenas o tipo e o alvo selecionados. O modo de ciclo atualiza o alvo da próxima execução somente após concluir com sucesso."

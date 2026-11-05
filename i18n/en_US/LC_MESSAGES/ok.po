@@ -828,8 +828,8 @@ msgstr "Anomaly Furniture"
 msgid "每2小时重新登入"
 msgstr "Re-login every 2 hours"
 
-msgid "除了选择内建存在的 [{combo}] 外,您也可以自己输入名称来建立自己的 [{combo}]。"
-msgstr "In addition to selecting a built-in [{combo}], you can also enter a name to create your own [{combo}]."
+msgid "除了选择内建存在的 [{combo}] 外,您也可以自己输入名称来建立自己的 [文本型{combo}]。"
+msgstr "In addition to selecting a built-in [{combo}], you can also enter a name to create your own [text-based {combo}]."
 
 msgid ""
 "<b>外置代码用法:</b><br>"
@@ -1618,18 +1618,6 @@ msgstr "External character module must define exactly one BaseChar subclass"
 
 msgid "角色实现标识重复: {impl_id}"
 msgstr "Duplicate character implementation ID: {impl_id}"
-
-msgid "咔滋!黄金双脆"
-msgstr "Snap! Golden Crackshot"
-
-msgid "从活动详情页或匹配大厅开始, 进入对局后等待指定秒数再退出并重复运行"
-msgstr "Start on the event details page or matchmaking lobby, wait the configured number of seconds after entering a match, then leave and repeat"
-
-msgid "进入后等待秒数"
-msgstr "Wait after entering (seconds)"
-
-msgid "确认进入对局后等待的秒数, 设置为0则立即退出"
-msgstr "Seconds to wait after confirming match entry, set to 0 to leave immediately"
 
 msgid "本次仅刷所选类型及其目标; 成功结束后才按循环模式更新下次目标。"
 msgstr "This run farms only the selected type and target. The cycle mode updates the target for the next run only after a successful finish."
