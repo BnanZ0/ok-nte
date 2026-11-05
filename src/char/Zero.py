@@ -26,6 +26,6 @@ class Zero(BaseChar):
         return plan
 
     def click_skill(self, down_time=0.05, post_sleep=0, send_click=True, time_out=0):
-        ret = super().click_skill(down_time, post_sleep, send_click, time_out)
-        self.task.wait_until(self.is_cycle_full, time_out=1)
+        if ret := super().click_skill(down_time, post_sleep, send_click, time_out):
+            self.task.wait_until(self.is_cycle_full, time_out=1)
         return ret

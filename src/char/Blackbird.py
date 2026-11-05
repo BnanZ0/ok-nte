@@ -54,7 +54,7 @@ class Blackbird(BaseChar):
             self.click_ultimate()
             self.in_ult = False
 
-        if self.click_skill() and not self.claim_after_skill:
+        if self.click_skill() and self.ultimate_available() and not self.claim_after_skill:
             self.claim_after_skill = True
             if next_char := self.find_element_reaction_target():
                 if next_char.describe_role().role is Planner.Role.MAIN_DPS:
@@ -62,9 +62,7 @@ class Blackbird(BaseChar):
                         next_char.normal_attack, return_to_source=True
                     )
                 else:
-                    self.combat_context.request_route(
-                        next_char, return_to_source=True
-                    )
+                    self.combat_context.request_route(next_char, return_to_source=True)
             return
 
         self.claim_after_skill = False

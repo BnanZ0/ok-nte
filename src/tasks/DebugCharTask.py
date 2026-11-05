@@ -1,6 +1,7 @@
 import threading
 import time
 from dataclasses import dataclass
+from functools import partial
 
 from ok import Logger, TaskDisabledException
 
@@ -32,6 +33,7 @@ class DebugCharTask(NTEOneTimeTask, BaseCombatTask):
 
     MODE_SCAN_TEAM = "scan_team"
     MODE_TEST_COMBO = "test_combo"
+    CONF_PREFER_CHAR_METHODS = "prefer_char_methods"
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -40,11 +42,22 @@ class DebugCharTask(NTEOneTimeTask, BaseCombatTask):
         self.visible = False
         self.char = None
         self.is_char_loaded = False
-        self.char_list = [entry.impl_id for entry in iter_char_implementations()]
-        self.default_config.update({"char": self.char_list[0], "is_current_char": True})
+        implementations = iter_char_implementations()
+        self.char_list = [entry.impl_id for entry in implementations]
+        self.default_config.update(
+            {
+                "char": self.char_list[0],
+                "is_current_char": True,
+                self.CONF_PREFER_CHAR_METHODS: True,
+            }
+        )
         self.config_description.update(
             {
                 "is_current_char": "开发工具调用角色方法时, 开启表示出场角色; 关闭表示后台角色",
+                self.CONF_PREFER_CHAR_METHODS: (
+                    "开启后, 无 index 参数的 ultimate_available 调用所选角色方法; "
+                    "关闭后调用任务方法"
+                ),
             }
         )
         self.config_type.update(
@@ -62,6 +75,19 @@ class DebugCharTask(NTEOneTimeTask, BaseCombatTask):
         self._combo_implementation_id = ""
         self._combo_text = ""
         self._character_management_ocr_lock = threading.Lock()
+        self._register_char_methods(implementations)
+
+    def _register_char_methods(self, implementations):
+        # The debug runner checks attributes statically before submitting a job.
+        for entry in implementations:
+            for name in dir(entry.char_cls):
+                if name.startswith("_") or name in self.__dict__ or hasattr(type(self), name):
+                    continue
+                if callable(getattr(entry.char_cls, name)):
+                    setattr(self, name, partial(self._call_char_method, name))
+
+    def _call_char_method(self, name, *args, **kwargs):
+        return self._get_char_attribute(name)(*args, **kwargs)
 
     def scan_team(self) -> None:
         self.mode = self.MODE_SCAN_TEAM
@@ -166,7 +192,7 @@ class DebugCharTask(NTEOneTimeTask, BaseCombatTask):
         return impl_id
 
     def _selected_impl_id(self, warn=False):
-        impl_id = self._normalize_impl_id(self.config["char"])
+        impl_id = self._normalize_impl_id(self.config["char"]) # type: ignore
         if get_char_implementation_class(impl_id) is not None:
             return impl_id
 
@@ -182,19 +208,24 @@ class DebugCharTask(NTEOneTimeTask, BaseCombatTask):
         char_class = get_char_implementation_class(self.current_char)
         self.char = char_class(self, 0, char_id=self.current_char, confidence=1)  # type: ignore
 
+    def ultimate_available(self, *args, **kwargs):
+        if args or "index" in kwargs or not self.config.get(self.CONF_PREFER_CHAR_METHODS, True):
+            return super().ultimate_available(*args, **kwargs)
+        return self._get_char_attribute("ultimate_available")(**kwargs)
+
+    def _get_char_attribute(self, name):
+        if self.char is None or self.current_char != self._selected_impl_id():
+            self.is_char_loaded = False
+            self.init_char()
+        char_attr = getattr(self.char, name)
+        if not self.is_char_loaded:
+            self.is_char_loaded = True
+            self.load_chars()
+        self.char.is_current_char = self.config.get("is_current_char", True)
+        return char_attr
+
     def __getattr__(self, name):
-        try:
-            if self.char is None or self.current_char != self._selected_impl_id():
-                self.is_char_loaded = False
-                self.init_char()
-            if hasattr(self.char, name):
-                if not self.is_char_loaded:
-                    self.is_char_loaded = True
-                    self.load_chars()
-                self.char.is_current_char = self.config.get("is_current_char", True)
-                return getattr(self.char, name)
-        except AttributeError:
-            raise AttributeError(
-                f"'{type(self).__name__}' or its member 'char' has no attribute '{name}'"
-            )
-        return super().__getattr__(name)
+        state = object.__getattribute__(self, "__dict__")
+        if state.get("config") is None or "char" not in state:
+            raise AttributeError(f"'{type(self).__name__}' has no attribute '{name}'")
+        return self._get_char_attribute(name)

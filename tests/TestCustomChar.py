@@ -3,9 +3,11 @@ import os
 import shutil
 import tempfile
 import unittest
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import numpy as np
+from ok.core.code_runner import submit_task_call
 from ok.test.TaskTestCase import TaskTestCase
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QApplication
@@ -65,6 +67,69 @@ class TestCustomChar(TaskTestCase):
         self.assertEqual(self.task._combo_character_id, "custom:test")
         self.assertEqual(self.task._combo_implementation_id, "combo:test")
         self.assertEqual(self.task._combo_text, "skill")
+
+    def test_debug_character_lookup_before_config_is_loaded(self):
+        task = object.__new__(DebugCharTask)
+        task.config = None
+
+        self.assertTrue(callable(task.next_frame))
+        with self.assertRaises(AttributeError):
+            getattr(task, "unknown_debug_member")
+
+    def test_debug_ultimate_dispatch_keeps_index_calls_on_the_task(self):
+        key = DebugCharTask.CONF_PREFER_CHAR_METHODS
+        previous = self.task.config.get(key, True)
+        self.addCleanup(self.task.config.__setitem__, key, previous)
+        char_method = MagicMock(return_value="char")
+        with (
+            patch.object(self.task, "_get_char_attribute", return_value=char_method),
+            patch(
+                "src.combat.BaseCombatTask.BaseCombatTask.ultimate_available",
+                return_value="task",
+            ) as task_method,
+        ):
+            self.task.config[key] = True
+            self.assertEqual(self.task.ultimate_available(), "char")
+            self.assertEqual(self.task.ultimate_available(check_color=False), "char")
+            char_method.assert_called_with(check_color=False)
+            self.assertEqual(self.task.ultimate_available(2), "task")
+            task_method.assert_called_with(2)
+            self.assertEqual(self.task.ultimate_available(index=1), "task")
+            task_method.assert_called_with(index=1)
+
+            char_method.side_effect = lambda: self.task.ultimate_available(2)
+            self.assertEqual(self.task.ultimate_available(), "task")
+
+            self.task.config[key] = False
+            self.assertEqual(self.task.ultimate_available(), "task")
+            task_method.assert_called_with()
+
+    def test_debug_runner_can_submit_character_methods_without_loading_them(self):
+        class StageChar:
+            def get_stage(self):
+                return 1
+
+            def scan_team(self):
+                raise AssertionError("Task methods must keep their own implementation")
+
+        task = object.__new__(DebugCharTask)
+        task.config = None
+        task._register_char_methods([SimpleNamespace(char_cls=StageChar)])
+        self.assertIs(task.scan_team.__func__, DebugCharTask.scan_team)
+
+        task.config = {"char": "first"}
+        stages = {"first": lambda: 1, "second": lambda: 2}
+        with (
+            patch.object(
+                task, "_get_char_attribute", side_effect=lambda name: stages[task.config["char"]]
+            ) as resolve,
+            patch("ok.core.code_runner.submit_call", side_effect=lambda executor, fn, **kw: fn),
+        ):
+            call = submit_task_call(None, task, "get_stage")
+            resolve.assert_not_called()
+            task.config["char"] = "second"
+            self.assertEqual(call(), 2)
+            resolve.assert_called_with("get_stage")
 
     def setUp(self):
         super().setUp()
