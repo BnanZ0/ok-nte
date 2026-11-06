@@ -288,7 +288,12 @@ class BaseCombatTask(CharElementUIMixin, CombatCheck):
         next_pair = self._get_element_ring_pair(source_char.element, next_target.element)
         previous_count = self.element_reaction_counts.get(previous_pair, 0)
         next_count = self.element_reaction_counts.get(next_pair, 0)
-        if previous_count <= next_count:
+        if previous_count == next_count:
+            if source_char.element == Element.WHITE:
+                return next_target
+            if source_char.element == Element.PURPLE:
+                return previous_target
+        elif previous_count < next_count:
             return previous_target
         return next_target
 
