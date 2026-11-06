@@ -16,7 +16,7 @@ class FountainTask(NTEOneTimeTask, BaseNTETask):
     SIGN_MODE_COIN = "捞币"
     DOMAIN_ENTRY_POS = (0.668, 0.150)
     DOMAIN_CONFIRM_POS = (0.917, 0.335)
-    PHONE_BOOTH_BOX = (0.300, 0.420, 0.400, 0.545)
+    PHONE_BOOTH_BOX = (0.348, 0.426, 0.437, 0.574)
     ICECAR_LIGHT_BOX = (0.650, 0.350, 0.885, 0.600)
     FOUNTAIN_SIGN_COUNT_BOX = (0.695, 0.492, 0.771, 0.650)
     FOUNTAIN_SIGN_BTN_BOX = (0.655, 0.570, 0.790, 0.645)
@@ -108,7 +108,7 @@ class FountainTask(NTEOneTimeTask, BaseNTETask):
         self.wait_in_team(time_out=300, settle_time=0.25)
         self.sleep(0.5)
         box = self.box_of_screen(*self.PHONE_BOOTH_BOX, name="fountain_phone_booth")
-        self.click_map_teleport(box)
+        self.click_map_teleport(box, zoom=lambda: self.operate_click(0.050, 0.593))
         self.wait_in_team(time_out=300, settle_time=0.25)
         self.sleep(1)
 
