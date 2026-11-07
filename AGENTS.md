@@ -15,37 +15,24 @@
 ## 实现约定
 
 - Python 版本和格式以 `pyproject.toml` 为准。修改 Python 注释和字符串时使用 ASCII `,`、`;`, 避免全角逗号和分号。
-- 任务复用 `BaseNTETask` / `NTEOneTimeTask` 和已有 mixin; 领域逻辑留在对应子系统。新增任务或全局配置同步 `src/config.py` 的注册、默认值和说明。
-- UI 复用 PySide6/qfluentwidgets; 不为局部功能引入大型框架、服务端或异步运行时。
+- 任务使用 `BaseNTETask` / `NTEOneTimeTask`; 领域逻辑留在对应子系统。新增任务或全局配置同步 `src/config.py` 的注册、默认值和说明。
+- UI 复用 PySide6/qfluentwidgets。
 - 运行期计时统一使用 `src.utils.clock`; 已有 `self.clock` / `self.task.clock` 时直接复用, 无法稳定取得时直接 import。局部超时使用 `clock.timer(timeout=...)` 和 `expired()`, 高精度显式指定 `precise=True`。
 - 不直接读取 `time.time()`、`time.monotonic()`、`time.perf_counter()` 及其纳秒版本。真实日期使用带时区的 `datetime`; 不持久化运行期单调时间点。涉及计时 API 和兼容性时查阅 [runtime_clock.md](docs/runtime_clock.md)。
 
 ## 验证
 
-存在 `.venv` 时直接调用 `.\.venv\Scripts\python.exe`, 不使用全局 Python, 也不通过 `$py` / `&` 包装解释器命令。
-
-按改动范围选择验证; 下列命令是入口, 不要求每次全部运行:
+- 存在 `.venv` 时直接使用 `.\.venv\Scripts\python.exe`，不使用全局 Python 或 `$py` / `&` 包装。
+- 根据改动范围选择验证，优先关注共享逻辑、planner、战斗状态、解析/迁移及声音捕获的行为回归；不要求每次运行全量测试。
+- 全量测试使用以下命令，必须保留 `--top-level-directory .`，以确保 `tests/__init__.py` 的运行时和用户数据隔离；不要缩写为 `-t`（与 ok-script 参数冲突）。
 
 ```powershell
-# 单个测试模块, 按改动替换模块名
-.\.venv\Scripts\python.exe -m unittest tests.TestCombatPlanner
-
-# 全量测试
 .\.venv\Scripts\python.exe -m unittest discover -s tests -p "*.py" --top-level-directory .
-
-# 语法检查, 按改动替换路径
-.\.venv\Scripts\python.exe -m py_compile path\to\file.py
-
-# Ruff 已安装时, 按改动替换路径
-ruff check path\to\file.py
-git diff --check
 ```
 
-全量 discovery 必须保留 `--top-level-directory .`, 以加载 `tests/__init__.py` 的运行时和用户数据隔离; 不缩写成 `-t`, 它与 ok-script 参数冲突。
-
-- 优先验证共享逻辑、planner、战斗状态、解析/迁移和声音捕获的行为回归; 不为角色具体出招、普通 UI 拼装、简单构造或胶水代码机械新增测试。
-- 断言行为、状态和必要的外部交互, 避免绑定普通日志文案和内部调用顺序。需要真实游戏窗口、音频或截图的部分说明人工验证范围。
-- 完成后简要说明变更、实际执行的验证和未验证范围; 涉及战斗状态、声音捕获或用户数据时说明相关风险。
+- 按需运行针对性测试、语法检查 和 `git diff --check`。
+- 测试应关注可观察行为、状态和必要的外部交互，避免依赖普通日志文案或无关的内部调用顺序。
+- 完成后简述变更、实际验证及未验证范围。需要真实游戏窗口、音频或截图的部分说明人工验证需求；涉及战斗状态、声音捕获或用户数据时说明相关风险。
 
 ## 按任务查阅
 
@@ -62,4 +49,4 @@ git diff --check
 
 ## 维护本文件
 
-只保留长期有效、项目特有且能避免重复错误的规则。实现细节放在代码或对应开发文档, 在这里按适用范围链接; 更新规则时合并或替换旧条目。
+只保留长期有效、项目特有且能避免重复错误的规则; 更新规则时合并或替换旧条目。
