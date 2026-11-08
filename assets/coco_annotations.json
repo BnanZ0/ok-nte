@@ -2095,7 +2095,7 @@
         },
         {
             "id": 101,
-            "name": "event_999nights_buy_max",
+            "name": "buy_max",
             "supercategory": ""
         }
     ]
