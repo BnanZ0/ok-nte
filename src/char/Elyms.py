@@ -32,11 +32,13 @@ class Elyms(BaseChar):
                 self.skill_available, post_action=self.click_with_interval, time_out=1.5
             )
             if self.click_special_skill():
+                self.add_freeze_duration(start=self.clock.now(), duration=1.5)
                 self.continues_normal_attack(1.5)
                 stage += 1
         if stage == 2:
             self.continues_normal_attack(3, until_skill_full=True)
             if self.click_special_skill():
+                self.add_freeze_duration(start=self.clock.now(), duration=1.5)
                 self.continues_normal_attack(1.5)
                 stage += 1
         if stage == 3:

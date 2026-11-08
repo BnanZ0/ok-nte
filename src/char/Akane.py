@@ -86,6 +86,8 @@ class Akane(BaseChar):
                         if self.click_skill():
                             if not self.task._boss_fight:
                                 self.continues_normal_attack(1)
+                            else:
+                                self.continues_normal_attack(0.25)
                             self.skill_2_count += 1
                     else:
                         self.cast_skill()
