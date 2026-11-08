@@ -48,16 +48,16 @@ class StoreTask(NTEOneTimeTask, BaseNTETask):
         return True
 
     def selected_shops(self):
-        return [shop() for shop in self.SHOPS if self.config.get(shop.display_name, False)]
+        return [shop(self) for shop in self.SHOPS if self.config.get(shop.display_name, False)]
 
     def _run_shop(self, shop) -> bool | None:
         self.log_info(f"正在前往商店: {shop.display_name}")
         self.ensure_main()
         self.openF4panel()
-        if not shop.open(self):
+        if not shop.open():
             self.log_error(f"无法进入商店: {shop.display_name}", notify=True)
             return False
-        result = shop.purchase(self)
+        result = shop.purchase()
         if result is None:
             return None
         self._log_result(result)

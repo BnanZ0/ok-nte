@@ -1,10 +1,16 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from src.tasks.BaseNTETask import BaseNTETask
+
+    _StoreFlowTaskProxy = BaseNTETask
+else:
+
+    class _StoreFlowTaskProxy:
+        pass
 
 
 @dataclass
@@ -21,20 +27,28 @@ class StorePurchaseResult:
         return not self.failed
 
 
-class StoreFlow:
-    """单个商店的进入与购买流程.
+class StoreFlow(_StoreFlowTaskProxy):
+    """单个商店的进入与购买流程, 任务能力经 __getattr__ 透传.
 
-    新增商店时只需实现子类并注册到 StoreTask.SHOPS, 不需要改动 StoreTask 主流程.
+    新增商店只需实现子类并注册到 StoreTask.SHOPS, 不需要改动主流程.
     """
 
     shop_id: str = ""
     display_name: str = ""
     enabled_by_default: bool = False
 
-    def open(self, task: BaseNTETask) -> bool:
+    def __init__(self, task: BaseNTETask):
+        self.task = task
+
+    def __getattr__(self, name: str) -> Any:
+        if name == "task":  # 避免 self.task 未赋值时无限递归
+            raise AttributeError(name)
+        return getattr(self.task, name)
+
+    def open(self) -> bool:
         """从 F4 面板进入该商店界面, 成功返回 True."""
         raise NotImplementedError
 
-    def purchase(self, task: BaseNTETask) -> StorePurchaseResult | None:
+    def purchase(self) -> StorePurchaseResult | None:
         """购买商品, 返回 None 表示本次没有可购买的商品."""
         raise NotImplementedError
