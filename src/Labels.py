@@ -40,7 +40,6 @@ class Labels(str, Enum):
     event_999nights = 'event_999nights'
     event_999nights_item_heterogeneous_unit = 'event_999nights_item_heterogeneous_unit'
     event_999nights_store = 'event_999nights_store'
-    event_999nights_store_panel = 'event_999nights_store_panel'
     exit_1 = 'exit_1'
     exit_2 = 'exit_2'
     f1_activity_mission = 'f1_activity_mission'

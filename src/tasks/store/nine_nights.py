@@ -22,9 +22,7 @@ class NineNightsStoreFlow(StoreFlow):
         ):
             if not self._click_entry(label, name):
                 return False
-        return bool(
-            self.wait_panel(Labels.event_999nights_store_panel, time_out=self.PANEL_TIMEOUT)
-        )
+        return True
 
     def _click_entry(self, label, name) -> bool:
         entry = self.wait_until(
