@@ -848,6 +848,12 @@ msgstr ""
 msgid "九百九十九夜"
 msgstr "999 Nights"
 
+msgid "商店购买"
+msgstr "Store Purchase"
+
+msgid "纽扣商店购买异构单元"
+msgstr "Button Shop: Heterogeneous Unit purchase"
+
 msgid "巧克力火山-底层最左边的篝火"
 msgstr "Chocolate Volcano - Bottom Floor Leftmost Bonfire"
 

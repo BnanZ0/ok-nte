@@ -589,6 +589,12 @@ msgstr ""
 msgid "九百九十九夜"
 msgstr "999 Nights"
 
+msgid "商店购买"
+msgstr "Compra na loja"
+
+msgid "纽扣商店购买异构单元"
+msgstr "Compra de unidades heterogêneas na loja de botões"
+
 msgid "巧克力火山-底层最左边的篝火"
 msgstr "Vulcão de Chocolate - Fogueira da extrema esquerda do andar inferior"
 
