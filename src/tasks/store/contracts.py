@@ -43,13 +43,13 @@ class StoreFlow(_StoreFlowTaskProxy):
     ITEM_LABELS: tuple[str, ...] = ()
     ITEM_LIST_BOX: tuple[float, float, float, float] = (0.0, 0.0, 1.0, 1.0)
 
-    PANEL_TIMEOUT = 10
+    PANEL_TIMEOUT = 5
     BUY_TIMEOUT = 5
     CONFIRM_TIMEOUT = 1
     REWARD_TIMEOUT = 5
 
     # 购买弹窗为通用界面, 各商店按钮位置一致
-    BUY_BUTTON = (0.660, 0.740)
+    BUY_BUTTON_POS = (0.660, 0.740)
     # 只覆盖确认按钮, 避开左侧取消按钮
     CONFIRM_BOX = (0.649, 0.608, 0.707, 0.711)
     # 通用「获得物品」弹窗
@@ -64,7 +64,7 @@ class StoreFlow(_StoreFlowTaskProxy):
         return getattr(self.task, name)
 
     def open(self) -> bool:
-        """从 F4 面板进入该商店界面, 成功返回 True."""
+        """进入该商店界面, 成功返回 True."""
         raise NotImplementedError
 
     def purchase(self) -> StorePurchaseResult | None:
@@ -96,7 +96,7 @@ class StoreFlow(_StoreFlowTaskProxy):
             return False
         self.operate_click(max_button, after_sleep=0.5)
 
-        self.operate_click(*self.BUY_BUTTON, after_sleep=1)
+        self.operate_click(*self.BUY_BUTTON_POS, after_sleep=1)
         if self.wait_click_confirm(
             range=self.CONFIRM_BOX,
             time_out=self.CONFIRM_TIMEOUT,

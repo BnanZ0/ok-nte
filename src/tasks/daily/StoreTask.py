@@ -52,8 +52,6 @@ class StoreTask(NTEOneTimeTask, BaseNTETask):
 
     def _run_shop(self, shop) -> bool | None:
         self.log_info(f"正在前往商店: {shop.display_name}")
-        self.ensure_main()
-        self.openF4panel()
         if not shop.open():
             self.log_error(f"无法进入商店: {shop.display_name}", notify=True)
             return False

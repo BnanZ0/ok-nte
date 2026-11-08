@@ -15,14 +15,18 @@ class NineNightsStoreFlow(StoreFlow):
     ITEM_LABELS: tuple[str, ...] = (Labels.event_999nights_item_heterogeneous_unit,)
 
     def open(self) -> bool:
-        for label, name in (
-            (Labels.f4_permanent_events_button, "常驻活动"),
-            (Labels.event_999nights, "九百九十九夜"),
-            (Labels.event_999nights_store, "九百九十九夜商店"),
-        ):
-            if not self._click_entry(label, name):
-                return False
-        return True
+        def action():
+            self.openF4panel()
+            for label, name in (
+                (Labels.f4_permanent_events_button, "常驻活动"),
+                (Labels.event_999nights, "九百九十九夜"),
+                (Labels.event_999nights_store, "九百九十九夜商店"),
+            ):
+                if not self._click_entry(label, name):
+                    return False
+            return True
+
+        return bool(self.retry_on_action(action, self.ensure_main))
 
     def _click_entry(self, label, name) -> bool:
         entry = self.wait_until(
