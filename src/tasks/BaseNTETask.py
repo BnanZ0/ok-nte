@@ -497,6 +497,31 @@ class BaseNTETask(
         box = box.copy(y_offset=y, width_offset=w, height_offset=-y)
         return self.find_one(Labels.teleport, box=box)
 
+    def open_map(self, zoom="mid"):
+        self.wait_until(
+            lambda: self.find_one(Labels.map_zoom_in),
+            time_out=30,
+            pre_action=lambda: self.send_key("m", interval=2),
+            raise_if_not_found=True,
+        )
+        self.sleep(1)
+
+        if zoom is None:
+            return
+
+        if isinstance(zoom, str):
+            if zoom == "max":
+                self.operate_click(0.050, 0.372)
+            elif zoom == "mid":
+                self.operate_click(0.050, 0.526)
+            elif zoom == "low":
+                self.operate_click(0.050, 0.590)
+            elif zoom == "min":
+                self.operate_click(0.050, 0.680)
+        elif callable(zoom):
+            zoom()
+        self.sleep(0.5)
+
     def _execute_map_teleport(self, find_func, zoom="mid", time_out=5):
         """
         通用的地图传送核心逻辑
@@ -506,25 +531,7 @@ class BaseNTETask(
         """
         # 1. 确保在主界面并打开地图
         self.ensure_main()
-        self.wait_until(
-            lambda: self.find_one(Labels.map_city_tycoon_activities),
-            time_out=10,
-            pre_action=lambda: self.send_key("m", interval=2),
-            raise_if_not_found=True,
-        )
-
-        if zoom is not None:
-            self.sleep(0.5)
-            if isinstance(zoom, str):
-                if zoom == "max":
-                    self.operate_click(0.050, 0.372)
-                elif zoom == "mid":
-                    self.operate_click(0.050, 0.525)
-                elif zoom == "min":
-                    self.operate_click(0.050, 0.680)
-            elif callable(zoom):
-                zoom()
-            self.sleep(0.5)
+        self.open_map(zoom=zoom)
 
         # 2. 执行传入的自定义查找策略
         teleport = self.wait_until(find_func, time_out=time_out, raise_if_not_found=True)
@@ -596,6 +603,13 @@ class BaseNTETask(
         return self._execute_map_teleport(
             find_func=find_teleport_in_box, zoom=zoom, time_out=time_out
         )
+
+    def teleport_on_spot(self, zoom="mid"):
+        self.ensure_main()
+        self.open_map(zoom=zoom)
+        self.operate_click(0.5, 0.5, action_name="click_map_teleport")
+        self.sleep(0.5)
+        return self.click_traval_button(raise_if_not_found=False)
 
     def click_traval_button(self, travel_btn=None, raise_if_not_found=True):
         if not isinstance(travel_btn, Box):

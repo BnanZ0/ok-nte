@@ -108,7 +108,7 @@ class FountainTask(NTEOneTimeTask, BaseNTETask):
         self.wait_in_team(time_out=300, settle_time=0.25)
         self.sleep(0.5)
         box = self.box_of_screen(*self.PHONE_BOOTH_BOX, name="fountain_phone_booth")
-        self.click_map_teleport(box, zoom=lambda: self.operate_click(0.050, 0.593))
+        self.click_map_teleport(box, zoom="low")
         self.wait_in_team(time_out=300, settle_time=0.25)
         self.sleep(1)
 

@@ -112,7 +112,7 @@ class DSDFarmTask(NTEOneTimeTask, BaseCombatTask):
             self.ensure_main()
             if self.do_teleport_on_spot:
                 self.sleep(0.5)
-                self.teleport_on_spot()
+                self.teleport_on_spot(zoom=None)
                 self.ensure_main()
             self.deside_action()
             self.next_frame()
@@ -223,7 +223,11 @@ class DSDFarmTask(NTEOneTimeTask, BaseCombatTask):
         origin_fun = None
         if self.team_dead:
             origin_fun = fun
-            fun = self.teleport_on_spot
+
+            def teleport_on_spot_without_zoom():
+                return self.teleport_on_spot(zoom=None)
+
+            fun = teleport_on_spot_without_zoom
         switch = False
         while True:
             if fun():
@@ -260,7 +264,7 @@ class DSDFarmTask(NTEOneTimeTask, BaseCombatTask):
 
     def map_zoom(self, zoom="max"):
         self.ensure_main()
-        self.open_map()
+        self.open_map(zoom=None)
         if zoom == "max":
             self.operate_click(0.050, 0.378)
         elif zoom == "mid":
@@ -268,18 +272,9 @@ class DSDFarmTask(NTEOneTimeTask, BaseCombatTask):
         self.sleep(1)
         self.ensure_main()
 
-    def open_map(self):
-        self.wait_until(
-            lambda: self.find_one(Labels.map_zoom_in),
-            time_out=30,
-            pre_action=lambda: self.send_key("m", interval=2),
-            raise_if_not_found=True,
-        )
-        self.sleep(1)
-
     def teleport_to_nearest_bonfire(self, threshold=0.7, time_out=10):
         self.ensure_main()
-        self.open_map()
+        self.open_map(zoom=None)
         to_find = [Labels.bonfire_teleport]
         template_boxes = [self.get_box_by_name(label) for label in to_find]
         max_template_size = max(
@@ -311,7 +306,7 @@ class DSDFarmTask(NTEOneTimeTask, BaseCombatTask):
 
     def teleport_to_bonfire(self, box: Box = None, threshold=0.7, order=1):
         self.ensure_main()
-        self.open_map()
+        self.open_map(zoom=None)
         if not box:
             box = self.pos.screen.main_viewport.to_box()
 
@@ -335,7 +330,7 @@ class DSDFarmTask(NTEOneTimeTask, BaseCombatTask):
 
     def teleport_to_top_bonfire(self, box: Box, threshold=0.7):
         self.ensure_main()
-        self.open_map()
+        self.open_map(zoom=None)
 
         teleports = self.find_feature(Labels.bonfire_teleport, box=box, threshold=threshold)
         if not teleports:
@@ -345,12 +340,5 @@ class DSDFarmTask(NTEOneTimeTask, BaseCombatTask):
 
         teleport = min(teleports, key=lambda teleport: teleport.y)
         self.operate_click(teleport, action_name="click_map_teleport")
-        self.sleep(0.5)
-        return self.click_traval_button(raise_if_not_found=False)
-
-    def teleport_on_spot(self):
-        self.ensure_main()
-        self.open_map()
-        self.operate_click(0.5, 0.5, action_name="click_map_teleport")
         self.sleep(0.5)
         return self.click_traval_button(raise_if_not_found=False)
