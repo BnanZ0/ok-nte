@@ -1,9 +1,9 @@
 from ok import TaskDisabledException
 
 from src.tasks.BaseNTETask import BaseNTETask
+from src.tasks.daily.store.contracts import StoreFlow, StorePurchaseResult
+from src.tasks.daily.store.nine_nights import NineNightsStoreFlow
 from src.tasks.NTEOneTimeTask import NTEOneTimeTask
-from src.tasks.store.contracts import StoreFlow, StorePurchaseResult
-from src.tasks.store.nine_nights import NineNightsStoreFlow
 
 
 class StoreTask(NTEOneTimeTask, BaseNTETask):

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from src.Labels import Labels
-from src.tasks.store.contracts import StoreFlow
+from src.tasks.daily.store.contracts import StoreFlow
 
 
 class NineNightsStoreFlow(StoreFlow):
