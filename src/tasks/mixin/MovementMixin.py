@@ -35,7 +35,7 @@ class MovementMixin(BaseTask):
             x_threshold=x_threshold,
         )
 
-    def rotate_and_find(self, find, interrupt):
+    def rotate_and_find(self, find, interrupt, count=4):
         def sleep(sec):
             timer = self.clock.timer(timeout=sec)
             while not timer.expired():
@@ -48,7 +48,7 @@ class MovementMixin(BaseTask):
         if result := find():
             return result
 
-        for _ in range(4):
+        for _ in range(count):
             self.send_key("a")
             if sleep(0.3):
                 return

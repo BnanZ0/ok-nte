@@ -708,12 +708,12 @@ class BaseNTETask(
         logger.info(f"found {feature} {result}")
         return result
 
-    def ensure_main(self, esc=True, in_world=False, time_out=30):
+    def ensure_main(self, esc=True, in_world=False, check_exit=False, time_out=30):
         self.info_set("current task", f"wait main esc={esc}")
         if not self.scene.logged_in():
             time_out = 600
         if not self.wait_until(
-            lambda: self.is_main(esc=esc, in_world=in_world),
+            lambda: self.is_main(esc=esc, in_world=in_world, check_exit=check_exit),
             time_out=time_out,
             raise_if_not_found=False,
             settle_time=0.25,
@@ -726,14 +726,14 @@ class BaseNTETask(
         self.sleep(0.5)
         self.info_set("current task", None)
 
-    def is_main(self, esc=True, in_world=True):
+    def is_main(self, esc=True, in_world=True, check_exit=False):
         if in_world:
             in_team_or_world = bool(self.in_team_and_world())
         else:
             in_team_or_world = bool(self.is_in_team())
         if in_team_or_world:
             self.scene.set_logged_in()
-            if self.find_exit():
+            if check_exit and self.find_exit():
                 self.exit_anomaly()
             return True
         if self.handle_monthly_card(log=False):
@@ -847,7 +847,7 @@ class BaseNTETask(
     def rotate_and_find_treasure(self):
         return self.rotate_and_find(self.find_treasure, self.find_interac)
 
-    def send_interac(self, handle_claim=True):
+    def send_interac(self, handle_claim=False):
         if self.find_interac():
             self.send_key("f", after_sleep=0.8)
             if not handle_claim:

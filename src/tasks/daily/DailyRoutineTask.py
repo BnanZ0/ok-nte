@@ -385,7 +385,7 @@ class DailyRoutineTask(NTEOneTimeTask, BaseNTETask):
         self.log_info("开始执行日常任务")
         for item in items:
             self._execute_routine_item(item)
-        self.ensure_main()
+        self.ensure_main(check_exit=True)
         self._print_result()
         self.log_info("结束执行日常任务")
         return not self.task_status["failed"]
@@ -423,7 +423,7 @@ class DailyRoutineTask(NTEOneTimeTask, BaseNTETask):
         """Map True, False and None task outcomes to success, failure and skipping."""
         self.info_set("当前任务", task.name)
         self.log_info(f"开始任务: {task.name}")
-        self.ensure_main()
+        self.ensure_main(check_exit=True)
         with self._active_task_context(task_id, task):
             result = task.do_run()
             if hasattr(task, "on_daily_end"):
