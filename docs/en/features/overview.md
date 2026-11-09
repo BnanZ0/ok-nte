@@ -7,7 +7,7 @@
 Automatically complete selected daily and weekly tasks.
 
 - **One-click Dailies**: Run your configured task routine automatically.
-- **Available Tasks**: EXP & Beetle Coins, Ability Upgrade, Arc Ascension, Console, The Cafe by Origen, Cinema Date, Bond Gifts, Anomaly Furniture, Anomaly Hunt, and daily check-in at the Nacupeda Park fountain.
+- **Available Tasks**: EXP & Beetle Coins, Ability Upgrade, Arc Ascension, Console, The Cafe by Origen, Cinema Date, Bond Gifts, Anomaly Furniture, Anomaly Hunt, daily check-in at the Nacupeda Park fountain, and store purchase.
 
 ### 🍹 Hobbies
 - **Auto Fishing**: Fully automated fishing process.

@@ -643,6 +643,20 @@ class BaseNTETask(
         self.sleep(0.5)
         return result
 
+    def openF4panel(self):
+        def action():
+            if self.is_in_team():
+                self.send_key("f4", after_sleep=1)
+                self.log_info("send f4 key to open the panel")
+            return self.wait_panel(Labels.f4_panel)
+
+        result = self.retry_on_action(action, self.ensure_main)
+        if not result:
+            self.log_error("can't find panel, make sure f4 is the hotkey for panel", notify=True)
+            raise CannotFindException("can't find panel, make sure f4 is the hotkey for panel")
+        self.sleep(0.5)
+        return result
+
     def openF5panel(self):
         def action():
             if self.is_in_team():

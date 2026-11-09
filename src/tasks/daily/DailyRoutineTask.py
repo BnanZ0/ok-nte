@@ -15,6 +15,7 @@ from src.tasks.daily.DailyClaimTask import DailyClaimTask
 from src.tasks.daily.FountainTask import FountainTask
 from src.tasks.daily.FurnitureTask import FurnitureTask
 from src.tasks.daily.GiftTask import GiftTask
+from src.tasks.daily.StoreTask import StoreTask
 from src.tasks.NTEOneTimeTask import NTEOneTimeTask
 
 __all__ = ["DailyRoutineEntry", "DailyRoutineTask", "selection_is_complete"]
@@ -40,6 +41,7 @@ DAILY_ROUTINE_ENTRIES = (
     DailyRoutineEntry("fountain", FountainTask),
     DailyRoutineEntry("furniture", FurnitureTask),
     DailyRoutineEntry("gift", GiftTask),
+    DailyRoutineEntry("store_purchase", StoreTask),
 )
 
 

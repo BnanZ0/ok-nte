@@ -848,6 +848,12 @@ msgstr ""
 msgid "九百九十九夜"
 msgstr "구백구십구야"
 
+msgid "商店购买"
+msgstr "상점 구매"
+
+msgid "纽扣商店购买异构单元"
+msgstr "버튼 상점에서 이기종 유닛 구매"
+
 msgid "巧克力火山-底层最左边的篝火"
 msgstr "초콜릿 화산 - 최하층 가장 왼쪽 모닥불"
 
