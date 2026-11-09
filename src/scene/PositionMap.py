@@ -16,9 +16,11 @@ class Position_6_panels__2_f1__6_domain:
     console = ScreenRatio(0.543359, 0.151389)
     entry = ScreenRatio(0.055469, 0.5625)
     exp = ScreenRatio(0.171094, 0.15)
+    goto = ScreenRatio(0.916797, 0.290972)
     hunter = ScreenRatio(0.913281, 0.151389)
+    pilgrimage = ScreenRatio(0.664063, 0.152778)
     scroll_area = ScreenRatio(0.419922, 0.415278, 0.494141, 0.680556)
-    search_area = ScreenRatio(0.679297, 0.269444, 0.735547, 0.809722)
+    search_area = ScreenRatio(0.679297, 0.211111, 0.735547, 0.809722)
     skill = ScreenRatio(0.294922, 0.152778)
 
     def __init__(self, parent):
