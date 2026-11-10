@@ -192,14 +192,38 @@ class AnomalyTask(BaseStaminaTask, BaseCombatTask):
 
     def run(self):
         super().run()
+        result = None
+        disabled = False
         try:
-            self.do_run()
+            self._log_cloud_input_state("before do_run")
+            result = self.do_run()
         except TaskDisabledException:
-            pass
+            disabled = True
         except Exception as e:
             self.log_error("AnomalyTask Error", e)
         finally:
-            self.exit_anomaly()
+            self._log_cloud_input_state("before task cleanup")
+            if disabled:
+                self.log_info("Task was disabled; skipping anomaly exit cleanup")
+            elif result is True:
+                # do_run already clicked the final exit confirm. The old code
+                # still ran the 30s ESC loop, which spammed ESC after a
+                # successful run when is_in_team()/find_exit() disagreed
+                # (observed 2026-11-11). Do not loop here.
+                try:
+                    in_team = self.is_in_team()
+                    has_exit = bool(self.find_exit())
+                except Exception:
+                    in_team, has_exit = None, None
+                if not (in_team and not has_exit):
+                    self.log_warning(
+                        "Task completed but still looks inside the anomaly "
+                        f"(in_team={in_team}, exit={has_exit}); "
+                        "skipping ESC cleanup"
+                    )
+            else:
+                self.exit_anomaly()
+            self._log_cloud_input_state("after task cleanup")
 
     def do_run(self) -> bool | None:
         task_type = self.config.get(self.CONF_TASK_TYPE)
