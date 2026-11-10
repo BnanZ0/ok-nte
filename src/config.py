@@ -15,6 +15,52 @@ if "PATH" not in os.environ:
 version = "dev"
 # 不需要修改version, Github Action打包会自动修改
 
+# Choose Window 里并列展示的两个 PC 窗口变体.
+# 选中某个变体时, src/patches/window_variants_patch.py 会动态覆盖
+# config["windows"] 的 exe / hwnd_class / capture_method, 使窗口匹配与截图方式随选择切换.
+# 顺序即列表顺序: 本地版在前, 云·异环在后.
+#
+# 云·异环变体的输入限制: 串流客户端只接收系统输入队列里的真实按键/点击,
+# NTEInteraction 会按变体改用 SendInput(wVk) 与真实鼠标事件(含滚轮/相对移动).
+# 真实输入要求游戏窗口处于前台, 因此云版不能像本地版那样后台挂机:
+#   * 交互层用 ALT + AttachThreadInput 显式激活, 并校验点击落点属于游戏进程,
+#     避免点击落到 ok 主窗口上误触任务按钮.
+#   * 失焦后的第一次点击会被客户端用于重新捕获鼠标, 交互层自动补 warm-up 点击.
+#   * 云版禁用 CursorSync 与物理鼠标拦截钩子, 并在失焦/销毁时释放所有真实按键,
+#     防止任务中止后按键或光标卡住.
+#   * 音频闪避的 WASAPI 进程回环按变体切到云客户端进程名.
+# 云版滚轮的真实注入尚未在真机单独验证, 但已不再使用无效的 PostMessage.
+#
+# 云版任务前置检查失败时必须快速失败: F1 打开「探索指南」是预期流程, 不是错误
+# 状态; 全屏面板会遮住右上角 HUD, 使体力 OCR 读不到数字(是「没读到」而非
+# 「体力不足」). 旧逻辑把 -1 当成体力不足, 且 F1 页面超时后仍继续点击, 掩盖了
+# 真正的问题: 后续页面跳转/点击没有生效. 现在云版在
+# BaseNTETask.open_f1_domain_page()/get_stamina() 里保存诊断截图并明确报错;
+# 报错只陈述事实, 不引导用户按 ESC 关掉本来正确的 F1 面板.
+# 本地 PC 版这两条失败路径保持原样. 云版点击会记录目标坐标与实际光标位置,
+# 用于判断串流客户端是否在相对鼠标模式下把光标锁回中心.
+#
+# 云版**永不自动启动**客户端: 云游戏按在线时长计费, 程序 bug 误启动/保活会
+# 造成真实金钱损失. 用户手动打开游戏; 选中云版时弹使用须知(可勾选不再提示),
+# 点开始或启动任务时若检测不到云窗口则弹窗并取消本次启动, 由
+# src/patches/cloud_launch_guard.py 统一守卫(另在任务执行前兜底拦截).
+WINDOW_VARIANTS = (
+    {
+        "id": "pc_local",
+        "nick": "PC版",
+        "exe": [GAME_EXE],
+        "hwnd_class": ["UnrealWindow"],
+        "capture_method": ["WGC", "BitBlt_RenderFull"],
+    },
+    {
+        "id": "pc_cloud",
+        "nick": "PC版云异环",
+        "exe": ["NTECloudGame.exe"],
+        "hwnd_class": ["Qt51517QWindowIcon"],
+        "capture_method": ["WGC"],
+    },
+)
+
 key_config_option = ConfigOption(
     "Game Hotkey Config",
     {  # 全局配置示例
@@ -104,14 +150,18 @@ config = {
         },
     },
     "windows": {  # Windows游戏请填写此设置
-        "exe": GAME_EXE,
-        "hwnd_class": "UnrealWindow",
+        # 这里的值是默认变体(PC版)的配置. 用户在 Choose Window 选中变体后,
+        # window_variants_patch 会按 WINDOW_VARIANTS 覆盖 exe / hwnd_class / capture_method.
+        "exe": [GAME_EXE],
+        "hwnd_class": ["UnrealWindow"],
         "interaction": [NTEInteraction],
         # Genshin:某些操作可以后台, 部分游戏支持 PostMessage:可后台点击, 极少游戏支持 ForegroundPostMessage:前台使用PostMessage Pynput/PyDirect:仅支持前台使用
+        # PC版保留原有的 WGC + BitBlt_RenderFull 两种; 云·异环变体只会剩下 WGC 一种,
+        # 因为云客户端是 GPU 渲染窗口, BitBlt_RenderFull 会拿到纯黑帧且框架不校验纯色帧.
         "capture_method": [
             "WGC",
             "BitBlt_RenderFull",
-        ],  # Windows版本支持的话, 优先使用WGC, 否则使用BitBlt_Full. 支持的capture有 BitBlt, WGC, BitBlt_RenderFull, DXGI
+        ],
         "check_hdr": False,  # 当用户开启AutoHDR时候提示用户, 但不禁止使用
         "force_no_hdr": False,  # True=当用户开启AutoHDR时候禁止使用
         "require_bg": True,  # 要求使用后台截图
