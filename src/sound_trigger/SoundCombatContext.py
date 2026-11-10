@@ -15,7 +15,37 @@ logger = Logger.get_logger(__name__)
 ACTION_UNSET = object()
 
 
+def _cloud_audio_process_name() -> str:
+    """Read the cloud exe from the single source of truth (WINDOW_VARIANTS)."""
+    try:
+        from src.config import WINDOW_VARIANTS
+        from src.patches.window_variants_patch import CLOUD_VARIANT_ID
+
+        for variant in WINDOW_VARIANTS:
+            if variant["id"] == CLOUD_VARIANT_ID:
+                return variant["exe"][0]
+    except Exception:
+        pass
+    return "NTECloudGame.exe"
+
+
 def _game_audio_process_name() -> str:
+    """WASAPI process-loopback target for the dodge/counter sound trigger.
+
+    The cloud client is a different executable, so binding the listener to
+    HTGame.exe makes it wait forever and the dodge never fires. Pick the
+    process of the selected window variant; fall back to the local game when
+    the device manager is not ready (e.g. in unit tests).
+    """
+    try:
+        from src.patches.window_variants_patch import is_cloud_window_selected
+
+        if is_cloud_window_selected():
+            name = _cloud_audio_process_name()
+            logger.info(f"Sound trigger: cloud window selected, audio process={name}")
+            return name
+    except Exception as exc:
+        logger.warning(f"Failed to detect window variant for audio capture: {exc}")
     try:
         from src import GAME_EXE
 
@@ -150,6 +180,7 @@ class SoundCombatContext:
                 raise ValueError("counter_attack_threshold must be between 0.0 and 1.0")
 
             audio_process_name = _game_audio_process_name()
+            logger.info(f"SoundCombatContext audio process: {audio_process_name}")
             self._config = {
                 "sample_path": sample_path,
                 "counter_attack_sample_path": counter_attack_sample_path,
@@ -182,11 +213,38 @@ class SoundCombatContext:
             self._is_active = True
             logger.info("SoundCombatContext initialized")
 
+    def _sync_audio_process_name(self):
+        """Follow a Choose Window switch without needing an app restart."""
+        listener = self._listener
+        if listener is None:
+            return
+        name = _game_audio_process_name()
+        current = getattr(listener, "_requested_process_name", None) or getattr(
+            listener, "process_name", None
+        )
+        if current == name:
+            return
+        logger.info(
+            f"SoundCombatContext audio process changed: "
+            f"{getattr(listener, 'process_name', None)} -> {name}"
+        )
+        # The listener owns the capture source and rebinds on its own thread.
+        listener.request_process_name(name)
+        self._config["audio_process_name"] = name
+
+    @classmethod
+    def sync_audio_process_name(cls):
+        """Follow a runtime Choose Window switch (called by the variant patch)."""
+        instance = cls._instance
+        if instance is not None:
+            instance._sync_audio_process_name()
+
     def enter(self):
         if not self._is_active or not self._listener:
             return False
 
         try:
+            self._sync_audio_process_name()
             if not self._listener.start():
                 return False
             logger.info("SoundCombatContext entered - listener started")

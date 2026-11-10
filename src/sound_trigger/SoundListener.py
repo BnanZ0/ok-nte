@@ -55,6 +55,9 @@ class SoundListener:
         self.expansion_ratio = expansion_ratio
         self.is_allow_successive_trigger = is_allow_successive_trigger
         self.process_name = process_name
+        # The listener thread owns the capture source; a Choose Window switch
+        # only records the desired process and lets that thread rebind.
+        self._requested_process_name = process_name
         self._initialization_stop_event = initialization_stop_event
 
         self.is_computation_required = None
@@ -256,6 +259,26 @@ class SoundListener:
         finally:
             self._capture = None
 
+    def request_process_name(self, process_name: str) -> None:
+        """Ask the listener thread to rebind its WASAPI loopback target.
+
+        The listener thread owns the capture source, so it performs the actual
+        stop/recreate on its next iteration. This method only records the
+        desired name and is safe to call from the GUI/device-selection thread.
+        """
+        self._requested_process_name = process_name
+
+    def _apply_requested_process_name(self) -> None:
+        requested = self._requested_process_name
+        if not requested or requested == self.process_name:
+            return
+        logger.info(
+            f"SoundListener switching audio process: "
+            f"{self.process_name} -> {requested}"
+        )
+        self.process_name = requested
+        self._stop_capture()
+
     def _listen_once(self, stop_event: threading.Event):
         logger.info(f"Initializing WASAPI process audio capture for {self.process_name}...")
 
@@ -267,6 +290,7 @@ class SoundListener:
         samples_since_check = 0
 
         while self._should_run(stop_event):
+            self._apply_requested_process_name()
             if self._capture is None or not self._capture.is_alive():
                 if self._capture is not None:
                     logger.warning(

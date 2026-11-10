@@ -314,5 +314,37 @@ class SoundListenerTests(unittest.TestCase):
         self.assertIsNone(listener._listener_thread)
 
 
+class SoundListenerRebindTests(unittest.TestCase):
+    def _listener(self, process_name="HTGame.exe"):
+        from src.sound_trigger.SoundListener import SoundListener
+
+        listener = object.__new__(SoundListener)
+        listener.process_name = process_name
+        listener._requested_process_name = process_name
+        listener._capture = Mock()
+        return listener
+
+    def test_request_process_name_stops_the_old_capture(self):
+        listener = self._listener()
+        capture = listener._capture
+
+        listener.request_process_name("NTECloudGame.exe")
+        listener._apply_requested_process_name()
+
+        self.assertEqual(listener.process_name, "NTECloudGame.exe")
+        capture.stop.assert_called_once()
+        self.assertIsNone(listener._capture)
+
+    def test_request_process_name_is_a_noop_when_unchanged(self):
+        listener = self._listener()
+        capture = listener._capture
+
+        listener.request_process_name("HTGame.exe")
+        listener._apply_requested_process_name()
+
+        self.assertEqual(listener.process_name, "HTGame.exe")
+        capture.stop.assert_not_called()
+
+
 if __name__ == "__main__":
     unittest.main()
