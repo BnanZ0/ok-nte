@@ -947,8 +947,9 @@ msgstr ""
 msgid "大世界检测失败: 请检查游戏内 UI 透明度是否已设置为 1.0。"
 msgstr "大世界檢測失敗: 請檢查遊戲內 UI 透明度是否已設置為 1.0。"
 
-msgid "当前 CPU 不支持 AVX2, 无法运行 OpenVINO 2026 CPU 推理；自动战斗的目标检测将不可用，交战流畅度将受到影响。"
-msgstr "目前 CPU 不支援 AVX2，無法執行 OpenVINO 2026 CPU 推理；自動戰鬥的目標檢測將不可用，交戰流暢度將受到影響。"
+#, python-brace-format
+msgid "当前 CPU 不支持 AVX2, OpenVINO 检测器 {model} 无法启用。"
+msgstr "目前 CPU 不支援 AVX2，無法啟用 OpenVINO 偵測器 {model}。"
 
 msgid "战斗后等待至时长上限"
 msgstr "戰鬥後等待至時長上限"
@@ -1258,8 +1259,9 @@ msgstr "<p><b style=\"color: #d83b01;\">注意：</b>此面板 <b style=\"color:
 msgid "<p>用于配置并保存常用的 4 人队伍阵容与出招表, 修改后立即生效。<br>方案中的 1~4 号位仅用于 [{fixed_preset}] 功能; 已绑定特征的角色放在哪个号位都可以, 不影响识别。<br>点击 [{apply_preset}] 可一键更新应用方案中各角色的出招表 (未选择出招表则保持原配置不变)。<br>开启 [{fixed_preset}] 后自动战斗将直接采用此阵容, 无需等待特征识别 (未录入特征的角色亦可直接战斗)。<br>点击 [{fill_scan}] 可将上方特征扫描识别出的队伍角色快速填入当前方案。</p>"
 msgstr "<p>用於配置並儲存常用的 4 人隊伍陣容與出招表, 修改後立即生效。<br>方案中的 1~4 號位僅用於[{fixed_preset}]功能；已綁定特徵的角色放在哪個號位都可以，不影響識別。<br>點擊 [{apply_preset}] 可一鍵更新套用方案中各角色的出招表 (未選擇出招表則保持原配置不變)。<br>開啟 [{fixed_preset}] 後自動戰鬥將直接採用此陣容, 無需等待特徵識別 (未錄入特徵的角色亦可直接戰鬥)。<br>點擊 [{fill_scan}] 可將上方特徵掃描識別出的隊伍角色快速填入當前方案。</p>"
 
-msgid "OpenVINO 单次推理超时，已自动关闭目标检测；重启程序后会重新尝试启用。"
-msgstr "OpenVINO 單次推論超時，已自動關閉目標檢測；重啟程式後會重新嘗試啟用。"
+#, python-brace-format
+msgid "OpenVINO 检测器 {model} 推理超时, 已自动停用。重启程序后将重新尝试启用。"
+msgstr "OpenVINO 偵測器 {model} 推論逾時，已自動停用。重新啟動程式後將再次嘗試啟用。"
 
 msgid "批量删除"
 msgstr "批量刪除"

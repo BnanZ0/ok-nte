@@ -2,7 +2,7 @@ import sys
 import threading
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import numpy as np
 from ok import Box
@@ -53,7 +53,9 @@ class FakeInferRequest:
 class TestYOLO26OpenVINOAsyncDetector(unittest.TestCase):
     def _detector(self, requests):
         detector = YOLO26OpenVINOAsyncDetector.__new__(YOLO26OpenVINOAsyncDetector)
+        detector.model_name = "target"
         detector.num_requests = 1
+        detector._raw_output = False
         detector._openvino_available = True
         detector._openvino_unavailable_reason = None
         detector._state_lock = threading.RLock()
@@ -80,6 +82,24 @@ class TestYOLO26OpenVINOAsyncDetector(unittest.TestCase):
         detector._create_infer_request = create_request
         return detector
 
+    def test_detectors_share_core_with_separate_models_and_requests(self):
+        openvino = Mock()
+        openvino.Core.return_value.compile_model.side_effect = [Mock(), Mock()]
+        with (
+            patch.dict(sys.modules, {"openvino": openvino, "openvino.preprocess": Mock()}),
+            patch("src.vision.openvino_detector._openvino_core", None),
+            patch.object(YOLO26OpenVINOAsyncDetector, "_supports_avx2", return_value=True),
+        ):
+            target = YOLO26OpenVINOAsyncDetector("target.xml")
+            reward = YOLO26OpenVINOAsyncDetector(
+                "general.xml", model_name="general", class_names=["boss_claim"]
+            )
+
+        openvino.Core.assert_called_once_with()
+        self.assertIs(target.core, reward.core)
+        self.assertIsNot(target.compiled_model, reward.compiled_model)
+        self.assertIsNot(target.infer_request, reward.infer_request)
+
     @patch.object(YOLO26OpenVINOAsyncDetector, "_supports_avx2", return_value=False)
     @patch("src.vision.openvino_detector.communicate")
     @patch("src.vision.openvino_detector.og.app")
@@ -88,7 +108,9 @@ class TestYOLO26OpenVINOAsyncDetector(unittest.TestCase):
     ):
         app.tr.side_effect = lambda message: message
 
-        detector = YOLO26OpenVINOAsyncDetector("unused.xml")
+        detector = YOLO26OpenVINOAsyncDetector(
+            "unused.xml", model_name="general", class_names=["boss_claim"]
+        )
         image = np.zeros((20, 20, 3), dtype=np.uint8)
 
         self.assertFalse(detector._openvino_available)
@@ -98,6 +120,7 @@ class TestYOLO26OpenVINOAsyncDetector(unittest.TestCase):
         detector.wait()
         detector.clear_cache()
         communicate.notification.emit.assert_called_once()
+        self.assertIn("general", communicate.notification.emit.call_args.args[0])
 
     @patch.object(YOLO26OpenVINOAsyncDetector, "_numpy_supports_avx2", return_value=True)
     @patch.object(YOLO26OpenVINOAsyncDetector, "_windows_supports_avx2", return_value=False)
@@ -227,14 +250,11 @@ class TestYOLO26OpenVINOAsyncDetector(unittest.TestCase):
 
         self.assertFalse(result)
         self.assertFalse(detector._openvino_available)
-        self.assertEqual(
-            detector._openvino_unavailable_reason,
-            "OpenVINO 单次推理超时，已自动关闭目标检测；重启程序后会重新尝试启用。",
-        )
         self.assertTrue(request.cancelled)
         self.assertNotIn(id(request), detector._active_request_jobs)
         self.assertFalse(detector.detect(image))
         communicate.notification.emit.assert_called_once()
+        self.assertIn("target", communicate.notification.emit.call_args.args[0])
 
 
 if __name__ == "__main__":

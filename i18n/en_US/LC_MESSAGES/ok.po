@@ -946,8 +946,9 @@ msgstr ""
 msgid "大世界检测失败: 请检查游戏内 UI 透明度是否已设置为 1.0。"
 msgstr "Overworld detection failed: Please check if the in-game UI opacity has been set to 1.0."
 
-msgid "当前 CPU 不支持 AVX2, 无法运行 OpenVINO 2026 CPU 推理；自动战斗的目标检测将不可用，交战流畅度将受到影响。"
-msgstr "The current CPU does not support AVX2, so OpenVINO 2026 CPU inference cannot be run. Target detection for auto-combat will be unavailable, and combat smoothness will be affected."
+#, python-brace-format
+msgid "当前 CPU 不支持 AVX2, OpenVINO 检测器 {model} 无法启用。"
+msgstr "The current CPU does not support AVX2. OpenVINO detector {model} could not be enabled."
 
 msgid "战斗后等待至时长上限"
 msgstr "Wait until max duration after combat"
@@ -1257,8 +1258,9 @@ msgstr "<p><b style=\"color: #d83b01;\">Note:</b> This panel <b style=\"color: #
 msgid "<p>用于配置并保存常用的 4 人队伍阵容与出招表, 修改后立即生效。<br>方案中的 1~4 号位仅用于 [{fixed_preset}] 功能; 已绑定特征的角色放在哪个号位都可以, 不影响识别。<br>点击 [{apply_preset}] 可一键更新应用方案中各角色的出招表 (未选择出招表则保持原配置不变)。<br>开启 [{fixed_preset}] 后自动战斗将直接采用此阵容, 无需等待特征识别 (未录入特征的角色亦可直接战斗)。<br>点击 [{fill_scan}] 可将上方特征扫描识别出的队伍角色快速填入当前方案。</p>"
 msgstr "<p>Configure and save common 4-character team lineups and combos, effective immediately upon modification.<br>Preset slots 1–4 are only used by the [{fixed_preset}] feature. If a character already has a registered feature, they can occupy any slot without affecting recognition.<br>Click [{apply_preset}] to update and apply each character's combo in this preset (unselected slots keep original configuration).<br>Enable [{fixed_preset}] to directly use this preset lineup in auto combat without waiting for feature recognition (characters without registered features can combat directly).<br>Click [{fill_scan}] to quickly fill in the characters recognized from the feature scan above into the current preset.</p>"
 
-msgid "OpenVINO 单次推理超时，已自动关闭目标检测；重启程序后会重新尝试启用。"
-msgstr "OpenVINO single inference timed out, target detection has been automatically disabled. It will be re-enabled upon restarting the program."
+#, python-brace-format
+msgid "OpenVINO 检测器 {model} 推理超时, 已自动停用。重启程序后将重新尝试启用。"
+msgstr "OpenVINO detector {model} was disabled after an inference timeout. The app will try to enable it again on restart."
 
 msgid "批量删除"
 msgstr "Batch Delete"

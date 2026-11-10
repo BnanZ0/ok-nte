@@ -684,8 +684,9 @@ msgstr "Falha ao detectar a interface principal. Ações sugeridas: \n1. Desativ
 msgid "大世界检测失败: 请检查游戏内 UI 透明度是否已设置为 1.0。"
 msgstr "Falha ao detectar o mundo aberto: verifique se a opacidade da interface do usuário no jogo foi definida como 1.0."
 
-msgid "当前 CPU 不支持 AVX2, 无法运行 OpenVINO 2026 CPU 推理；自动战斗的目标检测将不可用，交战流畅度将受到影响。"
-msgstr "A CPU atual não suporta AVX2, portanto a inferência de CPU do OpenVINO 2026 não pode ser executada; a detecção de alvos para combate automático ficará indisponível e a fluidez do combate será afetada."
+#, python-brace-format
+msgid "当前 CPU 不支持 AVX2, OpenVINO 检测器 {model} 无法启用。"
+msgstr "A CPU atual não oferece suporte a AVX2. Não foi possível ativar o detector {model} do OpenVINO."
 
 msgid "战斗后等待至时长上限"
 msgstr "Aguardar até o tempo limite após o combate"
@@ -994,8 +995,9 @@ msgstr "<p><b style=\"color: #d83b01;\">Nota:</b> Este painel <b style=\"color: 
 msgid "<p>用于配置并保存常用的 4 人队伍阵容与出招表, 修改后立即生效。<br>方案中的 1~4 号位仅用于 [{fixed_preset}] 功能; 已绑定特征的角色放在哪个号位都可以, 不影响识别。<br>点击 [{apply_preset}] 可一键更新应用方案中各角色的出招表 (未选择出招表则保持原配置不变)。<br>开启 [{fixed_preset}] 后自动战斗将直接采用此阵容, 无需等待特征识别 (未录入特征的角色亦可直接战斗)。<br>点击 [{fill_scan}] 可将上方特征扫描识别出的队伍角色快速填入当前方案。</p>"
 msgstr "<p>Configure e salve formações e combos de equipe de 4 personagens, com efeito imediato após a modificação.<br>As posições 1–4 deste preset são usadas apenas pela função [{fixed_preset}]. Se um personagem já tiver uma característica vinculada, ele pode ocupar qualquer posição sem afetar o reconhecimento.<br>Clique em [{apply_preset}] para aplicar os combos de cada personagem neste modelo predefinido (espaços sem combo selecionado manterão a configuração original).<br>Ative [{fixed_preset}] para que o combate automático adote diretamente esta equipe sem esperar pelo reconhecimento de características (personagens sem características registradas podem combater diretamente).<br>Clique em [{fill_scan}] para preencher rapidamente no modelo atual os personagens reconhecidos no escaneamento acima.</p>"
 
-msgid "OpenVINO 单次推理超时，已自动关闭目标检测；重启程序后会重新尝试启用。"
-msgstr "O tempo de inferência única do OpenVINO esgotou, a detecção de alvos foi desativada automaticamente. Será tentada a reativação ao reiniciar o programa."
+#, python-brace-format
+msgid "OpenVINO 检测器 {model} 推理超时, 已自动停用。重启程序后将重新尝试启用。"
+msgstr "O detector {model} do OpenVINO foi desativado porque a inferência excedeu o tempo limite. O aplicativo tentará reativá-lo ao reiniciar."
 
 msgid "批量删除"
 msgstr "Exclusão em Lote"

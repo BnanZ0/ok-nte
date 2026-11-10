@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Optional
 
 import cv2
 import numpy as np
-from ok import Box, Logger, find_color_rectangles
+from ok import Box, Logger, find_color_rectangles, og
 
 from src.Labels import Labels
 from src.tasks.BaseNTETask import BaseNTETask
@@ -78,6 +78,7 @@ class LvTemplateFeatures:
 
 class CombatCheck(BaseNTETask):
     _LV_NORM_SIZE = 32
+    _TARGET_MODEL = "target"
     _TARGET_MASK_REGIONS = [(0.020, 0.017, 0.145, 0.240)]
 
     def __init__(self, *args, **kwargs):
@@ -129,7 +130,7 @@ class CombatCheck(BaseNTETask):
         self.combat_detect_state.reset()
         self.find_lv_future = None
         self._lv_async = None
-        self.openvino_clear_cache()
+        self.openvino_clear_cache(self._TARGET_MODEL)
         self.scene.set_not_in_combat()
         return False
 
@@ -295,7 +296,7 @@ class CombatCheck(BaseNTETask):
             self.combat_detect_state.reset()
             self.find_lv_future = None
             self._lv_async = None
-            self.openvino_clear_cache()
+            self.openvino_clear_cache(self._TARGET_MODEL)
             logger.debug("retarget enemy succeeded")
             return self._set_in_combat("retarget_enemy")
         if self.check_monthly_card() and self.handle_monthly_card():
@@ -322,7 +323,7 @@ class CombatCheck(BaseNTETask):
         def is_boss():
             return self.is_boss()
 
-        skip_target = not self.openvino_available
+        skip_target = not self.openvino_available(self._TARGET_MODEL)
         is_auto = self.config.get("自动目标") or not isinstance(self, AutoCombatTask)
         has_combat_signal = is_boss() or has_lv() or has_health_bar()
         has_target_signal = is_auto or has_target() or skip_target
@@ -356,6 +357,8 @@ class CombatCheck(BaseNTETask):
             threshold=0.65,
             force=force,
             mask_regions=self._TARGET_MASK_REGIONS,
+            model=self._TARGET_MODEL,
+            label="target",
         )
 
         if not result:
@@ -365,7 +368,7 @@ class CombatCheck(BaseNTETask):
         if max_conf.confidence > 0.8:
             return max_conf
 
-        detect_frame = self.get_last_openvino_image()
+        detect_frame = self.get_last_openvino_image(self._TARGET_MODEL)
         if detect_frame is None:
             return result
 
@@ -520,15 +523,15 @@ class CombatCheck(BaseNTETask):
 
     def _openvino_debug_state(self):
         try:
-            from ok import og
-
-            detector = getattr(getattr(og, "my_app", None), "_openvino_model_async", None)
+            app = og.my_app
+            detector = (
+                app.get_openvino_detector(self._TARGET_MODEL, wait=False)
+                if app is not None
+                else None
+            )
             if detector is None:
                 return "openvino=uninitialized"
-            debug_state = getattr(detector, "debug_state", None)
-            if callable(debug_state):
-                return debug_state()
-            return "openvino=debug_unavailable"
+            return detector.debug_state()
         except Exception as e:
             return f"openvino=debug_failed({e})"
 
