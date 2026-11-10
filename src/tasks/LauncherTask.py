@@ -13,6 +13,7 @@ from src import GAME_EXE, LAUNCHER_EXE
 from src.events import communicate
 from src.interaction.NTEInteraction import NTEInteraction
 from src.Labels import Labels
+from src.patches.window_variants_patch import is_cloud_window_selected
 from src.tasks.BaseNTETask import BaseNTETask
 from src.utils.screensaver import dismiss_screensaver
 
@@ -28,6 +29,26 @@ def _exe_name_list(exe_names):
 def _format_exe_names(exe_names):
     names = _exe_name_list(exe_names)
     return ", ".join(names) if names else "<empty>"
+
+
+def _matches_window_class(class_name, matcher):
+    """Match an exact class name or a regex/list matcher.
+
+    String entries stay exact (window_variants_patch relies on that), while
+    non-string entries are passed to ``re.search``. This lets callers pass a
+    version-independent pattern (e.g. the cloud client's ``Qt\\d+QWindow``)
+    without changing the local exact-class behaviour.
+    """
+    if matcher is None:
+        return True
+    patterns = matcher if isinstance(matcher, (list, tuple, set)) else [matcher]
+    for pattern in patterns:
+        if isinstance(pattern, str):
+            if class_name == pattern:
+                return True
+        elif re.search(pattern, class_name):
+            return True
+    return False
 
 
 class DynamicConfig(dict):
@@ -58,18 +79,34 @@ class DynamicConfig(dict):
 class LauncherTask(BaseNTETask):
     CONF_PATH = "Launcher Path"
 
+    @staticmethod
+    def _launcher_display_name():
+        """Cloud mode never launches a game; name the wait text accordingly."""
+        try:
+            if is_cloud_window_selected():
+                return "准备云游戏窗口"
+        except Exception:
+            pass
+        return "Start Game"
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.name = "Start Game"
+        self.name = self._launcher_display_name()
         self.default_config.update({self.CONF_PATH: ""})
         self.enable_after_start = True  # auto run after start
         self.visible = False  # False to hide from the UI
         self.capture_config = DynamicConfig()
 
     def run(self):
+        # Follow a runtime Choose Window switch even if the selection hook
+        # could not find this task instance.
+        self.name = self._launcher_display_name()
         self.scene.set_game_capture_ready(False)
         self.log_info("Launcher task started")
         dismiss_screensaver()
+
+        if self._placeholder_cloud_auto_start_and_short_circuit():
+            return
 
         if not self._check_admin():
             return
@@ -88,6 +125,149 @@ class LauncherTask(BaseNTETask):
         if not self._click_start_game():
             raise TaskDisabledException("Timed out waiting for launcher to minimize")
         self._wait_for_game_and_capture()
+
+    def _placeholder_cloud_auto_start_and_short_circuit(self):
+        """Short-circuit the local launcher when the cloud variant is selected.
+
+        Design decision: the cloud client is NEVER auto-started, and there is
+        deliberately no "game already running" launcher path for it. Cloud
+        games are billed by playtime, so a bug that starts or relaunches the
+        client could cost the user money. The user opens the client by hand;
+        src/patches/cloud_launch_guard.py is responsible for checking that it
+        is open and for cancelling a launch when it is not.
+
+        This method only rebuilds WGC capture, activates the already running
+        window and marks capture ready. It never starts a process.
+        """
+        if not is_cloud_window_selected():
+            return False
+
+        # Safety net for paths that bypass StartController.start() (scheduled
+        # tasks, CLI -t N, direct enqueue). Self-disable before raising, because
+        # TaskExecutor only `continue`s on TaskDisabledException and would
+        # otherwise retry this task forever.
+        from src.patches.cloud_launch_guard import (
+            CLOUD_EXE,
+            CLOUD_WINDOW_CLASS_PATTERN,
+            should_block_cloud_launch,
+        )
+
+        if should_block_cloud_launch():
+            self.scene.set_game_capture_ready(False)
+            self.disable()
+            raise TaskDisabledException("Cloud game window is not open")
+
+        self.log_info(
+            "Cloud window selected: manual-launch mode, no process started"
+        )
+        # Find/restore first: a minimized client changes its Qt class and has
+        # a 0x0 client rect, so HwndWindow cannot bind it until it is restored.
+        # Skip the settle wait: the client is already open at a fixed 16:9
+        # resolution, _wait_for_window still rejects a <200px window, and WGC
+        # rebuilds itself when capture_target_signature changes.
+        _, cloud_hwnd = self._wait_for_window(
+            CLOUD_EXE,
+            hwnd_class=CLOUD_WINDOW_CLASS_PATTERN,
+            require_title=False,
+            settle_window=False,
+            time_out=10,
+        )
+        if not cloud_hwnd:
+            self.log_warning("Cloud window was not found before capture setup")
+        capture_ready = self._ensure_cloud_capture_ready()
+        self._activate_cloud_game_window(cloud_hwnd)
+        self.scene.set_game_capture_ready(capture_ready)
+        return True
+
+    def _ensure_cloud_capture_ready(self, time_out=15):
+        """Rebuild WGC once the cloud hwnd exists, then wait for a live capture.
+
+        On a fresh start ``DeviceManager.do_start()`` runs before HwndWindow has
+        enumerated the cloud window, so ``use_windows_capture()`` logs
+        "cant find a usable windows capture" and leaves ``capture_method=None``.
+        Nothing upstream retries it: ``can_capture()`` requires
+        ``method.connected()``, while ``get_frame()`` (which would restart WGC)
+        is only reached through ``can_capture()``. Local launches rebuild the
+        capture through ``ensure_capture()``; this does the equivalent without
+        launching a process and without re-pointing the capture target at the
+        local game (``GAME_CAPTURE_CONFIG`` is local-only).
+        """
+        manager = getattr(self.executor, "device_manager", None)
+        window = getattr(manager, "hwnd_window", None) if manager else None
+        timer = self.clock.timer(timeout=time_out)
+        rebuilds = 0
+        last_rebuild = None
+        while not timer.expired():
+            hwnd = getattr(window, "hwnd", 0) or 0
+            method = getattr(manager, "capture_method", None) if manager else None
+            try:
+                connected = bool(self.executor.connected())
+            except Exception:
+                connected = False
+            if connected:
+                self.log_info(
+                    f"Cloud capture is ready: hwnd={hwnd}, "
+                    f"method={type(method).__name__}, rebuilds={rebuilds}"
+                )
+                return True
+            self.log_debug_gated(
+                f"cloud capture wait: hwnd={hwnd}, method={type(method).__name__}, "
+                f"connected={connected}",
+                interval=2,
+                changed=True,
+            )
+            now = self.clock.now()
+            if manager is not None and hwnd and (
+                last_rebuild is None or now - last_rebuild >= 2.0
+            ):
+                last_rebuild = now
+                rebuilds += 1
+                try:
+                    manager.use_windows_capture()
+                    self.log_info(
+                        f"Cloud capture rebuild #{rebuilds}: "
+                        f"method={type(getattr(manager, 'capture_method', None)).__name__}"
+                    )
+                except Exception as exc:
+                    self.log_warning(f"Cloud capture rebuild #{rebuilds} failed: {exc}")
+            self.sleep(0.5)
+
+        method = getattr(manager, "capture_method", None) if manager else None
+        self.log_error(
+            "Cloud capture did not become ready; game capture stays not-ready "
+            f"(hwnd={getattr(window, 'hwnd', 0) or 0}, "
+            f"method={type(method).__name__}, rebuilds={rebuilds})"
+        )
+        return False
+
+    def _activate_cloud_game_window(self, hwnd=0):
+        """Take the foreground back from the ok GUI as soon as a run starts.
+
+        Clicking a task in the GUI makes the GUI foreground; real input is
+        global, so the cloud game must be activated before the first key.
+        Doing it here also keeps the interaction's warm-up click on the game
+        instead of on a GUI button. Best effort only: NTEInteraction repeats
+        the activation before every real input.
+
+        ``hwnd`` is the window found by ``_wait_for_window``; it is used when
+        HwndWindow has not rebound yet after restoring a minimized window.
+        """
+        try:
+            from src.interaction import cloud_real_input
+
+            window = self.executor.device_manager.hwnd_window
+            hwnd = hwnd or getattr(window, "top_hwnd", 0) or getattr(window, "hwnd", 0)
+            if not hwnd:
+                self.log_warning("Cloud window hwnd unavailable, skipping early activation")
+                return
+            cloud_real_input.raise_window(hwnd)
+            activated = cloud_real_input.try_set_foreground(hwnd)
+            self.log_info(
+                f"Cloud window early activation: hwnd={hwnd} activated={activated} "
+                f"foreground={cloud_real_input.foreground_info()}"
+            )
+        except Exception as exc:
+            self.log_warning(f"Cloud window early activation skipped: {exc}")
 
     def _prepare_launcher(self):
         launcher_proc = self._find_process(LAUNCHER_EXE)
@@ -259,13 +439,21 @@ class LauncherTask(BaseNTETask):
                 remaining -= self.clock.now() - started
 
     def _ensure_launcher_visible(self):
-        _, launcher_hwnd = self._find_process_window(LAUNCHER_EXE, require_title=True)
+        _, launcher_hwnd = self._find_process_window(
+            LAUNCHER_EXE,
+            hwnd_class=self._window_class_for(LAUNCHER_EXE),
+            require_title=True,
+        )
         if not launcher_hwnd:
             return False
         return self._restore_window_if_minimized(launcher_hwnd, LAUNCHER_EXE)
 
     def _is_launcher_hidden_or_minimized(self):
-        _, launcher_hwnd = self._find_process_window(LAUNCHER_EXE, require_title=True)
+        _, launcher_hwnd = self._find_process_window(
+            LAUNCHER_EXE,
+            hwnd_class=self._window_class_for(LAUNCHER_EXE),
+            require_title=True,
+        )
         if not launcher_hwnd:
             return False
         return bool(win32gui.IsIconic(launcher_hwnd) or not win32gui.IsWindowVisible(launcher_hwnd))
@@ -309,17 +497,46 @@ class LauncherTask(BaseNTETask):
 
         self.scene.set_game_capture_ready(True)
 
-    def _wait_for_process(self, exe_name, time_out=120, settle_window=False):
+    def _window_class_for(self, exe_name):
+        """Window-class matcher for the local game/launcher executables."""
+        exe_names = {name.lower() for name in _exe_name_list(exe_name)}
+        if GAME_EXE.lower() in exe_names:
+            return self.capture_config.GAME_CAPTURE_CONFIG["windows"]["hwnd_class"]
+        if self._is_launcher_exe(exe_name):
+            return self.capture_config.LAUNCHER_CAPTURE_CONFIG["windows"]["hwnd_class"]
+        return None
+
+    def _is_launcher_exe(self, exe_name):
+        launcher_names = {name.lower() for name in _exe_name_list(LAUNCHER_EXE)}
+        exe_names = {name.lower() for name in _exe_name_list(exe_name)}
+        return bool(exe_names & launcher_names)
+
+    def _wait_for_window(
+        self,
+        exe_name,
+        hwnd_class=None,
+        require_title=False,
+        settle_window=False,
+        time_out=120,
+    ):
+        """Find a process window, restore it if minimized, and wait until usable.
+
+        This is the shared discovery/restore step for the local game, the local
+        launcher and the cloud client. Callers own the capture setup, because
+        the local paths rebuild capture through ``ensure_capture()`` while the
+        cloud path must keep its variant config and use ``use_windows_capture``.
+        """
         exe_label = _format_exe_names(exe_name)
         self.log_info(
             f"Waiting for process and window {exe_label} for up to {time_out}s "
-            f"(settle_window={settle_window})"
+            f"(settle_window={settle_window}, hwnd_class={hwnd_class!r})"
         )
         start = self.clock.now()
         while self.clock.now() - start < time_out:
             proc, hwnd = self._find_process_window(
                 exe_name,
-                require_title=exe_name == LAUNCHER_EXE,
+                hwnd_class=hwnd_class,
+                require_title=require_title,
             )
             if proc:
                 if hwnd:
@@ -344,9 +561,11 @@ class LauncherTask(BaseNTETask):
 
                     self.log_info(
                         f"Found process and window {exe_label}: "
-                        f"{self._format_process(proc)}, hwnd={hwnd}, size={size[0]}x{size[1]}",
+                        f"{self._format_process(proc)}, hwnd={hwnd}, "
+                        f"class={self._window_class_name(hwnd)!r}, "
+                        f"size={size[0]}x{size[1]}",
                     )
-                    return proc
+                    return proc, hwnd
 
             elapsed = int(self.clock.now() - start)
             if proc:
@@ -359,21 +578,40 @@ class LauncherTask(BaseNTETask):
                 )
             self._sleep_for_window_poll(1)
         self.log_warning(f"Process/window {exe_label} was not found within {time_out}s")
-        return None
+        return None, 0
 
-    def _find_process(self, exe_name):
-        proc, _ = self._find_process_window(exe_name)
+    def _wait_for_process(
+        self,
+        exe_name,
+        time_out=120,
+        settle_window=False,
+        hwnd_class=None,
+        require_title=None,
+    ):
+        if hwnd_class is None:
+            hwnd_class = self._window_class_for(exe_name)
+        if require_title is None:
+            require_title = self._is_launcher_exe(exe_name)
+        proc, _ = self._wait_for_window(
+            exe_name,
+            hwnd_class=hwnd_class,
+            require_title=require_title,
+            settle_window=settle_window,
+            time_out=time_out,
+        )
         return proc
 
-    def _find_process_window(self, exe_name, require_title=False):
+    def _find_process(self, exe_name, hwnd_class=None):
+        proc, _ = self._find_process_window(
+            exe_name,
+            hwnd_class=hwnd_class or self._window_class_for(exe_name),
+        )
+        return proc
+
+    def _find_process_window(self, exe_name, hwnd_class=None, require_title=False):
         exe_names = {name.lower() for name in _exe_name_list(exe_name)}
         if not exe_names:
             return None, 0
-        capture_config = (
-            self.capture_config.GAME_CAPTURE_CONFIG
-            if GAME_EXE.lower() in exe_names
-            else self.capture_config.LAUNCHER_CAPTURE_CONFIG
-        )["windows"]
 
         first_process = None
         for process in psutil.process_iter(["pid", "name", "exe"]):
@@ -389,7 +627,7 @@ class LauncherTask(BaseNTETask):
                 first_process = proc
             hwnd = self._find_window_for_process(
                 proc,
-                hwnd_class=capture_config["hwnd_class"],
+                hwnd_class=hwnd_class,
                 require_title=require_title,
             )
             if hwnd:
@@ -414,7 +652,9 @@ class LauncherTask(BaseNTETask):
                 return True
             if window_pid != pid:
                 return True
-            if hwnd_class and win32gui.GetClassName(hwnd) != hwnd_class:
+            if hwnd_class and not _matches_window_class(
+                win32gui.GetClassName(hwnd), hwnd_class
+            ):
                 return True
             if require_title and not win32gui.GetWindowText(hwnd):
                 return True
@@ -429,6 +669,13 @@ class LauncherTask(BaseNTETask):
 
         visible = [hwnd for hwnd in matches if win32gui.IsWindowVisible(hwnd)]
         return visible[0] if visible else matches[0]
+
+    @staticmethod
+    def _window_class_name(hwnd):
+        try:
+            return win32gui.GetClassName(hwnd)
+        except Exception:
+            return "?"
 
     def _get_window_size(self, hwnd):
         try:
