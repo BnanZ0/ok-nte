@@ -34,6 +34,18 @@ from src.utils.log_gate import LogGateMixin
 
 logger = Logger.get_logger(__name__)
 stamina_re = re.compile(r"(\d+)/(\d+)")
+
+
+def _cloud_window_selected() -> bool:
+    """Best-effort cloud-variant check; a patch failure must never break tasks."""
+    try:
+        from src.patches.window_variants_patch import is_cloud_window_selected
+
+        return bool(is_cloud_window_selected())
+    except Exception:
+        return False
+
+
 MSG_MAIN_DETECTION_FAILED = (
     "主界面检测失败。建议操作: \n"
     "1. 关闭显卡滤镜与锐化功能；\n"
@@ -614,9 +626,21 @@ class BaseNTETask(
     def click_traval_button(self, travel_btn=None, raise_if_not_found=True):
         if not isinstance(travel_btn, Box):
             travel_btn = self.wait_until(
-                self.find_traval_button, time_out=10, raise_if_not_found=raise_if_not_found
+                self.find_traval_button, time_out=10, raise_if_not_found=False
             )
         if not travel_btn:
+            # Capture the frame BEFORE the caller's error path sends ESC; this
+            # distinguishes "dialog never opened" from "template match failed".
+            self.screenshot("travel_button_not_found")
+            try:
+                candidates = self.find_feature(Labels.teleport, threshold=0.5)
+            except Exception as exc:
+                candidates = f"error: {exc}"
+            self.log_warning(
+                f"travel button not found; candidates(threshold=0.5)={candidates}"
+            )
+            if raise_if_not_found:
+                raise WaitFailedException()
             return False
         self.sleep(0.1)
         self.wait_until(
@@ -870,6 +894,55 @@ class BaseNTETask(
         box = self.box_of_screen(0.2645, 0.6167, 0.7352, 0.6785, name="reward_area")
         return self.find_feature(Labels.claim_icon, box=box)
 
+    def _log_cloud_input_state(self, point):
+        """Diagnostic: record focus/cursor/held-input state at a task boundary.
+
+        Used while investigating the cloud client's hover/capture behavior.
+        It only logs; it never changes input or focus.
+        """
+        if not _cloud_window_selected():
+            return
+        try:
+            from src.interaction import cloud_real_input
+
+            interaction = getattr(self.executor, "interaction", None)
+            manager = getattr(self.executor, "device_manager", None)
+            window = getattr(manager, "hwnd_window", None)
+            fg_hwnd, fg_title = cloud_real_input.foreground_info()
+            cursor = cloud_real_input.get_cursor_pos()
+            showing = cloud_real_input.cursor_showing()
+            hwnd = getattr(window, "top_hwnd", 0) or getattr(window, "hwnd", 0)
+            is_foreground = None
+            is_foreground_fn = getattr(window, "is_foreground", None)
+            if callable(is_foreground_fn):
+                try:
+                    is_foreground = bool(is_foreground_fn())
+                except Exception:
+                    is_foreground = None
+            cursor_sync = getattr(interaction, "_cursor_sync", None)
+            cursor_sync_enabled = None
+            enabled_fn = getattr(cursor_sync, "_is_enabled", None)
+            if callable(enabled_fn):
+                try:
+                    cursor_sync_enabled = bool(enabled_fn())
+                except Exception:
+                    cursor_sync_enabled = None
+            self.log_info(
+                f"cloud input state [{point}]: game_hwnd={hwnd} "
+                f"foreground={fg_hwnd!r}/{fg_title!r} "
+                f"window_visible={getattr(window, 'visible', None)} "
+                f"window_foreground={is_foreground} "
+                f"connected={self.executor.connected()} "
+                f"cursor={cursor} cursor_showing={showing} "
+                f"captured={getattr(interaction, '_cloud_captured', None)} "
+                f"held_vks={sorted(getattr(interaction, '_cloud_pressed_vks', set()))} "
+                f"held_buttons={sorted(getattr(interaction, '_cloud_pressed_buttons', set()))} "
+                f"block_depth={getattr(interaction, '_mouse_block_depth', None)} "
+                f"cursor_sync={cursor_sync_enabled}"
+            )
+        except Exception as exc:
+            self.log_warning(f"cloud input state log failed at {point}: {exc}")
+
     def get_stamina(self):
         def fix_stamina_ocr_slash(text):
             if len(text) < 4:
@@ -885,14 +958,30 @@ class BaseNTETask(
             return text
 
         boxes = self.wait_ocr(0.814, 0.029, 0.898, 0.083, raise_if_not_found=False)
-        if not boxes:
-            self.screenshot("stamina_error")
-            return -1
         current = 0
-        for box in boxes:
+        matched = False
+        for box in boxes or []:
             box.name = fix_stamina_ocr_slash(box.name)
             if match := stamina_re.search(box.name):
                 current = int(match.group(1))
+                matched = True
+        if not boxes or not matched:
+            self.screenshot("stamina_error")
+            if _cloud_window_selected():
+                # An empty/unparsable OCR zone means the number was NEVER READ,
+                # not that stamina is low. Returning -1 here made the caller
+                # report a misleading "体力不足". Fail fast with a screenshot so
+                # the real upstream cause stays visible. The F1 panel itself is
+                # expected; do not tell the user to close it with ESC.
+                msg = (
+                    "无法读取体力: 右上角体力数值未被 OCR 读到(这不是「体力不足」)。"
+                    "说明任务可能未成功进入目标页面, 或该页面不显示体力 HUD。"
+                    "已保存诊断截图 stamina_error, 请结合截图与日志里的 "
+                    "'cloud input: click ... screen=... cursor=...' 行一起反馈。"
+                )
+                self.log_error(msg, notify=True)
+                raise CannotFindException(msg)
+            return -1 if not boxes else 0
         self.info_set("当前体力", current)
         return current
 
@@ -1005,12 +1094,28 @@ class BaseNTETask(
         self.openF1panel()
 
         box = self.box_of_screen(0.785, 0.022, 0.814, 0.076, name="stamina_icon")
-        self.wait_until(
+        reached = self.wait_until(
             lambda: self.find_one(Labels.stamina_icon, box=box),
             post_action=lambda: self.operate_click(*self.pos.panels.f1.domain.entry, interval=1),
             settle_time=0.5,
             time_out=10,
         )
+        if not reached and _cloud_window_selected():
+            # The old code ignored the timeout and kept clicking/tab-switching,
+            # then failed much later with a misleading "体力不足". Opening the
+            # F1 panel is EXPECTED; only the follow-up page transition failed.
+            # Fail fast with a usable screenshot on the cloud variant.
+            self.screenshot("f1_domain_page_not_reached")
+            msg = (
+                "未进入异象界域页面: F1 面板已打开, 但 10 秒内未检测到目标页面"
+                "(右上角体力图标)。可能原因: 云客户端未接收到鼠标点击, "
+                "或左侧入口坐标与当前界面布局不匹配。"
+                "已保存诊断截图 f1_domain_page_not_reached, 请结合日志里的 "
+                "'cloud input: click ... screen=... cursor=...' 行一起反馈。"
+            )
+            self.log_error(msg, notify=True)
+            raise CannotFindException(msg)
+        return reached
 
     def _get_health_box(self, frame):
         box = self.is_in_team(frame=frame)
@@ -1105,7 +1210,16 @@ class BaseNTETask(
     def exit_anomaly(self):
         timer = self.clock.timer(timeout=30)
         while not timer.expired():
-            if self.is_in_team() and not self.find_exit():
+            try:
+                in_team = self.is_in_team()
+                has_exit = bool(self.find_exit())
+            except Exception as exc:
+                self.log_warning(f"exit_anomaly state check failed: {exc}")
+                in_team, has_exit = False, False
+            self.log_info(
+                f"exit_anomaly state: in_team={in_team} exit={has_exit}"
+            )
+            if in_team and not has_exit:
                 if self.wait_until(
                     lambda: self.is_in_team() and not self.find_exit(),
                     settle_time=0.5,
