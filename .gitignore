@@ -79,3 +79,6 @@ site/
 mid_lib/*
 !mid_lib/public
 .brooks-lint-history.json
+
+# Test scratch output (created by TestWorkshop / TestCustomCharCore)
+tests/.tmp/
