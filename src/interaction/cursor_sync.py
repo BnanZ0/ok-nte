@@ -134,6 +134,18 @@ class CursorSync:
         return bool(getattr(hwnd_window, "hwnd", 0))
 
     def _is_enabled(self):
+        # The cloud variant injects REAL cursor moves into the system input
+        # queue. Restoring the cursor to a saved position (the whole point of
+        # this class for the local background game) fights the cloud client's
+        # mouse capture and can leave the cursor apparently stuck. Keep the
+        # thread alive but inert so the instance API stays unchanged.
+        try:
+            from src.patches.window_variants_patch import is_cloud_window_selected
+
+            if is_cloud_window_selected():
+                return False
+        except Exception:
+            pass
         global_config = getattr(og, "global_config", None)
         if global_config is None:
             return True
