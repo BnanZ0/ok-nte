@@ -450,66 +450,9 @@ class CloudActivationTest(unittest.TestCase):
 
 
 class CloudVariantServicesTest(unittest.TestCase):
-    def test_audio_process_name_follows_the_selected_window_variant(self):
-        from src.sound_trigger.SoundCombatContext import _game_audio_process_name
-
-        with patch(
-            "src.patches.window_variants_patch.is_cloud_window_selected",
-            return_value=True,
-        ):
-            self.assertEqual(_game_audio_process_name(), "NTECloudGame.exe")
-        with patch(
-            "src.patches.window_variants_patch.is_cloud_window_selected",
-            return_value=False,
-        ):
-            self.assertEqual(_game_audio_process_name(), "HTGame.exe")
-
-    def test_audio_process_sync_requests_a_listener_rebind(self):
-        from src.sound_trigger.SoundCombatContext import SoundCombatContext
-
-        context = SoundCombatContext()
-        listener = Mock()
-        listener.process_name = "HTGame.exe"
-        listener._requested_process_name = "HTGame.exe"
-
-        with (
-            patch.object(context, "_listener", listener),
-            patch(
-                "src.sound_trigger.SoundCombatContext._game_audio_process_name",
-                return_value="NTECloudGame.exe",
-            ),
-        ):
-            context._sync_audio_process_name()
-
-        listener.request_process_name.assert_called_once_with("NTECloudGame.exe")
-
-    def test_audio_process_sync_is_a_noop_when_already_requested(self):
-        from src.sound_trigger.SoundCombatContext import SoundCombatContext
-
-        context = SoundCombatContext()
-        listener = Mock()
-        listener.process_name = "HTGame.exe"
-        listener._requested_process_name = "NTECloudGame.exe"
-
-        with (
-            patch.object(context, "_listener", listener),
-            patch(
-                "src.sound_trigger.SoundCombatContext._game_audio_process_name",
-                return_value="NTECloudGame.exe",
-            ),
-        ):
-            context._sync_audio_process_name()
-
-        listener.request_process_name.assert_not_called()
-
-    def test_audio_process_sync_classmethod_uses_the_singleton(self):
-        from src.sound_trigger.SoundCombatContext import SoundCombatContext
-
-        instance = Mock()
-        with patch.object(SoundCombatContext, "_instance", instance):
-            SoundCombatContext.sync_audio_process_name()
-
-        instance._sync_audio_process_name.assert_called_once()
+    # Audio target resolution and variant-switch rebinding are covered in
+    # tests/test_audio_capture_reconcile.py. The old event-driven sync hook no
+    # longer exists: SoundListener resolves the selected variant itself.
 
     def test_cursor_sync_is_inert_for_the_cloud_variant(self):
         from src.interaction.cursor_sync import CursorSync

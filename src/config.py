@@ -44,6 +44,11 @@ version = "dev"
 # 造成真实金钱损失. 用户手动打开游戏; 选中云版时弹使用须知(可勾选不再提示),
 # 点开始或启动任务时若检测不到云窗口则弹窗并取消本次启动, 由
 # src/patches/cloud_launch_guard.py 统一守卫(另在任务执行前兜底拦截).
+# audio_capture 是音频采集目标的唯一声明处, 由
+# window_variants_patch.resolve_audio_capture_spec() 解析, SoundListener 每轮重算.
+# 故意做成结构化规格而不是一个进程名字符串: 以后加浏览器版只需在这里加一行
+# (process_names 可写多个进程名), 不必改采集链路代码. 目前工厂只支持
+# process_loopback 一种 kind, include_process_tree 对应 WASAPI 的进程树回环.
 WINDOW_VARIANTS = (
     {
         "id": "pc_local",
@@ -51,6 +56,11 @@ WINDOW_VARIANTS = (
         "exe": [GAME_EXE],
         "hwnd_class": ["UnrealWindow"],
         "capture_method": ["WGC", "BitBlt_RenderFull"],
+        "audio_capture": {
+            "kind": "process_loopback",
+            "process_names": [GAME_EXE],
+            "include_process_tree": True,
+        },
     },
     {
         "id": "pc_cloud",
@@ -58,6 +68,11 @@ WINDOW_VARIANTS = (
         "exe": ["NTECloudGame.exe"],
         "hwnd_class": ["Qt51517QWindowIcon"],
         "capture_method": ["WGC"],
+        "audio_capture": {
+            "kind": "process_loopback",
+            "process_names": ["NTECloudGame.exe"],
+            "include_process_tree": True,
+        },
     },
 )
 

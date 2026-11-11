@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import os
-import threading
 from functools import wraps
 
 from src.config import WINDOW_VARIANTS
@@ -94,6 +93,52 @@ def is_cloud_window_selected():
     except Exception:
         preferred = ""
     return preferred == CLOUD_VARIANT_ID
+
+
+def get_selected_variant_id() -> str:
+    """Return the variant the user explicitly chose (stable intent).
+
+    Unlike ``is_cloud_window_selected()``, this is NOT about the window that is
+    currently being captured. DeviceManager.clear_devices()/ensure_capture()
+    temporarily retarget capture at the launcher and wipe config['preferred'],
+    and the first device refresh can still expose the previous variant. An
+    audio target must stay bound for the whole session, so it is derived from
+    the explicit choice instead of the live device record.
+    """
+    if _LAST_PREFERRED_VARIANT in _VARIANT_BY_ID:
+        return _LAST_PREFERRED_VARIANT
+    preferred = ""
+    try:
+        from ok import og
+
+        manager = getattr(og, "device_manager", None)
+        preferred = (getattr(manager, "config", None) or {}).get("preferred") or ""
+    except Exception:
+        preferred = ""
+    if preferred in _VARIANT_BY_ID:
+        return preferred
+    return WINDOW_VARIANTS[0]["id"]
+
+
+def resolve_audio_capture_spec():
+    """Pure, cheap resolver consumed by SoundListener on every loop iteration.
+
+    Keeping this side-effect free (in particular: no logging, no WASAPI work)
+    is what lets the listener self-heal even when a variant-switch event is
+    lost, arrives early, or reads a stale device record.
+    """
+    from src.sound_trigger.capture.spec import AudioCaptureSpec
+
+    variant = _VARIANT_BY_ID.get(get_selected_variant_id()) or WINDOW_VARIANTS[0]
+    raw = variant.get("audio_capture") or {}
+    names = raw.get("process_names") or variant["exe"]
+    if isinstance(names, str):
+        names = [names]
+    return AudioCaptureSpec(
+        kind=raw.get("kind", "process_loopback"),
+        process_names=tuple(str(name) for name in names if name),
+        include_process_tree=bool(raw.get("include_process_tree", True)),
+    )
 
 
 def _apply_variant_settings(manager, device=None):
@@ -222,22 +267,10 @@ def _sync_launcher_task_name():
         _logger().warning(f"failed to sync launcher task name: {exc}")
 
 
-def _sync_sound_trigger_process():
-    """Best-effort: let the audio listener follow a runtime variant switch.
-
-    Importing the audio stack can pull in numpy/scipy, so keep the UI thread
-    free and only request the rebind from a short-lived daemon thread.
-    """
-
-    def run():
-        try:
-            from src.sound_trigger.SoundCombatContext import SoundCombatContext
-
-            SoundCombatContext.sync_audio_process_name()
-        except Exception as exc:
-            _logger().warning(f"failed to sync sound trigger process: {exc}")
-
-    threading.Thread(target=run, daemon=True, name="CloudAudioSync").start()
+# Audio capture targets are deliberately NOT pushed from here. SoundListener
+# resolves the user's variant choice itself on every loop iteration, so a
+# Choose Window change needs no event, no daemon thread and no cross-thread
+# shared hint. Only the launcher task display name still needs the switch.
 
 
 def _wrap_set_preferred_device(original):
@@ -261,7 +294,6 @@ def _wrap_set_preferred_device(original):
             _LAST_PREFERRED_VARIANT = variant["id"]
             _apply_variant_settings(self, device)
             if previous != variant["id"]:
-                _sync_sound_trigger_process()
                 _sync_launcher_task_name()
         # A non-variant device means ensure_capture()/update_capture() is
         # temporarily targeting another window (e.g. the local launcher).

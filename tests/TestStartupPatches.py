@@ -144,7 +144,6 @@ class TestWindowVariantsPatch(unittest.TestCase):
 
         with (
             patch.object(wvp, "_apply_variant_settings") as apply,
-            patch.object(wvp, "_sync_sound_trigger_process") as sync_sound,
             patch.object(wvp, "_sync_launcher_task_name") as sync_launcher,
             patch.object(wvp, "_LAST_PREFERRED_VARIANT", None),
         ):
@@ -153,10 +152,11 @@ class TestWindowVariantsPatch(unittest.TestCase):
             self.assertEqual(wvp._LAST_PREFERRED_VARIANT, "pc_cloud")
 
         apply.assert_called_once_with(manager, device)
-        sync_sound.assert_called_once()
         sync_launcher.assert_called_once()
+        # No audio sync event: the listener resolves the variant by itself.
+        self.assertFalse(hasattr(wvp, "_sync_sound_trigger_process"))
 
-    def test_set_preferred_device_does_not_re_sync_the_same_variant(self):
+    def test_set_preferred_device_does_not_re_sync_launcher_for_the_same_variant(self):
         device = {"imei": "pc_cloud", "window_variant": "pc_cloud"}
         manager = SimpleNamespace(
             device_dict={"pc_cloud": device},
@@ -171,13 +171,13 @@ class TestWindowVariantsPatch(unittest.TestCase):
 
         with (
             patch.object(wvp, "_apply_variant_settings"),
-            patch.object(wvp, "_sync_sound_trigger_process") as sync_sound,
+            patch.object(wvp, "_sync_launcher_task_name") as sync_launcher,
             patch.object(wvp, "_LAST_PREFERRED_VARIANT", "pc_cloud"),
         ):
             wrapped = wvp._wrap_set_preferred_device(original)
             self.assertTrue(wrapped(manager, "pc_cloud"))
 
-        sync_sound.assert_not_called()
+        sync_launcher.assert_not_called()
 
     @staticmethod
     def _cloud_check_manager(preferred, device=None):

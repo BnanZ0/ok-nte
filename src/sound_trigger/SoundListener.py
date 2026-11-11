@@ -9,7 +9,7 @@
 import threading
 import warnings
 from concurrent.futures import CancelledError
-from typing import Optional, cast
+from typing import Callable, Optional, cast
 
 import librosa
 import numpy as np
@@ -47,6 +47,7 @@ class SoundListener:
         is_allow_successive_trigger: bool = False,
         process_name: str = default_process_name,
         initialization_stop_event: Optional[threading.Event] = None,
+        capture_spec_provider: Optional[Callable] = None,
     ):
         self.sample_path = sample_path
         self.counter_attack_sample_path = counter_attack_sample_path
@@ -55,9 +56,14 @@ class SoundListener:
         self.expansion_ratio = expansion_ratio
         self.is_allow_successive_trigger = is_allow_successive_trigger
         self.process_name = process_name
-        # The listener thread owns the capture source; a Choose Window switch
-        # only records the desired process and lets that thread rebind.
+        # The listener thread owns the capture source. The authoritative
+        # target is re-resolved from the provider on every loop iteration as
+        # an immutable value object; a changed spec triggers a rebind. There
+        # is no variant-switch event to lose, so a choice made before or
+        # during a session always converges within one detection interval.
         self._requested_process_name = process_name
+        self._capture_spec_provider = capture_spec_provider
+        self._bound_spec = None
         self._initialization_stop_event = initialization_stop_event
 
         self.is_computation_required = None
@@ -260,23 +266,80 @@ class SoundListener:
             self._capture = None
 
     def request_process_name(self, process_name: str) -> None:
-        """Ask the listener thread to rebind its WASAPI loopback target.
+        """Override the target for listeners created without a spec provider.
 
-        The listener thread owns the capture source, so it performs the actual
-        stop/recreate on its next iteration. This method only records the
-        desired name and is safe to call from the GUI/device-selection thread.
+        Production listeners always get ``capture_spec_provider`` and resolve
+        the target from the user's variant choice; this hint only serves
+        standalone/test listeners where no provider is available.
         """
         self._requested_process_name = process_name
 
+    def apply_spec_now(self) -> None:
+        """Reconcile once from the calling thread, before the thread starts.
+
+        ``_stop_capture()`` must stay owned by the listener thread, so this is
+        deliberately inert while the listener is running - the loop reconciles
+        on its own within one detection interval.
+        """
+        if self.is_running:
+            return
+        self._apply_requested_process_name()
+
+    def _resolve_desired_spec(self):
+        """Resolve the authoritative capture spec, or None when unavailable.
+
+        getattr guards let unit tests exercise rebinds with a partially
+        initialized listener built via ``object.__new__()``.
+        """
+        provider = getattr(self, "_capture_spec_provider", None)
+        if provider is None:
+            return None
+        try:
+            return provider()
+        except Exception as exc:
+            log_gate = getattr(self, "_log_gate", None)
+            if log_gate is not None:
+                log_gate.warning(
+                    f"Failed to resolve audio capture spec: {exc}; keeping current target",
+                    interval=10.0,
+                    key="audio_capture_spec",
+                )
+            return None
+
     def _apply_requested_process_name(self) -> None:
-        requested = self._requested_process_name
-        if not requested or requested == self.process_name:
+        """Reconcile the bound target against the authoritative spec.
+
+        ``AudioCaptureSpec`` is a frozen value object. While the user's variant
+        choice is unchanged, a freshly resolved spec compares equal to the
+        bound one and this returns without a lock, a log call or a capture
+        rebuild - that is the steady-state cost of one spec resolution per
+        loop iteration. Any variant change yields a different spec and
+        rebinds WASAPI on the next iteration, even when the previous game
+        process is still running and emitting audio (so a data-starvation
+        trigger alone would have missed the switch).
+        """
+        spec = self._resolve_desired_spec()
+        desired = self._requested_process_name
+        if spec is not None:
+            if spec == getattr(self, "_bound_spec", None):
+                return
+            self._bound_spec = spec
+            desired = spec.factory_process_name
+            log_gate = getattr(self, "_log_gate", None)
+            if log_gate is not None:
+                log_gate.info(
+                    f"Audio capture target: {spec.display}",
+                    interval=None,
+                    changed=True,
+                    key="audio_capture_target",
+                )
+        if not desired or desired == self.process_name:
             return
         logger.info(
             f"SoundListener switching audio process: "
-            f"{self.process_name} -> {requested}"
+            f"{self.process_name} -> {desired}"
         )
-        self.process_name = requested
+        self.process_name = desired
         self._stop_capture()
 
     def _listen_once(self, stop_event: threading.Event):
