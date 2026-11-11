@@ -16,7 +16,7 @@ from src.tasks.BaseNTETask import BaseNTETask
 from src.utils import game_filters as gf
 from src.utils import image_utils as iu
 from src.utils.clock import TimePoint
-from src.utils.visual_template_cache import get_visual_template_cache
+from src.utils.game_templates import FeatureTemplateCache
 
 if TYPE_CHECKING:
     from src.char.BaseChar import BaseChar
@@ -74,6 +74,9 @@ class LvTemplateFeatures:
     def __post_init__(self):
         self.l_normalized.setflags(write=False)
         self.v_normalized.setflags(write=False)
+
+
+_lv_template_cache = FeatureTemplateCache[LvTemplateFeatures]()
 
 
 class CombatCheck(BaseNTETask):
@@ -673,8 +676,7 @@ class CombatCheck(BaseNTETask):
         union = cv2.countNonZero(cv2.bitwise_or(tpl_norm, cand))
         return intersection / union if union > 0 else 0.0
 
-    def _build_lv_template_features(self):
-        tpl_img = self.get_feature_by_name(Labels.lv).mat
+    def _build_lv_template_features(self, tpl_img: np.ndarray) -> LvTemplateFeatures | None:
         tpl_bin = gf.isolate_lv_to_white(tpl_img)
         contours, _ = cv2.findContours(tpl_bin, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         valid_cnts = [
@@ -697,10 +699,14 @@ class CombatCheck(BaseNTETask):
             v_normalized=self._render_contour_normalized(v_contour, xv, yv, wv, hv),
         )
 
-    def _get_lv_template_features(self):
-        """Return process-wide LV template features for this screen resolution."""
-        cache_key = (Labels.lv, self.width, self.height)
-        return get_visual_template_cache().get_or_build(cache_key, self._build_lv_template_features)
+    def _get_lv_template_features(self) -> LvTemplateFeatures | None:
+        feature = self.get_feature_by_name(Labels.lv)
+        if feature is None:
+            return None
+
+        return _lv_template_cache.get_or_build(
+            feature, self._LV_NORM_SIZE, self._build_lv_template_features
+        )
 
 
 enemy_health_hsv = iu.HSVRange((0, 190, 175), (179, 255, 255))

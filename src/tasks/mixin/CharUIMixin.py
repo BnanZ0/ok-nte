@@ -1,9 +1,8 @@
 from dataclasses import dataclass
-from types import MappingProxyType
 
 import cv2
 import numpy as np
-from ok import BaseTask, Box, get_path_relative_to_exe
+from ok import BaseTask, Box
 
 from src.char.BaseChar import Element
 from src.Labels import Labels
@@ -16,18 +15,19 @@ from src.utils.current_char_detector import (
     detect_current_char,
     normalize_char_count,
 )
-from src.utils.visual_template_cache import get_visual_template_cache
+from src.utils.game_templates import ESPER_ICON
 
 
 @dataclass(frozen=True)
 class ElementTemplate:
     image: np.ndarray
-    mask: np.ndarray
+    mask: np.ndarray | None
     color_signature: tuple[float, float, float] | None
 
     def __post_init__(self):
         self.image.setflags(write=False)
-        self.mask.setflags(write=False)
+        if self.mask is not None:
+            self.mask.setflags(write=False)
 
 
 class CharUIMixin(BaseTask):
@@ -223,36 +223,9 @@ class CharUIMixin(BaseTask):
 
 
 class CharElementUIMixin(CharUIMixin):
-    _ELEMENT_TEMPLATE_CACHE_KEY = "element_templates"
     _element_match_weight = 0.6
     _element_color_weight = 0.4
     _element_min_score = 0.45
-
-    @staticmethod
-    def _process_template_transparency(img):
-        if img is None:
-            return None
-        if len(img.shape) == 2:
-            return cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
-        if img.shape[2] == 4:
-            b, g, r, a = cv2.split(img)
-            black_bg = np.zeros_like(img[:, :, :3])
-            alpha_factor = a.astype(float) / 255.0
-            alpha_factor = cv2.merge([alpha_factor, alpha_factor, alpha_factor])
-
-            foreground = cv2.merge([b, g, r]).astype(float)
-            background = black_bg.astype(float)
-
-            final_img = cv2.add(
-                cv2.multiply(foreground, alpha_factor),
-                cv2.multiply(background, 1.0 - alpha_factor),
-            )
-            return final_img.astype(np.uint8)
-        return img
-
-    @staticmethod
-    def _preprocess_element_template_image(image):
-        return iu.binarize_bgr_by_adaptive_center(image)
 
     @staticmethod
     def _get_element_color_signature(image):
@@ -293,88 +266,51 @@ class CharElementUIMixin(CharUIMixin):
             distance = hue_delta * 0.45 + saturation_delta * 0.45 + value_delta * 0.1
         return max(0.0, 1.0 - min(distance, 1.0))
 
-    @classmethod
-    def _load_element_template(cls, element):
-        path = get_path_relative_to_exe("assets", "esper_icons", f"{element.value}.png")
-        raw_template = cv2.imread(path, cv2.IMREAD_UNCHANGED)
-        if raw_template is None:
-            return None
-
-        h, w = raw_template.shape[:2]
-        raw_template = cls._process_template_transparency(raw_template)
-        if raw_template is None:
-            return None
-
-        element_scale = 0.5
-        raw_template = cv2.resize(
-            raw_template,
-            (int(w * element_scale), int(h * element_scale)),
-            interpolation=cv2.INTER_NEAREST,
-        )
-        template_bin = cls._preprocess_element_template_image(raw_template)
-        _, mask = cv2.threshold(template_bin, 127, 255, cv2.THRESH_BINARY)
-        kernel = np.ones((30, 30), np.uint8)
-        mask = cv2.dilate(mask, kernel, iterations=1)
+    @staticmethod
+    def _prepare_element_template(
+        image: np.ndarray, mask: np.ndarray | None, height_ratio: float
+    ) -> ElementTemplate:
+        if mask is not None:
+            alpha = image[:, :, 3:].astype(float) / 255.0
+            image = (image[:, :, :3] * alpha).astype(np.uint8)
+            kernel_size = max(1, round(30 * height_ratio))
+            mask = cv2.dilate(mask, np.ones((kernel_size, kernel_size), np.uint8))
+        elif image.ndim == 2:
+            image = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
         return ElementTemplate(
-            image=raw_template,
+            image=image,
             mask=mask,
-            color_signature=cls._get_element_color_signature(raw_template),
-        )
-
-    @classmethod
-    def _build_element_templates(cls):
-        templates = {}
-        for element in cls.element_ring:
-            template_data = cls._load_element_template(element)
-            if template_data is not None:
-                templates[element] = template_data
-        return MappingProxyType(templates) if templates else None
-
-    @classmethod
-    def _get_element_templates(cls):
-        template_cache = get_visual_template_cache().get_or_build(
-            cls._ELEMENT_TEMPLATE_CACHE_KEY, cls._build_element_templates
-        )
-        return template_cache if template_cache is not None else MappingProxyType({})
-
-    @classmethod
-    def preheat_element_template_cache_async(cls):
-        get_visual_template_cache().preheat_async(
-            cls._ELEMENT_TEMPLATE_CACHE_KEY,
-            cls._build_element_templates,
-            thread_name="element-template-cache-preheat",
+            color_signature=CharElementUIMixin._get_element_color_signature(image),
         )
 
     def load_chars_element(self, indices: list[int]) -> dict:
         results = {}
-        template_cache = self._get_element_templates()
+        frame = self.frame
+        height = frame.shape[0]
+        templates = [
+            (
+                element,
+                ESPER_ICON.get_template(
+                    element.value, height, prepare=self._prepare_element_template
+                ),
+            )
+            for element in self.element_ring
+        ]
 
         base_box = self.get_base_char_element_box()
 
-        _frame = self.frame
-        # self.screenshot("load_chars_element", _frame)
-
         for i in indices:
-            base_scale = 8
-            scale = base_scale * 1440 / self.height
             current_box = self.get_box_by_char_spacing(base_box, i)
-            crop_img = current_box.crop_frame(_frame)
-            crop_h, crop_w = crop_img.shape[:2]
-            crop_resized = cv2.resize(
-                crop_img,
-                (int(crop_w * scale), int(crop_h * scale)),
-                interpolation=cv2.INTER_NEAREST,
-            )
+            crop_img = current_box.crop_frame(frame)
+            crop_resized = cv2.resize(crop_img, None, fx=8, fy=8, interpolation=cv2.INTER_NEAREST)
             crop_color_signature = self._get_element_color_signature(crop_resized)
-            # iu.show_images([crop_resized, crop_img], [f"crop_resized_{i}", f"crop_img_{i}"])
 
             best_element = Element.DEFAULT
             max_score = -1.0
             best_template_score = 0.0
             best_color_score = 0.0
 
-            for element in self.element_ring:
-                template_data = template_cache.get(element)
+            for element, template_data in templates:
                 if template_data is None:
                     continue
                 template_img = template_data.image

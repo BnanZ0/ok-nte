@@ -74,15 +74,7 @@ _OK_GLOBAL_STATE_ATTRS = (
 def _disable_async_preheats_for_tests() -> None:
     """Avoid background cache workers crossing TaskTestCase boundaries."""
     from src.char.custom.CustomCharManager import CustomCharManager
-    from src.tasks.mixin.CharUIMixin import CharElementUIMixin
 
-    if not hasattr(CharElementUIMixin, "_ok_nte_original_preheat"):
-        CharElementUIMixin._ok_nte_original_preheat = (
-            CharElementUIMixin.preheat_element_template_cache_async
-        )
-        CharElementUIMixin.preheat_element_template_cache_async = classmethod(
-            lambda _cls: None
-        )
     if not hasattr(CustomCharManager, "_ok_nte_original_preheat"):
         CustomCharManager._ok_nte_original_preheat = CustomCharManager.preheat_feature_cache_async
         CustomCharManager.preheat_feature_cache_async = lambda _self: None
@@ -202,9 +194,6 @@ def install_ok_test_runtime_isolation() -> None:
 
 def reset_ok_runtime_state() -> None:
     """Clear ok-script process globals that leak between TaskTestCase classes."""
-    from src.utils.visual_template_cache import reset_visual_template_cache_for_tests
-
-    reset_visual_template_cache_for_tests()
     ExitEvent.queues = set()
     ExitEvent.to_stops = set()
     _ok.OK.exit_event = ExitEvent()
