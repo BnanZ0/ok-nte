@@ -237,7 +237,8 @@ def _update_pc_device_with_variants(self):
 
     self._replace_pc_devices(pc_devices)
     _apply_variant_settings(self)
-    _logger().debug(f"window variants refreshed: {[(k, v['connected']) for k, v in pc_devices.items()]}")
+    connected = [(k, v["connected"]) for k, v in pc_devices.items()]
+    _logger().debug(f"window variants refreshed: {connected}")
 
     # Upstream update_pc_device() returns the imei of the window it found, and
     # DeviceManager.ensure_capture() relies on that return value. Returning

@@ -7,13 +7,13 @@ import win32api
 import win32con
 import win32gui
 from ok import og
+from ok.device.interaction_methods.keys import get_mouse_button, is_mouse_button
 from ok.device.intercation import (
     INPUT,
     MOUSEINPUT,
     PostMessageInteraction,
     SendInput,
 )
-from ok.device.interaction_methods.keys import get_mouse_button, is_mouse_button
 from ok.util.logger import Logger
 from win32api import GetCursorPos
 
@@ -26,6 +26,11 @@ from src.utils import clock
 logger = Logger.get_logger(__name__)
 
 _cloud_variant_checker = None
+
+
+def _not_cloud() -> bool:
+    """Fallback when the variant patch cannot be imported."""
+    return False
 
 
 def _cloud_variant_selected() -> bool:
@@ -45,7 +50,7 @@ def _cloud_variant_selected() -> bool:
             _cloud_variant_checker = is_cloud_window_selected
         except Exception as exc:
             logger.warning(f"cloud variant check unavailable, using local input: {exc}")
-            _cloud_variant_checker = lambda: False
+            _cloud_variant_checker = _not_cloud
     try:
         return bool(_cloud_variant_checker())
     except Exception as exc:

@@ -20,7 +20,9 @@ class CloudRealInputStructTest(unittest.TestCase):
         self.assertEqual(down.u.ki.dwFlags, 0)
 
         sent = []
-        with patch.object(cloud_real_input, "send_input", side_effect=lambda i: sent.append(i) or 1):
+        with patch.object(
+            cloud_real_input, "send_input", side_effect=lambda i: sent.append(i) or 1
+        ):
             self.assertEqual(cloud_real_input.key_event(0x1B, up=True), 1)
         self.assertEqual(len(sent), 1)
         up = sent[0]
@@ -63,7 +65,9 @@ class CloudRealInputStructTest(unittest.TestCase):
 
     def test_mouse_event_uses_the_mouse_union_and_button_flags(self):
         sent = []
-        with patch.object(cloud_real_input, "send_input", side_effect=lambda i: sent.append(i) or 1):
+        with patch.object(
+            cloud_real_input, "send_input", side_effect=lambda i: sent.append(i) or 1
+        ):
             cloud_real_input.mouse_event(cloud_real_input.MOUSEEVENTF_LEFTDOWN)
             cloud_real_input.xbutton_event(1, up=True)
         self.assertEqual([i.type for i in sent], [cloud_real_input.INPUT_MOUSE] * 2)

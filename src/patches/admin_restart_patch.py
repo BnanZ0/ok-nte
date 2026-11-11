@@ -61,7 +61,11 @@ def launch_elevated(*, argv=None, executable=None, cwd=None, show_command=1) -> 
     executable = sys.executable if executable is None else executable
     cwd = os.getcwd() if cwd is None else cwd
     args = subprocess.list2cmdline(argv)
-    logger.info(f"restart_as_admin: requesting elevation {executable} {args!r} cwd={cwd!r}")
+    # Never log absolute paths: sys.executable, argv and cwd are user-local.
+    logger.info(
+        f"restart_as_admin: requesting elevation "
+        f"exe={os.path.basename(executable)} argv_count={len(argv)}"
+    )
     return _shell_execute(executable, args, cwd, show_command)
 
 
@@ -89,9 +93,9 @@ def install_admin_restart_patch():
     if _PATCH_INSTALLED:
         return
 
+    from ok.ui.qt.MainWindow import MainWindow
     from PySide6.QtCore import QCoreApplication
     from qfluentwidgets import MessageBox
-    from ok.ui.qt.MainWindow import MainWindow
 
     def restart_admin(self):
         w = MessageBox(
