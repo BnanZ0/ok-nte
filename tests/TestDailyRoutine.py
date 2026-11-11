@@ -25,14 +25,30 @@ class TestDailyRoutineConfig(unittest.TestCase):
         task.routine_task_configs = {}
         return task
 
-    def test_normalize_appends_missing_items_and_keeps_defaults(self):
-        task = self._routine_task([{"id": "daily_claim", "enabled": False}])
+    def test_normalize_inserts_missing_items_without_reordering_saved_items(self):
+        saved = [{"id": "daily_claim", "enabled": False}, {"id": "coffee", "enabled": True}]
+        task = self._routine_task(saved)
 
         items = task.normalize_items()
 
-        self.assertEqual(items[0], {"id": "daily_claim", "enabled": False})
+        self.assertEqual(items[0], {"id": "anomaly_pilgrimage", "enabled": False})
+        self.assertEqual([item for item in items if item["id"] in {"daily_claim", "coffee"}], saved)
+        claim_index = items.index(saved[0])
+        self.assertEqual(
+            [item["id"] for item in items[claim_index + 1 : claim_index + 3]],
+            ["cinema_date", "fountain"],
+        )
         self.assertEqual(len(items), len(task.entries_by_id()))
         self.assertIn({"id": "daily_anomaly", "enabled": True}, items)
+        self.assertEqual(task.normalize_items(), items)
+
+    def test_normalize_keeps_saved_exclusive_selection_when_adding_a_default(self):
+        task = self._routine_task([{"id": "daily_anomaly_hunter", "enabled": True}])
+
+        items = task.normalize_items()
+
+        self.assertIn({"id": "daily_anomaly", "enabled": False}, items)
+        self.assertIn({"id": "daily_anomaly_hunter", "enabled": True}, items)
 
     def test_normalize_keeps_first_enabled_task_in_exclusive_group(self):
         task = self._routine_task(
