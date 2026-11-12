@@ -1,6 +1,7 @@
 import ctypes
 import threading
 
+import cv2
 import numpy as np
 from ok import Box, Logger, og
 from ok.ui.qt.Communicate import communicate
@@ -8,6 +9,20 @@ from ok.ui.qt.Communicate import communicate
 from src.utils import clock
 
 logger = Logger.get_logger(__name__)
+
+_openvino_core = None
+_openvino_core_lock = threading.Lock()
+
+
+def _get_openvino_core():
+    """Lazily share one runtime and its device plugins across all detectors."""
+    global _openvino_core
+    with _openvino_core_lock:
+        if _openvino_core is None:
+            from openvino import Core
+
+            _openvino_core = Core()
+        return _openvino_core
 
 
 class YOLO26OpenVINOAsyncDetector:
@@ -17,13 +32,24 @@ class YOLO26OpenVINOAsyncDetector:
     _RETIRED_REQUEST_KEEP_SECONDS = 3.0
     _SYNC_WAIT_TIMEOUT = 1.5
 
-    def __init__(self, xml_path, num_requests=1):
+    def __init__(
+        self,
+        xml_path,
+        num_requests=1,
+        class_names=None,
+        inference_num_threads=2,
+        raw_output=False,
+        *,
+        model_name="target",
+    ):
+        self.model_name = model_name
+        self.class_names = list(class_names or ["target"])
+        self._raw_output = raw_output
         self._openvino_available = self._supports_avx2()
         self._openvino_unavailable_reason = None
         if not self._openvino_available:
-            message = og.app.tr(
-                "当前 CPU 不支持 AVX2, 无法运行 OpenVINO 2026 CPU 推理；"
-                "自动战斗的目标检测将不可用，交战流畅度将受到影响。"
+            message = og.app.tr("当前 CPU 不支持 AVX2, OpenVINO 检测器 {model} 无法启用。").format(
+                model=self.model_name
             )
             self._openvino_unavailable_reason = message
             logger.error(message)
@@ -31,12 +57,13 @@ class YOLO26OpenVINOAsyncDetector:
             self.latest_results = False
             self.latest_image = None
             self.latency = 0.0
+            self.infer_request = None
             return
 
-        from openvino import Core, Layout, PartialShape, Type
+        from openvino import Layout, PartialShape, Type
         from openvino.preprocess import ColorFormat, PrePostProcessor, ResizeAlgorithm
 
-        self.core = Core()
+        self.core = _get_openvino_core()
         model = self.core.read_model(model=xml_path)
 
         # 1. 配置预处理 (PPP) - 支持动态输入分辨率
@@ -58,7 +85,7 @@ class YOLO26OpenVINOAsyncDetector:
         # 2. 编译模型 (针对 AMD CPU 优化)
         config = {
             "PERFORMANCE_HINT": "LATENCY",
-            "INFERENCE_NUM_THREADS": "2",  # 限制线程至 2，降低 CPU 峰值负载
+            "INFERENCE_NUM_THREADS": str(inference_num_threads),
         }
         self.compiled_model = self.core.compile_model(model, "CPU", config)
 
@@ -76,11 +103,14 @@ class YOLO26OpenVINOAsyncDetector:
         # 内部状态
         self.latest_results = None
         self.latest_image = None
-        self.class_names = ["target"]  # 可根据 data.yaml 修改
         self.latency = 0.0  # 单次推理总耗时 (秒)
         self.job_id = 0
         self._force_next_submit = False
         self.infer_request = self._create_infer_request()
+
+    @property
+    def available(self) -> bool:
+        return self._openvino_available
 
     @classmethod
     def _supports_avx2(cls) -> bool:
@@ -215,6 +245,8 @@ class YOLO26OpenVINOAsyncDetector:
             self.latency = clock.now() - start_time
 
             detections = infer_request.get_output_tensor().data[0]
+            if self._raw_output:
+                detections = self._decode_raw_detections(detections, user_data["threshold"])
 
             box = user_data["box"]
             threshold = user_data["threshold"]
@@ -274,6 +306,61 @@ class YOLO26OpenVINOAsyncDetector:
             if done_event is not None:
                 done_event.set()
 
+    @staticmethod
+    def _decode_raw_detections(predictions, threshold, iou_threshold=0.7):
+        """Convert raw YOLO ``xywh + class scores`` output to detection rows."""
+        predictions = np.asarray(predictions, dtype=np.float32)
+        if predictions.ndim != 2:
+            raise ValueError(f"Expected 2D raw YOLO output, got shape {predictions.shape}")
+        if predictions.shape[0] < predictions.shape[1]:
+            predictions = predictions.T
+        if predictions.shape[1] < 5:
+            raise ValueError(f"Expected at least 5 raw YOLO channels, got {predictions.shape}")
+
+        xywh = predictions[:, :4]
+        class_scores = predictions[:, 4:]
+        class_ids = np.argmax(class_scores, axis=1)
+        scores = class_scores[np.arange(len(class_scores)), class_ids]
+
+        half_sizes = xywh[:, 2:4] * 0.5
+        boxes = np.concatenate((xywh[:, :2] - half_sizes, xywh[:, :2] + half_sizes), axis=1)
+        valid = (boxes[:, 2] > boxes[:, 0]) & (boxes[:, 3] > boxes[:, 1])
+        candidates = np.flatnonzero((scores >= threshold) & valid)
+        if candidates.size == 0:
+            return np.empty((0, 6), dtype=np.float32)
+
+        kept = []
+        for class_id in np.unique(class_ids[candidates]):
+            class_candidates = candidates[class_ids[candidates] == class_id]
+            class_boxes = boxes[class_candidates]
+            cv_boxes = np.column_stack(
+                (
+                    class_boxes[:, 0],
+                    class_boxes[:, 1],
+                    class_boxes[:, 2] - class_boxes[:, 0],
+                    class_boxes[:, 3] - class_boxes[:, 1],
+                )
+            ).tolist()
+            indices = cv2.dnn.NMSBoxes(
+                cv_boxes,
+                scores[class_candidates].tolist(),
+                float(threshold),
+                float(iou_threshold),
+                1.0,
+                30000,
+            )
+            if indices is not None and len(indices):
+                kept.append(class_candidates[np.asarray(indices).reshape(-1)])
+
+        if not kept:
+            return np.empty((0, 6), dtype=np.float32)
+
+        kept_indices = np.concatenate(kept)
+        kept_indices = kept_indices[np.argsort(scores[kept_indices])[::-1][:300]]
+        return np.column_stack(
+            (boxes[kept_indices], scores[kept_indices], class_ids[kept_indices])
+        ).astype(np.float32, copy=False)
+
     def debug_state(self):
         if not self._openvino_available:
             reason = self._openvino_unavailable_reason or "disabled"
@@ -296,7 +383,7 @@ class YOLO26OpenVINOAsyncDetector:
         image,
         box: Box = None,
         threshold=0.5,
-        label="target",
+        label=None,
         force=False,
         mask_regions=None,
         done_event=None,
@@ -307,7 +394,7 @@ class YOLO26OpenVINOAsyncDetector:
         :param image: 全图 (numpy array)
         :param box: 指定检测区域的 Box 实例。如果为 None, 则检测全图。
         :param threshold: 置信度阈值
-        :param label: 指定检测的类别名称
+        :param label: 指定检测的类别名称, None 表示返回所有类别
         :param force: 如果为 True, 取消忙碌的当前 request 并立刻提交新任务
         :param mask_regions: 需要屏蔽的全图归一化区域列表，格式为
             [(x1, y1, x2, y2), ...]。屏蔽会应用到推理画布，不修改原图。
@@ -412,7 +499,7 @@ class YOLO26OpenVINOAsyncDetector:
         image,
         box: Box = None,
         threshold=0.5,
-        label="target",
+        label=None,
         force=False,
         mask_regions=None,
     ):
@@ -442,6 +529,22 @@ class YOLO26OpenVINOAsyncDetector:
             infer_request.wait()
         self._cleanup_retired_infer_requests()
 
+    def release(self) -> None:
+        """Drain a detector that has stopped receiving work and detach its callbacks."""
+        if self.infer_request is None:
+            return
+        requests = [
+            self.infer_request,
+            *(record["request"] for record in self._retired_infer_requests),
+        ]
+        for request in requests:
+            try:
+                request.wait()
+            except RuntimeError:
+                # OpenVINO also reports failed or cancelled inference from wait().
+                pass
+            request.set_callback(lambda _: None, None)
+
     def _apply_canvas_mask(self, canvas, mask_regions, image_shape, box, pad_x, pad_y):
         if not mask_regions:
             return
@@ -468,7 +571,7 @@ class YOLO26OpenVINOAsyncDetector:
             if canvas_x1 < canvas_x2 and canvas_y1 < canvas_y2:
                 canvas[canvas_y1:canvas_y2, canvas_x1:canvas_x2] = 114
 
-    def detect_sync(self, image, box=None, threshold=0.5, label="target", mask_regions=None):
+    def detect_sync(self, image, box=None, threshold=0.5, label=None, mask_regions=None):
         """同步检测版本：发起请求后立即堵住，直到拿到本次请求的结果。"""
         if not self._openvino_available:
             return False
@@ -495,8 +598,8 @@ class YOLO26OpenVINOAsyncDetector:
                 request_active = self._request_has_active_jobs(self.infer_request)
 
             message = og.app.tr(
-                "OpenVINO 单次推理超时，已自动关闭目标检测；重启程序后会重新尝试启用。"
-            )
+                "OpenVINO 检测器 {model} 推理超时, 已自动停用。重启程序后将重新尝试启用。"
+            ).format(model=self.model_name)
             logger.error(
                 f"{message} timeout={self._SYNC_WAIT_TIMEOUT:.1f}s, "
                 f"request_active={request_active}, retired_requests={retired_count}, "

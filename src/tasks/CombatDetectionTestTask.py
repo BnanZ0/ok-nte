@@ -1,8 +1,9 @@
 from dataclasses import dataclass, field
 
-from ok import Logger, TaskDisabledException, get_path_relative_to_exe, og
+from ok import Logger, TaskDisabledException, og
 
 from src.combat.CombatCheck import CombatCheck
+from src.runtime.services import create_openvino_detector
 from src.tasks.NTEOneTimeTask import NTEOneTimeTask
 from src.utils import clock
 from src.vision.openvino_detector import YOLO26OpenVINOAsyncDetector
@@ -96,14 +97,16 @@ class CombatDetectionTestTask(NTEOneTimeTask, CombatCheck):
             "持续检测诊断 Lv, 锁定目标标记(白色菱形)和红色血条; 请手动停止以查看完整报告"
         )
         self._stats: CombatDetectionTestStats | None = None
-        self._original_detector = None
         self._using_avx2_bypass = False
         self._test_detector_state = "uninitialized"
+        self._original_detector = None
         self._test_detectors = []
 
     def run(self):
         super().run()
         self._stats = CombatDetectionTestStats()
+        self._using_avx2_bypass = False
+        self._test_detector_state = "uninitialized"
         try:
             self._prepare_detector()
             self.log_info("自动战斗检测诊断已开始; 请手动停止任务以生成完整报告", notify=True)
@@ -122,20 +125,19 @@ class CombatDetectionTestTask(NTEOneTimeTask, CombatCheck):
         if app is None:
             raise RuntimeError("应用尚未初始化, 无法使用 OpenVINO 检测器")
 
-        detector = app.openvino_model_async
-        if detector._openvino_available:
+        detector = app.get_openvino_detector(self._TARGET_MODEL)
+        if detector.available:
             return
 
-        self._original_detector = detector
         message = (
             "检测到 OpenVINO 因 AVX2 探测不可用; 将仅在本次 CombatCheck 测试中创建"
             "绕过 AVX2 前置检查的检测器. 该测试不保证 CPU 实际兼容 OpenVINO."
         )
         self.log_warning(message, notify=True)
-        test_detector = _Avx2BypassYOLO26OpenVINOAsyncDetector(
-            xml_path=get_path_relative_to_exe("assets", "openvino", "best.xml")
+        test_detector = create_openvino_detector(
+            self._TARGET_MODEL, _Avx2BypassYOLO26OpenVINOAsyncDetector
         )
-        app._openvino_model_async = test_detector
+        self._original_detector = app.replace_openvino_detector(self._TARGET_MODEL, test_detector)
         self._test_detectors.append(test_detector)
         self._using_avx2_bypass = True
         self.log_info("已启用本次测试专用 OpenVINO 检测器", notify=True)
@@ -185,14 +187,16 @@ class CombatDetectionTestTask(NTEOneTimeTask, CombatCheck):
             self._stats.errors.append(message)
 
     def _restore_detector(self) -> None:
-        if not self._using_avx2_bypass or self._original_detector is None or og.my_app is None:
+        app = og.my_app
+        if self._original_detector is None or app is None:
             return
         try:
-            current_detector = og.my_app._openvino_model_async
-            if current_detector is not None:
-                self._test_detector_state = current_detector.debug_state()
-                current_detector.clear_cache()
-            og.my_app._openvino_model_async = self._original_detector
+            current_detector = app.replace_openvino_detector(
+                self._TARGET_MODEL, self._original_detector
+            )
+            self._original_detector = None
+            self._test_detector_state = current_detector.debug_state()
+            current_detector.clear_cache()
             self.log_info("已恢复原 OpenVINO 检测器")
         except Exception:
             logger.exception("Failed to restore the original OpenVINO detector")
@@ -200,10 +204,9 @@ class CombatDetectionTestTask(NTEOneTimeTask, CombatCheck):
     def _show_report(self) -> None:
         if self._stats is None:
             return
-        detector = getattr(getattr(og, "my_app", None), "_openvino_model_async", None)
         detector_state = self._test_detector_state
-        if detector_state == "uninitialized" and detector is not None:
-            detector_state = detector.debug_state()
+        if detector_state == "uninitialized":
+            detector_state = self._openvino_debug_state()
         report = self._stats.report(
             detector_state,
             self._using_avx2_bypass,

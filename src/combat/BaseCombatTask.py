@@ -117,7 +117,6 @@ class BaseCombatTask(CharElementUIMixin, CombatCheck):
         self.element_reaction_counts = {}
         self.combat_planner = CombatPlanner(self)
         self.clear_element_reactions()
-        self.preheat_element_template_cache_async()
         CustomCharManager().preheat_feature_cache_async()
 
     @property

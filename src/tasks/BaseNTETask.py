@@ -149,13 +149,18 @@ class BaseNTETask(
         threshold: float = 0.7,
         force: bool = False,
         mask_regions=None,
+        *,
+        model: str = "target",
+        label: str | None = None,
     ) -> List[Box] | None:
+        """Run the selected model and optionally filter detections by class label."""
         if og.my_app is None:
             return []
+        box_name = f"openvino_{model}"
         if box is None:
-            box = self.box_of_screen(0, 0, 1, 1, name="openvino")
+            box = self.box_of_screen(0, 0, 1, 1, name=box_name)
         else:
-            box.name = "openvino"
+            box.name = box_name
         self.draw_boxes(boxes=box, color="blue")
         if frame is None:
             frame = self.frame
@@ -166,25 +171,28 @@ class BaseNTETask(
             threshold=threshold,
             force=force,
             mask_regions=mask_regions,
+            model=model,
+            label=label,
         )
         if results:
             self.draw_boxes(boxes=results, color="red")
         return results
 
-    def openvino_clear_cache(self):
+    def openvino_clear_cache(self, model: str = "target"):
         """清空缓存"""
         if og.my_app is None:
             return
-        og.my_app.openvino_clear_cache()
+        og.my_app.openvino_clear_cache(model)
 
-    def get_last_openvino_image(self):
+    def get_last_openvino_image(self, model: str = "target"):
         if og.my_app is None:
             return None
-        return getattr(og.my_app, "openvino_latest_image", None)
+        detector = og.my_app.get_openvino_detector(model, wait=False)
+        return detector.latest_image if detector is not None else None
 
-    @property
-    def openvino_available(self):
-        return getattr(og.my_app, "openvino_available", None)
+    def openvino_available(self, model: str = "target") -> bool | None:
+        app = og.my_app
+        return app.get_openvino_detector(model).available if app is not None else None
 
     def parse_ocr_number(self, ocr_result) -> int:
         if not ocr_result:
@@ -567,7 +575,7 @@ class BaseNTETask(
 
         return teleport
 
-    def click_nearest_map_teleport(self, zoom="mid", threshold=0.7, time_out=5):
+    def click_nearest_map_teleport(self, zoom="low", threshold=0.7, time_out=5):
         """
         从屏幕中心向外延展搜索，点击最近的传送点
         """
@@ -600,7 +608,7 @@ class BaseNTETask(
             find_func=find_nearest_teleport, zoom=zoom, time_out=time_out
         )
 
-    def click_map_teleport(self, box, zoom="mid", threshold=0.7, time_out=5):
+    def click_map_teleport(self, box, zoom="low", threshold=0.7, time_out=5):
         """
         在指定的 box 区域内搜索并点击传送点
         :param box: Box 对象，指定查找的固定范围

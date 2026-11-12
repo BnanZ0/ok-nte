@@ -55,7 +55,7 @@ class Globals:
         communicate.start_success.connect(self._start_runtime_services)
 
     def _start_runtime_services(self, *_):
-        self._runtime_services.start()
+        self._runtime_services.start(preload_models=("target",))
 
     def on_show_main_window(self, main_window) -> None:
         from src.ui.foundation.dialogs import install_confirmation_handler
@@ -198,20 +198,23 @@ class Globals:
                 current_record["future"] = future
         return future
 
-    @property
-    def openvino_model_async(self):
-        return self._runtime_services.openvino_model_async
+    def get_openvino_detector(self, model, *, wait=True):
+        return self._runtime_services.get_openvino_detector(model, wait=wait)
 
-    @property
-    def openvino_latency_async(self):
-        return self._runtime_services.openvino_latency_async
-
-    @property
-    def openvino_latest_image(self):
-        return self._runtime_services.openvino_latest_image
+    def replace_openvino_detector(self, model, detector):
+        return self._runtime_services.replace_openvino_detector(model, detector)
 
     def openvino_detect(
-        self, image, sync=False, box=None, threshold=0.5, force=False, mask_regions=None
+        self,
+        image,
+        sync=False,
+        box=None,
+        threshold=0.5,
+        force=False,
+        mask_regions=None,
+        *,
+        model,
+        label=None,
     ):
         return self._runtime_services.openvino_detect(
             image,
@@ -220,19 +223,12 @@ class Globals:
             threshold=threshold,
             force=force,
             mask_regions=mask_regions,
+            model=model,
+            label=label,
         )
 
-    def openvino_clear_cache(self):
-        self._runtime_services.openvino_clear_cache()
+    def openvino_clear_cache(self, model) -> None:
+        self._runtime_services.openvino_clear_cache(model)
 
-    @property
-    def _openvino_model_async(self):
-        return self._runtime_services._openvino_model_async
-
-    @_openvino_model_async.setter
-    def _openvino_model_async(self, detector) -> None:
-        self._runtime_services._openvino_model_async = detector
-
-    @property
-    def openvino_available(self):
-        return self._runtime_services.openvino_available
+    def release_openvino_model(self, model) -> None:
+        self._runtime_services.release_openvino_model(model)

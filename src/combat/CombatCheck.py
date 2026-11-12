@@ -9,14 +9,14 @@ from typing import TYPE_CHECKING, Optional
 
 import cv2
 import numpy as np
-from ok import Box, Logger, find_color_rectangles
+from ok import Box, Logger, find_color_rectangles, og
 
 from src.Labels import Labels
 from src.tasks.BaseNTETask import BaseNTETask
 from src.utils import game_filters as gf
 from src.utils import image_utils as iu
 from src.utils.clock import TimePoint
-from src.utils.visual_template_cache import get_visual_template_cache
+from src.utils.game_templates import FeatureTemplateCache
 
 if TYPE_CHECKING:
     from src.char.BaseChar import BaseChar
@@ -76,8 +76,12 @@ class LvTemplateFeatures:
         self.v_normalized.setflags(write=False)
 
 
+_lv_template_cache = FeatureTemplateCache[LvTemplateFeatures]()
+
+
 class CombatCheck(BaseNTETask):
     _LV_NORM_SIZE = 32
+    _TARGET_MODEL = "target"
     _TARGET_MASK_REGIONS = [(0.020, 0.017, 0.145, 0.240)]
 
     def __init__(self, *args, **kwargs):
@@ -129,7 +133,7 @@ class CombatCheck(BaseNTETask):
         self.combat_detect_state.reset()
         self.find_lv_future = None
         self._lv_async = None
-        self.openvino_clear_cache()
+        self.openvino_clear_cache(self._TARGET_MODEL)
         self.scene.set_not_in_combat()
         return False
 
@@ -171,7 +175,9 @@ class CombatCheck(BaseNTETask):
         timer = self.clock.timer(timeout=time_out)
         while not timer.expired():
             if self.is_in_team():
-                if self.wait_until(lambda: self.combat_detect(lv=lv), time_out=0.2):
+                if self.wait_until(
+                    lambda: self.is_boss() or self.combat_detect(lv=lv), time_out=0.2
+                ):
                     return True
                 if turn:
                     self.send_key("a", down_time=0.1)
@@ -295,7 +301,7 @@ class CombatCheck(BaseNTETask):
             self.combat_detect_state.reset()
             self.find_lv_future = None
             self._lv_async = None
-            self.openvino_clear_cache()
+            self.openvino_clear_cache(self._TARGET_MODEL)
             logger.debug("retarget enemy succeeded")
             return self._set_in_combat("retarget_enemy")
         if self.check_monthly_card() and self.handle_monthly_card():
@@ -322,7 +328,7 @@ class CombatCheck(BaseNTETask):
         def is_boss():
             return self.is_boss()
 
-        skip_target = not self.openvino_available
+        skip_target = not self.openvino_available(self._TARGET_MODEL)
         is_auto = self.config.get("自动目标") or not isinstance(self, AutoCombatTask)
         has_combat_signal = is_boss() or has_lv() or has_health_bar()
         has_target_signal = is_auto or has_target() or skip_target
@@ -356,6 +362,8 @@ class CombatCheck(BaseNTETask):
             threshold=0.65,
             force=force,
             mask_regions=self._TARGET_MASK_REGIONS,
+            model=self._TARGET_MODEL,
+            label="target",
         )
 
         if not result:
@@ -365,7 +373,7 @@ class CombatCheck(BaseNTETask):
         if max_conf.confidence > 0.8:
             return max_conf
 
-        detect_frame = self.get_last_openvino_image()
+        detect_frame = self.get_last_openvino_image(self._TARGET_MODEL)
         if detect_frame is None:
             return result
 
@@ -520,15 +528,15 @@ class CombatCheck(BaseNTETask):
 
     def _openvino_debug_state(self):
         try:
-            from ok import og
-
-            detector = getattr(getattr(og, "my_app", None), "_openvino_model_async", None)
+            app = og.my_app
+            detector = (
+                app.get_openvino_detector(self._TARGET_MODEL, wait=False)
+                if app is not None
+                else None
+            )
             if detector is None:
                 return "openvino=uninitialized"
-            debug_state = getattr(detector, "debug_state", None)
-            if callable(debug_state):
-                return debug_state()
-            return "openvino=debug_unavailable"
+            return detector.debug_state()
         except Exception as e:
             return f"openvino=debug_failed({e})"
 
@@ -670,8 +678,7 @@ class CombatCheck(BaseNTETask):
         union = cv2.countNonZero(cv2.bitwise_or(tpl_norm, cand))
         return intersection / union if union > 0 else 0.0
 
-    def _build_lv_template_features(self):
-        tpl_img = self.get_feature_by_name(Labels.lv).mat
+    def _build_lv_template_features(self, tpl_img: np.ndarray) -> LvTemplateFeatures | None:
         tpl_bin = gf.isolate_lv_to_white(tpl_img)
         contours, _ = cv2.findContours(tpl_bin, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         valid_cnts = [
@@ -694,10 +701,14 @@ class CombatCheck(BaseNTETask):
             v_normalized=self._render_contour_normalized(v_contour, xv, yv, wv, hv),
         )
 
-    def _get_lv_template_features(self):
-        """Return process-wide LV template features for this screen resolution."""
-        cache_key = (Labels.lv, self.width, self.height)
-        return get_visual_template_cache().get_or_build(cache_key, self._build_lv_template_features)
+    def _get_lv_template_features(self) -> LvTemplateFeatures | None:
+        feature = self.get_feature_by_name(Labels.lv)
+        if feature is None:
+            return None
+
+        return _lv_template_cache.get_or_build(
+            feature, self._LV_NORM_SIZE, self._build_lv_template_features
+        )
 
 
 enemy_health_hsv = iu.HSVRange((0, 190, 175), (179, 255, 255))

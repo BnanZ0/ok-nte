@@ -210,26 +210,35 @@ class DailyRoutineTask(NTEOneTimeTask, BaseNTETask):
         raw_item_list = raw_items if isinstance(raw_items, list) else []
         normalized = []
         seen = set()
+        enabled_groups = set()
         for item in raw_item_list:
             if not isinstance(item, dict):
                 continue
             task_id = item.get("id")
             if task_id not in entries or task_id in seen:
                 continue
-            normalized.append({"id": task_id, "enabled": bool(item.get("enabled", False))})
+            group = entries[task_id].exclusive_group
+            enabled = bool(item.get("enabled", False)) and group not in enabled_groups
+            if enabled and group:
+                enabled_groups.add(group)
+            normalized.append({"id": task_id, "enabled": enabled})
             seen.add(task_id)
-        for entry in DAILY_ROUTINE_ENTRIES:
-            if entry.task_id not in seen:
-                normalized.append({"id": entry.task_id, "enabled": entry.enabled_by_default})
 
-        enabled_groups = set()
-        for item in normalized:
-            entry = entries[item["id"]]
-            if item["enabled"] and entry.exclusive_group:
-                if entry.exclusive_group in enabled_groups:
-                    item["enabled"] = False
-                else:
-                    enabled_groups.add(entry.exclusive_group)
+        # Insert missing tasks after their default predecessor without moving saved tasks.
+        insert_at = 0
+        for task_id, entry in entries.items():
+            if task_id in seen:
+                insert_at = next(
+                    index + 1 for index, item in enumerate(normalized) if item["id"] == task_id
+                )
+                continue
+            group = entry.exclusive_group
+            enabled = entry.enabled_by_default and group not in enabled_groups
+            if enabled and group:
+                enabled_groups.add(group)
+            normalized.insert(insert_at, {"id": task_id, "enabled": enabled})
+            insert_at += 1
+
         if raw_items != normalized:
             self.config[self.CONF_ITEMS] = deepcopy(normalized)  # pyright: ignore[reportOptionalSubscript]
         return normalized
