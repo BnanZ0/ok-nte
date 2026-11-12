@@ -127,6 +127,40 @@ cursor_sync_config_option = ConfigOption(
 )
 background_audio_routing_config_option = create_background_audio_routing_config_option()
 
+# 云·异环是实验性变体, 默认不对用户暴露. 打开开关后 Choose Window 才会列出它.
+CLOUD_EXPERIMENTAL_CONFIG_NAME = "PC版云异环（实验性）"
+CLOUD_EXPERIMENTAL_ENABLE_KEY = "启用 PC版云异环"
+
+
+def _cloud_experimental_validator(key, value):
+    """Apply a switch change on the same thread that persists it.
+
+    ConfigOption has no change callback, but Config.__setitem__ runs the
+    validator on the GUI thread right before writing the value. This is the
+    same hook src/audio/routing.py uses for its enable switch.
+    """
+    from src.patches.window_variants_patch import on_experimental_switch_changed
+
+    return on_experimental_switch_changed(key, value)
+
+
+cloud_experimental_config_option = ConfigOption(
+    CLOUD_EXPERIMENTAL_CONFIG_NAME,
+    {CLOUD_EXPERIMENTAL_ENABLE_KEY: False},
+    description=(
+        "实验性功能, 默认关闭。目前仅在云客户端验证过自动战斗、异象追猎、异象界域, "
+        "其他任务均未在云版验证, 请自行评估风险后再启用。开启后「选择窗口」会出现 PC版云异环, "
+        "首次选中时会弹出完整使用须知与免责声明。"
+    ),
+    config_description={
+        CLOUD_EXPERIMENTAL_ENABLE_KEY: (
+            "在「选择窗口」中显示 PC版云异环。云客户端不会自动启动, "
+            "需要手动登录并保持前台; 云游戏按在线时长计费。"
+        ),
+    },
+    validator=_cloud_experimental_validator,
+)
+
 
 def blur_area(width, height):
     return Box(width * 0, height * 0.9769, to_x=width * 0.0943, to_y=height * 1)
@@ -147,6 +181,7 @@ config = {
         sound_trigger_config_option,
         cursor_sync_config_option,
         background_audio_routing_config_option,
+        cloud_experimental_config_option,
     ],
     # "screenshot_processor": make_bottom_left_black,  # 在截图的时候对frame进行修改, 可选
     "blur_area": blur_area,

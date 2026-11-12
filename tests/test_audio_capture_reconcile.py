@@ -32,6 +32,7 @@ class SelectedVariantIntentTests(unittest.TestCase):
 
         with (
             patch("ok.og", SimpleNamespace(device_manager=self._manager("pc_local"))),
+            patch.object(wvp, "cloud_experimental_enabled", return_value=True),
             patch.object(wvp, "_LAST_PREFERRED_VARIANT", "pc_cloud"),
         ):
             self.assertEqual(wvp.get_selected_variant_id(), "pc_cloud")
@@ -45,6 +46,7 @@ class SelectedVariantIntentTests(unittest.TestCase):
 
         with (
             patch("ok.og", SimpleNamespace(device_manager=self._manager("pc_cloud"))),
+            patch.object(wvp, "cloud_experimental_enabled", return_value=True),
             patch.object(wvp, "_LAST_PREFERRED_VARIANT", None),
         ):
             self.assertEqual(wvp.get_selected_variant_id(), "pc_cloud")
@@ -58,6 +60,7 @@ class SelectedVariantIntentTests(unittest.TestCase):
 
         with (
             patch("ok.og", SimpleNamespace(device_manager=self._manager(""))),
+            patch.object(wvp, "cloud_experimental_enabled", return_value=True),
             patch.object(wvp, "_LAST_PREFERRED_VARIANT", "pc_cloud"),
         ):
             self.assertEqual(wvp.get_selected_variant_id(), "pc_cloud")
