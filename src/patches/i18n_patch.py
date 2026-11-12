@@ -25,12 +25,14 @@ def _translate_key(self, key, original_tr):
     return translated
 
 
-def _wrap_tr(original_tr):
+def _wrap_tr(original_tr, boss_names):
     @wraps(original_tr)
-    def tr_with_format_rules(self, key):
+    def tr_with_overrides(self, key):
+        if isinstance(key, str) and (names := boss_names.get(key)):
+            return names.get(self.locale.name()) or names.get("en_US") or key
         return _translate_key(self, key, original_tr)
 
-    return tr_with_format_rules
+    return tr_with_overrides
 
 
 def install_i18n_patch():
@@ -38,8 +40,11 @@ def install_i18n_patch():
     if _PATCH_INSTALLED:
         return
 
-    from ok import App, HeadlessApp
+    from ok import App, HeadlessApp, get_path_relative_to_exe
+    from ok.util.file import read_json_file
 
-    App.tr = _wrap_tr(App.tr)
-    HeadlessApp.tr = _wrap_tr(HeadlessApp.tr)
+    path = get_path_relative_to_exe("assets", "game", "weeklyboss_item", "boss_names.json")
+    boss_names = read_json_file(path) or {}
+    App.tr = _wrap_tr(App.tr, boss_names)
+    HeadlessApp.tr = _wrap_tr(HeadlessApp.tr, boss_names)
     _PATCH_INSTALLED = True

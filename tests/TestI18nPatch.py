@@ -1,4 +1,6 @@
 import unittest
+from types import SimpleNamespace
+from unittest.mock import patch
 
 import src.patches.i18n_patch as i18n_patch
 from src.patches.i18n_patch import _translate_key
@@ -23,12 +25,19 @@ class TestI18nPatch(unittest.TestCase):
         original_app_tr = App.tr
         original_headless_tr = HeadlessApp.tr
         original_installed = i18n_patch._PATCH_INSTALLED
+        boss_names = {"Test Material": {"zh_CN": "测试首领", "en_US": "Test Boss", "ja_JP": ""}}
         try:
             i18n_patch._PATCH_INSTALLED = False
-            i18n_patch.install_i18n_patch()
+            with patch("ok.util.file.read_json_file", return_value=boss_names):
+                i18n_patch.install_i18n_patch()
 
             self.assertIsNot(App.tr, original_app_tr)
             self.assertIsNot(HeadlessApp.tr, original_headless_tr)
+            app = SimpleNamespace(locale=SimpleNamespace(name=lambda: "zh_CN"))
+            self.assertEqual(App.tr(app, "Test Material"), "测试首领")
+            self.assertEqual(HeadlessApp.tr(app, "Test Material"), "测试首领")
+            app.locale.name = lambda: "ja_JP"
+            self.assertEqual(App.tr(app, "Test Material"), "Test Boss")
         finally:
             App.tr = original_app_tr
             HeadlessApp.tr = original_headless_tr
