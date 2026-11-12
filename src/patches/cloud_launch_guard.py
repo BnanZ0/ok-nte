@@ -4,7 +4,8 @@ Design decision: this project will NEVER auto-start the cloud client. Cloud
 games are billed by playtime, so a bug that launches (or keeps alive) the
 client could cost the user real money. The cloud variant therefore only:
 
-* shows a usage notice when the user selects it (can be permanently dismissed);
+* shows a usage notice when the user selects it (dismissible only for the
+  exact wording shown; any copy change shows it once more);
 * checks for the client window when the user clicks Start / starts a task and,
   if it is missing, shows a dialog and cancels that launch entirely.
 
@@ -15,6 +16,7 @@ foreground) is handled by LauncherTask / NTEInteraction and is out of scope.
 
 from __future__ import annotations
 
+import hashlib
 import os
 import re
 from functools import wraps
@@ -29,6 +31,7 @@ _PATCH_INSTALLED = False
 
 _CONFIG_NAME = "cloud_window_notice"
 _DONT_SHOW_KEY = "dont_show_again"
+_NOTICE_VERSION_KEY = "notice_version"
 
 CLOUD_EXE = ["NTECloudGame.exe"]
 # The class name is generated from the Qt version bundled in NTECloudGame.exe
@@ -46,13 +49,34 @@ _MISSING_DIALOG_COOLDOWN = 30.0
 _last_missing_dialog_at = None
 _MINIMIZED_NOTICE_COOLDOWN = 30.0
 _last_minimized_notice_at = None
+# The usage notice preference is loaded once at patch installation (off the
+# UI thread) and then queried from memory.
+_cached_notice_config = None
+# The notice revision already shown in this app session. This prevents the
+# notice from re-popping on every StartTab.update_capture refresh while still
+# allowing a rewritten notice to appear once at startup.
+_shown_notice_revision = None
 
-NOTICE_TITLE = "PC版云异环 · 使用前须知"
+NOTICE_TITLE = "PC版云异环（实验性）· 使用前须知"
 NOTICE_CONTENT = (
-    "1. 云游戏需要你手动打开并登录。本工具不会自动启动云·异环客户端，"
-    "也不会替你启动任何进程。<br/><br/>"
-    "2. 运行期间请保持云游戏窗口在前台。云客户端只接收真实键鼠输入，"
-    "切到其它窗口会导致操作失效；程序会在发送输入前尝试把游戏切回前台。"
+    "<b>这是一项实验性功能, 与本地版不等价。</b><br/><br/>"
+    "1. 它是什么<br/>"
+    "通过本机云游戏客户端 NTECloudGame.exe 运行游戏, 本工具只做画面捕获与真实键鼠输入, "
+    "不注入进程、不读取游戏内存。<br/><br/>"
+    "2. 已验证范围<br/>"
+    "目前仅在云客户端验证过: 自动战斗、异象追猎、异象界域。"
+    "<b>除以上三项外的其他任务均未在云版验证</b>, 可能识别失败、坐标偏移或产生非预期操作。"
+    "请自行评估风险后再启用其他任务。<br/><br/>"
+    "3. 使用前提<br/>"
+    "· 需要你手动打开并登录云客户端, 本工具<b>不会自动启动</b>任何进程。<br/>"
+    "· 云游戏按在线时长计费, 请留意时长与费用。<br/>"
+    "· 运行期间保持云窗口在前台且不被遮挡; 仅支持 WGC 捕获; "
+    "输入为真实键鼠, 会占用鼠标键盘, 可用启动/停止热键中止。<br/><br/>"
+    "4. 免责声明<br/>"
+    "本软件免费开源, 仅供个人学习交流, 请勿用于任何商业或营利用途。"
+    "使用自动化工具可能导致账号被封禁或受限; 云游戏产生的时长费用、账号与数据风险, "
+    "以及运行未验证任务造成的后果, 均由使用者自行承担。请了解上述风险后继续使用。<br/><br/>"
+    "关闭此功能: 到「设置」关闭「PC版云异环（实验性）」即可。"
 )
 
 MISSING_TITLE = "云·异环尚未打开"
@@ -61,6 +85,32 @@ MISSING_CONTENT = (
     "请手动打开并登录云游戏，然后再点「开始」。<br/><br/>"
     "本次启动已取消：不会启动任何进程，也不会执行任务。"
 )
+
+NOTICE_DISMISS_LABEL = "不再提示"
+NOTICE_ACK_LABEL = "知道了"
+
+
+def notice_revision():
+    """Content-derived revision of the usage notice copy.
+
+    "Don't show again" is scoped to the exact wording the user saw: editing
+    any of these four strings changes the digest, so the usage notice is shown
+    once more even for users who had dismissed the previous version. The
+    boundary is therefore the copy itself, with no manual version bump to
+    remember. Values are read at call time so a wording change takes effect
+    on the next launch without touching the stored preference. Copy used by
+    other dialogs is deliberately excluded: editing a routine warning must
+    not resurrect an already acknowledged usage notice.
+    """
+    payload = "\x1f".join(
+        (
+            NOTICE_TITLE,
+            NOTICE_CONTENT,
+            NOTICE_DISMISS_LABEL,
+            NOTICE_ACK_LABEL,
+        )
+    )
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()[:16]
 
 
 def _tr(text):
@@ -225,24 +275,46 @@ def show_cloud_minimized_notice():
 
 
 def _config():
+    global _cached_notice_config
+    if _cached_notice_config is not None:
+        return _cached_notice_config
     from ok.util.config import Config
 
-    # Config writes itself to configs/<name>.json on __setitem__.
-    return Config(_CONFIG_NAME, {_DONT_SHOW_KEY: False})
+    # Config.__init__ reads and may migrate the file. The first call is made
+    # during patch installation, before the GUI; later calls reuse this object
+    # so notice_dismissed() stays an in-memory query.
+    _cached_notice_config = Config(
+        _CONFIG_NAME,
+        {_DONT_SHOW_KEY: False, _NOTICE_VERSION_KEY: ""},
+    )
+    return _cached_notice_config
 
 
 def notice_dismissed():
+    """True only when the user dismissed this exact copy revision.
+
+    Pure query: callers log the outcome, so a stale preference does not emit
+    the same message again on every window switch.
+    """
     try:
-        return bool(_config().get(_DONT_SHOW_KEY, False))
+        config = _config()
+        if config.get(_NOTICE_VERSION_KEY, "") != notice_revision():
+            return False
+        return bool(config.get(_DONT_SHOW_KEY, False))
     except Exception as exc:
         logger.error(f"read cloud notice preference failed: {exc}")
         return False
 
 
-def set_notice_dismissed(value=True):
+def set_notice_dismissed():
     try:
         config = _config()
-        config[_DONT_SHOW_KEY] = bool(value)
+        # dict.update bypasses Config.__setitem__, so the explicit save_file()
+        # below is the only disk write instead of one per assignment.
+        dict.update(
+            config,
+            {_DONT_SHOW_KEY: True, _NOTICE_VERSION_KEY: notice_revision()},
+        )
         config.save_file()
         return True
     except Exception as exc:
@@ -268,16 +340,25 @@ def _gui_thread():
 
 
 def show_cloud_usage_notice():
-    """Dialog A: usage notice with a permanent "don't show again" checkbox.
+    """Dialog A: usage notice with a "don't show again" checkbox.
 
-    Only called from the GUI thread (window selection happens there). Returns
-    True when the dialog was actually shown.
+    A dismissal is scoped to the current notice_revision(), so rewritten copy
+    is shown once more. Only called from the GUI thread (window selection
+    happens there). Returns True when the dialog was actually shown.
     """
     if _gui_thread() is None:
         return False
     try:
         from PySide6.QtCore import Qt
-        from PySide6.QtWidgets import QApplication, QCheckBox, QLabel
+        from PySide6.QtWidgets import (
+            QApplication,
+            QCheckBox,
+            QFrame,
+            QLabel,
+            QScrollArea,
+            QVBoxLayout,
+            QWidget,
+        )
 
         from src.ui.foundation.dialogs import MessageBoxBase
 
@@ -290,21 +371,50 @@ def show_cloud_usage_notice():
         dialog = MessageBoxBase(parent)
         dialog.widget.setMinimumWidth(480)
 
-        label = QLabel(_tr(NOTICE_CONTENT), dialog)
+        # The disclaimer is long. Put the text in a scroll area so the
+        # checkbox and acknowledge button stay visible on small/high-DPI
+        # windows.
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.NoFrame)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        content = QWidget()
+        content_layout = QVBoxLayout(content)
+        content_layout.setContentsMargins(0, 0, 0, 0)
+        content_layout.setSpacing(8)
+
+        title = QLabel(_tr(NOTICE_TITLE), content)
+        title.setStyleSheet("font-weight: bold; font-size: 15px;")
+        title.setWordWrap(True)
+        content_layout.addWidget(title)
+
+        label = QLabel(_tr(NOTICE_CONTENT), content)
         label.setWordWrap(True)
         label.setTextFormat(Qt.TextFormat.RichText)
-        dialog.viewLayout.addWidget(label)
+        content_layout.addWidget(label)
+        content_layout.addStretch(1)
 
-        dont_show = QCheckBox(_tr("不再提示"), dialog)
+        scroll.setWidget(content)
+        scroll.setMinimumHeight(180)
+        try:
+            scroll.setMaximumHeight(max(220, min(520, int(parent.height() * 0.6))))
+        except Exception:
+            scroll.setMaximumHeight(320)
+        dialog.viewLayout.addWidget(scroll)
+
+        dont_show = QCheckBox(_tr(NOTICE_DISMISS_LABEL), dialog)
         dialog.viewLayout.addWidget(dont_show)
 
-        dialog.yesButton.setText(_tr("知道了"))
+        dialog.yesButton.setText(_tr(NOTICE_ACK_LABEL))
         dialog.cancelButton.hide()
         dialog.exec()
 
-        if dont_show.isChecked():
-            set_notice_dismissed(True)
-            logger.info("Cloud usage notice dismissed permanently")
+        logger.info(f"Cloud usage notice shown (revision {notice_revision()})")
+        # Only a checked box persists anything. Without it the notice is shown
+        # again in the next app session, but the session guard prevents the
+        # StartTab refresh from re-popping it repeatedly.
+        if dont_show.isChecked() and set_notice_dismissed():
+            logger.info("Cloud usage notice dismissed for the current copy version")
         return True
     except Exception as exc:
         logger.error(f"show cloud usage notice failed: {exc}")
@@ -389,25 +499,32 @@ def _wrap_start(original):
     return start_with_cloud_guard
 
 
+def _maybe_show_cloud_usage_notice():
+    """Show the notice once per session for the current copy revision."""
+    global _shown_notice_revision
+
+    revision = notice_revision()
+    if _shown_notice_revision == revision:
+        return False
+    if notice_dismissed():
+        return False
+    if show_cloud_usage_notice():
+        _shown_notice_revision = revision
+        return True
+    return False
+
+
 def _wrap_set_preferred_device(original):
     @wraps(original)
     def set_preferred_with_notice(self, imei=None, index=-1):
-        was_cloud = _cloud_selected()
         result = original(self, imei=imei, index=index)
-        # Only a real transition into the cloud variant shows the notice.
         # StartTab.update_capture() calls setCurrentRow() on every device
-        # refresh, which re-enters this hook with an explicit index; comparing
-        # before/after keeps those refreshes from re-popping the dialog.
-        # Internal no-arg calls from do_start/do_refresh stay quiet as well.
+        # refresh with an explicit index. _maybe_show... suppresses repeats via
+        # the session revision, while still showing a rewritten notice at
+        # startup even when the cloud variant was already selected.
         user_initiated = imei is not None or index != -1
-        is_cloud = _cloud_selected()
-        if (
-            user_initiated
-            and is_cloud
-            and not was_cloud
-            and not notice_dismissed()
-        ):
-            show_cloud_usage_notice()
+        if user_initiated and _cloud_selected():
+            _maybe_show_cloud_usage_notice()
         return result
 
     return set_preferred_with_notice
@@ -430,5 +547,12 @@ def install_cloud_launch_guard():
     DeviceManager.set_preferred_device = _wrap_set_preferred_device(
         DeviceManager.set_preferred_device
     )
+    # Migrate an older preference file (missing notice_version) at startup.
+    # Config.__init__ writes on migration, and AGENTS.md forbids file I/O on
+    # the UI thread, so do it here rather than on the first window selection.
+    try:
+        _config()
+    except Exception as exc:
+        logger.debug(f"cloud notice preference migration deferred: {exc}")
     _PATCH_INSTALLED = True
     logger.info("Cloud launch guard installed (cloud client is never auto-started)")

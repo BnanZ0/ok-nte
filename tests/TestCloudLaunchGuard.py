@@ -125,6 +125,149 @@ class TestNoticePreference(unittest.TestCase):
         with patch.object(guard, "_config", side_effect=RuntimeError("no config")):
             self.assertFalse(guard.notice_dismissed())
 
+    def test_rewritten_notice_ignores_an_older_dont_show_again(self):
+        config = _FakeConfig()
+        config[guard._DONT_SHOW_KEY] = True
+        with patch.object(guard, "_config", return_value=config):
+            # No notice_version key: the flag belongs to the previous wording.
+            self.assertFalse(guard.notice_dismissed())
+            self.assertTrue(guard.set_notice_dismissed())
+            self.assertEqual(
+                config[guard._NOTICE_VERSION_KEY], guard.notice_revision()
+            )
+            self.assertTrue(guard.notice_dismissed())
+
+    def test_current_notice_version_is_recorded(self):
+        config = _FakeConfig()
+        with patch.object(guard, "_config", return_value=config):
+            guard.set_notice_dismissed()
+            self.assertTrue(guard.notice_dismissed())
+        self.assertEqual(config[guard._NOTICE_VERSION_KEY], guard.notice_revision())
+
+    def test_legacy_numeric_version_no_longer_suppresses_the_notice(self):
+        config = _FakeConfig()
+        config[guard._DONT_SHOW_KEY] = True
+        config[guard._NOTICE_VERSION_KEY] = 2
+        with patch.object(guard, "_config", return_value=config):
+            self.assertFalse(guard.notice_dismissed())
+
+    def test_revision_is_derived_from_the_copy(self):
+        before = guard.notice_revision()
+        self.assertEqual(before, guard.notice_revision())
+        with patch.object(guard, "NOTICE_CONTENT", guard.NOTICE_CONTENT + "补充一句"):
+            self.assertNotEqual(guard.notice_revision(), before)
+
+    def test_edited_copy_force_shows_a_previously_dismissed_notice(self):
+        config = _FakeConfig()
+        with patch.object(guard, "_config", return_value=config):
+            guard.set_notice_dismissed()
+            self.assertTrue(guard.notice_dismissed())
+        with (
+            patch.object(guard, "_config", return_value=config),
+            patch.object(guard, "NOTICE_CONTENT", guard.NOTICE_CONTENT + "补充一句"),
+        ):
+            self.assertFalse(guard.notice_dismissed())
+
+    def test_button_label_change_also_invalidates_dismissal(self):
+        config = _FakeConfig()
+        with patch.object(guard, "_config", return_value=config):
+            guard.set_notice_dismissed()
+        with (
+            patch.object(guard, "_config", return_value=config),
+            patch.object(guard, "NOTICE_ACK_LABEL", "我了解了"),
+        ):
+            self.assertFalse(guard.notice_dismissed())
+
+    @staticmethod
+    def _show_notice(checked, persist):
+        checkbox = Mock()
+        checkbox.isChecked.return_value = checked
+        with (
+            patch.object(guard, "_gui_thread", return_value=Mock()),
+            patch.object(guard.og, "main_window", Mock(), create=True),
+            patch("PySide6.QtWidgets.QLabel", Mock()),
+            patch("PySide6.QtWidgets.QCheckBox", return_value=checkbox),
+            patch("PySide6.QtWidgets.QScrollArea", Mock()),
+            patch("PySide6.QtWidgets.QWidget", Mock()),
+            patch("PySide6.QtWidgets.QVBoxLayout", Mock()),
+            patch("src.ui.foundation.dialogs.MessageBoxBase"),
+            patch.object(guard, "set_notice_dismissed", persist),
+        ):
+            return guard.show_cloud_usage_notice()
+
+    def test_unchecked_notice_does_not_persist_a_preference(self):
+        persist = Mock(return_value=True)
+        self.assertTrue(self._show_notice(False, persist))
+        persist.assert_not_called()
+
+    def test_checked_notice_persists_dismissal(self):
+        persist = Mock(return_value=True)
+        self.assertTrue(self._show_notice(True, persist))
+        persist.assert_called_once_with()
+
+    def test_other_dialog_copy_does_not_invalidate_the_notice(self):
+        before = guard.notice_revision()
+        with patch.object(guard, "MISSING_CONTENT", guard.MISSING_CONTENT + "补充一句"):
+            self.assertEqual(guard.notice_revision(), before)
+
+    def test_verified_scope_lists_three_tasks_and_no_task_type_claims(self):
+        self.assertIn("自动战斗、异象追猎、异象界域", guard.NOTICE_CONTENT)
+        self.assertIn("其他任务均未在云版验证", guard.NOTICE_CONTENT)
+        self.assertNotIn("一次性任务", guard.NOTICE_CONTENT)
+        self.assertNotIn("触发式任务", guard.NOTICE_CONTENT)
+
+    def test_stale_preference_query_does_not_log_repeatedly(self):
+        config = _FakeConfig()
+        config[guard._DONT_SHOW_KEY] = True
+        with (
+            patch.object(guard, "_config", return_value=config),
+            patch.object(guard.logger, "info") as info,
+        ):
+            self.assertFalse(guard.notice_dismissed())
+            self.assertFalse(guard.notice_dismissed())
+        info.assert_not_called()
+
+    def test_dismissal_writes_the_preference_exactly_once(self):
+        config = _FakeConfig()
+        with patch.object(guard, "_config", return_value=config):
+            self.assertTrue(guard.set_notice_dismissed())
+        self.assertEqual(config.saved, 1)
+        self.assertEqual(config[guard._DONT_SHOW_KEY], True)
+        self.assertEqual(config[guard._NOTICE_VERSION_KEY], guard.notice_revision())
+
+    def test_notice_dialog_builds_title_body_and_checkbox(self):
+        checkbox = Mock()
+        checkbox.isChecked.return_value = False
+        with (
+            patch.object(guard, "_gui_thread", return_value=Mock()),
+            patch.object(guard.og, "main_window", Mock(), create=True),
+            patch("PySide6.QtWidgets.QLabel", Mock()),
+            patch("PySide6.QtWidgets.QCheckBox", return_value=checkbox),
+            patch("PySide6.QtWidgets.QScrollArea", Mock()),
+            patch("PySide6.QtWidgets.QWidget", Mock()),
+            patch("PySide6.QtWidgets.QVBoxLayout", Mock()),
+            patch("src.ui.foundation.dialogs.MessageBoxBase") as message_box,
+            patch.object(guard, "set_notice_dismissed"),
+        ):
+            self.assertTrue(guard.show_cloud_usage_notice())
+        dialog = message_box.return_value
+        dialog.widget.setMinimumWidth.assert_called_once_with(480)
+        # Scroll area (title/body) + "don't show again" checkbox.
+        self.assertEqual(dialog.viewLayout.addWidget.call_count, 2)
+        dialog.yesButton.setText.assert_called_once()
+        dialog.cancelButton.hide.assert_called_once()
+        dialog.exec.assert_called_once()
+
+    def test_install_migrates_preference_before_gui_handles_selection(self):
+        with (
+            patch("ok.core.start_controller.StartController"),
+            patch("ok.device.DeviceManager.DeviceManager"),
+            patch.object(guard, "_PATCH_INSTALLED", False),
+            patch.object(guard, "_config") as config,
+        ):
+            guard.install_cloud_launch_guard()
+        config.assert_called_once_with()
+
 
 class TestShouldBlockCloudLaunch(unittest.TestCase):
     def test_local_variant_never_checks_or_dialogs(self):
@@ -214,28 +357,45 @@ class TestWindowSelectionNotice(unittest.TestCase):
     def test_explicit_cloud_selection_shows_notice(self):
         original, wrapped = self._wrapped()
         with (
-            patch.object(guard, "_cloud_selected", side_effect=[False, True]),
+            patch.object(guard, "_cloud_selected", return_value=True),
             patch.object(guard, "notice_dismissed", return_value=False),
-            patch.object(guard, "show_cloud_usage_notice") as notice,
+            patch.object(guard, "notice_revision", return_value="rev"),
+            patch.object(guard, "_shown_notice_revision", None),
+            patch.object(guard, "show_cloud_usage_notice", return_value=True) as notice,
         ):
             wrapped(object(), index=1)
         notice.assert_called_once()
         self.assertEqual(original.call_args.kwargs, {"imei": None, "index": 1})
 
+    def test_cloud_already_selected_at_startup_still_shows_a_new_revision(self):
+        _, wrapped = self._wrapped()
+        with (
+            patch.object(guard, "_cloud_selected", return_value=True),
+            patch.object(guard, "notice_dismissed", return_value=False),
+            patch.object(guard, "notice_revision", return_value="rev2"),
+            patch.object(guard, "_shown_notice_revision", None),
+            patch.object(guard, "show_cloud_usage_notice", return_value=True) as notice,
+        ):
+            wrapped(object(), index=1)
+        notice.assert_called_once()
+
     def test_device_list_refresh_on_cloud_does_not_repop_notice(self):
         _, wrapped = self._wrapped()
         with (
-            patch.object(guard, "_cloud_selected", side_effect=[True, True]),
+            patch.object(guard, "_cloud_selected", return_value=True),
             patch.object(guard, "notice_dismissed", return_value=False),
-            patch.object(guard, "show_cloud_usage_notice") as notice,
+            patch.object(guard, "notice_revision", return_value="rev"),
+            patch.object(guard, "_shown_notice_revision", None),
+            patch.object(guard, "show_cloud_usage_notice", return_value=True) as notice,
         ):
             wrapped(object(), index=1)
-        notice.assert_not_called()
+            wrapped(object(), index=1)
+        notice.assert_called_once()
 
     def test_internal_no_arg_call_does_not_show_notice(self):
         _, wrapped = self._wrapped()
         with (
-            patch.object(guard, "_cloud_selected", side_effect=[False, True]),
+            patch.object(guard, "_cloud_selected", return_value=True),
             patch.object(guard, "notice_dismissed", return_value=False),
             patch.object(guard, "show_cloud_usage_notice") as notice,
         ):
@@ -245,8 +405,9 @@ class TestWindowSelectionNotice(unittest.TestCase):
     def test_dismissed_notice_is_not_shown_again(self):
         _, wrapped = self._wrapped()
         with (
-            patch.object(guard, "_cloud_selected", side_effect=[False, True]),
+            patch.object(guard, "_cloud_selected", return_value=True),
             patch.object(guard, "notice_dismissed", return_value=True),
+            patch.object(guard, "_shown_notice_revision", None),
             patch.object(guard, "show_cloud_usage_notice") as notice,
         ):
             wrapped(object(), imei="pc_cloud")
@@ -261,6 +422,16 @@ class TestWindowSelectionNotice(unittest.TestCase):
         ):
             wrapped(object(), index=0)
         notice.assert_not_called()
+
+    def test_notice_config_is_loaded_once(self):
+        with (
+            patch.object(guard, "_cached_notice_config", None),
+            patch("ok.util.config.Config") as config_cls,
+        ):
+            config_cls.return_value = {"dont_show_again": False}
+            self.assertIs(guard._config(), guard._config())
+
+        config_cls.assert_called_once()
 
 
 class TestDialogHelpers(unittest.TestCase):
