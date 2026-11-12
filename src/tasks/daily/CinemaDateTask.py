@@ -17,6 +17,7 @@ class CinemaDateTask(NTEOneTimeTask, BaseNTETask):
         self.name = "影院约会"
         self.group_name = "日常/周常"
         self.visible = False
+        self.fallback_target = False
 
         self.default_config.update(
             {
@@ -58,7 +59,9 @@ class CinemaDateTask(NTEOneTimeTask, BaseNTETask):
 
             self.run_with_interval(lambda: self.operate(merged_action, block=True), interval=2)
 
-        return bool(self.wait_until(self.is_in_team, post_action=post, time_out=30))
+        ret = bool(self.wait_until(self.is_in_team, post_action=post, time_out=30))
+
+        return not self.fallback_target and ret
 
     def _tp_to_cinema(self):
         def action():
@@ -142,7 +145,7 @@ class CinemaDateTask(NTEOneTimeTask, BaseNTETask):
             snap_box = self.box_of_screen(0.724, 0.723, 0.771, 0.892)
 
             for _ in range(page):
-                target_boxes = self.ocr(0.772, 0.228, 0.914, 0.905, match=match)
+                target_boxes = self.ocr(0.772, 0.228, 0.914, 0.905, match=match, log=True)
                 if target_boxes:
                     loc_y = target_boxes[0].y + target_boxes[0].height
                     boxes = self._find_selectable_target()
@@ -152,20 +155,24 @@ class CinemaDateTask(NTEOneTimeTask, BaseNTETask):
                             break
                     if target_box:
                         self.log_info(f"找到目标 {target_box}")
-                        break
+                    else:
+                        self.log_warning(f"找到目标 {target_boxes[0]} 但不可用")
+                    break
                 if self.scroll_and_is_end(0.8391, 0.5333, -19, snap_box):
                     break
 
             if not target_box:
-                self.log_info(f"未找到 {target} 尝试使用顶部可选目标")
+                self.log_info("尝试使用顶部可选目标")
                 for _ in range(page):
-                    target_box = self._top_selectable_target()
+                    target_box = self._top_selectable_target(mark_as_fallback=True)
                     if target_box or self.scroll_and_is_end(0.8391, 0.5333, 19, snap_box):
                         break
 
         if not target_box:
             self.log_info("未找到任何可选目标，结束任务")
             return False
+        
+        self.fallback_target = "fallback" in target_box.name
 
         return self.wait_click_confirm(
             pre_action=lambda: self.operate_click(target_box, interval=1),
@@ -177,11 +184,14 @@ class CinemaDateTask(NTEOneTimeTask, BaseNTETask):
         boxes = iu.find_color_enriched_regions(selectable_green_color, box, self.frame)
         return boxes
 
-    def _top_selectable_target(self) -> Box | None:
+    def _top_selectable_target(self, mark_as_fallback=False) -> Box | None:
         boxes = self._find_selectable_target()
         if not boxes:
             return
-        return min(boxes, key=lambda box: box.y)
+        top_target = min(boxes, key=lambda box: box.y)
+        if mark_as_fallback:
+            top_target.name = "fallback_target"
+        return top_target
 
 
 selectable_green_color = {
