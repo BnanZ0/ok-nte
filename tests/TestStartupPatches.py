@@ -498,12 +498,18 @@ class TestExperimentalSwitchValidator(unittest.TestCase):
                 self.reset_calls += 1
 
         config = _ResettableConfig()
-        with patch.object(wvp, "_reconcile_cloud_experimental_state") as reconcile:
+        with (
+            patch.object(wvp, "_reconcile_cloud_experimental_state") as reconcile,
+            patch(
+                "src.patches.cloud_launch_guard.reset_notice_preference"
+            ) as reset_notice,
+        ):
             wvp._patch_cloud_experimental_reset(config)
             config.reset_to_default()
 
         self.assertEqual(config.reset_calls, 1)
         reconcile.assert_called_once_with(persist=True, force_refresh=True)
+        reset_notice.assert_called_once_with()
 
     def test_reconcile_off_persists_local_and_refreshes(self):
         manager = SimpleNamespace(config=_WritingConfig("pc_cloud"), refresh=Mock())

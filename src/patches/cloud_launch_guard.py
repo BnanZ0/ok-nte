@@ -45,7 +45,7 @@ CLOUD_WINDOW_CLASS_PATTERN = re.compile(r"^Qt[\d.]+QWindow(?!ToolSaveBits)")
 
 # Avoid stacking the same modal warning when several paths (start button,
 # one-time task, scheduled task) all notice the missing window in one run.
-_MISSING_DIALOG_COOLDOWN = 30.0
+_MISSING_DIALOG_COOLDOWN = 2.0
 _last_missing_dialog_at = None
 _MINIMIZED_NOTICE_COOLDOWN = 30.0
 _last_minimized_notice_at = None
@@ -290,6 +290,28 @@ def _config():
     return _cached_notice_config
 
 
+def reset_notice_preference():
+    """Clear the 'don't show again' acknowledgment.
+
+    Called only from the experimental card's explicit Reset Config action.
+    Normal switch-off/on must keep the user's dismissal.
+    """
+    global _shown_notice_revision
+    try:
+        config = _config()
+        dict.update(
+            config,
+            {_DONT_SHOW_KEY: False, _NOTICE_VERSION_KEY: ""},
+        )
+        config.save_file()
+        _shown_notice_revision = None
+        logger.info("Cloud usage notice preference reset")
+        return True
+    except Exception as exc:
+        logger.error(f"reset cloud notice preference failed: {exc}")
+        return False
+
+
 def notice_dismissed():
     """True only when the user dismissed this exact copy revision.
 
@@ -349,16 +371,8 @@ def show_cloud_usage_notice():
     if _gui_thread() is None:
         return False
     try:
-        from PySide6.QtCore import Qt
-        from PySide6.QtWidgets import (
-            QApplication,
-            QCheckBox,
-            QFrame,
-            QLabel,
-            QScrollArea,
-            QVBoxLayout,
-            QWidget,
-        )
+        from PySide6.QtWidgets import QApplication, QCheckBox, QFrame
+        from qfluentwidgets import TextBrowser
 
         from src.ui.foundation.dialogs import MessageBoxBase
 
@@ -371,36 +385,25 @@ def show_cloud_usage_notice():
         dialog = MessageBoxBase(parent)
         dialog.widget.setMinimumWidth(480)
 
-        # The disclaimer is long. Put the text in a scroll area so the
-        # checkbox and acknowledge button stay visible on small/high-DPI
-        # windows.
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setFrameShape(QFrame.NoFrame)
-        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        content = QWidget()
-        content_layout = QVBoxLayout(content)
-        content_layout.setContentsMargins(0, 0, 0, 0)
-        content_layout.setSpacing(8)
-
-        title = QLabel(_tr(NOTICE_TITLE), content)
-        title.setStyleSheet("font-weight: bold; font-size: 15px;")
-        title.setWordWrap(True)
-        content_layout.addWidget(title)
-
-        label = QLabel(_tr(NOTICE_CONTENT), content)
-        label.setWordWrap(True)
-        label.setTextFormat(Qt.TextFormat.RichText)
-        content_layout.addWidget(label)
-        content_layout.addStretch(1)
-
-        scroll.setWidget(content)
-        scroll.setMinimumHeight(180)
+        # The disclaimer is long. TextBrowser wraps and scrolls internally, so
+        # the text stays inside its scrollbar; the checkbox and acknowledge
+        # button remain outside it.
+        browser = TextBrowser()
+        browser.setReadOnly(True)
+        browser.setOpenExternalLinks(False)
+        browser.setFrameShape(QFrame.NoFrame)
+        browser.setStyleSheet("background: transparent; border: none;")
+        browser.setHtml(
+            f"<div style='font-size:15px; font-weight:700;'>"
+            f"{_tr(NOTICE_TITLE)}</div>"
+            f"<p>{_tr(NOTICE_CONTENT)}</p>"
+        )
+        browser.setMinimumHeight(180)
         try:
-            scroll.setMaximumHeight(max(220, min(520, int(parent.height() * 0.6))))
+            browser.setMaximumHeight(max(220, min(520, int(parent.height() * 0.6))))
         except Exception:
-            scroll.setMaximumHeight(320)
-        dialog.viewLayout.addWidget(scroll)
+            browser.setMaximumHeight(320)
+        dialog.viewLayout.addWidget(browser)
 
         dont_show = QCheckBox(_tr(NOTICE_DISMISS_LABEL), dialog)
         dialog.viewLayout.addWidget(dont_show)
@@ -421,11 +424,14 @@ def show_cloud_usage_notice():
         return False
 
 
-def show_cloud_missing_dialog():
+def show_cloud_missing_dialog(force=False):
     """Dialog B: tell the user to open the cloud game manually.
 
     ``show_dialog_and_wait`` is thread safe, so this works both from the GUI
     thread (Start button) and from TaskExecutor (scheduled / CLI tasks).
+    ``force`` is used for an explicit user Start/TaskCard click: every click
+    must explain why the launch was cancelled. Automatic paths keep a short
+    cooldown so several checks in one run do not stack dialogs.
     Returns True when a dialog was shown; callers must cancel the launch
     regardless, even when there is no GUI at all.
     """
@@ -441,7 +447,8 @@ def show_cloud_missing_dialog():
 
     now = clock.now()
     if (
-        _last_missing_dialog_at is not None
+        not force
+        and _last_missing_dialog_at is not None
         and now - _last_missing_dialog_at < _MISSING_DIALOG_COOLDOWN
     ):
         logger.info("Cloud missing-window dialog suppressed by cooldown")
@@ -464,20 +471,21 @@ def show_cloud_missing_dialog():
         return False
 
 
-def should_block_cloud_launch():
+def should_block_cloud_launch(force=False):
     """True only when no cloud client window exists at all.
 
     A minimized window is open and billed. It does not satisfy the real-input
     foreground requirement yet, so restore it here (before ``do_start``) and
     remind the user; the launcher/input layer keeps it foreground afterwards.
-    Do not cancel the launch.
+    Do not cancel the launch. ``force`` bypasses the missing-dialog cooldown
+    for explicit user starts.
     """
     if not _cloud_selected():
         return False
     hwnds = _find_cloud_window_hwnds()
     _log_cloud_window_state(hwnds)
     if not hwnds:
-        show_cloud_missing_dialog()
+        show_cloud_missing_dialog(force=force)
         logger.warning(
             "Cloud game window not found; launch cancelled (no process started, "
             "no task queued)"
@@ -492,7 +500,7 @@ def should_block_cloud_launch():
 def _wrap_start(original):
     @wraps(original)
     def start_with_cloud_guard(self, task=None, exit_after=False):
-        if should_block_cloud_launch():
+        if should_block_cloud_launch(force=True):
             return None
         return original(self, task, exit_after)
 

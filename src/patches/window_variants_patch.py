@@ -54,6 +54,12 @@ def _patch_cloud_experimental_reset(config):
     def reset_to_default_with_cloud_reconcile(*args, **kwargs):
         original(*args, **kwargs)
         _reconcile_cloud_experimental_state(persist=True, force_refresh=True)
+        try:
+            from src.patches.cloud_launch_guard import reset_notice_preference
+
+            reset_notice_preference()
+        except Exception as exc:
+            _logger().warning(f"cloud notice reset skipped: {exc}")
 
     config.reset_to_default = reset_to_default_with_cloud_reconcile
     setattr(config, _RESET_PATCH_ATTR, True)

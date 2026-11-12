@@ -185,11 +185,8 @@ class TestNoticePreference(unittest.TestCase):
         with (
             patch.object(guard, "_gui_thread", return_value=Mock()),
             patch.object(guard.og, "main_window", Mock(), create=True),
-            patch("PySide6.QtWidgets.QLabel", Mock()),
             patch("PySide6.QtWidgets.QCheckBox", return_value=checkbox),
-            patch("PySide6.QtWidgets.QScrollArea", Mock()),
-            patch("PySide6.QtWidgets.QWidget", Mock()),
-            patch("PySide6.QtWidgets.QVBoxLayout", Mock()),
+            patch("qfluentwidgets.TextBrowser", Mock()),
             patch("src.ui.foundation.dialogs.MessageBoxBase"),
             patch.object(guard, "set_notice_dismissed", persist),
         ):
@@ -235,25 +232,42 @@ class TestNoticePreference(unittest.TestCase):
         self.assertEqual(config[guard._DONT_SHOW_KEY], True)
         self.assertEqual(config[guard._NOTICE_VERSION_KEY], guard.notice_revision())
 
+    def test_reset_notice_preference_clears_dismissal_and_session_marker(self):
+        config = _FakeConfig()
+        config[guard._DONT_SHOW_KEY] = True
+        config[guard._NOTICE_VERSION_KEY] = 2
+
+        with (
+            patch.object(guard, "_config", return_value=config),
+            patch.object(guard, "_shown_notice_revision", "rev"),
+        ):
+            self.assertTrue(guard.reset_notice_preference())
+            self.assertFalse(config[guard._DONT_SHOW_KEY])
+            self.assertEqual(config[guard._NOTICE_VERSION_KEY], "")
+            self.assertIsNone(guard._shown_notice_revision)
+
+        self.assertEqual(config.saved, 1)
+
     def test_notice_dialog_builds_title_body_and_checkbox(self):
         checkbox = Mock()
         checkbox.isChecked.return_value = False
         with (
             patch.object(guard, "_gui_thread", return_value=Mock()),
             patch.object(guard.og, "main_window", Mock(), create=True),
-            patch("PySide6.QtWidgets.QLabel", Mock()),
             patch("PySide6.QtWidgets.QCheckBox", return_value=checkbox),
-            patch("PySide6.QtWidgets.QScrollArea", Mock()),
-            patch("PySide6.QtWidgets.QWidget", Mock()),
-            patch("PySide6.QtWidgets.QVBoxLayout", Mock()),
+            patch("qfluentwidgets.TextBrowser") as browser_cls,
             patch("src.ui.foundation.dialogs.MessageBoxBase") as message_box,
             patch.object(guard, "set_notice_dismissed"),
         ):
             self.assertTrue(guard.show_cloud_usage_notice())
         dialog = message_box.return_value
         dialog.widget.setMinimumWidth.assert_called_once_with(480)
-        # Scroll area (title/body) + "don't show again" checkbox.
+        # TextBrowser (title/body) + "don't show again" checkbox.
         self.assertEqual(dialog.viewLayout.addWidget.call_count, 2)
+        browser = browser_cls.return_value
+        html = browser.setHtml.call_args.args[0]
+        self.assertIn(guard._tr(guard.NOTICE_TITLE), html)
+        self.assertIn(guard._tr(guard.NOTICE_CONTENT), html)
         dialog.yesButton.setText.assert_called_once()
         dialog.cancelButton.hide.assert_called_once()
         dialog.exec.assert_called_once()
@@ -334,18 +348,24 @@ class TestStartControllerPatch(unittest.TestCase):
         wrapped = guard._wrap_start(original)
         controller = object()
 
-        with patch.object(guard, "should_block_cloud_launch", return_value=True):
+        with patch.object(
+            guard, "should_block_cloud_launch", return_value=True
+        ) as check:
             self.assertIsNone(wrapped(controller, "task", True))
 
+        check.assert_called_once_with(force=True)
         original.assert_not_called()
 
     def test_start_passes_through_when_window_present(self):
         original = Mock(return_value="started")
         wrapped = guard._wrap_start(original)
 
-        with patch.object(guard, "should_block_cloud_launch", return_value=False):
+        with patch.object(
+            guard, "should_block_cloud_launch", return_value=False
+        ) as check:
             self.assertEqual(wrapped(object(), "task", True), "started")
 
+        check.assert_called_once_with(force=True)
         original.assert_called_once_with(ANY, "task", True)
 
 
@@ -448,6 +468,16 @@ class TestDialogHelpers(unittest.TestCase):
         ):
             self.assertTrue(guard.show_cloud_missing_dialog())
             self.assertFalse(guard.show_cloud_missing_dialog())
+        show.assert_called_once()
+
+    def test_forced_missing_dialog_ignores_cooldown(self):
+        with (
+            patch("PySide6.QtWidgets.QApplication.instance", return_value=Mock()),
+            patch.object(guard, "_last_missing_dialog_at", 999.0),
+            patch.object(guard.clock, "now", return_value=1000.0),
+            patch("src.ui.foundation.dialogs.show_dialog_and_wait") as show,
+        ):
+            self.assertTrue(guard.show_cloud_missing_dialog(force=True))
         show.assert_called_once()
 
 
