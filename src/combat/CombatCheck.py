@@ -175,7 +175,9 @@ class CombatCheck(BaseNTETask):
         timer = self.clock.timer(timeout=time_out)
         while not timer.expired():
             if self.is_in_team():
-                if self.wait_until(lambda: self.combat_detect(lv=lv), time_out=0.2):
+                if self.wait_until(
+                    lambda: self.is_boss() or self.combat_detect(lv=lv), time_out=0.2
+                ):
                     return True
                 if turn:
                     self.send_key("a", down_time=0.1)
