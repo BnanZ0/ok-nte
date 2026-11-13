@@ -7,6 +7,7 @@ from ok import TaskDisabledException
 from ok.util.config import Config
 
 from src.tasks.AnomalyHunter import AnomalyHunter
+from src.tasks.AnomalyPilgrimage import AnomalyPilgrimage
 from src.tasks.AnomalyTask import AnomalyTask
 from src.tasks.BaseNTETask import BaseNTETask
 from src.tasks.daily.CinemaDateTask import CinemaDateTask
@@ -31,6 +32,7 @@ class DailyRoutineEntry:
 
 
 DAILY_ROUTINE_ENTRIES = (
+    DailyRoutineEntry("anomaly_pilgrimage", AnomalyPilgrimage, daily_config=True),
     DailyRoutineEntry("daily_anomaly", AnomalyTask, True, "daily_anomaly", daily_config=True),
     DailyRoutineEntry(
         "daily_anomaly_hunter", AnomalyHunter, False, "daily_anomaly", daily_config=True

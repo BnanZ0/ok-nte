@@ -1674,3 +1674,48 @@ msgstr "No matching packages"
 
 msgid "Cancel"
 msgstr "Cancel"
+
+msgid "异象巡礼"
+msgstr "Anomaly Pilgrimage"
+
+msgid "按目标清单顺序进行异象巡礼"
+msgstr "Complete Anomaly Pilgrimage in the order of the target list"
+
+msgid "目标"
+msgstr "Targets"
+
+msgid "轮换起始日期"
+msgstr "Rotation start date"
+
+msgid "按清单顺序循环, 末项后回到首项; 重复选择表示重复挑战同一目标"
+msgstr "Cycle through the list in order, returning to the first item after the last. Select a target more than once to challenge it repeatedly."
+
+msgid "可选, 格式 YYYY-MM-DD; 每满7天按清单推进3项, 本周已领取次数也计入进度。留空则每次从清单首项开始循环。"
+msgstr "Optional, in YYYY-MM-DD format. Advance three places every seven days and include rewards already claimed this week. Leave blank to start at the first item each run."
+
+msgid "每周开始运行日"
+msgstr "Weekly start day"
+
+msgid "仅在所选星期至周日运行, 本周更早的日期会跳过。"
+msgstr "Run from the selected day through Sunday. Earlier days of the week are skipped."
+
+msgid "周一"
+msgstr "Monday"
+
+msgid "周二"
+msgstr "Tuesday"
+
+msgid "周三"
+msgstr "Wednesday"
+
+msgid "周四"
+msgstr "Thursday"
+
+msgid "周五"
+msgstr "Friday"
+
+msgid "周六"
+msgstr "Saturday"
+
+msgid "周日"
+msgstr "Sunday"

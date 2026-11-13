@@ -1674,3 +1674,48 @@ msgstr "No hay paquetes coincidentes"
 
 msgid "Cancel"
 msgstr "Cancelar"
+
+msgid "异象巡礼"
+msgstr "Peregrinación de anomalías"
+
+msgid "按目标清单顺序进行异象巡礼"
+msgstr "Completa la peregrinación de anomalías siguiendo el orden de la lista de objetivos"
+
+msgid "目标"
+msgstr "Objetivos"
+
+msgid "轮换起始日期"
+msgstr "Fecha de inicio de la rotación"
+
+msgid "按清单顺序循环, 末项后回到首项; 重复选择表示重复挑战同一目标"
+msgstr "Recorre la lista en orden y vuelve al primer elemento después del último. Selecciona un objetivo varias veces para repetir el desafío."
+
+msgid "可选, 格式 YYYY-MM-DD; 每满7天按清单推进3项, 本周已领取次数也计入进度。留空则每次从清单首项开始循环。"
+msgstr "Opcional, en formato YYYY-MM-DD. Avanza tres posiciones cada siete días y cuenta las recompensas ya reclamadas esta semana. Déjalo vacío para empezar por el primer elemento en cada ejecución."
+
+msgid "每周开始运行日"
+msgstr "Día de inicio semanal"
+
+msgid "仅在所选星期至周日运行, 本周更早的日期会跳过。"
+msgstr "Ejecuta la tarea desde el día elegido hasta el domingo. Se omiten los días anteriores de la semana."
+
+msgid "周一"
+msgstr "Lunes"
+
+msgid "周二"
+msgstr "Martes"
+
+msgid "周三"
+msgstr "Miércoles"
+
+msgid "周四"
+msgstr "Jueves"
+
+msgid "周五"
+msgstr "Viernes"
+
+msgid "周六"
+msgstr "Sábado"
+
+msgid "周日"
+msgstr "Domingo"

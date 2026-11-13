@@ -10,6 +10,10 @@ logger = Logger.get_logger(__name__)
 
 _OPENVINO_MODELS = {
     "target": (("target", "best.xml"), {"class_names": ["target"]}),
+    "general": (
+        ("best.xml",),
+        {"class_names": ["boss_claim"], "inference_num_threads": 3, "raw_output": True},
+    ),
 }
 
 

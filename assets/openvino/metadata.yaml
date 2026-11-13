@@ -1,0 +1,24 @@
+description: Ultralytics YOLO26s model trained on /content/datasets/nte-boss-claim-2/data.yaml
+author: Ultralytics
+date: "2026-11-08T15:50:17.788661+00:00"
+version: "8.4.208"
+license: AGPL-3.0 License (https://ultralytics.com/license)
+docs: https://docs.ultralytics.com
+stride: 32
+task: detect
+head: Detect
+batch: 1
+imgsz:
+- 896
+- 1536
+names:
+  0: boss_claim
+args:
+  data: null
+  batch: 1
+  fraction: 1.0
+  quantize: 16
+  nms: null
+  dynamic: false
+channels: 3
+end2end: false

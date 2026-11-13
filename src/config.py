@@ -198,6 +198,7 @@ config = {
         ["src.tasks.FishingTask", "FishingTask"],
         ["src.tasks.AnomalyTask", "AnomalyTask"],
         ["src.tasks.AnomalyHunter", "AnomalyHunter"],
+        ["src.tasks.AnomalyPilgrimage", "AnomalyPilgrimage"],
         ["src.tasks.RhythmTask", "RhythmTask"],
         ["src.tasks.OwnerSelectionTask", "OwnerSelectionTask"],
         ["src.tasks.AutoHeistTask", "AutoHeistTask"],

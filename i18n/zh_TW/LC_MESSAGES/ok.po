@@ -1675,3 +1675,48 @@ msgstr "沒有符合條件的方案"
 
 msgid "Cancel"
 msgstr "取消"
+
+msgid "异象巡礼"
+msgstr "異象巡禮"
+
+msgid "按目标清单顺序进行异象巡礼"
+msgstr "按目標清單順序進行異象巡禮"
+
+msgid "目标"
+msgstr "目標"
+
+msgid "轮换起始日期"
+msgstr "輪替起始日期"
+
+msgid "按清单顺序循环, 末项后回到首项; 重复选择表示重复挑战同一目标"
+msgstr "按清單順序循環, 最後一項結束後回到第一項; 重複選擇表示重複挑戰同一目標"
+
+msgid "可选, 格式 YYYY-MM-DD; 每满7天按清单推进3项, 本周已领取次数也计入进度。留空则每次从清单首项开始循环。"
+msgstr "選填, 格式為 YYYY-MM-DD; 每滿 7 天按清單推進 3 項, 本週已領取的次數也會計入進度。留空則每次從清單第一項開始循環。"
+
+msgid "每周开始运行日"
+msgstr "每週開始執行日"
+
+msgid "仅在所选星期至周日运行, 本周更早的日期会跳过。"
+msgstr "僅在所選星期至週日執行, 本週更早的日期會跳過。"
+
+msgid "周一"
+msgstr "週一"
+
+msgid "周二"
+msgstr "週二"
+
+msgid "周三"
+msgstr "週三"
+
+msgid "周四"
+msgstr "週四"
+
+msgid "周五"
+msgstr "週五"
+
+msgid "周六"
+msgstr "週六"
+
+msgid "周日"
+msgstr "週日"

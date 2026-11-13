@@ -1649,3 +1649,48 @@ msgstr "没有匹配的方案"
 
 msgid "Cancel"
 msgstr "取消"
+
+msgid "异象巡礼"
+msgstr "异象巡礼"
+
+msgid "按目标清单顺序进行异象巡礼"
+msgstr "按目标清单顺序进行异象巡礼"
+
+msgid "目标"
+msgstr "目标"
+
+msgid "轮换起始日期"
+msgstr "轮换起始日期"
+
+msgid "按清单顺序循环, 末项后回到首项; 重复选择表示重复挑战同一目标"
+msgstr "按清单顺序循环, 末项后回到首项; 重复选择表示重复挑战同一目标"
+
+msgid "可选, 格式 YYYY-MM-DD; 每满7天按清单推进3项, 本周已领取次数也计入进度。留空则每次从清单首项开始循环。"
+msgstr "可选, 格式 YYYY-MM-DD; 每满7天按清单推进3项, 本周已领取次数也计入进度。留空则每次从清单首项开始循环。"
+
+msgid "每周开始运行日"
+msgstr "每周开始运行日"
+
+msgid "仅在所选星期至周日运行, 本周更早的日期会跳过。"
+msgstr "仅在所选星期至周日运行, 本周更早的日期会跳过。"
+
+msgid "周一"
+msgstr "周一"
+
+msgid "周二"
+msgstr "周二"
+
+msgid "周三"
+msgstr "周三"
+
+msgid "周四"
+msgstr "周四"
+
+msgid "周五"
+msgstr "周五"
+
+msgid "周六"
+msgstr "周六"
+
+msgid "周日"
+msgstr "周日"
