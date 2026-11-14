@@ -113,7 +113,7 @@ class AnomalyPilgrimage(NTEOneTimeTask, BaseCombatTask):
             self.info_set("消耗体力", 0)
             if limit == 0:
                 self.log_info("巡礼剩余次数或体力不足, 停止任务")
-                return False
+                return None
             offset = 0 if offset is None else offset + self.WEEKLY_REWARD_LIMIT - remaining
             queue = [targets[(offset + index) % len(targets)] for index in range(limit)]
             while queue:

@@ -107,10 +107,15 @@ class TestAnomalyPilgrimage(unittest.TestCase):
         self.assertEqual(task.enter_target.call_args_list, [call("E"), call("A")])
 
     def test_reward_budget_is_limited_by_stamina_and_remaining_rewards(self):
-        for stamina, remaining, expected in ((59, 3, 0), (119, 3, 1), (180, 2, 2), (180, 0, 0)):
+        for stamina, remaining, expected, result in (
+            (59, 3, 0, None),
+            (119, 3, 1, True),
+            (180, 2, 2, True),
+            (180, 0, 0, None),
+        ):
             with self.subTest(stamina=stamina, remaining=remaining):
                 task = FakePilgrimage(stamina=stamina, remaining=remaining)
-                self.assertEqual(task.do_run(), expected > 0)
+                self.assertEqual(task.do_run(), result)
                 self.assertEqual(task.info["完成次数"], expected)
                 self.assertEqual(task.info["本周剩余次数"], remaining - expected)
 
