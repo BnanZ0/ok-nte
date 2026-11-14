@@ -749,7 +749,28 @@ class BaseNTETask(
         if self.check_login():
             return
         if esc:
+            # ESC on the login/start page means "quit game": it opens (or confirms)
+            # the exit dialog which then blocks every login click. Dismiss any
+            # quit-confirm first and never send ESC before login.
+            if self._dismiss_quit_confirm_dialog():
+                return
+            if not self.scene.logged_in():
+                return
             self.send_key("esc", action_name="is_main", interval=2)
+
+    def _quit_confirm_visible(self):
+        return bool(self.ocr(match="确认退出游戏", log=False))
+
+    def _dismiss_quit_confirm_dialog(self):
+        if not self._quit_confirm_visible():
+            return False
+        boxes = self.ocr(match="取消", x=0.2, y=0.6, to_x=0.8, to_y=0.8, log=False)
+        if not boxes:
+            return False
+        self.log_info("dismiss quit-game confirm dialog")
+        self.operate_click(boxes[0], action_name="dismiss_quit_confirm")
+        self.sleep(1)
+        return True
 
     def find_monthly_card(self):
         return self.find_one(Labels.monthly_card)
