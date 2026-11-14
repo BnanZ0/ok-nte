@@ -33,6 +33,7 @@ from __future__ import annotations
 import os
 import tempfile
 import threading
+from unittest import TestCase
 
 import ok as _ok
 import ok.test as _ok_test
@@ -40,6 +41,8 @@ import ok.test.TaskTestCase as _ok_task_test_case
 from ok.task.TaskExecutor import TaskExecutor
 from ok.ui.qt.Communicate import communicate
 from ok.util.handler import ExitEvent
+from PySide6.QtWidgets import QApplication
+from shiboken6 import delete, isValid
 
 _ORIGINALS_ATTR = "_ok_nte_runtime_isolation_originals"
 _TEST_CUSTOM_CHARS_ROOT = tempfile.TemporaryDirectory(
@@ -69,6 +72,19 @@ _OK_GLOBAL_STATE_ATTRS = (
     "task_manager",
     "global_config",
 )
+
+
+def isolate_qt_widgets(test_case: TestCase) -> None:
+    """Destroy unparented widgets created by the test after teardown."""
+    existing_widgets = set(QApplication.topLevelWidgets())
+
+    def destroy_new_widgets() -> None:
+        # unittest does not run the Qt event loop that handles deleteLater().
+        for widget in QApplication.topLevelWidgets():
+            if widget not in existing_widgets and isValid(widget) and widget.parentWidget() is None:
+                delete(widget)
+
+    test_case.addCleanup(destroy_new_widgets)
 
 
 def _disable_async_preheats_for_tests() -> None:
@@ -129,7 +145,7 @@ def install_ok_test_runtime_isolation() -> None:
             # translations consistent with the suite's selected language.
             from ok.ui.qt.util.app import cfg as qt_config
 
-            test_config["locale"] = qt_config.get(qt_config.language).value.name()
+            test_config["locale"] = qt_config.language.value.name()
             test_config["my_app"] = None
             test_config["blur_area"] = None
 

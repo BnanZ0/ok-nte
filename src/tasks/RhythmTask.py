@@ -6,7 +6,7 @@ from ok import TaskDisabledException
 from src.Labels import Labels
 from src.tasks.BaseNTETask import BaseNTETask
 from src.tasks.NTEOneTimeTask import NTEOneTimeTask
-from src.ui.task_icons import Icon
+from src.ui.icons import task_icon
 from src.utils.clock import TimePoint
 
 # ─────────────────────────── 常量 ───────────────────────────
@@ -43,9 +43,10 @@ class RhythmTask(NTEOneTimeTask, BaseNTETask):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.name = "自动音游"
+        self.icon = task_icon("music")
         self.description = "异环鼓组音游自动打击与重试"
         self.group_name = "都市闲趣"
-        self.group_icon = Icon.GAME
+        self.group_icon = task_icon("city_fun")
         self.add_rounds_config()
         self.default_config.update(
             {
@@ -63,9 +64,7 @@ class RhythmTask(NTEOneTimeTask, BaseNTETask):
         )
 
         self._prev_state: dict[str, bool] = dict.fromkeys(DETECT_POINTS, False)
-        self._last_press_time: dict[str, TimePoint] = dict.fromkeys(
-            DETECT_POINTS, self.clock.UNSET
-        )
+        self._last_press_time: dict[str, TimePoint] = dict.fromkeys(DETECT_POINTS, self.clock.UNSET)
         self._last_finish_check = self.clock.UNSET
         self._key_queue: deque = deque()
         self._key_queue_cv = threading.Condition()

@@ -8,16 +8,14 @@ cffi==2.1.0 ; sys_platform == 'win32'
     #   soundfile
 charset-normalizer==3.4.9 ; sys_platform == 'win32'
     # via requests
-comtypes==1.4.17 ; sys_platform == 'win32'
+comtypes==1.5.0 ; sys_platform == 'win32'
     # via
     #   ok-nte
     #   pycaw
-darkdetect==0.8.0 ; sys_platform == 'win32'
-    # via
-    #   ok-script
-    #   pyside6-fluent-widgets
 decorator==5.3.1 ; sys_platform == 'win32'
     # via librosa
+dulwich==1.2.21 ; sys_platform == 'win32'
+    # via pyappify
 evdev==1.9.3 ; sys_platform == 'win32' and 'linux' in sys_platform
     # via pynput
 idna==3.18 ; sys_platform == 'win32'
@@ -32,7 +30,7 @@ lazy-loader==0.5 ; sys_platform == 'win32'
     # via
     #   librosa
     #   scikit-image
-librosa==1.0.0 ; sys_platform == 'win32'
+librosa==1.0.1 ; sys_platform == 'win32'
     # via ok-nte
 llvmlite==0.48.0 ; sys_platform == 'win32'
     # via numba
@@ -62,9 +60,11 @@ numpy==2.4.6 ; sys_platform == 'win32'
     #   soundfile
     #   soxr
     #   tifffile
-ok-script==2.0.22 ; sys_platform == 'win32'
+ok-pyside-minimal==6.12.0.post2 ; sys_platform == 'win32'
+    # via ok-script
+ok-script==3.0.6 ; sys_platform == 'win32'
     # via ok-nte
-onnxocr-ppocrv5==0.0.22 ; sys_platform == 'win32'
+onnxocr-ppocrv6==0.0.1 ; sys_platform == 'win32'
     # via
     #   ok-nte
     #   ok-script
@@ -85,7 +85,7 @@ packaging==26.2 ; sys_platform == 'win32'
 pillow==13.0.0 ; sys_platform == 'win32'
     # via
     #   imageio
-    #   onnxocr-ppocrv5
+    #   onnxocr-ppocrv6
     #   scikit-image
 platformdirs==4.10.0 ; sys_platform == 'win32'
     # via pooch
@@ -96,12 +96,12 @@ psutil==7.2.2 ; sys_platform == 'win32'
     #   ok-nte
     #   ok-script
     #   pycaw
-pyappify==1.0.13 ; sys_platform == 'win32'
+pyappify==1.0.20 ; sys_platform == 'win32'
     # via ok-script
 pycaw==20240210 ; sys_platform == 'win32'
     # via ok-script
 pyclipper==1.4.0 ; sys_platform == 'win32'
-    # via onnxocr-ppocrv5
+    # via onnxocr-ppocrv6
 pycparser==3.0 ; implementation_name != 'PyPy' and sys_platform == 'win32'
     # via cffi
 pydirectinput==1.0.4 ; sys_platform == 'win32'
@@ -110,25 +110,12 @@ pynput==1.8.2 ; sys_platform == 'win32'
     # via
     #   ok-nte
     #   ok-script
-pyside6-essentials==6.11.2 ; sys_platform == 'win32'
-    # via
-    #   ok-nte
-    #   ok-script
-pyside6-fluent-widgets==1.11.3 ; sys_platform == 'win32'
-    # via
-    #   ok-nte
-    #   ok-script
-pysidesix-frameless-window==0.8.2 ; sys_platform == 'win32'
-    # via
-    #   ok-script
-    #   pyside6-fluent-widgets
 python-xlib==0.33 ; sys_platform == 'win32' and 'linux' in sys_platform
     # via pynput
 pywin32==311 ; sys_platform == 'win32'
     # via
     #   ok-nte
     #   ok-script
-    #   pysidesix-frameless-window
 requests==2.34.2 ; sys_platform == 'win32'
     # via
     #   ok-script
@@ -143,9 +130,9 @@ scipy==1.18.0 ; sys_platform == 'win32'
     #   scikit-image
     #   scikit-learn
 shapely==2.1.2 ; sys_platform == 'win32'
-    # via onnxocr-ppocrv5
-shiboken6==6.11.2 ; sys_platform == 'win32'
-    # via pyside6-essentials
+    # via onnxocr-ppocrv6
+shiboken6==6.12.0 ; sys_platform == 'win32'
+    # via ok-pyside-minimal
 six==1.17.0 ; sys_platform == 'win32'
     # via
     #   pynput
@@ -166,4 +153,6 @@ typing-extensions==4.16.0 ; sys_platform == 'win32'
     #   ok-script
     #   soundfile
 urllib3==2.8.0 ; sys_platform == 'win32'
-    # via requests
+    # via
+    #   dulwich
+    #   requests

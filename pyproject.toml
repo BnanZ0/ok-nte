@@ -5,18 +5,16 @@ description = "An image-recognition-based automation tool for Neverness To Evern
 readme = "README.md"
 requires-python = ">=3.12,<3.13"
 dependencies = [
-    "comtypes>=1.4.17",
-    "librosa>=1.0.0",
+    "comtypes>=1.5.0",
+    "librosa>=1.0.1",
     "mido>=1.3.3",
-    "ok-script[ocr,qt]>=2.0.22",
-    "onnxocr-ppocrv5>=0.0.22",
+    "ok-script[ocr,qt]==3.0.6",
+    "onnxocr-ppocrv6==0.0.1",
     "opencc>=1.4.2",
     "opencv-python>=5.0.0.93",
     "openvino>=2026.3.0",
     "psutil>=7.2.2",
     "pynput>=1.8.2",
-    "PySide6-Essentials==6.11.2",
-    "pyside6-fluent-widgets==1.11.3",
     "scikit-image>=0.26.0",
     "sounddevice>=0.5.6",
     "typing-extensions>=4.9",
@@ -27,7 +25,7 @@ dependencies = [
 dev = [
     "mcp==2.3.0",
     "polib>=1.2.0",
-    "pytest>=9.1.1",
+    "pytest>=9.2.0",
     "PyInstaller==6.22.3",
     "pyinstaller-hooks-contrib==2026.8",
     "Pillow>=13.0.0",
@@ -51,8 +49,6 @@ environments = [
 ]
 
 exclude-dependencies = [
-    { package = { name = "pyside6-fluent-widgets" },
-      dependencies = ["pyside6"] },
     { package = { name = "ok-script" },
       dependencies = ["mcp"] },
 ]

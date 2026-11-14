@@ -1,6 +1,7 @@
 from ok import Logger, TriggerTask
 
 from src.tasks.BaseNTETask import BaseNTETask
+from src.ui.icons import task_icon
 
 logger = Logger.get_logger(__name__)
 
@@ -11,6 +12,7 @@ class AutoLoginTask(BaseNTETask, TriggerTask):
         self.default_config = {"_enabled": True}
         self.trigger_interval = 5
         self.name = "自动登录游戏"
+        self.icon = task_icon("login")
         self.description = "游戏启动后自动登录游戏"
 
     def run(self):

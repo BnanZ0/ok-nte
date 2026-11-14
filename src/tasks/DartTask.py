@@ -2,6 +2,7 @@ from ok import TaskDisabledException
 
 from src.tasks.BaseNTETask import BaseNTETask
 from src.tasks.NTEOneTimeTask import NTEOneTimeTask
+from src.ui.icons import task_icon
 
 
 class DartTask(NTEOneTimeTask, BaseNTETask):
@@ -12,6 +13,7 @@ class DartTask(NTEOneTimeTask, BaseNTETask):
         super().__init__(*args, **kwargs)
         self.name = "噗卡乐园 - 命中幸运星"
         self.description = "在可进行NPC交互的位置启动任务"
+        self.icon = task_icon("dart")
         self.ticket = -1
         self.add_rounds_config(default=0)
 

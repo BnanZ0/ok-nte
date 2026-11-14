@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none">
+  <!-- Rounded outer frame: single task launched intentionally -->
+  <rect x="2.6" y="2.6" width="18.8" height="18.8" rx="4.5"
+        stroke="#FFFFFF" stroke-width="2.25"/>
+  <!-- Soft white fill preserves alpha during UI tinting -->
+  <path d="M9.45 7.85L16.4 12L9.45 16.15Z"
+        fill="#FFFFFF" fill-opacity="0.42"
+        stroke="#FFFFFF" stroke-width="1.85"
+        stroke-linejoin="round" stroke-linecap="round"/>
+</svg>

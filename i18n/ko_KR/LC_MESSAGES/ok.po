@@ -974,8 +974,11 @@ msgstr "선물 계속하기"
 msgid "停止"
 msgstr "중지"
 
-msgid "在游戏赠礼页点击{}。点击礼物卡片可设定优先级，再次点击取消。"
-msgstr "게임 선물 페이지에서 {}을(를) 클릭하세요. 선물 카드를 클릭하여 우선순위를 설정하고, 다시 클릭하면 취소됩니다."
+msgid "在游戏赠礼页点击{}"
+msgstr "게임 선물 페이지에서 {}을(를) 클릭하세요"
+
+msgid "点击礼物卡片可设定优先级，再次点击取消"
+msgstr "선물 카드를 클릭하여 우선순위를 설정하고, 다시 클릭하면 취소됩니다"
 
 msgid "赠礼状态"
 msgstr "선물 상태"
@@ -1310,8 +1313,8 @@ msgstr "캐릭터"
 msgid "指令"
 msgstr "명령어"
 
-msgid "请先应用外置代码更改后再运行测试."
-msgstr "테스트를 실행하기 전에 외부 코드 변경 사항을 먼저 적용해 주세요."
+msgid "请先应用更改后再运行测试."
+msgstr "테스트를 실행하기 전에 변경 사항을 적용해 주세요."
 
 msgid "角色工具任务未注册"
 msgstr "캐릭터 도구 작업이 등록되지 않았습니다"
@@ -1719,3 +1722,111 @@ msgstr "토요일"
 
 msgid "周日"
 msgstr "일요일"
+
+
+msgid "Close"
+msgstr "닫기"
+
+
+msgid "Drag to reorder"
+msgstr "드래그하여 순서 변경"
+
+
+msgid "Failed"
+msgstr "실패"
+
+
+msgid "Include in this daily routine"
+msgstr "이 일일 루틴에 포함"
+
+
+msgid "Name"
+msgstr "이름"
+
+
+msgid "No tasks available."
+msgstr "사용 가능한 작업이 없습니다."
+
+
+msgid "Pause"
+msgstr "일시 정지"
+
+
+msgid "Paused"
+msgstr "일시 정지됨"
+
+
+msgid "Pending"
+msgstr "실행 대기"
+
+
+msgid "Queued"
+msgstr "대기열에 있음"
+
+
+msgid "Reset"
+msgstr "초기화"
+
+
+msgid "Resume"
+msgstr "계속"
+
+
+msgid "Routine settings"
+msgstr "일일 루틴 설정"
+
+
+msgid "Run info"
+msgstr "실행 정보"
+
+
+msgid "Running"
+msgstr "실행 중"
+
+
+msgid "Select a task to see its settings."
+msgstr "설정을 보려면 작업을 선택하세요."
+
+
+msgid "Skipped"
+msgstr "건너뜀"
+
+
+msgid "Start"
+msgstr "시작"
+
+
+msgid "Stop"
+msgstr "중지"
+
+
+msgid "Succeeded"
+msgstr "성공"
+
+
+msgid "Task settings"
+msgstr "작업 설정"
+
+
+msgid "Value"
+msgstr "값"
+
+
+msgid "检测到该方案包含外置代码, 是否同时删除对应的代码文件?"
+msgstr "해당 프리셋에 외부 코드가 포함되어 있습니다. 해당 코드 파일도 함께 삭제하시겠습니까?"
+
+
+msgid "角色列表"
+msgstr "캐릭터 목록"
+
+msgid "音轨"
+msgstr "트랙"
+
+msgid "已选音轨"
+msgstr "선택한 트랙"
+
+msgid "选中音符"
+msgstr "선택한 음표"
+
+msgid "体力本"
+msgstr "스태미나"

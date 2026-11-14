@@ -16,7 +16,7 @@
 
 - Python 版本和格式以 `pyproject.toml` 为准。修改 Python 注释和字符串时使用 ASCII `,`、`;`, 避免全角逗号和分号。
 - 任务使用 `BaseNTETask` / `NTEOneTimeTask`; 领域逻辑留在对应子系统。新增任务或全局配置同步 `src/config.py` 的注册、默认值和说明。
-- UI 复用 PySide6/qfluentwidgets。
+- UI 优先直接复用 `ok.ui.qt.kit`, 常规控件其次使用原生 PySide6; 仅为项目特有行为和必要复用实现自有组件, 不建立旧 Fluent API 兼容包装。不得为局部功能引入大型框架、服务端或异步运行时。
 - 运行期计时统一使用 `src.utils.clock`; 已有 `self.clock` / `self.task.clock` 时直接复用, 无法稳定取得时直接 import。局部超时使用 `clock.timer(timeout=...)` 和 `expired()`, 高精度显式指定 `precise=True`。
 - 不直接读取 `time.time()`、`time.monotonic()`、`time.perf_counter()` 及其纳秒版本。真实日期使用带时区的 `datetime`; 不持久化运行期单调时间点。涉及计时 API 和兼容性时查阅 [runtime_clock.md](docs/runtime_clock.md)。
 

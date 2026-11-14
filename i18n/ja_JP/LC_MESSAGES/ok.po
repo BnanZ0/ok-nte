@@ -974,8 +974,11 @@ msgstr "ギフト再開"
 msgid "停止"
 msgstr "停止"
 
-msgid "在游戏赠礼页点击{}。点击礼物卡片可设定优先级，再次点击取消。"
-msgstr "ゲームのギフトページで{}をクリックします。ギフトカードをクリックして優先度を設定し、もう一度クリックするとキャンセルします。"
+msgid "在游戏赠礼页点击{}"
+msgstr "ゲームのギフトページで{}をクリックします"
+
+msgid "点击礼物卡片可设定优先级，再次点击取消"
+msgstr "ギフトカードをクリックして優先度を設定し、もう一度クリックするとキャンセルします"
 
 msgid "赠礼状态"
 msgstr "ギフト状態"
@@ -1310,8 +1313,8 @@ msgstr "キャラクター"
 msgid "指令"
 msgstr "コマンド"
 
-msgid "请先应用外置代码更改后再运行测试."
-msgstr "テストを実行する前に、外部コードの変更を適用してください。"
+msgid "请先应用更改后再运行测试."
+msgstr "テストを実行する前に、変更を適用してください。"
 
 msgid "角色工具任务未注册"
 msgstr "キャラクターツールタスクが登録されていません"
@@ -1719,3 +1722,111 @@ msgstr "土曜日"
 
 msgid "周日"
 msgstr "日曜日"
+
+
+msgid "Close"
+msgstr "閉じる"
+
+
+msgid "Drag to reorder"
+msgstr "ドラッグして並べ替え"
+
+
+msgid "Failed"
+msgstr "失敗"
+
+
+msgid "Include in this daily routine"
+msgstr "このデイリールーチンに含める"
+
+
+msgid "Name"
+msgstr "名前"
+
+
+msgid "No tasks available."
+msgstr "利用可能なタスクはありません。"
+
+
+msgid "Pause"
+msgstr "一時停止"
+
+
+msgid "Paused"
+msgstr "一時停止中"
+
+
+msgid "Pending"
+msgstr "未実行"
+
+
+msgid "Queued"
+msgstr "待機中"
+
+
+msgid "Reset"
+msgstr "リセット"
+
+
+msgid "Resume"
+msgstr "再開"
+
+
+msgid "Routine settings"
+msgstr "デイリー設定"
+
+
+msgid "Run info"
+msgstr "実行情報"
+
+
+msgid "Running"
+msgstr "実行中"
+
+
+msgid "Select a task to see its settings."
+msgstr "タスクを選択して設定を表示します。"
+
+
+msgid "Skipped"
+msgstr "スキップ済み"
+
+
+msgid "Start"
+msgstr "開始"
+
+
+msgid "Stop"
+msgstr "停止"
+
+
+msgid "Succeeded"
+msgstr "成功"
+
+
+msgid "Task settings"
+msgstr "タスク設定"
+
+
+msgid "Value"
+msgstr "値"
+
+
+msgid "检测到该方案包含外置代码, 是否同时删除对应的代码文件?"
+msgstr "このプリセットには外部コードが含まれています。対応するコードファイルも同時に削除しますか？"
+
+
+msgid "角色列表"
+msgstr "キャラクター一覧"
+
+msgid "音轨"
+msgstr "トラック"
+
+msgid "已选音轨"
+msgstr "選択中のトラック"
+
+msgid "选中音符"
+msgstr "選択中の音符"
+
+msgid "体力本"
+msgstr "スタミナ"

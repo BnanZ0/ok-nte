@@ -1,6 +1,7 @@
 from ok import Logger, TriggerTask
 
 from src.combat.BaseCombatTask import BaseCombatTask, NotInCombatException
+from src.ui.icons import task_icon
 
 logger = Logger.get_logger(__name__)
 
@@ -17,6 +18,7 @@ class AutoCombatTask(BaseCombatTask, TriggerTask):
         self.trigger_interval = 0.1
         self.name = "自动战斗"
         self.description = "适用于大世界、轨外之境、999夜等各类场景与副本"
+        self.icon = task_icon("fight")
         self.default_config.update(
             {
                 self.CONF_AUTO_TARGET: True,

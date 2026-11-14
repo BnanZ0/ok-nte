@@ -2,7 +2,7 @@ from ok import TaskDisabledException, WaitFailedException
 
 from src.tasks.NTEOneTimeTask import NTEOneTimeTask
 from src.tasks.RecordTask import RecordTask
-from src.ui.task_icons import Icon
+from src.ui.icons import task_icon
 
 INST = (
     "功能说明：本功能仅负责『自动退出关卡』与『重新开启关卡』的点击循环，"
@@ -61,9 +61,10 @@ class OwnerSelectionTask(NTEOneTimeTask, RecordTask):
         super().__init__(*args, **kwargs)
         self.name = "店长特供"
         self.description = "自动循环进出关卡（需配合游戏内挂机流派使用）"
+        self.icon = task_icon("shop")
         self.instructions = INST if self.is_chinese() else EN_INST
         self.group_name = "都市闲趣"
-        self.group_icon = Icon.GAME
+        self.group_icon = task_icon("city_fun")
         self.add_rounds_config()
         self.default_config.update(
             {

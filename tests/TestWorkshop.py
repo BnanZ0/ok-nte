@@ -4,6 +4,7 @@ import os
 import shutil
 import stat
 import tempfile
+import threading
 import unittest
 import uuid
 import zipfile
@@ -13,8 +14,9 @@ from pathlib import Path
 from unittest.mock import Mock, patch
 
 import requests
-from PySide6.QtCore import QPoint, Qt
-from PySide6.QtTest import QTest
+import shiboken6
+from ok.ui.qt.kit import Theme, theme
+from PySide6.QtCore import QEvent, QPoint, Qt, QTimer
 from PySide6.QtWidgets import QApplication, QToolButton, QWidget
 
 from src.char.core.CharFactory import get_char_by_impl_id
@@ -44,6 +46,8 @@ from src.ui.features.characters.workshop_dialog import (
     PackageMetadataDialog,
     WorkshopDialog,
 )
+from tests.support.ok_runtime import isolate_qt_widgets
+from tests.support.qt_events import send_key
 
 SOURCE = (
     "from src.char.BaseChar import BaseChar, Element\n\n"
@@ -91,6 +95,7 @@ class TestWorkshop(unittest.TestCase):
         self.assertEqual(visible, expected)
 
     def setUp(self):
+        isolate_qt_widgets(self)
         root = Path(os.getcwd()) / "tests" / ".tmp"
         root.mkdir(parents=True, exist_ok=True)
         self.temp_dir = root / f"workshop_{uuid.uuid4().hex}"
@@ -427,7 +432,7 @@ class TestWorkshop(unittest.TestCase):
         with patch.object(BackgroundCall, "start", lambda worker: worker._run()):
             dialog = WorkshopDialog(repository, parent, service=self.service)
         try:
-            self.assertTrue(dialog.update_button.isHidden())
+            self.assertTrue(dialog.update_controls.isHidden())
             self.assertFalse(dialog.import_button.isHidden())
             self.assertTrue(dialog.import_button.isEnabled())
             self.assertFalse(dialog.update_all_button.isEnabled())
@@ -521,7 +526,7 @@ class TestWorkshop(unittest.TestCase):
         with patch.object(BackgroundCall, "start", lambda worker: worker._run()):
             dialog = WorkshopDialog(repository, parent, service=self.service)
         try:
-            self.assertTrue(dialog.update_button.isHidden())
+            self.assertTrue(dialog.update_controls.isHidden())
             self.assertTrue(dialog.import_button.isEnabled())
             self.assertFalse(dialog.update_all_button.isEnabled())
             self.assert_update_indicator_visible(dialog.table.item(0, 3), False)
@@ -562,10 +567,20 @@ class TestWorkshop(unittest.TestCase):
             self.assertTrue(dialog.update_all_button.isEnabled())
             imported = []
             dialog.import_requested.connect(lambda entry, src: imported.append((entry, src)))
+            with patch.object(dialog.import_menu, "popup") as popup:
+                dialog.update_menu_button.click()
+            popup.assert_called_once()
+            controls = dialog.update_controls
+            self.assertEqual(dialog.import_menu.width(), controls.width())
+            self.assertEqual(
+                popup.call_args.args[0], controls.mapToGlobal(QPoint(0, controls.height() + 4))
+            )
+            self.assertEqual(imported, [])
+            repository.download_archive.assert_not_called()
             dialog.import_action.trigger()
             self.assertEqual(imported, [(latest, source)])
             dialog.version_combo.setCurrentIndex(1)
-            self.assertTrue(dialog.update_button.isHidden())
+            self.assertTrue(dialog.update_controls.isHidden())
             self.assertFalse(dialog.update_button.isEnabled())
             self.assertFalse(dialog.import_button.isHidden())
             self.assertTrue(dialog.update_all_button.isEnabled())
@@ -573,16 +588,16 @@ class TestWorkshop(unittest.TestCase):
             self.assertEqual(imported, [(latest, source), (old, source)])
             repository.download_archive.assert_not_called()
             dialog.version_combo.setCurrentIndex(0)
-            self.assertFalse(dialog.update_button.isHidden())
+            self.assertFalse(dialog.update_controls.isHidden())
             self.assertTrue(dialog.import_button.isHidden())
             with (
                 patch.object(BackgroundCall, "start", lambda worker: worker._run()),
                 patch.object(self.service, "load_archive", return_value=update),
             ):
-                dialog.update_button.button.click()
+                dialog.update_button.click()
             repository.download_archive.assert_called_once_with(source, latest)
             self.assertFalse(dialog.update_button.isEnabled())
-            self.assertTrue(dialog.update_button.isHidden())
+            self.assertTrue(dialog.update_controls.isHidden())
             self.assertFalse(dialog.import_button.isHidden())
             self.assertFalse(dialog.update_all_button.isEnabled())
             self.assertEqual(self.service.get_installations()[0].version, "1.1.0")
@@ -629,7 +644,7 @@ class TestWorkshop(unittest.TestCase):
             directory_exists=lambda directory: directory == "existing",
         )
 
-        self.assertFalse(dialog.yesButton.isEnabled())
+        self.assertFalse(dialog.ok_button.isEnabled())
         self.assertIn("existing", dialog.error_label.text())
 
     def test_workshop_filter_header_stays_anchored_during_collapse(self):
@@ -668,9 +683,12 @@ class TestWorkshop(unittest.TestCase):
         parent = QWidget()
         with patch.object(WorkshopDialog, "reload_catalog"):
             dialog = WorkshopDialog(repository, parent)
-        dialog._catalog_loaded(([entry], IndexSource("GitHub", "index", "base")))
+        dialog._catalog_loaded(([entry], IndexSource("GitHub", "index", "base"), []))
 
         self.assertEqual(dialog.table.columnCount(), 4)
+        self.assertEqual(
+            dialog.table.horizontalHeader().defaultAlignment(), Qt.AlignLeft | Qt.AlignVCenter
+        )
         self.assertEqual(dialog.table.item(0, 0).text(), "测试方案")
         self.assertEqual(dialog.table.item(0, 2).text(), "作者")
         self.assertEqual(dialog.table.item(0, 3).text(), "1.0.0")
@@ -696,10 +714,11 @@ class TestWorkshop(unittest.TestCase):
 
         def add_keyword(word):
             dialog.keyword_edit.setText(word)
-            QTest.keyClick(dialog.keyword_edit, Qt.Key.Key_Return)
+            for event_type in (QEvent.Type.KeyPress, QEvent.Type.KeyRelease):
+                send_key(dialog.keyword_edit, Qt.Key.Key_Return, event_type)
 
         try:
-            catalog = ([old, latest, other], IndexSource("GitHub", "index", "base"))
+            catalog = ([old, latest, other], IndexSource("GitHub", "index", "base"), [])
             dialog._catalog_loaded(catalog)
             dialog.table.selectRow(1)
             dialog.version_combo.setCurrentIndex(1)
@@ -764,7 +783,7 @@ class TestWorkshop(unittest.TestCase):
         try:
             for chinese, role in ((True, "零"), (False, "Zero")):
                 dialog.is_chinese = chinese
-                dialog._catalog_loaded(([old, latest], source))
+                dialog._catalog_loaded(([old, latest], source, []))
                 self.assertEqual(dialog.slot_cards[0].title_label.text(), role)
                 self.assertEqual(dialog.table.rowCount(), 1)
                 self.assertEqual(dialog.table.item(0, 3).text(), "1.10.0")
@@ -802,7 +821,7 @@ class TestWorkshop(unittest.TestCase):
         with patch.object(WorkshopDialog, "reload_catalog"):
             dialog = WorkshopDialog(Mock(), parent)
         try:
-            dialog._catalog_loaded(([entry], IndexSource("GitHub", "index", "base")))
+            dialog._catalog_loaded(([entry], IndexSource("GitHub", "index", "base"), []))
             self.assertEqual(dialog.detail_body.toPlainText(), package.description)
         finally:
             dialog.deleteLater()
@@ -823,13 +842,14 @@ class TestWorkshop(unittest.TestCase):
         dialog = PackageMetadataDialog(defaults, parent, repository=repository)
         imported = []
 
-        def select_history(picker):
+        def select_history(picker, *, owner):
+            self.assertIs(owner, dialog)
             self.assertTrue(picker.metadata_only)
-            self.assertFalse(picker.yesButton.isEnabled())
+            self.assertFalse(picker.ok_button.isEnabled())
             picker.import_requested.connect(lambda *args: imported.append(args))
-            picker._catalog_loaded(([latest, old], IndexSource("GitHub", "index", "base")))
+            picker._catalog_loaded(([latest, old], IndexSource("GitHub", "index", "base"), []))
             picker.version_combo.setCurrentIndex(1)
-            self.assertTrue(picker.yesButton.isEnabled())
+            self.assertTrue(picker.ok_button.isEnabled())
             self.assertTrue(picker.validate())
             picker.import_button.click()
             return 1
@@ -837,11 +857,14 @@ class TestWorkshop(unittest.TestCase):
         try:
             with (
                 patch.object(WorkshopDialog, "reload_catalog"),
-                patch.object(WorkshopDialog, "exec", new=select_history),
+                patch(
+                    "src.ui.foundation.dialogs.exec_dialog",
+                    side_effect=select_history,
+                ),
             ):
                 dialog.fill_button.click()
             self.assertEqual(dialog.package(), replace(old.package, slots=()))
-            self.assertTrue(dialog.yesButton.isEnabled())
+            self.assertTrue(dialog.ok_button.isEnabled())
             self.assertEqual(dialog.description_edit.toPlainText(), old.package.description)
             dialog.version_edit.setText("1.0.1")
             self.assertEqual(dialog.package().version, "1.0.1")
@@ -862,17 +885,21 @@ class TestWorkshop(unittest.TestCase):
         dialog.name_edit.setText("Edited draft")
         before = dialog.package()
 
-        def cancel_selection(picker):
+        def cancel_selection(picker, *, owner):
+            self.assertIs(owner, dialog)
             entry = CatalogEntry(
                 make_package(), "codes/test.zip", "test.zip", 100, "2026-01-01T00:00:00Z"
             )
-            picker._catalog_loaded(([entry], IndexSource("GitHub", "index", "base")))
+            picker._catalog_loaded(([entry], IndexSource("GitHub", "index", "base"), []))
             return 0
 
         try:
             with (
                 patch.object(WorkshopDialog, "reload_catalog"),
-                patch.object(WorkshopDialog, "exec", new=cancel_selection),
+                patch(
+                    "src.ui.foundation.dialogs.exec_dialog",
+                    side_effect=cancel_selection,
+                ),
             ):
                 dialog.fill_button.click()
             self.assertEqual(dialog.package(), before)
@@ -894,12 +921,12 @@ class TestWorkshop(unittest.TestCase):
                 self.assertEqual(show_bar.call_args.args[2], "offline")
                 self.assertFalse(show_bar.call_args.kwargs["success"])
             self.assertNotIn("offline", dialog.status_label.text())
-            self.assertFalse(dialog.yesButton.isEnabled())
+            self.assertFalse(dialog.ok_button.isEnabled())
             self.assertFalse(dialog.validate())
-            dialog._catalog_loaded(([entry], IndexSource("GitHub", "index", "base")))
-            self.assertTrue(dialog.yesButton.isEnabled())
+            dialog._catalog_loaded(([entry], IndexSource("GitHub", "index", "base"), []))
+            self.assertTrue(dialog.ok_button.isEnabled())
             dialog.search_edit.setText("no matches")
-            self.assertFalse(dialog.yesButton.isEnabled())
+            self.assertFalse(dialog.ok_button.isEnabled())
             self.assertFalse(dialog.validate())
             self.assertIsNone(dialog.selected_package())
             dialog.search_edit.clear()
@@ -908,36 +935,214 @@ class TestWorkshop(unittest.TestCase):
             dialog.deleteLater()
             parent.deleteLater()
 
-    def test_workshop_dialog_layout_stability_and_no_shadow(self):
-        pkg1 = TeamPackage("A", "Desc 1", "Author A", "1.0.0", make_package(False).slots)
-        pkg2 = TeamPackage(
-            "B", "Multi\nLine\nDescription\nHere", "Author B", "2.0.0", make_package(False).slots
-        )
-        e1 = CatalogEntry(pkg1, "codes/a.zip", "a.zip", 100, "2026-01-01T00:00:00Z")
-        e2 = CatalogEntry(pkg2, "codes/b.zip", "b.zip", 200, "2026-01-02T00:00:00Z")
+    def test_workshop_fits_window_and_keeps_layout_when_selection_changes(self):
+        previous_theme = theme.mode
         parent = QWidget()
+        parent.resize(1200, 800)
+        parent.show()
+        package = make_package()
+        entries = [
+            CatalogEntry(package, "codes/a.zip", "a.zip", 1, "2026-01-01Z"),
+            CatalogEntry(
+                replace(package, name="Second", description="Multi\nLine\nDescription"),
+                "codes/b.zip",
+                "b.zip",
+                1,
+                "2026-01-01Z",
+            ),
+        ]
+        entries.extend(
+            CatalogEntry(
+                replace(package, name=f"Team {index}"),
+                f"codes/{index}.zip",
+                f"{index}.zip",
+                1,
+                "2026-01-01Z",
+            )
+            for index in range(30)
+        )
+        try:
+            for mode in (Theme.LIGHT, Theme.DARK):
+                with self.subTest(mode=mode), patch.object(WorkshopDialog, "reload_catalog"):
+                    theme.set_theme(mode)
+                    dialog = WorkshopDialog(Mock(), parent, metadata_only=True)
+                    try:
+                        dialog._toggle_filters(True)
+                        dialog.open()
+                        self.qt_app.processEvents()
+                        dialog._catalog_loaded(
+                            (entries, IndexSource("GitHub", "index", "base"), [])
+                        )
+                        self.qt_app.processEvents()
+                        self.assertTrue(parent.rect().contains(dialog.panel.geometry()))
+                        self.assertTrue(dialog.table.isVisible())
+                        self.assertGreater(dialog.table.verticalScrollBar().maximum(), 0)
+                        self.assertTrue(dialog.filter_panel.isVisible())
+                        self.assertTrue(dialog.ok_button.isVisible())
+                        self.assertGreater(dialog.detail_body.height(), 50)
+                        title = dialog.title_label.geometry()
+                        status = dialog.status_label.geometry()
+                        self.assertTrue(dialog.status_label.isVisible())
+                        self.assertLess(title.right(), status.left())
+                        self.assertTrue(title.top() <= status.center().y() <= title.bottom())
+                        panel, table = dialog.panel.geometry(), dialog.table.geometry()
+                        description = dialog.detail_body.toPlainText()
+                        dialog.table.selectRow(1)
+                        self.qt_app.processEvents()
+                        self.assertNotEqual(dialog.detail_body.toPlainText(), description)
+                        self.assertEqual(
+                            (dialog.panel.geometry(), dialog.table.geometry()), (panel, table)
+                        )
+                    finally:
+                        shiboken6.delete(dialog)
+        finally:
+            theme.set_theme(previous_theme)
+            shiboken6.delete(parent)
+
+    def test_keyword_return_filters_without_accepting_metadata_dialog(self):
+        entry = CatalogEntry(make_package(), "codes/test.zip", "test.zip", 1, "2026-01-01Z")
+        parent = QWidget()
+        parent.resize(1200, 800)
+        parent.show()
+        with patch.object(WorkshopDialog, "reload_catalog"):
+            dialog = WorkshopDialog(Mock(), parent, metadata_only=True)
+        accepted = []
+        dialog.accepted.connect(lambda: accepted.append(True))
+        try:
+            dialog._catalog_loaded(([entry], IndexSource("GitHub", "index", "base"), []))
+            dialog._toggle_filters(True)
+            dialog.open()
+            dialog.keyword_edit.setFocus()
+            dialog.keyword_edit.setText("Zero")
+            send_key(dialog.keyword_edit, Qt.Key.Key_Return)
+            self.assertEqual(dialog.keyword_edit.keywords, ["Zero"])
+            self.assertEqual(dialog.table.rowCount(), 1)
+            self.assertTrue(dialog.ok_button.isEnabled())
+            self.assertTrue(dialog.isVisible())
+            self.assertEqual(accepted, [])
+            self.qt_app.processEvents()
+            (close,) = dialog.keyword_edit.chip_view.findChildren(QToolButton)
+            viewport = dialog.keyword_edit.chip_scroll.viewport()
+            close_rect = close.rect().translated(close.mapTo(viewport, QPoint()))
+            self.assertTrue(viewport.rect().contains(close_rect))
+        finally:
+            shiboken6.delete(parent)
+
+    def test_form_validation_blocks_direct_accept_and_hidden_cancel_escape(self):
+        parent = QWidget()
+        parent.show()
+        metadata = PackageMetadataDialog(make_package(), parent)
+        importing = PackageImportDialog(make_package(), "team.zip", parent)
+        try:
+            for dialog, field, invalid in (
+                (metadata, metadata.version_edit, "not a version"),
+                (importing, importing.directory_edit, "CON"),
+            ):
+                with self.subTest(dialog=type(dialog).__name__):
+                    accepted = []
+                    dialog.accepted.connect(lambda: accepted.append(True))
+                    dialog.set_cancel_visible(False)
+                    dialog.open()
+                    field.setText(invalid)
+                    self.assertFalse(dialog.ok_button.isEnabled())
+                    dialog.accept()
+                    send_key(dialog, Qt.Key.Key_Escape)
+                    self.assertEqual(accepted, [])
+                    self.assertTrue(dialog.isVisible())
+                    dialog.hide()
+        finally:
+            shiboken6.delete(parent)
+
+    def test_browse_mode_hidden_confirmation_cannot_accept(self):
+        parent = QWidget()
+        parent.show()
         with patch.object(WorkshopDialog, "reload_catalog"):
             dialog = WorkshopDialog(Mock(), parent)
+        accepted = []
+        dialog.accepted.connect(lambda: accepted.append(True))
         try:
-            self.assertIsNone(dialog.widget.graphicsEffect())
-            self.assertEqual(
-                dialog.table.horizontalScrollBarPolicy(), Qt.ScrollBarPolicy.ScrollBarAlwaysOff
-            )
-            self.assertTrue(dialog.table.horizontalHeader().stretchLastSection())
-
-            dialog._catalog_loaded(([e1, e2], IndexSource("GitHub", "index", "base")))
-            dialog.show()
-            self.qt_app.processEvents()
-
-            w_geom_0 = dialog.widget.geometry()
-            t_geom_0 = dialog.table.geometry()
-            dialog.table.selectRow(1)
-            self.qt_app.processEvents()
-            self.assertEqual(dialog.widget.geometry(), w_geom_0)
-            self.assertEqual(dialog.table.geometry(), t_geom_0)
+            dialog.open()
+            dialog.accept()
+            send_key(dialog, Qt.Key.Key_Return)
+            self.assertEqual(accepted, [])
+            self.assertTrue(dialog.isVisible())
         finally:
-            dialog.deleteLater()
-            parent.deleteLater()
+            shiboken6.delete(parent)
+
+    def test_cancel_update_keeps_dialog_alive_until_success_or_failure_finishes(self):
+        entry = CatalogEntry(make_package(), "codes/test.zip", "test.zip", 1, "2026-01-01Z")
+        for error in (None, RuntimeError("offline")):
+            with self.subTest(error=error):
+                parent = QWidget()
+                parent.show()
+                service = Mock()
+                service.get_installations.return_value = []
+                service.update_from_catalog.return_value = ([], [])
+                service.update_from_catalog.side_effect = error
+                with patch.object(WorkshopDialog, "reload_catalog"):
+                    dialog = WorkshopDialog(Mock(), parent, service=service)
+                rejected = []
+                dialog.rejected.connect(lambda: rejected.append(True))
+                try:
+                    dialog._catalog_loaded(([entry], IndexSource("GitHub", "index", "base"), []))
+                    dialog.open()
+                    with patch.object(BackgroundCall, "start"):
+                        dialog._start_updates([entry])
+                    dialog.reject()
+                    self.assertTrue(dialog._cancel_update.is_set())
+                    self.assertTrue(dialog.isVisible())
+                    self.assertFalse(dialog.cancel_button.isEnabled())
+                    with patch("src.ui.features.characters.workshop_dialog.show_bar"):
+                        dialog._worker._run()
+                    self.assertFalse(dialog._updating)
+                    self.assertFalse(dialog.isVisible())
+                    self.assertEqual(rejected, [True])
+                    cancel_requested = service.update_from_catalog.call_args.args[-1]
+                    self.assertTrue(cancel_requested())
+                finally:
+                    shiboken6.delete(parent)
+
+    def test_background_result_is_retired_when_owner_is_destroyed(self):
+        started = threading.Event()
+        release = threading.Event()
+        finished = threading.Event()
+        callbacks = []
+        thread_errors = []
+
+        def action():
+            started.set()
+            release.wait(timeout=2)
+            return "loaded"
+
+        class ObservedCall(BackgroundCall):
+            def _run(self):
+                try:
+                    super()._run()
+                finally:
+                    finished.set()
+
+        owner = QWidget()
+        worker = ObservedCall(action, owner)
+        worker.succeeded.connect(callbacks.append)
+        worker.failed.connect(callbacks.append)
+        try:
+            with patch.object(threading, "excepthook", side_effect=thread_errors.append):
+                worker.start()
+                self.assertTrue(started.wait(timeout=1))
+                responsive = []
+                QTimer.singleShot(0, lambda: responsive.append(True))
+                self.qt_app.processEvents()
+                self.assertEqual(responsive, [True])
+                shiboken6.delete(owner)
+                release.set()
+                self.assertTrue(finished.wait(timeout=1))
+                self.qt_app.processEvents()
+                self.assertEqual(callbacks, [])
+                self.assertEqual(thread_errors, [])
+        finally:
+            release.set()
+            if shiboken6.isValid(owner):
+                shiboken6.delete(owner)
 
 
 class TestWorkshopModels(unittest.TestCase):

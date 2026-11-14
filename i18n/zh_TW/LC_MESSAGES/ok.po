@@ -975,8 +975,11 @@ msgstr "繼續贈禮"
 msgid "停止"
 msgstr "停止"
 
-msgid "在游戏赠礼页点击{}。点击礼物卡片可设定优先级，再次点击取消。"
-msgstr "在遊戲贈禮頁點擊{}。點擊禮物卡片可設定優先級，再次點擊取消。"
+msgid "在游戏赠礼页点击{}"
+msgstr "在遊戲贈禮頁點擊{}"
+
+msgid "点击礼物卡片可设定优先级，再次点击取消"
+msgstr "點擊禮物卡片可設定優先級，再次點擊取消"
 
 msgid "赠礼状态"
 msgstr "贈禮狀態"
@@ -1311,8 +1314,8 @@ msgstr "角色"
 msgid "指令"
 msgstr "指令"
 
-msgid "请先应用外置代码更改后再运行测试."
-msgstr "請先套用外置代碼變更後再運行測試."
+msgid "请先应用更改后再运行测试."
+msgstr "請先套用變更後再執行測試."
 
 msgid "角色工具任务未注册"
 msgstr "角色工具任務未註冊"
@@ -1720,3 +1723,111 @@ msgstr "週六"
 
 msgid "周日"
 msgstr "週日"
+
+
+msgid "Close"
+msgstr "關閉"
+
+
+msgid "Drag to reorder"
+msgstr "拖曳排序"
+
+
+msgid "Failed"
+msgstr "失敗"
+
+
+msgid "Include in this daily routine"
+msgstr "加入本次日常任務"
+
+
+msgid "Name"
+msgstr "名稱"
+
+
+msgid "No tasks available."
+msgstr "目前沒有可用任務。"
+
+
+msgid "Pause"
+msgstr "暫停"
+
+
+msgid "Paused"
+msgstr "已暫停"
+
+
+msgid "Pending"
+msgstr "待執行"
+
+
+msgid "Queued"
+msgstr "排隊中"
+
+
+msgid "Reset"
+msgstr "重設"
+
+
+msgid "Resume"
+msgstr "繼續"
+
+
+msgid "Routine settings"
+msgstr "日常設定"
+
+
+msgid "Run info"
+msgstr "執行資訊"
+
+
+msgid "Running"
+msgstr "執行中"
+
+
+msgid "Select a task to see its settings."
+msgstr "選擇任務以查看其設定。"
+
+
+msgid "Skipped"
+msgstr "已略過"
+
+
+msgid "Start"
+msgstr "開始"
+
+
+msgid "Stop"
+msgstr "停止"
+
+
+msgid "Succeeded"
+msgstr "成功"
+
+
+msgid "Task settings"
+msgstr "任務設定"
+
+
+msgid "Value"
+msgstr "數值"
+
+
+msgid "检测到该方案包含外置代码, 是否同时删除对应的代码文件?"
+msgstr "偵測到此方案包含外置程式碼, 是否同時刪除對應的程式碼檔案?"
+
+
+msgid "角色列表"
+msgstr "角色列表"
+
+msgid "音轨"
+msgstr "音軌"
+
+msgid "已选音轨"
+msgstr "已選音軌"
+
+msgid "选中音符"
+msgstr "選中音符"
+
+msgid "体力本"
+msgstr "體力本"

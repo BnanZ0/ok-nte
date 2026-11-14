@@ -27,7 +27,7 @@ class TestBotNotifications(unittest.TestCase):
         communicate.notification.connect(self.window.show_notification)
         _install_bot_notification_filter(self.window)
         self.addCleanup(self.window.destroyed.emit)
-        self.popup = self.enterContext(patch("ok.ui.qt.util.app.show_info_bar"))
+        self.popup = self.enterContext(patch("ok.ui.qt.MainWindow.show_toast"))
         self.enterContext(patch.object(og, "app", SimpleNamespace(tr=lambda text: text)))
         self.enterContext(patch("ok.core.events._dispatcher", None))
         self.task = object.__new__(BaseNTETask)
@@ -63,10 +63,9 @@ class TestBotNotifications(unittest.TestCase):
             patch("ok.core.events._dispatcher", dispatcher.dispatch),
             communicate.any.subscribed(forwarded.append),
             patch(
-                "src.ui.foundation.info_bar.InfoBar.error",
-                side_effect=lambda **kwargs: threads.append(QThread.currentThread()),
-            ) as error_bar,
-            patch("src.ui.foundation.info_bar.InfoBar.success") as success_bar,
+                "src.ui.foundation.info_bar.show_toast",
+                side_effect=lambda *args, **kwargs: threads.append(QThread.currentThread()),
+            ) as toast,
         ):
             install_info_bar_handler(parent)
             install_info_bar_handler(parent)
@@ -78,25 +77,28 @@ class TestBotNotifications(unittest.TestCase):
             worker.start()
             worker.join(timeout=5)
             self.assertFalse(worker.is_alive())
-            error_bar.assert_not_called()
+            toast.assert_not_called()
             app.processEvents()
-            error_bar.assert_called_once()
+            toast.assert_called_once()
             self.assertEqual(threads, [app.thread()])
-            self.assertEqual(error_bar.call_args.kwargs["duration"], -1)
-            self.assertTrue(error_bar.call_args.kwargs["isClosable"])
-            self.assertIs(error_bar.call_args.kwargs["parent"], parent)
+            self.assertEqual(toast.call_args.kwargs["duration"], 0)
+            self.assertEqual(toast.call_args.kwargs["tone"], "danger")
+            self.assertIs(toast.call_args.args[0], parent)
             events = [event for event in forwarded if event.name == "info_bar_requested"]
             self.assertEqual(len(events), 1)
             self.assertEqual(events[0].kwargs["duration"], -1)
             self.popup.assert_not_called()
             self.task.log_error("ordinary error", notify=True)
-            self.popup.assert_called_once_with(None, "ordinary error", "", True)
+            self.popup.assert_called_once_with(
+                None, "ordinary error", None, "danger", duration=8000
+            )
 
             communicate.info_bar_requested.emit(
                 title="Saved", content="custom duration", success=True, duration=12000
             )
             app.processEvents()
-            self.assertEqual(success_bar.call_args.kwargs["duration"], 12000)
+            self.assertEqual(toast.call_args.kwargs["duration"], 12000)
+            self.assertEqual(toast.call_args.kwargs["tone"], "success")
             pending = []
             with patch(
                 "ok.core.events._dispatcher", side_effect=lambda *args: pending.append(args)
@@ -108,7 +110,7 @@ class TestBotNotifications(unittest.TestCase):
                 callback(*args, **kwargs)
             communicate.info_bar_requested.emit(title="Closed", content="after destruction")
             app.processEvents()
-            error_bar.assert_called_once()
+            self.assertEqual(toast.call_count, 2)
 
         self.external_submit.assert_not_called()
 
@@ -122,7 +124,7 @@ class TestBotNotifications(unittest.TestCase):
             callback(*args, **kwargs)
 
         self.assertEqual(self.task.info["Log"], message)
-        self.popup.assert_any_call(None, message, "", False)
+        self.popup.assert_any_call(None, message, None, "neutral", duration=8000)
         self.manager.notify_system.assert_any_call("", message, False, True)
         self.external_submit.assert_called_once_with("", message, [])
 
@@ -140,15 +142,13 @@ class TestBotNotifications(unittest.TestCase):
         _install_bot_notification_filter(window)
         self.addCleanup(window.destroyed.emit)
 
-        result = window.show_notification(
-            message=BotNotificationMessage("result"), priority="high"
-        )
+        result = window.show_notification(message=BotNotificationMessage("result"), priority="high")
 
         sender.assert_called_once_with(payload="result", priority="high")
         self.assertIs(result, sender.return_value)
 
     def test_nested_notification_and_exception_do_not_leak_permission(self):
-        def nested_popup(_window, message, *_):
+        def nested_popup(_window, message, *_, **_options):
             if message == "bot result":
                 self.window.show_notification("ordinary nested notification", tray=True)
 
@@ -172,4 +172,3 @@ class TestBotNotifications(unittest.TestCase):
         self.task.log_bot_info("after destruction")
 
         self.assertEqual(self.external_submit.call_count, 1)
-

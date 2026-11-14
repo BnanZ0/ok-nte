@@ -2,6 +2,7 @@ from ok import Logger, TriggerTask
 
 from src.sound_trigger.SoundCombatContext import SoundCombatContext
 from src.tasks.BaseNTETask import BaseNTETask
+from src.ui.icons import task_icon
 
 logger = Logger.get_logger(__name__)
 
@@ -12,6 +13,7 @@ class SoundTriggerTask(BaseNTETask, TriggerTask):
         self.default_config = {"_enabled": False}
         self.trigger_interval = 0.1
         self.name = "声音闪避反击"
+        self.icon = task_icon("sound")
         self.description = "未处于自动战斗时, 响应声音闪避或反击"
         self.async_sound_action = True
 

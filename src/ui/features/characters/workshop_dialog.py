@@ -1,47 +1,28 @@
-"""Fluent dialogs used by the community team workshop."""
+"""Kit dialogs used by the community team workshop."""
 
 import threading
 from collections.abc import Callable
 from pathlib import Path
 from typing import cast
 
-from PySide6.QtCore import QEvent, QObject, QSignalBlocker, QSize, Qt, Signal
-from PySide6.QtGui import QAction, QColor, QIcon, QPixmap
+from ok.ui.qt.kit import Button, Card, ComboBox, Dialog, Label, ProgressRing, icon, theme
+from ok.ui.qt.kit.theme import set_style_property
+from PySide6.QtCore import QEvent, QObject, QPoint, QSignalBlocker, QSize, Qt, Signal
+from PySide6.QtGui import QAction, QIcon, QPixmap
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QGridLayout,
     QHBoxLayout,
+    QLineEdit,
+    QMenu,
     QScrollArea,
     QSizePolicy,
     QTableWidgetItem,
+    QTextBrowser,
     QTextEdit,
+    QToolButton,
     QVBoxLayout,
     QWidget,
-)
-from qfluentwidgets import (
-    Action,
-    BodyLabel,
-    CaptionLabel,
-    ComboBox,
-    CommandBar,
-    FluentIcon,
-    HeaderCardWidget,
-    HyperlinkButton,
-    IndeterminateProgressRing,
-    LineEdit,
-    PrimaryPushButton,
-    PrimarySplitPushButton,
-    RoundMenu,
-    SearchLineEdit,
-    SimpleCardWidget,
-    StrongBodyLabel,
-    SubtitleLabel,
-    TableWidget,
-    TextBrowser,
-    TransparentDropDownPushButton,
-    TransparentToolButton,
-    qconfig,
-    themeColor,
 )
 
 from src.char.custom.CustomCharManager import CustomCharManager
@@ -61,19 +42,22 @@ from src.char.workshop.service import (
     WorkshopPackageService,
 )
 from src.ui.features.characters.safety_dialog import EXTERNAL_CODE_SAFETY_NOTICE
-from src.ui.foundation.dialogs import MessageBoxBase
-from src.ui.foundation.i18n import is_chinese
+from src.ui.features.characters.workshop_table import WorkshopTable
+from src.ui.foundation.dialogs import exec_owned_dialog
+from src.ui.foundation.i18n import is_chinese, translate
 from src.ui.foundation.info_bar import show_bar
-from src.ui.foundation.widgets.cards import BorderCardWidget
+from src.ui.foundation.widgets.button_styles import LinkButton
+from src.ui.foundation.widgets.cards import SectionCard
 from src.ui.foundation.widgets.search import SearchableComboBox
+from src.ui.icons import resource_icon
 
 
-class ElidedCaptionLabel(CaptionLabel):
+class ElidedCaptionLabel(Label):
     """Single-line caption that keeps the original text available in a tooltip."""
 
     def __init__(self, text: str = "", parent=None):
         self._full_text = ""
-        super().__init__(parent)
+        super().__init__("", "caption", parent)
         self.set_elided_text(text)
 
     def set_elided_text(self, text: str) -> None:
@@ -95,7 +79,7 @@ class ElidedCaptionLabel(CaptionLabel):
         super().resizeEvent(event)
 
 
-class WorkshopKeywordEdit(LineEdit):
+class WorkshopKeywordEdit(QLineEdit):
     """Single-line editable keyword chips for the workshop filter panel."""
 
     keywords_changed = Signal()
@@ -109,12 +93,12 @@ class WorkshopKeywordEdit(LineEdit):
         self.setAccessibleName(translate("阵容关键词"))
         self.chip_scroll = QScrollArea(self)
         self.chip_scroll.setFrameShape(QScrollArea.Shape.NoFrame)
-        self.chip_scroll.setStyleSheet("QScrollArea { background: transparent; border: none; }")
         self.chip_scroll.viewport().setAutoFillBackground(False)
         self.chip_scroll.viewport().installEventFilter(self)
         self.chip_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.chip_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        self.chip_scroll.setFixedHeight(24)
+        self.chip_scroll.setFixedHeight(26)
+        self.chip_scroll.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
         self.chip_scroll.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self.chip_view = QWidget()
         self.chip_layout = QHBoxLayout(self.chip_view)
@@ -122,9 +106,17 @@ class WorkshopKeywordEdit(LineEdit):
         self.chip_layout.setSpacing(4)
         self.chip_scroll.setWidget(self.chip_view)
         self.chip_view.setAutoFillBackground(False)
+        self._refresh_chip_style()
+        theme.changed.connect(self._refresh_chip_style)
         self.chip_scroll.hide()
-        self.hBoxLayout.insertWidget(0, self.chip_scroll, 0, Qt.AlignmentFlag.AlignLeft)
-        self.hBoxLayout.insertStretch(1, 1)
+
+    def _refresh_chip_style(self) -> None:
+        hover = theme.color("control_hover").name()
+        self.chip_view.setStyleSheet(
+            "QToolButton#removeWorkshopKeyword { background: transparent; border: 0; padding: 0; }"
+            "QToolButton#removeWorkshopKeyword"
+            f":hover {{ background: {hover}; border-radius: 4px; }}"
+        )
 
     def keyPressEvent(self, event) -> None:
         if event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
@@ -153,7 +145,7 @@ class WorkshopKeywordEdit(LineEdit):
             widget.hide()
             widget.deleteLater()
         for keyword in self.keywords:
-            chip = SimpleCardWidget(self.chip_view)
+            chip = Card(self.chip_view, look="inset")
             chip.setFixedHeight(24)
             chip.setCursor(Qt.CursorShape.PointingHandCursor)
             layout = QHBoxLayout(chip)
@@ -161,10 +153,13 @@ class WorkshopKeywordEdit(LineEdit):
             layout.setSpacing(2)
             label = ElidedCaptionLabel(keyword, chip)
             label.setFixedWidth(min(130, label.fontMetrics().horizontalAdvance(keyword) + 2))
-            close = TransparentToolButton(FluentIcon.CLOSE, chip)
+            close = QToolButton(chip)
+            close.setObjectName("removeWorkshopKeyword")
+            close.setAutoRaise(True)
+            close.setIcon(icon("x"))
             close.setCursor(Qt.CursorShape.PointingHandCursor)
-            close.setFixedSize(20, 20)
-            close.setIconSize(QSize(10, 10))
+            close.setFixedSize(24, 20)
+            close.setIconSize(QSize(16, 16))
             close.setToolTip(self.translate("移除关键词 {}").format(keyword))
             close.setAccessibleName(close.toolTip())
             close.clicked.connect(lambda _checked=False, word=keyword: self._remove_keyword(word))
@@ -182,6 +177,7 @@ class WorkshopKeywordEdit(LineEdit):
     def _update_chip_width(self) -> None:
         width = min(self.chip_layout.sizeHint().width(), max(0, self.width() - 180))
         self.chip_scroll.setFixedWidth(width)
+        self.chip_scroll.move(6, max(0, (self.height() - self.chip_scroll.height()) // 2))
         self.chip_scroll.setVisible(bool(self.keywords))
         self.setTextMargins(width + 6 if self.keywords else 0, 0, 0, 0)
 
@@ -200,19 +196,18 @@ class WorkshopKeywordEdit(LineEdit):
         return super().eventFilter(watched, event)
 
 
-class WorkshopSlotPreviewCard(BorderCardWidget):
+class WorkshopSlotPreviewCard(Card):
     """Compact card to display a slot's character and combo binding in workshop details."""
 
     def __init__(self, index: int, parent=None):
-        super().__init__(parent)
-        self.setBorderWidth(1)
+        super().__init__(parent, look="inset")
         self.index = index
         self.setFixedHeight(50)
         layout = QVBoxLayout(self)
         layout.setContentsMargins(10, 6, 10, 6)
         layout.setSpacing(2)
 
-        self.title_label = StrongBodyLabel("-", self)
+        self.title_label = Label("-", "strong", self)
         self.combo_label = ElidedCaptionLabel("-", self)
 
         layout.addWidget(self.title_label)
@@ -238,15 +233,31 @@ class BackgroundCall(QObject):
     def __init__(self, action: Callable[[], object], parent=None):
         super().__init__(parent)
         self._action = action
+        self._retired = threading.Event()
+        self.destroyed.connect(self._retired.set)
 
     def start(self) -> None:
         threading.Thread(target=self._run, daemon=True).start()
 
+    def retire(self) -> None:
+        """Detach a pending result when its page is being rebuilt or closed."""
+        self._retired.set()
+
     def _run(self) -> None:
         try:
-            self.succeeded.emit(self._action())
+            result = self._action()
         except Exception as error:
-            self.failed.emit(error)
+            if not self._retired.is_set():
+                try:
+                    self.failed.emit(error)
+                except RuntimeError:
+                    pass  # The owner may be destroyed between the check and emit.
+        else:
+            if not self._retired.is_set():
+                try:
+                    self.succeeded.emit(result)
+                except RuntimeError:
+                    pass
 
 
 def workshop_error_text(error: object, tr: Callable[[str], str]) -> str:
@@ -267,7 +278,7 @@ def workshop_error_text(error: object, tr: Callable[[str], str]) -> str:
     return str(error) or error.__class__.__name__
 
 
-class PackageMetadataDialog(MessageBoxBase):
+class PackageMetadataDialog(Dialog):
     def __init__(
         self,
         defaults: TeamPackage,
@@ -275,64 +286,76 @@ class PackageMetadataDialog(MessageBoxBase):
         *,
         repository: WorkshopRepository | None = None,
     ):
-        super().__init__(parent)
+        super().__init__(parent, "", width=540)
+        self.title_label.setText(translate("导出队伍"))
         self.repository = repository
-        self.viewLayout.setSpacing(6)
+        self.body.setSpacing(6)
+        panel_layout = self.panel.layout()
+        title_index = panel_layout.indexOf(self.title_label)
+        panel_layout.removeWidget(self.title_label)
         title_row = QHBoxLayout()
-        title_row.addWidget(SubtitleLabel(self.tr("导出队伍"), self))
-        title_row.addStretch(1)
-        self.fill_button = HyperlinkButton(self)
-        self.fill_button.setText(self.tr("从工坊填入"))
+        title_row.setSpacing(10)
+        title_row.addWidget(self.title_label, 1, Qt.AlignmentFlag.AlignVCenter)
+        self.fill_button = LinkButton(translate("从工坊填入"), parent=self.panel, size="small")
         self.fill_button.setVisible(repository is not None)
         self.fill_button.clicked.connect(self._fill_from_workshop)
         title_row.addWidget(self.fill_button)
-        self.viewLayout.addLayout(title_row)
+        panel_layout.insertLayout(title_index, title_row)
 
-        self.viewLayout.addWidget(BodyLabel(self.tr("名称"), self))
-        self.name_edit = LineEdit(self)
+        self.body.addWidget(Label(translate("名称"), parent=self.panel))
+        self.name_edit = QLineEdit(self.panel)
         self.name_edit.setText(defaults.name)
-        self.viewLayout.addWidget(self.name_edit)
+        self.body.addWidget(self.name_edit)
 
-        self.viewLayout.addWidget(BodyLabel(self.tr("描述"), self))
+        self.body.addWidget(Label(translate("描述"), parent=self.panel))
         self.description_edit = QTextEdit(self)
         self.description_edit.setPlainText(defaults.description)
         self.description_edit.setFixedHeight(160)
-        self.viewLayout.addWidget(self.description_edit)
+        self.body.addWidget(self.description_edit)
 
-        self.viewLayout.addWidget(BodyLabel(self.tr("作者"), self))
-        self.author_edit = LineEdit(self)
+        self.body.addWidget(Label(translate("作者"), parent=self.panel))
+        self.author_edit = QLineEdit(self.panel)
         self.author_edit.setText(defaults.author)
-        self.viewLayout.addWidget(self.author_edit)
+        self.body.addWidget(self.author_edit)
 
-        self.viewLayout.addWidget(BodyLabel(self.tr("版本"), self))
-        self.version_edit = LineEdit(self)
+        self.body.addWidget(Label(translate("版本"), parent=self.panel))
+        self.version_edit = QLineEdit(self.panel)
+        self.version_edit.setObjectName("workshopVersion")
         self.version_edit.setPlaceholderText("1.0.0")
         self.version_edit.setToolTip("major.minor.patch (1.0.0)")
         self.version_edit.setText(defaults.version)
-        self.viewLayout.addWidget(self.version_edit)
+        self.body.addWidget(self.version_edit)
+        self._refresh_version_style()
+        theme.changed.connect(self._refresh_version_style)
 
-        self.yesButton.setText(self.tr("导出"))
-        self.cancelButton.setText(self.tr("取消"))
+        self.ok_button.setText(translate("导出"))
+        self.cancel_button.setText(translate("取消"))
 
         self.name_edit.textChanged.connect(self._validate)
         self.author_edit.textChanged.connect(self._validate)
         self.version_edit.textChanged.connect(self._validate)
-        self.widget.setMinimumWidth(540)
         self._validate()
 
     def _fill_from_workshop(self) -> None:
         if self.repository is None:
             return
         dialog = WorkshopDialog(self.repository, self.window(), metadata_only=True)
-        if not dialog.exec():
-            return
-        package = dialog.selected_package()
-        if package is None:
-            return
-        self.name_edit.setText(package.name)
-        self.description_edit.setPlainText(package.description)
-        self.author_edit.setText(package.author)
-        self.version_edit.setText(package.version)
+        with exec_owned_dialog(dialog, owner=self) as accepted:
+            if not accepted:
+                return
+            package = dialog.selected_package()
+            if package is None:
+                return
+            self.name_edit.setText(package.name)
+            self.description_edit.setPlainText(package.description)
+            self.author_edit.setText(package.author)
+            self.version_edit.setText(package.version)
+
+    def _refresh_version_style(self) -> None:
+        color = theme.color("danger").name()
+        self.version_edit.setStyleSheet(
+            f'QLineEdit#workshopVersion[invalid="true"]:enabled {{ border-color: {color}; }}'
+        )
 
     def _validate(self) -> None:
         try:
@@ -340,12 +363,15 @@ class PackageMetadataDialog(MessageBoxBase):
             valid_version = True
         except WorkshopFormatError:
             valid_version = False
-        self.version_edit.setError(not valid_version)
-        self.yesButton.setEnabled(
+        set_style_property(self.version_edit, "invalid", not valid_version)
+        self.ok_button.setEnabled(
             bool(
                 self.name_edit.text().strip() and self.author_edit.text().strip() and valid_version
             )
         )
+
+    def validate(self) -> bool:
+        return self.ok_button.isEnabled()
 
     def package(self) -> TeamPackage:
         return TeamPackage(
@@ -357,7 +383,7 @@ class PackageMetadataDialog(MessageBoxBase):
         )
 
 
-class PackageImportDialog(MessageBoxBase):
+class PackageImportDialog(Dialog):
     def __init__(
         self,
         package: TeamPackage,
@@ -365,38 +391,37 @@ class PackageImportDialog(MessageBoxBase):
         parent=None,
         directory_exists: Callable[[str], bool] | None = None,
     ):
-        super().__init__(parent)
+        super().__init__(parent, package.name, width=480)
         self._directory_exists = directory_exists
-        self.viewLayout.setSpacing(6)
-        self.viewLayout.addWidget(SubtitleLabel(package.name, self))
-        summary = f"{self.tr('作者')}: {package.author}\n{self.tr('版本')}: {package.version}"
-        self.viewLayout.addWidget(BodyLabel(summary, self))
+        self.body.setSpacing(6)
+        summary = f"{translate('作者')}: {package.author}\n{translate('版本')}: {package.version}"
+        self.body.addWidget(Label(summary, parent=self.panel))
         members = ", ".join(package.members("zh_CN" if is_chinese() else "en_US"))
-        self.viewLayout.addWidget(CaptionLabel(f"{self.tr('成员')}: {members}", self))
+        self.body.addWidget(Label(f"{translate('成员')}: {members}", "caption", self.panel))
 
-        self.viewLayout.addWidget(StrongBodyLabel(self.tr("本地方案名称"), self))
-        self.preset_name_edit = LineEdit(self)
+        self.body.addWidget(Label(translate("本地方案名称"), "strong", self.panel))
+        self.preset_name_edit = QLineEdit(self.panel)
         self.preset_name_edit.setText(package.name)
-        self.viewLayout.addWidget(self.preset_name_edit)
+        self.body.addWidget(self.preset_name_edit)
 
-        self.viewLayout.addWidget(StrongBodyLabel(self.tr("外置代码目录"), self))
-        self.directory_edit = LineEdit(self)
+        self.body.addWidget(Label(translate("外置代码目录"), "strong", self.panel))
+        self.directory_edit = QLineEdit(self.panel)
         try:
             self.directory_edit.setText(
                 CustomCharManager.validate_external_directory(Path(archive_name).stem.strip())
             )
         except ValueError:
             self.directory_edit.setText("community_team")
-        self.viewLayout.addWidget(self.directory_edit)
+        self.body.addWidget(self.directory_edit)
 
-        self.error_label = CaptionLabel("", self)
-        self.viewLayout.addWidget(self.error_label)
+        self.error_label = Label("", "caption", self.panel, word_wrap=True)
+        self.error_label.setProperty("tone", "danger")
+        self.body.addWidget(self.error_label)
 
         self.preset_name_edit.textChanged.connect(self._validate)
         self.directory_edit.textChanged.connect(self._validate)
-        self.widget.setMinimumWidth(480)
-        self.yesButton.setText(self.tr("导入"))
-        self.cancelButton.setText(self.tr("取消"))
+        self.ok_button.setText(translate("导入"))
+        self.cancel_button.setText(translate("取消"))
         self._validate()
 
     def _validate(self) -> None:
@@ -404,18 +429,22 @@ class PackageImportDialog(MessageBoxBase):
             directory = CustomCharManager.validate_external_directory(self.directory_edit.text())
             if self._directory_exists is not None and self._directory_exists(directory):
                 valid_directory = False
-                error = self.tr("外置代码目录“{}”已存在, 请修改目录名称后重试。").format(directory)
+                error = translate("外置代码目录“{}”已存在, 请修改目录名称后重试。").format(
+                    directory
+                )
             else:
                 valid_directory = True
                 error = ""
         except ValueError:
             valid_directory = False
-            error = self.tr("外置代码目录名称无效")
+            error = translate("外置代码目录名称无效")
         valid = bool(self.preset_name_edit.text().strip()) and valid_directory
-        self.yesButton.setEnabled(valid)
-        self.error_label.setTextColor(QColor("#FF0000"), QColor("#FF0000"))
+        self.ok_button.setEnabled(valid)
         self.error_label.setText(error)
         self.error_label.setVisible(bool(error))
+
+    def validate(self) -> bool:
+        return self.ok_button.isEnabled()
 
     def installation(self) -> tuple[str, str]:
         return (
@@ -424,7 +453,7 @@ class PackageImportDialog(MessageBoxBase):
         )
 
 
-class WorkshopDialog(MessageBoxBase):
+class WorkshopDialog(Dialog):
     """Browse a remote static catalog without mixing remote I/O into TeamManagerTab."""
 
     import_requested = Signal(object, object)
@@ -439,7 +468,7 @@ class WorkshopDialog(MessageBoxBase):
         service: WorkshopPackageService | None = None,
         before_update: Callable[[], None] | None = None,
     ):
-        super().__init__(parent)
+        super().__init__(parent, "", width=1120)
         self.repository = repository
         self.metadata_only = metadata_only
         self.service = service
@@ -448,95 +477,90 @@ class WorkshopDialog(MessageBoxBase):
         self._updating = False
         self._catalog_loading = False
         self._cancel_update = threading.Event()
+        self.destroyed.connect(self._cancel_update.set)
         self.is_chinese = is_chinese()
         self.entries: list[CatalogEntry] = []
         self.versions: dict[tuple[str, str], tuple[CatalogEntry, ...]] = {}
         self.current_source: IndexSource | None = None
         self._worker: BackgroundCall | None = None
-        self.viewLayout.setSpacing(12)
+        self.body.setSpacing(12)
 
+        panel_layout = self.panel.layout()
+        title_index = panel_layout.indexOf(self.title_label)
+        panel_layout.removeWidget(self.title_label)
         title_row = QHBoxLayout()
         title_row.setSpacing(10)
-        self.title_label = SubtitleLabel(self)
-        title_row.addWidget(self.title_label)
-
-        self.loading_ring = IndeterminateProgressRing(self)
-        self.loading_ring.setFixedSize(16, 16)
-        self.status_label = CaptionLabel("", self)
-        title_row.addWidget(self.loading_ring)
-        title_row.addWidget(self.status_label)
-        self.safety_label = CaptionLabel(self)
+        title_row.addWidget(self.title_label, alignment=Qt.AlignmentFlag.AlignVCenter)
+        self.loading_ring = ProgressRing(size=16, parent=self.panel)
+        self.loading_ring.hide()
+        self.status_label = Label("", "caption", self.panel)
+        title_row.addWidget(self.status_label, alignment=Qt.AlignmentFlag.AlignVCenter)
+        title_row.addWidget(self.loading_ring, alignment=Qt.AlignmentFlag.AlignVCenter)
         title_row.addStretch(1)
-        self.viewLayout.addLayout(title_row)
-        self.viewLayout.addWidget(self.safety_label)
+        panel_layout.insertLayout(title_index, title_row)
+        self.safety_label = Label("", "caption", self.panel, word_wrap=True)
+        self.body.addWidget(self.safety_label)
 
-        self.tools_card = HeaderCardWidget(self)
-        self.tools_card.headerLabel.hide()
-        self.tools_card.headerView.setFixedHeight(64)
-        # Keep the header anchored while the parent reclaims the hidden filter row's height.
-        self.tools_card.vBoxLayout.setAlignment(Qt.AlignmentFlag.AlignTop)
+        self.tools_card = SectionCard(parent=self.panel)
+        # Keep the toolbar at the top while the dialog reclaims the collapsed space.
+        self.tools_card.layout().addStretch(1)
         self.tools_card.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        toolbar = self.tools_card.headerLayout
+        self.tools_card.body.setContentsMargins(14, 6, 14, 10)
+        toolbar = self.tools_card.header
         toolbar.setSpacing(8)
-        self.search_edit = SearchLineEdit(self.tools_card.headerView)
-        self.search_edit.setPlaceholderText(self.tr("搜索名称, 说明, 作者或角色"))
+        self.search_edit = QLineEdit(self.tools_card)
+        self.search_edit.setClearButtonEnabled(True)
+        self.search_edit.setPlaceholderText(translate("搜索名称, 说明, 作者或角色"))
         self.search_edit.setMinimumWidth(280)
         self.search_edit.setMaximumWidth(480)
-        self.filter_button = TransparentDropDownPushButton(
-            FluentIcon.FILTER, self.tr("筛选"), self.tools_card.headerView
+        self.filter_button = Button(
+            translate("筛选"), icon="chevron-down", variant="subtle", parent=self.tools_card
         )
-        self.filter_button.setToolTip(self.tr("展开筛选"))
+        self.filter_button.setToolTip(translate("展开筛选"))
         toolbar.addWidget(self.search_edit, 1)
         toolbar.addWidget(self.filter_button)
-        toolbar.addStretch(1)
-        self.tools_commands = CommandBar(self.tools_card.headerView)
-        self.tools_commands.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
-        self.tools_commands.setButtonTight(True)
-        self.refresh_button = self.tools_commands.addAction(
-            Action(FluentIcon.SYNC, self.tr("刷新"), self.tools_commands)
+        self.refresh_button = Button(
+            translate("刷新"), icon="refresh", variant="subtle", parent=self.tools_card
         )
-        self.update_all_button = self.tools_commands.addAction(
-            Action(FluentIcon.UPDATE, self.tr("一鍵更新"), self.tools_commands)
+        self.update_all_button = Button(
+            translate("一鍵更新"),
+            icon=resource_icon("circle-fading-arrow-up"),
+            variant="subtle",
+            parent=self.tools_card,
         )
         if service is None or metadata_only:
-            self.tools_commands.removeWidget(self.update_all_button)
             self.update_all_button.hide()
         self.update_all_button.setEnabled(False)
-        for button in self.tools_commands.commandButtons:
-            button.adjustSize()
-        self.tools_commands.setFixedHeight(34)
-        self.tools_commands.resizeToSuitableWidth()
-        toolbar.addWidget(self.tools_commands)
+        toolbar.addStretch(1)
+        toolbar.addWidget(self.refresh_button)
+        toolbar.addWidget(self.update_all_button)
 
-        self.filter_panel = self.tools_card.view
-        self.tools_card.viewLayout.setContentsMargins(24, 16, 24, 16)
-        fields = QHBoxLayout()
+        self.filter_panel = QWidget(self.tools_card)
+        fields = QHBoxLayout(self.filter_panel)
         fields.setContentsMargins(0, 0, 0, 0)
         fields.setSpacing(20)
         lineup_field = QHBoxLayout()
         lineup_field.setSpacing(8)
-        lineup_field.addWidget(BodyLabel(self.tr("阵容关键词"), self.filter_panel))
-        self.keyword_edit = WorkshopKeywordEdit(self.tr, self.filter_panel)
+        lineup_field.addWidget(Label(translate("阵容关键词"), parent=self.filter_panel))
+        self.keyword_edit = WorkshopKeywordEdit(translate, self.filter_panel)
         lineup_field.addWidget(self.keyword_edit, 1)
         fields.addLayout(lineup_field, 3)
         author_field = QHBoxLayout()
         author_field.setSpacing(8)
-        author_field.addWidget(BodyLabel(self.tr("作者"), self.filter_panel))
+        author_field.addWidget(Label(translate("作者"), parent=self.filter_panel))
         self.author_combo = SearchableComboBox(self.filter_panel)
-        self.author_combo.setPlaceholderText(self.tr("全部作者"))
+        self.author_combo.lineEdit().setPlaceholderText(translate("全部作者"))
         self.author_combo.setMinimumWidth(150)
-        self.author_combo.setAccessibleName(self.tr("作者"))
+        self.author_combo.setAccessibleName(translate("作者"))
         author_field.addWidget(self.author_combo, 1)
         fields.addLayout(author_field, 1)
-        self.clear_filters_button = HyperlinkButton(self.filter_panel)
-        self.clear_filters_button.setText(self.tr("清空筛选"))
+        self.clear_filters_button = LinkButton(translate("清空筛选"), parent=self.filter_panel)
         fields.addWidget(self.clear_filters_button)
-        self.tools_card.viewLayout.addLayout(fields)
-        self.filter_panel.hide()
-        self.tools_card.separator.hide()
-        self.viewLayout.addWidget(self.tools_card)
+        self.tools_card.body.addWidget(self.filter_panel)
+        self.tools_card.set_body_visible(False)
+        self.body.addWidget(self.tools_card)
         self.filter_button.clicked.connect(
-            lambda: self._toggle_filters(self.filter_panel.isHidden())
+            lambda: self._toggle_filters(self.tools_card.body_widget.isHidden())
         )
         self.keyword_edit.keywords_changed.connect(self._update_filter_button)
         self.keyword_edit.textChanged.connect(self._update_filter_button)
@@ -549,47 +573,47 @@ class WorkshopDialog(MessageBoxBase):
         split_layout.setSpacing(12)
 
         # Left: compact table with user-resizable columns
-        self.table = TableWidget(self)
-        self.table.setBorderVisible(True)
-        self.table.setBorderRadius(8)
+        self.table = WorkshopTable(self.panel)
+        self.table.setMinimumHeight(260)
         self.table.setColumnCount(4)
         self.table.setHorizontalHeaderLabels(
             [
-                self.tr("名称"),
-                self.tr("角色阵容"),
-                self.tr("作者"),
-                self.tr("版本"),
+                translate("名称"),
+                translate("角色阵容"),
+                translate("作者"),
+                translate("版本"),
             ]
         )
         self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
-        self.table.setAlternatingRowColors(True)
         self.table.setWordWrap(False)
-        self.table.setIconSize(QSize(10, 10))
+        self.table.setIconSize(QSize(16, 16))
         self.table.setColumnWidth(0, 166)
-        self.table.setColumnWidth(1, 254)
+        self.table.setColumnWidth(1, 274)
         self.table.setColumnWidth(2, 100)
-        self.table.setColumnWidth(3, 96)
+        self.table.setColumnWidth(3, 76)
         self.table.verticalHeader().hide()
         self.table.verticalHeader().setDefaultSectionSize(34)
         self.table.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        self.table.horizontalHeader().setStretchLastSection(True)
+        header = self.table.horizontalHeader()
+        header.setStretchLastSection(True)
+        header.setDefaultAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
         split_layout.addWidget(self.table, 3)
 
         # Right: detail panel (fixed width avoids relayout jitter on selection)
-        self.detail_card = SimpleCardWidget(self)
+        self.detail_card = Card(self.panel)
         self.detail_card.setFixedWidth(420)
         detail_layout = QVBoxLayout(self.detail_card)
         detail_layout.setContentsMargins(18, 14, 18, 14)
         detail_layout.setSpacing(8)
 
-        self.detail_title = SubtitleLabel(self.tr("选择一个方案"), self.detail_card)
-        self.detail_meta = CaptionLabel("", self.detail_card)
+        self.detail_title = Label(translate("选择一个方案"), "subtitle", self.detail_card)
+        self.detail_meta = Label("", "caption", self.detail_card)
         detail_layout.addWidget(self.detail_title)
         detail_layout.addWidget(self.detail_meta)
 
-        detail_layout.addWidget(StrongBodyLabel(self.tr("队伍配置"), self.detail_card))
+        detail_layout.addWidget(Label(translate("队伍配置"), "strong", self.detail_card))
         slots_grid = QGridLayout()
         slots_grid.setSpacing(8)
         self.slot_cards: list[WorkshopSlotPreviewCard] = []
@@ -599,46 +623,69 @@ class WorkshopDialog(MessageBoxBase):
             slots_grid.addWidget(card, index // 2, index % 2)
         detail_layout.addLayout(slots_grid)
 
-        detail_layout.addWidget(StrongBodyLabel(self.tr("方案说明"), self.detail_card))
-        self.detail_body = TextBrowser(self.detail_card)
+        detail_layout.addWidget(Label(translate("方案说明"), "strong", self.detail_card))
+        self.detail_body = QTextBrowser(self.detail_card)
         self.detail_body.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Expanding)
-        self.detail_body.setPlainText(self.tr("工坊会显示来自公开仓库的 ZIP 方案."))
+        self.detail_body.setPlainText(translate("工坊会显示来自公开仓库的 ZIP 方案."))
         detail_layout.addWidget(self.detail_body, 1)
 
         action_layout = QHBoxLayout()
         action_layout.setSpacing(8)
-        self.version_combo = ComboBox(self.detail_card)
+        self.version_combo = ComboBox(parent=self.detail_card)
         self.version_combo.setEnabled(False)
         self.version_combo.setMinimumWidth(95)
-        self.version_combo.setToolTip(self.tr("版本"))
+        self.version_combo.setToolTip(translate("版本"))
         action_layout.addWidget(self.version_combo, alignment=Qt.AlignmentFlag.AlignVCenter)
         action_layout.addStretch(1)
 
-        self.import_button = PrimaryPushButton(
-            FluentIcon.DOWNLOAD, self.tr("导入"), self.detail_card
+        self.import_button = Button(
+            translate("导入"), icon="download", variant="primary", parent=self.detail_card
         )
         self.import_button.setEnabled(False)
-        self.update_button = PrimarySplitPushButton(
-            FluentIcon.UPDATE, self.tr("更新"), self.detail_card
+        self.update_controls = QWidget(self.detail_card)
+        self.update_controls.hide()
+        update_layout = QHBoxLayout(self.update_controls)
+        update_layout.setContentsMargins(0, 0, 0, 0)
+        update_layout.setSpacing(0)
+        self.update_button = Button(
+            translate("更新"),
+            icon=resource_icon("circle-fading-arrow-up", color="on_accent"),
+            variant="primary",
+            parent=self.update_controls,
         )
-        self.update_button.hide()
         self.update_button.setEnabled(False)
-        self.import_menu = RoundMenu(parent=self.update_button)
-        self.import_action = QAction(FluentIcon.DOWNLOAD.icon(), self.tr("导入"), self.import_menu)
+        self.update_button.setStyleSheet(
+            "Button { border-top-right-radius: 0; border-bottom-right-radius: 0; }"
+        )
+        self.import_menu = QMenu(self.update_controls)
+        self.import_action = QAction(icon("download"), translate("导入"), self.import_menu)
         self.import_action.triggered.connect(self._request_import)
         self.import_menu.addAction(self.import_action)
-        self.update_button.setFlyout(self.import_menu)
-        self.update_button.dropButton.setToolTip(self.tr("导入"))
-        self.update_button.dropButton.setAccessibleName(self.tr("导入"))
-        action_layout.addWidget(self.update_button, alignment=Qt.AlignmentFlag.AlignVCenter)
+        self.update_menu_button = Button(
+            icon="chevron-down", variant="primary", parent=self.update_controls
+        )
+        self.update_menu_button.setFixedWidth(28)
+        self.update_menu_button.setStyleSheet("""
+            Button {
+                border-top-left-radius: 0;
+                border-bottom-left-radius: 0;
+                border-left-color: rgba(255, 255, 255, 65);
+            }
+            Button:disabled { border-left-color: rgba(127, 127, 127, 55); }
+        """)
+        self.update_menu_button.setToolTip(translate("导入"))
+        self.update_menu_button.setAccessibleName(translate("导入"))
+        self.update_menu_button.clicked.connect(self._open_import_menu)
+        update_layout.addWidget(self.update_button)
+        update_layout.addWidget(self.update_menu_button)
+        action_layout.addWidget(self.update_controls, alignment=Qt.AlignmentFlag.AlignVCenter)
         action_layout.addWidget(self.import_button, alignment=Qt.AlignmentFlag.AlignVCenter)
         detail_layout.addLayout(action_layout)
         split_layout.addWidget(self.detail_card)
 
-        self.viewLayout.addLayout(split_layout, 1)
+        self.body.addLayout(split_layout, 1)
 
-        self.widget.setGraphicsEffect(None)
-        self.widget.setMinimumSize(1100, 600)
+        self.panel.setMinimumHeight(620)
         self._configure_mode()
 
         self.search_edit.textChanged.connect(self._apply_filter)
@@ -650,39 +697,40 @@ class WorkshopDialog(MessageBoxBase):
         self.import_button.clicked.connect(self._request_import)
         self.update_button.clicked.connect(self._request_update)
         self.update_all_button.clicked.connect(lambda: self._start_updates(self.entries))
-        qconfig.themeChanged.connect(self._refresh_update_indicators)
-        qconfig.themeColorChanged.connect(self._refresh_update_indicators)
+        theme.changed.connect(self._refresh_update_indicators)
         self.reload_catalog(force_refresh=service is not None)
 
     def _configure_mode(self) -> None:
         if self.metadata_only:
-            self.title_label.setText(self.tr("从工坊填入"))
-            self.safety_label.setText(self.tr("选择方案与版本, 填入名称、描述、作者和版本."))
+            self.title_label.setText(translate("从工坊填入"))
+            self.safety_label.setText(translate("选择方案与版本, 填入名称、描述、作者和版本."))
             self.import_button.hide()
-            self.yesButton.setText(self.tr("填入信息"))
-            self.yesButton.setEnabled(False)
-            self.cancelButton.setText(self.tr("Cancel"))
+            self.ok_button.setText(translate("填入信息"))
+            self.ok_button.setEnabled(False)
+            self.cancel_button.setText(translate("Cancel"))
         else:
-            self.title_label.setText(self.tr("工坊"))
+            self.title_label.setText(translate("工坊"))
             self.safety_label.setText(
-                self.tr("社区方案含外置代码; 导入后会以本软件权限运行, 请仅导入可信来源.")
+                translate("社区方案含外置代码; 导入后会以本软件权限运行, 请仅导入可信来源.")
             )
-            self.safety_label.setTextColor(QColor("#FF0000"), QColor("#FF0000"))
             self.safety_label.setToolTip(EXTERNAL_CODE_SAFETY_NOTICE)
-            self.yesButton.hide()
-            self.cancelButton.setText(self.tr("关闭"))
+            set_style_property(self.safety_label, "tone", "danger")
+            self.ok_button.hide()
+            self.cancel_button.setText(translate("关闭"))
+        self._refresh_update_indicators()
 
     def reload_catalog(self, force_refresh: bool = False) -> None:
         if self._updating or self._catalog_loading:
             return
         self._catalog_loading = True
+        self.ok_button.setEnabled(False)
         self.refresh_button.setEnabled(False)
         self.import_button.setEnabled(False)
         self.import_action.setEnabled(False)
         self.update_button.setEnabled(False)
         self.update_all_button.setEnabled(False)
         self.loading_ring.show()
-        self.status_label.setText(self.tr("正在加载工坊..."))
+        self.status_label.setText(translate("正在加载工坊..."))
 
         def load():
             installs = self.service.get_installations() if self.service else []
@@ -695,14 +743,10 @@ class WorkshopDialog(MessageBoxBase):
         self._worker.start()
 
     def _catalog_loaded(
-        self,
-        result: tuple[list[CatalogEntry], IndexSource]
-        | tuple[list[CatalogEntry], IndexSource, list[WorkshopInstallation]],
+        self, result: tuple[list[CatalogEntry], IndexSource, list[WorkshopInstallation]]
     ) -> None:
         self._catalog_loading = False
-        entries, self.current_source = result[:2]
-        if len(result) == 3:
-            self.installations = result[2]
+        entries, self.current_source, self.installations = result
         self.versions = group_catalog_entries(entries)
         self.entries = [versions[0] for versions in self.versions.values()]
         self._rebuild_filters()
@@ -718,8 +762,8 @@ class WorkshopDialog(MessageBoxBase):
         self._apply_filter()
         self.refresh_button.setEnabled(True)
         self.loading_ring.hide()
-        self.status_label.setText(self.tr("加载失败"))
-        show_bar(self, self.tr("加载失败"), workshop_error_text(error, self.tr), success=False)
+        self.status_label.setText(translate("加载失败"))
+        show_bar(self, translate("加载失败"), workshop_error_text(error, translate), success=False)
 
     def _rebuild_filters(self) -> None:
         current_author = self.author_combo.currentText()
@@ -737,13 +781,13 @@ class WorkshopDialog(MessageBoxBase):
         focused = self.focusWidget()
         if not expanded and focused is not None and self.filter_panel.isAncestorOf(focused):
             self.filter_button.setFocus()
-        self.filter_panel.setVisible(expanded)
-        self.tools_card.separator.setVisible(expanded)
-        self.filter_button.setToolTip(self.tr("收起筛选") if expanded else self.tr("展开筛选"))
+        self.tools_card.set_body_visible(expanded)
+        self.filter_button.set_icon("chevron-up" if expanded else "chevron-down")
+        self.filter_button.setToolTip(translate("收起筛选") if expanded else translate("展开筛选"))
 
     def _update_filter_button(self, *_args) -> None:
         count = len(self.keyword_edit.keywords) + bool(self.author_combo.currentText().strip())
-        text = self.tr("筛选")
+        text = translate("筛选")
         if count:
             text += f" ({count})"
         self.filter_button.setText(text)
@@ -802,13 +846,13 @@ class WorkshopDialog(MessageBoxBase):
                 or self.author_combo.currentText().strip()
             )
             self.status_label.setText(
-                self.tr("显示 {} / {} 个方案").format(len(visible), len(self.entries))
+                translate("显示 {} / {} 个方案").format(len(visible), len(self.entries))
                 if filtered
-                else self.tr("已加载 {} 个方案").format(len(self.entries))
+                else translate("已加载 {} 个方案").format(len(self.entries))
             )
 
     def _refresh_update_indicators(self, *_args) -> None:
-        icon = FluentIcon.UP.icon(color=themeColor())
+        update_icon = resource_icon("arrow-up", color="accent")
         # Reserve the same decoration space for rows without an update marker.
         spacer = QPixmap(self.table.iconSize())
         spacer.fill(Qt.GlobalColor.transparent)
@@ -827,13 +871,13 @@ class WorkshopDialog(MessageBoxBase):
                 key=parse_version,
             )
             tooltip = (
-                self.tr("已安装: {installed}\n最新版本: {latest}").format(
+                translate("已安装: {installed}\n最新版本: {latest}").format(
                     installed=", ".join(versions), latest=entry.package.version
                 )
                 if versions
                 else entry.package.version
             )
-            item.setIcon(icon if versions else empty_icon)
+            item.setIcon(update_icon if versions else empty_icon)
             item.setToolTip(tooltip)
             item.setData(Qt.ItemDataRole.AccessibleDescriptionRole, tooltip)
 
@@ -869,36 +913,38 @@ class WorkshopDialog(MessageBoxBase):
         )
         self._refresh_update_actions()
         if self.metadata_only:
-            self.yesButton.setEnabled(entry is not None)
+            self.ok_button.setEnabled(
+                entry is not None and not self._catalog_loading and not self._updating
+            )
         if entry is None:
             self.detail_title.setText(
-                self.tr("没有匹配的方案")
+                translate("没有匹配的方案")
                 if self.entries and not self.table.rowCount()
-                else self.tr("选择一个方案")
+                else translate("选择一个方案")
             )
             self.detail_meta.setText("")
-            self.detail_body.setPlainText(self.tr("调整筛选条件或稍后刷新工坊."))
+            self.detail_body.setPlainText(translate("调整筛选条件或稍后刷新工坊."))
             for card in self.slot_cards:
                 card.clear()
             return
         package = entry.package
         self.detail_title.setText(package.name)
         meta_line1 = (
-            f"{self.tr('作者')}: {package.author}  ·  "
-            f"{self.tr('版本')}: {package.version}  ·  "
-            f"{self.tr('大小')}: {self._format_size(entry.size)}"
+            f"{translate('作者')}: {package.author}  ·  "
+            f"{translate('版本')}: {package.version}  ·  "
+            f"{translate('大小')}: {self._format_size(entry.size)}"
         )
         meta_line2 = (
-            f"{self.tr('更新时间')}: {entry.updated_at.replace('T', ' ').removesuffix('Z')}"
+            f"{translate('更新时间')}: {entry.updated_at.replace('T', ' ').removesuffix('Z')}"
         )
         self.detail_meta.setText(f"{meta_line1}\n{meta_line2}")
-        self.detail_body.setPlainText(package.description or self.tr("没有说明."))
+        self.detail_body.setPlainText(package.description or translate("没有说明."))
         slot_map = {slot.index: slot for slot in package.slots}
         for index in range(4):
             slot = slot_map.get(index)
             if slot:
                 char_name = slot.display_name("zh_CN" if self.is_chinese else "en_US")
-                kind_text = self.tr("内置") if slot.kind == "builtin" else self.tr("外置")
+                kind_text = translate("内置") if slot.kind == "builtin" else translate("外置")
                 combo_info = slot.impl_id if slot.kind == "builtin" else slot.file_name
                 combo_desc = f"[{kind_text}] {combo_info}" if combo_info else f"[{kind_text}]"
                 self.slot_cards[index].set_slot(char_name, combo_desc)
@@ -911,8 +957,8 @@ class WorkshopDialog(MessageBoxBase):
 
     def validate(self) -> bool:
         if self.metadata_only:
-            return self.selected_package() is not None
-        return super().validate()
+            return self.ok_button.isEnabled() and self.selected_package() is not None
+        return False
 
     def _request_import(self) -> None:
         if self.metadata_only or self._updating or self._catalog_loading:
@@ -936,16 +982,20 @@ class WorkshopDialog(MessageBoxBase):
             for item in self.installations
             if latest and item.identity == latest.package.identity
         ]
-        pending = (
-            selected == latest
+        pending_version = (
+            latest.package.version
+            if selected == latest
             and latest is not None
             and any(item.can_update(latest.package) for item in installed)
+            else None
         )
+        pending = pending_version is not None
         show_update = bool(self.service is not None and not self.metadata_only and pending)
-        self.update_button.setVisible(show_update)
+        self.update_controls.setVisible(show_update)
+        self.update_menu_button.setEnabled(self.import_button.isEnabled())
         self.import_button.setVisible(not self.metadata_only and not show_update)
         self.update_button.setToolTip(
-            self.tr("更新到 {}").format(latest.package.version) if pending else ""
+            translate("更新到 {}").format(pending_version) if pending else ""
         )
         self.update_button.setEnabled(bool(available and pending))
         self.import_action.setEnabled(self.import_button.isEnabled())
@@ -960,18 +1010,27 @@ class WorkshopDialog(MessageBoxBase):
             )
         )
 
+    def _open_import_menu(self) -> None:
+        controls = self.update_controls
+        self.import_menu.setFixedWidth(controls.width())
+        self.import_menu.popup(controls.mapToGlobal(QPoint(0, controls.height() + 4)))
+
     def _request_update(self) -> None:
         selected = self.version_combo.currentData()
         if selected and self.update_button.isEnabled():
             self._start_updates([selected])
 
     def _start_updates(self, entries: list[CatalogEntry]) -> None:
-        if self.service is None or self.current_source is None or self._updating:
+        service = self.service
+        source = self.current_source
+        if service is None or source is None or self._updating:
             return
         try:
             self.before_update()
         except Exception as error:
-            show_bar(self, self.tr("更新失败"), workshop_error_text(error, self.tr), success=False)
+            show_bar(
+                self, translate("更新失败"), workshop_error_text(error, translate), success=False
+            )
             return
         self._updating = True
         self._cancel_update.clear()
@@ -979,14 +1038,13 @@ class WorkshopDialog(MessageBoxBase):
         self.import_button.setEnabled(False)
         self._refresh_update_actions()
         self.loading_ring.show()
-        self.status_label.setText(self.tr("正在更新出招表..."))
-        source = self.current_source
+        self.status_label.setText(translate("正在更新出招表..."))
 
         def update():
-            result = self.service.update_from_catalog(
+            result = service.update_from_catalog(
                 entries, self.repository, source, self.before_update, self._cancel_update.is_set
             )
-            return result, self.service.get_installations()
+            return result, service.get_installations()
 
         self._worker = BackgroundCall(update, self)
         self._worker.succeeded.connect(self._updates_finished)
@@ -997,7 +1055,7 @@ class WorkshopDialog(MessageBoxBase):
         self._updating = False
         self.loading_ring.hide()
         self.refresh_button.setEnabled(True)
-        self.cancelButton.setEnabled(True)
+        self.cancel_button.setEnabled(True)
         self._show_version()
 
     def _updates_finished(
@@ -1010,11 +1068,11 @@ class WorkshopDialog(MessageBoxBase):
         (updated, failures), self.installations = result
         self._refresh_update_indicators()
         self._finish_update()
-        summary = self.tr("已更新 {} 份方案, {} 项失败").format(len(updated), len(failures))
+        summary = translate("已更新 {} 份方案, {} 项失败").format(len(updated), len(failures))
         self.status_label.setText(summary)
-        details = [f"{name}: {workshop_error_text(error, self.tr)}" for name, error in failures]
+        details = [f"{name}: {workshop_error_text(error, translate)}" for name, error in failures]
         if details:
-            show_bar(self, self.tr("更新失败"), "\n".join(details), success=False)
+            show_bar(self, translate("更新失败"), "\n".join(details), success=False)
         if updated:
             self.packages_updated.emit()
         if self._cancel_update.is_set():
@@ -1022,14 +1080,14 @@ class WorkshopDialog(MessageBoxBase):
 
     def _updates_failed(self, error: object) -> None:
         self._finish_update()
-        self.status_label.setText(self.tr("更新失败"))
-        show_bar(self, self.tr("更新失败"), workshop_error_text(error, self.tr), success=False)
+        self.status_label.setText(translate("更新失败"))
+        show_bar(self, translate("更新失败"), workshop_error_text(error, translate), success=False)
         if self._cancel_update.is_set():
             super().reject()
 
     def reject(self) -> None:
         self._cancel_update.set()
         if self._updating:
-            self.cancelButton.setEnabled(False)
+            self.cancel_button.setEnabled(False)
         else:
             super().reject()

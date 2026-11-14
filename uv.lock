@@ -9,10 +9,7 @@ supported-markers = [
 ]
 
 [manifest]
-excludes = [
-    { package = { name = "ok-script" }, dependencies = ["mcp"] },
-    { package = { name = "pyside6-fluent-widgets" }, dependencies = ["pyside6"] },
-]
+excludes = [{ package = { name = "ok-script" }, dependencies = ["mcp"] }]
 
 [[package]]
 name = "altgraph"
@@ -109,11 +106,11 @@ wheels = [
 
 [[package]]
 name = "comtypes"
-version = "1.4.17"
+version = "1.5.0"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/0e/ff/c7836bd0d78fc615281016f154f514e9d523d7cb9ab9e8b4d344adc5f5e7/comtypes-1.4.17.tar.gz", hash = "sha256:3d9c1e92ad8daf7600d371e76ee16161a627a5fb70c3144f6e52e78af6034363", size = 262743, upload-time = "2026-09-21T08:08:07.687Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/21/cf/cd2f9e605c258d216ae48d86918ecff5bc652de338e090df3df4cd5d0d27/comtypes-1.5.0.tar.gz", hash = "sha256:831ddb867bc17bc89cac525b4f32132ebd4bef1ffe6432406ec9f5d858c1a122", size = 289180, upload-time = "2026-11-09T22:42:37.287Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/89/9c/d0bc1fb69ad22a04bdc01dd9b5613a2ebc4d02ba1ec24b02127dc93791ba/comtypes-1.4.17-py3-none-any.whl", hash = "sha256:4e0a221dde2c589b82977bed802efd71cd5eb67a380347b732e02735e597f586", size = 298743, upload-time = "2026-09-21T08:08:06.461Z" },
+    { url = "https://files.pythonhosted.org/packages/89/dc/818b43a6766800973e1611aeaff55e20cb38e36f3c499db1795838675f44/comtypes-1.5.0-py3-none-any.whl", hash = "sha256:c648ed3b243b1eb3b7cb893a873d1b35104ca1c8922061f4b1efafeb255bacb5", size = 325563, upload-time = "2026-11-09T22:42:35.97Z" },
 ]
 
 [[package]]
@@ -131,21 +128,27 @@ wheels = [
 ]
 
 [[package]]
-name = "darkdetect"
-version = "0.8.0"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/45/77/7575be73bf12dee231d0c6e60ce7fb7a7be4fcd58823374fc59a6e48262e/darkdetect-0.8.0.tar.gz", hash = "sha256:b5428e1170263eb5dea44c25dc3895edd75e6f52300986353cd63533fe7df8b1", size = 7681, upload-time = "2022-12-16T14:14:42.113Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/f2/f2/728f041460f1b9739b85ee23b45fa5a505962ea11fd85bdbe2a02b021373/darkdetect-0.8.0-py3-none-any.whl", hash = "sha256:a7509ccf517eaad92b31c214f593dbcf138ea8a43b2935406bbd565e15527a85", size = 8955, upload-time = "2022-12-16T14:14:40.92Z" },
-]
-
-[[package]]
 name = "decorator"
 version = "5.3.1"
 source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/60/8b/32f9823da46cde7df2087faa08cd98d01b908f8dcab982cdba9c84e85355/decorator-5.3.1.tar.gz", hash = "sha256:4cbcdd55a6efadb9dbea26b858f4fb3264567b52d69ca0d25b721b553f60ea82", size = 58084, upload-time = "2026-05-18T06:03:28.057Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/05/7f/798705f5296a58ca505d600456748d1be48078eac8a7050d8a98bc9edb89/decorator-5.3.1-py3-none-any.whl", hash = "sha256:f47fe6fdbd2edd623ecfe36875d37aba411624e2670dd395dddae1358689bb3c", size = 10365, upload-time = "2026-05-18T06:03:26.517Z" },
+]
+
+[[package]]
+name = "dulwich"
+version = "1.2.21"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "urllib3" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/01/d1/01adf1db003374db4c2a70f7bae757ddfc39a33d9fb5ab765522b4d339e6/dulwich-1.2.21.tar.gz", hash = "sha256:5d3939f64883e6799614cab708ef4ee9ef415dd6dcad47527cdbb0eea43bf3a2", size = 1451069, upload-time = "2026-11-05T02:26:59.899Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/eb/4e/bc692f443e5f38ffa960e7412cd76f96084686dac3c5101bf6bc24c48597/dulwich-1.2.21-cp312-cp312-win32.whl", hash = "sha256:3206426faf4cb2474458f2dacf5c1b597a076831f2e7afa2a350df5fff2cce1a", size = 1173883, upload-time = "2026-11-05T02:25:38.006Z" },
+    { url = "https://files.pythonhosted.org/packages/80/67/42d9eca568488e960c9726c27355536e8e239b780e937f6b84896729cb69/dulwich-1.2.21-cp312-cp312-win_amd64.whl", hash = "sha256:b3d30d40384cee2e8aa3722f87cef2f3d71717a0b45ac88eba457d62acf65dda", size = 1128317, upload-time = "2026-11-05T02:25:39.986Z" },
+    { url = "https://files.pythonhosted.org/packages/a2/cc/a55ab15df42fb6d7ea74f9e6cfd0b4b665ba3b26f67322b9ffa09fb8d2aa/dulwich-1.2.21-cp312-cp312-win_arm64.whl", hash = "sha256:4747b1f94dbbf06e90d49247199db458bd9fefc588a4368669cb551ba4b6439f", size = 1123847, upload-time = "2026-11-05T02:25:41.613Z" },
+    { url = "https://files.pythonhosted.org/packages/6d/0e/e44bc7c8619596af498738917bb21f8511d0f928f32cae0c4a2ba01fdebd/dulwich-1.2.21-py3-none-any.whl", hash = "sha256:31a522b9611e8032a43b8fb6941469c24e65ff4f14e0427986c58e90c22e154f", size = 762744, upload-time = "2026-11-05T02:26:58.412Z" },
 ]
 
 [[package]]
@@ -273,7 +276,7 @@ wheels = [
 
 [[package]]
 name = "librosa"
-version = "1.0.0"
+version = "1.0.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "decorator" },
@@ -288,9 +291,9 @@ dependencies = [
     { name = "soundfile" },
     { name = "soxr" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/8e/c1/ce66b20953b7370421dd13d22b4e04e401346c824ceacb9f4e722eec84dc/librosa-1.0.0.tar.gz", hash = "sha256:73ed480d4022e436e85dfa6f6b06ff38a259b9210039ac99939cd64854b61a57", size = 377965, upload-time = "2026-08-11T15:37:37.013Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/ad/f4/133b113a57c2fc2051feb38610ad5c7145f8d9091ab467683c3f18adf4fe/librosa-1.0.1.tar.gz", hash = "sha256:e3ab6451078d76bf8057a8262bc44c23fe3f95105cfed8acb415c3427b72b949", size = 388585, upload-time = "2026-11-12T16:58:33.934Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/96/14/0b2e4cc8017796dc8f69de740708601832c1e8d5377166eedb4db0a92264/librosa-1.0.0-py3-none-any.whl", hash = "sha256:5910a6c0e1b2e494b92758c1615a7acbd0515a2315e138927ba2982f2af88857", size = 294628, upload-time = "2026-08-11T15:37:35.455Z" },
+    { url = "https://files.pythonhosted.org/packages/4c/f6/947283574368245414b3143f329c3c15c298b2ffe185eb08febf0188a49f/librosa-1.0.1-py3-none-any.whl", hash = "sha256:bc26f947ca08307c5ff116b219560372aa340213d7f3cc2cf1f3f02b4e251147", size = 301475, upload-time = "2026-11-12T16:58:27.304Z" },
 ]
 
 [[package]]
@@ -422,14 +425,12 @@ dependencies = [
     { name = "librosa" },
     { name = "mido" },
     { name = "ok-script", extra = ["ocr", "qt"] },
-    { name = "onnxocr-ppocrv5" },
+    { name = "onnxocr-ppocrv6" },
     { name = "opencc" },
     { name = "opencv-python" },
     { name = "openvino" },
     { name = "psutil" },
     { name = "pynput" },
-    { name = "pyside6-essentials" },
-    { name = "pyside6-fluent-widgets" },
     { name = "pywin32" },
     { name = "scikit-image" },
     { name = "sounddevice" },
@@ -448,18 +449,16 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "comtypes", specifier = ">=1.4.17" },
-    { name = "librosa", specifier = ">=1.0.0" },
+    { name = "comtypes", specifier = ">=1.5.0" },
+    { name = "librosa", specifier = ">=1.0.1" },
     { name = "mido", specifier = ">=1.3.3" },
-    { name = "ok-script", extras = ["ocr", "qt"], specifier = ">=2.0.22" },
-    { name = "onnxocr-ppocrv5", specifier = ">=0.0.22" },
+    { name = "ok-script", extras = ["ocr", "qt"], specifier = "==3.0.6" },
+    { name = "onnxocr-ppocrv6", specifier = "==0.0.1" },
     { name = "opencc", specifier = ">=1.4.2" },
     { name = "opencv-python", specifier = ">=5.0.0.93" },
     { name = "openvino", specifier = ">=2026.3.0" },
     { name = "psutil", specifier = ">=7.2.2" },
     { name = "pynput", specifier = ">=1.8.2" },
-    { name = "pyside6-essentials", specifier = "==6.11.2" },
-    { name = "pyside6-fluent-widgets", specifier = "==1.11.3" },
     { name = "pywin32", specifier = "==311" },
     { name = "scikit-image", specifier = ">=0.26.0" },
     { name = "sounddevice", specifier = ">=0.5.6" },
@@ -473,17 +472,29 @@ dev = [
     { name = "polib", specifier = ">=1.2.0" },
     { name = "pyinstaller", specifier = "==6.22.3" },
     { name = "pyinstaller-hooks-contrib", specifier = "==2026.8" },
-    { name = "pytest", specifier = ">=9.1.1" },
+    { name = "pytest", specifier = ">=9.2.0" },
+]
+
+[[package]]
+name = "ok-pyside-minimal"
+version = "6.12.0.post2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "shiboken6" },
+]
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/52/ba/e096f29d58040e295987f41d7d3aeaf097462d73dd37dae93ce28164cbd4/ok_pyside_minimal-6.12.0.post2-cp310-abi3-win_amd64.whl", hash = "sha256:b809cf614cd396479b67a452fa3468352e09ead7d7cc4bd282dc6ccaaddc5125", size = 17433382, upload-time = "2026-11-03T02:10:22.773Z" },
+    { url = "https://files.pythonhosted.org/packages/06/f6/c1529bf16dfc7b6dc5c2fdefcf577b45ce90cb10bfc2601326978aa95fea/ok_pyside_minimal-6.12.0.post2-cp310-abi3-win_arm64.whl", hash = "sha256:45fd96c0575f711e978b8e62a2e846a881baa86180dd7b9cc98051cb6f3aae62", size = 15370652, upload-time = "2026-11-03T02:10:25.58Z" },
 ]
 
 [[package]]
 name = "ok-script"
-version = "2.0.22"
+version = "3.0.6"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "mouse" },
     { name = "psutil" },
-    { name = "pyappify" },
+    { name = "pyappify", extra = ["standalone"] },
     { name = "pycaw" },
     { name = "pydirectinput" },
     { name = "pynput" },
@@ -491,34 +502,31 @@ dependencies = [
     { name = "requests" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/7b/65/f236b7af64a846f432f74184b7b0f14a9016570ace75385ebbe09b4f09f0/ok_script-2.0.22.tar.gz", hash = "sha256:71f664c08c44bab7ab40af04ed4fc34284b11f6ab8e255c702716c4ae736a654", size = 1011541, upload-time = "2026-11-01T12:42:49.491Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/ec/5a/a405a9ede21e8126aa45fede36d2ff1b5e85069f9a4a2d2f83ea45d5b79a/ok_script-3.0.6.tar.gz", hash = "sha256:0fb53a71d531308d5a2872ef3745590fd3eea6b7e2c911d643d497f3bb4754f9", size = 1153373, upload-time = "2026-11-17T18:02:54.753Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/7e/e1/7acb4d5b1b709774ce69ef98bfd3cd0c392ca6eb958e1651f54ac701c26c/ok_script-2.0.22-py3-none-any.whl", hash = "sha256:e043009920ed7b311d4cfccc04e6e6faa16dca8c2dcbb38bd273bf16fee3b7e2", size = 1007520, upload-time = "2026-11-01T12:42:47.948Z" },
+    { url = "https://files.pythonhosted.org/packages/bc/28/24a090509f76ecae8fe22a3ae92ea71a401998cd1fa40a42c124a21d0953/ok_script-3.0.6-py3-none-any.whl", hash = "sha256:01256cc399ffd3cfb76b090bf203068dc7915302e4d18e89f57ab8f7e9562dd2", size = 1114755, upload-time = "2026-11-17T18:02:52.548Z" },
 ]
 
 [package.optional-dependencies]
 ocr = [
-    { name = "onnxocr-ppocrv5" },
+    { name = "onnxocr-ppocrv6" },
 ]
 qt = [
-    { name = "darkdetect" },
-    { name = "pyside6-essentials" },
-    { name = "pyside6-fluent-widgets" },
-    { name = "pysidesix-frameless-window" },
+    { name = "ok-pyside-minimal" },
 ]
 
 [[package]]
-name = "onnxocr-ppocrv5"
-version = "0.0.22"
+name = "onnxocr-ppocrv6"
+version = "0.0.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "pillow" },
     { name = "pyclipper" },
     { name = "shapely" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/b5/6b/3ad789899e7da9008e83a477abf55551696622234de0e23cb96912e1e958/onnxocr_ppocrv5-0.0.22.tar.gz", hash = "sha256:08ca735a2038e5fc61038935b9010438f33b7e63f0eea7c5ecf468a56ee48bb5", size = 19168126, upload-time = "2026-08-28T09:50:29.045Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/bd/1f/2c8a999c9e9925b5387a7bc69bad74ce1908f2f75d75a72bf1820f017776/onnxocr_ppocrv6-0.0.1.tar.gz", hash = "sha256:a31336c3fec5368b696089c63be26052ad414ded25be9c881bbab75bd8f7bcfd", size = 32603680, upload-time = "2026-11-14T18:39:51.196Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/d8/f9/84b4217ee8524d9b057523bb7deb7e339d39c7131dbe532cefdbb4955d74/onnxocr_ppocrv5-0.0.22-py3-none-any.whl", hash = "sha256:b98271ce876d9720c788c437d69f63469cad53cb19945da843dbbe46f8a1271a", size = 19176168, upload-time = "2026-08-28T09:50:26.214Z" },
+    { url = "https://files.pythonhosted.org/packages/9a/a5/a1afd12a25901a7a6f47c88e21b8e490790ad08705f56988eff86f2afeee/onnxocr_ppocrv6-0.0.1-py3-none-any.whl", hash = "sha256:0574fe622a0be6a1017bb04c3941ed5efd6740fd2388a6b8041a5acee882678d", size = 32669447, upload-time = "2026-11-14T18:39:47.794Z" },
 ]
 
 [[package]]
@@ -545,14 +553,14 @@ wheels = [
 
 [[package]]
 name = "opentelemetry-api"
-version = "1.45.1"
+version = "1.45.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/2e/02/6e0ae9cc61bd3169d401077b507b3ebc344745171e1051ab430be012dcd9/opentelemetry_api-1.45.1.tar.gz", hash = "sha256:aa38ed19bcc084ba42782a73255b3582283eced7ad6dddbd6695189e69adfb75", size = 72804, upload-time = "2026-10-06T17:32:58.133Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/19/14/cf3a6b6448849656e1e5f4e2101f3988dc6789724050096aba1bc5ccf592/opentelemetry_api-1.45.2.tar.gz", hash = "sha256:d7b0008e21e5fd61cbe7a7f34ca3b6905a78ab677d9bc395e299359c75cda6b4", size = 73277, upload-time = "2026-10-29T17:29:37.888Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/1e/41/f7dcf80b81ee8e71c1a2b59f14208bc723edbd89ed027a73b175abf6348e/opentelemetry_api-1.45.1-py3-none-any.whl", hash = "sha256:b31553efa588ae44bc306f863c785c5333a9ecc091248c6ee68b4b6c87fdedfb", size = 60256, upload-time = "2026-10-06T17:32:33.506Z" },
+    { url = "https://files.pythonhosted.org/packages/a9/2d/610db864d7513158cebb8f36cc88e67e73bd6c7aa1905ef18d89e1281c81/opentelemetry_api-1.45.2-py3-none-any.whl", hash = "sha256:2cbd737377e710ee740d261c94e93fa0f08e6d037c18f17513cc0a2d94479a34", size = 60335, upload-time = "2026-10-29T17:29:06.955Z" },
 ]
 
 [[package]]
@@ -659,11 +667,16 @@ wheels = [
 
 [[package]]
 name = "pyappify"
-version = "1.0.13"
+version = "1.0.20"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/a1/df/a93ed9c7a61e62f4be33a016a16f61b7af9b584cc7707297a3c32482fe1c/pyappify-1.0.13.tar.gz", hash = "sha256:6cf27666e63f090d591680a5d73cbd090047359ea0af817e46d36b76924b0603", size = 9305, upload-time = "2026-08-17T05:18:10.446Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/e7/0b/d4d32e620ec9ddd79fd1d5225af345f6453136b0c66332453266ba640c7a/pyappify-1.0.20.tar.gz", hash = "sha256:351dfcfbc92f9e09e6cfee434cb554cebd4ae047a0d97ec1b2a7e433f6f18b87", size = 64334, upload-time = "2026-11-12T06:30:11.788Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/49/9d/0354fd829ca45d9747bf829837ca058ffff5cf546e34e393e612ccbc67f4/pyappify-1.0.13-py3-none-any.whl", hash = "sha256:bd10bdefd71fd774a299a52fa42a1e64280b9979fe22c181c3ef6f2094890654", size = 9920, upload-time = "2026-08-17T05:18:09.44Z" },
+    { url = "https://files.pythonhosted.org/packages/87/b1/3117ccc625b08e1fa22556dfa1b496bc5a5be311a5937392f068b1babd70/pyappify-1.0.20-py3-none-any.whl", hash = "sha256:2550d4cca836a717e263beb6d6415505935faeab349602c4efa5e952b4f2dbdf", size = 70889, upload-time = "2026-11-12T06:30:10.309Z" },
+]
+
+[package.optional-dependencies]
+standalone = [
+    { name = "dulwich" },
 ]
 
 [[package]]
@@ -805,45 +818,8 @@ wheels = [
 ]
 
 [[package]]
-name = "pyside6-essentials"
-version = "6.11.2"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "shiboken6" },
-]
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/dc/09/d2662684aee4d3f027ff9b1e965f22301bc28ffc5b7f167658508e4475dc/pyside6_essentials-6.11.2-cp310-abi3-win_amd64.whl", hash = "sha256:c8a29def77032773a30879f7f24415b5395ad08592d147c170824ef4c735dfc1", size = 76913043, upload-time = "2026-08-18T06:36:54.038Z" },
-    { url = "https://files.pythonhosted.org/packages/cd/87/4dd2a6468cea600da1fcf9c7f02bc248eeaa98cdc75658e48e669d95326a/pyside6_essentials-6.11.2-cp310-abi3-win_arm64.whl", hash = "sha256:fadd75c5c20800d64dd0a586ea8cb337c5e630aa2246df0e5105738afa46e02c", size = 58125520, upload-time = "2026-08-18T06:36:59.073Z" },
-]
-
-[[package]]
-name = "pyside6-fluent-widgets"
-version = "1.11.3"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "darkdetect" },
-    { name = "pysidesix-frameless-window" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/be/fa/7ccdf706cf06aa07be142d52606f10c84a0800f9c890faffc097a635c6b1/pyside6_fluent_widgets-1.11.3.tar.gz", hash = "sha256:bfb86a12e0d88edf1a1b4327b79e84767771ba0d2a294c4cb1fe170e026ebc16", size = 1455676, upload-time = "2026-08-01T02:46:14.835Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/3b/b2/5c675b4d56eddeff0930b9e6b1be2fc75f0535dd86d1add3d24b5dd796f6/pyside6_fluent_widgets-1.11.3-py3-none-any.whl", hash = "sha256:f2bece3ba45ef1a222d12cff89c4ffc9505644ee25c9db9c1d2175f59231973d", size = 1549200, upload-time = "2026-08-01T02:46:13.498Z" },
-]
-
-[[package]]
-name = "pysidesix-frameless-window"
-version = "0.8.2"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "pywin32" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/37/3c/7a564b422b5dd42dcfcf30cff308565ffedd1c6f117433b80854857d48a1/pysidesix_frameless_window-0.8.2.tar.gz", hash = "sha256:3cbbf8afd390da9ea43fc97d4a3a42c536aaf08d244a722b114eff0054b7ff0c", size = 23369, upload-time = "2026-08-02T05:42:49.008Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/17/45/8514cbd90d45738f274b3df4e8bbd63088954c4fa6fbc6cf2d16ea4acb90/pysidesix_frameless_window-0.8.2-py3-none-any.whl", hash = "sha256:512babc82282f893bc5edb5374275f9585785a0c65a20ed00d73c008dedebc5c", size = 31194, upload-time = "2026-08-02T05:42:47.725Z" },
-]
-
-[[package]]
 name = "pytest"
-version = "9.1.1"
+version = "9.2.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "colorama" },
@@ -852,9 +828,9 @@ dependencies = [
     { name = "pluggy" },
     { name = "pygments" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/e4/47/b9efed96c114afcfa3c9d3fe98a76a1d14c74a9e266d397cf6eb64be5e01/pytest-9.1.1.tar.gz", hash = "sha256:1088fbde8f2b49d95a549a195707afa7a76a3ce9bcadc26b6d71f0ffda5fe313", size = 1636369, upload-time = "2026-06-19T10:58:32.857Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/79/42/bb4641652e58dedeac2ec51abc1f8cae4fee4ec63899a0999016229a0f2a/pytest-9.2.0.tar.gz", hash = "sha256:97c4f3b1f3c7414aa36465e09b8220f1d03627993bd51b1282e193753c80557b", size = 1797555, upload-time = "2026-10-27T21:30:20.728Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/24/25/1de2678b631f5a49215c6c96fff41ba892b0a34df68d6d80292b1b48aa7f/pytest-9.1.1-py3-none-any.whl", hash = "sha256:37a86b45efb9a47a61a36449063e8e18d0cab3161329fc099eb21783169c4f0c", size = 386536, upload-time = "2026-06-19T10:58:31.347Z" },
+    { url = "https://files.pythonhosted.org/packages/51/39/1f5d8c8877a0fa327db959c19341d4be61660de1ab6b7391f9eb805bcd67/pytest-9.2.0-py3-none-any.whl", hash = "sha256:07acdcf88ec174f907dc01af70bf52d49b014bbab03faeeade31c96b18c2e588", size = 411776, upload-time = "2026-10-27T21:30:19.131Z" },
 ]
 
 [[package]]
@@ -1011,11 +987,11 @@ wheels = [
 
 [[package]]
 name = "shiboken6"
-version = "6.11.2"
+version = "6.12.0"
 source = { registry = "https://pypi.org/simple" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/ce/6b/fee1b4814317e4664e318644c9c007676c65a71e5b2b9d3ac4121a94dc0a/shiboken6-6.11.2-cp310-abi3-win_amd64.whl", hash = "sha256:6ab0eba1c904455df621f9a6df3ca2bb896bab8670572d2bc4e37804ae91f19a", size = 1226578, upload-time = "2026-08-18T06:37:18.002Z" },
-    { url = "https://files.pythonhosted.org/packages/4d/b5/80c4e5aafeb8ac777cf5a1becfe87ac7197c35051df00b5f7819787e09d5/shiboken6-6.11.2-cp310-abi3-win_arm64.whl", hash = "sha256:97c49432488df958f0308736f3d15b6915d8826fc380af17bb4b9ec5c4a5e81b", size = 1784669, upload-time = "2026-08-18T06:37:21.046Z" },
+    { url = "https://files.pythonhosted.org/packages/2a/b6/bee97e7a2edeab72aafabb46ee5adc939790a638d107860b4cad7a20e407/shiboken6-6.12.0-cp310-abi3-win_amd64.whl", hash = "sha256:a1906cb8116869178c64b6bab52623bbc8b4ceed7b30bfc3c9aa0f6e67f6438e", size = 1265476, upload-time = "2026-10-08T09:10:45.627Z" },
+    { url = "https://files.pythonhosted.org/packages/8c/d5/5894d35f8a470ca8acff0d1cd8f15b1c94cbfdfe0ce4a6ec0fcf10b95bd1/shiboken6-6.12.0-cp310-abi3-win_arm64.whl", hash = "sha256:da382e68f0815b31b6dc2bce11a465b148c4f42c37b91546a361de1576567d10", size = 1838851, upload-time = "2026-10-08T09:10:47.123Z" },
 ]
 
 [[package]]

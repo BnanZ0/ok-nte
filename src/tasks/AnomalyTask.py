@@ -3,6 +3,7 @@ from ok import CannotFindException, TaskDisabledException, WaitFailedException
 from src.combat.BaseCombatTask import BaseCombatTask
 from src.tasks.BaseNTETask import BaseNTETask
 from src.tasks.BaseStaminaTask import BaseStaminaTask
+from src.ui.icons import task_icon
 from src.utils.i18n_format import register_i18n_format
 
 
@@ -89,6 +90,9 @@ class AnomalyTask(BaseStaminaTask, BaseCombatTask):
         super().__init__(*args, **kwargs)
         self.name = self.TASK_NAME
         self.description = "自动进行异象界域任务"
+        self.icon = task_icon("anomaly")
+        self.group_name = "体力本"
+        self.group_icon = task_icon("stam")
         self.setup_config(self)
 
     # ruff: disable[E501]

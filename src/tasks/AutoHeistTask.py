@@ -14,6 +14,7 @@ from src.heist_path.HeistPathC import HeistPathC
 from src.Labels import Labels
 from src.tasks.NTEOneTimeTask import NTEOneTimeTask
 from src.tasks.trigger.SkipDialogTask import SkipDialogTask
+from src.ui.icons import task_icon
 from src.utils import game_filters as gf
 from src.utils import image_utils as iu
 from src.utils.clock import Timer
@@ -155,7 +156,9 @@ class AutoHeistTask(NTEOneTimeTask, BaseCombatTask):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.name = "自动粉爪大劫案"
+        self.icon = task_icon("heist")
         self.group_name = "都市闲趣"
+        self.group_icon = task_icon("city_fun")
         _locale = self.get_app_locale()
         self.instructions = INST if _locale and "zh" in _locale else EN_INST
         self.paths = {

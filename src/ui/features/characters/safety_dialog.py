@@ -26,5 +26,7 @@ def confirm_external_code_import(parent: QWidget) -> bool:
             rich_text=False,
             hide_cancel=False,
             close_delay_seconds=1,
+            width=496,
+            message_role="body",
         )
     )

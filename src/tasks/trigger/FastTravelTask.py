@@ -5,6 +5,7 @@ from ok import Logger, TriggerTask
 from src import text_black_color
 from src.Labels import Labels
 from src.tasks.BaseNTETask import BaseNTETask
+from src.ui.icons import task_icon
 from src.utils import image_utils as iu
 
 logger = Logger.get_logger(__name__)
@@ -17,6 +18,7 @@ class FastTravelTask(BaseNTETask, TriggerTask):
         super().__init__(*args, **kwargs)
         self.default_config = {"_enabled": False}
         self.name = "快速传送"
+        self.icon = task_icon("teleport")
         self.description = "地图中自动点击传送"
         self.match = self._compile_match_words(self.DEFAULT_MATCH_WORDS)
         self.default_config.update(
