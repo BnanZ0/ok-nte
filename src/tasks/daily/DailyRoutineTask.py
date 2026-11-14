@@ -295,7 +295,8 @@ class DailyRoutineTask(NTEOneTimeTask, BaseNTETask):
                 item["enabled"] = True
             elif group not in assigned_groups:
                 item["enabled"] = selected_groups.get(group, item["id"]) == item["id"]
-                assigned_groups.add(group)
+                if item["enabled"]:
+                    assigned_groups.add(group)
             else:
                 item["enabled"] = False
         return self.set_items(items)

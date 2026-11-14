@@ -974,8 +974,11 @@ msgstr "Continue Gifting"
 msgid "停止"
 msgstr "Stop"
 
-msgid "在游戏赠礼页点击{}。点击礼物卡片可设定优先级，再次点击取消。"
-msgstr "Click {} on the game gifting page. Click a gift card to set its priority, and click again to cancel."
+msgid "在游戏赠礼页点击{}"
+msgstr "Click {} on the game gifting page"
+
+msgid "点击礼物卡片可设定优先级，再次点击取消"
+msgstr "Click a gift card to set its priority, and click again to cancel"
 
 msgid "赠礼状态"
 msgstr "Gifting Status"
@@ -1719,3 +1722,110 @@ msgstr "Saturday"
 
 msgid "周日"
 msgstr "Sunday"
+
+
+msgid "Close"
+msgstr "Close"
+
+
+msgid "Drag to reorder"
+msgstr "Drag to reorder"
+
+
+msgid "Failed"
+msgstr "Failed"
+
+
+msgid "Include in this daily routine"
+msgstr "Include in this daily routine"
+
+
+msgid "Name"
+msgstr "Name"
+
+
+msgid "No tasks available."
+msgstr "No tasks available."
+
+
+msgid "Pause"
+msgstr "Pause"
+
+
+msgid "Paused"
+msgstr "Paused"
+
+
+msgid "Pending"
+msgstr "Pending"
+
+
+msgid "Queued"
+msgstr "Queued"
+
+
+msgid "Reset"
+msgstr "Reset"
+
+
+msgid "Resume"
+msgstr "Resume"
+
+
+msgid "Routine settings"
+msgstr "Routine settings"
+
+
+msgid "Run info"
+msgstr "Run info"
+
+
+msgid "Running"
+msgstr "Running"
+
+
+msgid "Select a task to see its settings."
+msgstr "Select a task to see its settings."
+
+
+msgid "Skipped"
+msgstr "Skipped"
+
+
+msgid "Start"
+msgstr "Start"
+
+
+msgid "Stop"
+msgstr "Stop"
+
+
+msgid "Succeeded"
+msgstr "Succeeded"
+
+
+msgid "Task settings"
+msgstr "Task settings"
+
+
+msgid "Value"
+msgstr "Value"
+
+
+msgid "检测到该方案包含外置代码, 是否同时删除对应的代码文件?"
+msgstr ""
+"This preset contains external code. Do you also want to delete the "
+"corresponding code files?"
+
+
+msgid "角色列表"
+msgstr "Characters"
+
+msgid "音轨"
+msgstr "Tracks"
+
+msgid "已选音轨"
+msgstr "Selected tracks"
+
+msgid "选中音符"
+msgstr "Selected notes"

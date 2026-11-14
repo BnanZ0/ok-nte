@@ -712,8 +712,11 @@ msgstr "Continuar presentes"
 msgid "停止"
 msgstr "Parar"
 
-msgid "在游戏赠礼页点击{}。点击礼物卡片可设定优先级，再次点击取消。"
-msgstr "Clique em {} na página de presentes do jogo. Clique em um cartão de presente para definir a prioridade, clique novamente para cancelar."
+msgid "在游戏赠礼页点击{}"
+msgstr "Clique em {} na página de presentes do jogo"
+
+msgid "点击礼物卡片可设定优先级，再次点击取消"
+msgstr "Clique em um cartão de presente para definir a prioridade, clique novamente para cancelar"
 
 msgid "赠礼状态"
 msgstr "Status de presentes"
@@ -1462,3 +1465,110 @@ msgstr "Sábado"
 
 msgid "周日"
 msgstr "Domingo"
+
+
+msgid "Close"
+msgstr "Fechar"
+
+
+msgid "Drag to reorder"
+msgstr "Arraste para reordenar"
+
+
+msgid "Failed"
+msgstr "Falhou"
+
+
+msgid "Include in this daily routine"
+msgstr "Incluir nesta rotina diária"
+
+
+msgid "Name"
+msgstr "Nome"
+
+
+msgid "No tasks available."
+msgstr "Nenhuma tarefa disponível."
+
+
+msgid "Pause"
+msgstr "Pausar"
+
+
+msgid "Paused"
+msgstr "Pausado"
+
+
+msgid "Pending"
+msgstr "Pendente"
+
+
+msgid "Queued"
+msgstr "Na fila"
+
+
+msgid "Reset"
+msgstr "Redefinir"
+
+
+msgid "Resume"
+msgstr "Continuar"
+
+
+msgid "Routine settings"
+msgstr "Configurações da rotina"
+
+
+msgid "Run info"
+msgstr "Informações da execução"
+
+
+msgid "Running"
+msgstr "Em execução"
+
+
+msgid "Select a task to see its settings."
+msgstr "Selecione uma tarefa para ver suas configurações."
+
+
+msgid "Skipped"
+msgstr "Ignorado"
+
+
+msgid "Start"
+msgstr "Iniciar"
+
+
+msgid "Stop"
+msgstr "Parar"
+
+
+msgid "Succeeded"
+msgstr "Concluído"
+
+
+msgid "Task settings"
+msgstr "Configurações da tarefa"
+
+
+msgid "Value"
+msgstr "Valor"
+
+
+msgid "检测到该方案包含外置代码, 是否同时删除对应的代码文件?"
+msgstr ""
+"Esta predefinição contém código externo. Deseja também excluir os arquivos "
+"de código correspondentes?"
+
+
+msgid "角色列表"
+msgstr "Personagens"
+
+msgid "音轨"
+msgstr "Faixas"
+
+msgid "已选音轨"
+msgstr "Faixas selecionadas"
+
+msgid "选中音符"
+msgstr "Notas selecionadas"

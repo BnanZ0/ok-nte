@@ -974,8 +974,11 @@ msgstr "Continuar regalos"
 msgid "停止"
 msgstr "Detener"
 
-msgid "在游戏赠礼页点击{}。点击礼物卡片可设定优先级，再次点击取消。"
-msgstr "Haga clic en {} en la página de regalos del juego. Haga clic en una tarjeta de regalo para establecer la prioridad, haga clic de nuevo para cancelar."
+msgid "在游戏赠礼页点击{}"
+msgstr "Haga clic en {} en la página de regalos del juego"
+
+msgid "点击礼物卡片可设定优先级，再次点击取消"
+msgstr "Haga clic en una tarjeta de regalo para establecer la prioridad, haga clic de nuevo para cancelar"
 
 msgid "赠礼状态"
 msgstr "Estado de regalos"
@@ -1719,3 +1722,110 @@ msgstr "Sábado"
 
 msgid "周日"
 msgstr "Domingo"
+
+
+msgid "Close"
+msgstr "Cerrar"
+
+
+msgid "Drag to reorder"
+msgstr "Arrastrar para reordenar"
+
+
+msgid "Failed"
+msgstr "Fallido"
+
+
+msgid "Include in this daily routine"
+msgstr "Incluir en esta rutina diaria"
+
+
+msgid "Name"
+msgstr "Nombre"
+
+
+msgid "No tasks available."
+msgstr "No hay tareas disponibles."
+
+
+msgid "Pause"
+msgstr "Pausar"
+
+
+msgid "Paused"
+msgstr "En pausa"
+
+
+msgid "Pending"
+msgstr "Pendiente"
+
+
+msgid "Queued"
+msgstr "En cola"
+
+
+msgid "Reset"
+msgstr "Restablecer"
+
+
+msgid "Resume"
+msgstr "Reanudar"
+
+
+msgid "Routine settings"
+msgstr "Ajustes de la rutina"
+
+
+msgid "Run info"
+msgstr "Información de ejecución"
+
+
+msgid "Running"
+msgstr "En ejecución"
+
+
+msgid "Select a task to see its settings."
+msgstr "Selecciona una tarea para ver sus ajustes."
+
+
+msgid "Skipped"
+msgstr "Omitido"
+
+
+msgid "Start"
+msgstr "Iniciar"
+
+
+msgid "Stop"
+msgstr "Detener"
+
+
+msgid "Succeeded"
+msgstr "Completado"
+
+
+msgid "Task settings"
+msgstr "Ajustes de la tarea"
+
+
+msgid "Value"
+msgstr "Valor"
+
+
+msgid "检测到该方案包含外置代码, 是否同时删除对应的代码文件?"
+msgstr ""
+"Se detectó que este ajuste preestablecido contiene código externo. ¿Desea "
+"eliminar también los archivos de código correspondientes?"
+
+
+msgid "角色列表"
+msgstr "Personajes"
+
+msgid "音轨"
+msgstr "Pistas"
+
+msgid "已选音轨"
+msgstr "Pistas seleccionadas"
+
+msgid "选中音符"
+msgstr "Notas seleccionadas"

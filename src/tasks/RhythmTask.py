@@ -2,11 +2,11 @@ import threading
 from collections import deque
 
 from ok import TaskDisabledException
+from ok.core.icons import Icon
 
 from src.Labels import Labels
 from src.tasks.BaseNTETask import BaseNTETask
 from src.tasks.NTEOneTimeTask import NTEOneTimeTask
-from src.ui.task_icons import Icon
 from src.utils.clock import TimePoint
 
 # ─────────────────────────── 常量 ───────────────────────────
@@ -63,9 +63,7 @@ class RhythmTask(NTEOneTimeTask, BaseNTETask):
         )
 
         self._prev_state: dict[str, bool] = dict.fromkeys(DETECT_POINTS, False)
-        self._last_press_time: dict[str, TimePoint] = dict.fromkeys(
-            DETECT_POINTS, self.clock.UNSET
-        )
+        self._last_press_time: dict[str, TimePoint] = dict.fromkeys(DETECT_POINTS, self.clock.UNSET)
         self._last_finish_check = self.clock.UNSET
         self._key_queue: deque = deque()
         self._key_queue_cv = threading.Condition()

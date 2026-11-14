@@ -4,9 +4,9 @@ if __name__ == "__main__":
     multiprocessing.freeze_support()
 
     from src.config import config
-    from src.patches.startup_patches import install_startup_patches
+    from src.patches.i18n_patch import install_i18n_patch
 
-    install_startup_patches(config)
+    install_i18n_patch()
 
     import ok
 

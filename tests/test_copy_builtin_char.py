@@ -4,11 +4,14 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
+from ok.ui.qt.kit import Dialog
+from PySide6.QtCore import QCoreApplication, QEvent, QTimer
 from PySide6.QtWidgets import QApplication
 
 from src.char.core.CharRegistry import CharRegistry
 from src.char.custom.CustomCharDb import CustomCharDb
 from src.char.custom.CustomCharManager import CustomCharManager
+from src.ui.CharHubTab import CharHubTab
 from src.ui.CharManagerTab import CharManagerTab
 
 
@@ -113,8 +116,9 @@ class CopyBuiltinCharTests(unittest.TestCase):
         self.assertFalse(success)
         self.assertIn("underscore", err)
 
-        with patch("src.char.custom.CustomCharManager.logger.error"), patch(
-            "pathlib.Path.mkdir", side_effect=OSError("denied")
+        with (
+            patch("src.char.custom.CustomCharManager.logger.error"),
+            patch("pathlib.Path.mkdir", side_effect=OSError("denied")),
         ):
             success, _, err = self.manager.copy_builtin_to_external(
                 "builtin:shinku",
@@ -173,9 +177,46 @@ class CopyBuiltinCharTests(unittest.TestCase):
         self.assertIn("请修改上面完整的 Shinku 角色自动化代码。", prompt)
 
         tab.combo_text.setPlainText(f"{tab.combo_text.toPlainText()}\n# unsaved")
-        with patch("src.ui.CharManagerTab.InfoBar.warning") as warning:
+        with patch("src.ui.CharManagerTab.show_bar") as warning:
             tab.on_test_combo()
         warning.assert_called_once()
+
+    def test_closing_data_manager_releases_its_dialog_each_time(self):
+        tab = CharManagerTab(manager=self.manager)
+        self.addCleanup(tab.deleteLater)
+        self.addCleanup(tab.dispose)
+        tab.show()
+
+        def reject_open_dialog():
+            for dialog in tab.findChildren(Dialog):
+                if dialog.isVisible():
+                    dialog.reject()
+
+        for _ in range(2):
+            QTimer.singleShot(0, reject_open_dialog)
+            tab.show_data_manager()
+            QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+            self.assertEqual(tab.findChildren(Dialog), [])
+
+    def test_long_imported_names_keep_team_controls_inside_the_viewport(self):
+        self.manager.create_team_preset("Team")
+        combo_id = self.manager.add_combo("Long imported combo " * 6, "skill")
+        char_id = self.manager.create_character("Long imported character " * 6, combo_id)
+        hub = CharHubTab(manager=self.manager)
+        self.addCleanup(hub.deleteLater)
+        self.addCleanup(hub.dispose)
+        hub.resize(992, 800)
+        hub.show()
+        hub.pivot.set_current("TeamManagerTab")
+        team = hub.team_manager_tab
+        team.command_stack_layout.setCurrentIndex(1)
+        team.preset_rows[0].set_data(char_id, combo_id)
+        self.qt_app.processEvents()
+
+        self.assertEqual(team.preset_rows[0].get_data(), (char_id, combo_id))
+        self.assertEqual(team.view.width(), team.viewport().width())
+        self.assertLess(team.scan_btn.geometry().right(), team.viewport().width())
+        self.assertLess(team.slots[3].geometry().right(), team.viewport().width())
 
 
 if __name__ == "__main__":

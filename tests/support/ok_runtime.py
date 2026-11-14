@@ -129,7 +129,7 @@ def install_ok_test_runtime_isolation() -> None:
             # translations consistent with the suite's selected language.
             from ok.ui.qt.util.app import cfg as qt_config
 
-            test_config["locale"] = qt_config.get(qt_config.language).value.name()
+            test_config["locale"] = qt_config.language.value.name()
             test_config["my_app"] = None
             test_config["blur_area"] = None
 

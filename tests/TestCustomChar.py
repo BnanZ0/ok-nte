@@ -3,6 +3,7 @@ import os
 import shutil
 import tempfile
 import unittest
+from contextlib import nullcontext
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
@@ -227,12 +228,12 @@ class TestCustomChar(TaskTestCase):
 
         # 測試列表刷新
         tab.refresh_list()
-        self.assertEqual(tab.char_list_widget.count(), 2)
+        self.assertEqual(tab.char_list_widget.list_widget.count(), 2)
 
         # 模擬 UI 點擊選擇 "char_ui_1"
-        item = tab.char_list_widget.item(0)
+        item = tab.char_list_widget.list_widget.item(0)
         if item.text() != "char_ui_1":
-            item = tab.char_list_widget.item(1)
+            item = tab.char_list_widget.list_widget.item(1)
         tab.on_char_selected(item)
 
         # 預期：右側標題變為 char_ui_1，且 combo 等級顯示為 combo_ui
@@ -313,7 +314,10 @@ class TestCustomChar(TaskTestCase):
         dialog.exec.return_value = True
         dialog.get_data.return_value = ("correct_char", "", "", "")
 
-        with patch("src.ui.TeamManagerTab.NewCharDialog", return_value=dialog):
+        with (
+            patch("src.ui.TeamManagerTab.NewCharDialog", return_value=dialog),
+            patch("src.ui.TeamManagerTab.exec_owned_dialog", return_value=nullcontext(True)),
+        ):
             slot.on_relink()
 
         self.assertNotEqual(slot.current_match_char_id, wrong_char_id)
@@ -334,7 +338,10 @@ class TestCustomChar(TaskTestCase):
         dialog.exec.return_value = True
         dialog.get_data.return_value = ("linked_char", "", "", "")
 
-        with patch("src.ui.TeamManagerTab.NewCharDialog", return_value=dialog):
+        with (
+            patch("src.ui.TeamManagerTab.NewCharDialog", return_value=dialog),
+            patch("src.ui.TeamManagerTab.exec_owned_dialog", return_value=nullcontext(True)),
+        ):
             slot.on_action()
 
         self.assertNotEqual(slot.current_match_char_id, "")
@@ -351,7 +358,10 @@ class TestCustomChar(TaskTestCase):
         dialog.exec.return_value = True
         dialog.get_data.return_value = ("command_bar_char", "", "", "")
 
-        with patch("src.ui.TeamManagerTab.AddCharacterDialog", return_value=dialog):
+        with (
+            patch("src.ui.TeamManagerTab.AddCharacterDialog", return_value=dialog),
+            patch("src.ui.TeamManagerTab.exec_owned_dialog", return_value=nullcontext(True)),
+        ):
             tab.on_add_character()
 
         char_id = self._character_id_by_name(self.manager, "command_bar_char")
@@ -365,8 +375,7 @@ class TestCustomChar(TaskTestCase):
         char_id = self.manager.create_character("preset_char", combo_a)
         tab.reload_preset_options()
 
-        with patch("src.ui.TeamManagerTab.NameInputDialog.exec", return_value=0):
-            tab.on_create_preset()
+        tab.on_create_preset()
         preset_id = tab.current_preset_id
         self.assertIsNotNone(preset_id)
         tab.preset_rows[0].set_data(char_id, combo_b)
@@ -394,8 +403,10 @@ class TestCustomChar(TaskTestCase):
         tab.preset_list.search_edit.setText("beta")
 
         self.assertEqual(tab.current_preset_id, second["id"])
-        self.assertEqual(tab.preset_list.currentItem().data(Qt.ItemDataRole.UserRole), second["id"])
-        self.assertFalse(tab.preset_list.currentItem().isHidden())
+        self.assertEqual(
+            tab.preset_list.list_widget.currentItem().data(Qt.ItemDataRole.UserRole), second["id"]
+        )
+        self.assertFalse(tab.preset_list.list_widget.currentItem().isHidden())
 
     def test_team_manager_can_delete_preset_with_its_external_code(self):
         tab = TeamManagerTab(manager=self.manager)
@@ -408,7 +419,11 @@ class TestCustomChar(TaskTestCase):
 
         with (
             patch.object(tab, "_current_preset", return_value=preset),
-            patch("src.ui.TeamManagerTab.MessageBox", return_value=dialog),
+            patch("src.ui.TeamManagerTab.Dialog", return_value=dialog),
+            patch(
+                "src.ui.TeamManagerTab.exec_owned_dialog",
+                return_value=nullcontext(dialog.exec.return_value),
+            ),
             patch.object(
                 self.manager, "delete_external_impl_and_references", return_value=True
             ) as delete_external,
@@ -430,7 +445,11 @@ class TestCustomChar(TaskTestCase):
 
         with (
             patch.object(tab, "_current_preset", return_value=preset),
-            patch("src.ui.TeamManagerTab.MessageBox", return_value=dialog),
+            patch("src.ui.TeamManagerTab.Dialog", return_value=dialog),
+            patch(
+                "src.ui.TeamManagerTab.exec_owned_dialog",
+                return_value=nullcontext(dialog.exec.return_value),
+            ),
             patch.object(self.manager, "delete_external_impl_and_references") as delete_external,
         ):
             tab.on_delete_preset()
@@ -445,8 +464,7 @@ class TestCustomChar(TaskTestCase):
         combo_id = self.manager.add_combo("combo_auto_select", "skill")
         char_id = self.manager.create_character("auto_select_char", combo_id)
         tab.reload_preset_options()
-        with patch("src.ui.TeamManagerTab.NameInputDialog.exec", return_value=0):
-            tab.on_create_preset()
+        tab.on_create_preset()
         row = tab.preset_rows[0]
 
         row.char_combo.setCurrentIndex(row.char_combo.findData(char_id))
@@ -469,8 +487,7 @@ class TestCustomChar(TaskTestCase):
         tab = TeamManagerTab(manager=self.manager)
         combo_id = self.manager.add_combo("combo_direct", "skill")
         tab.reload_preset_options()
-        with patch("src.ui.TeamManagerTab.NameInputDialog.exec", return_value=0):
-            tab.on_create_preset()
+        tab.on_create_preset()
 
         row = tab.preset_rows[0]
         row.combo_list.setCurrentIndex(row.combo_list.findData(combo_id))
@@ -502,8 +519,7 @@ class TestCustomChar(TaskTestCase):
         first_id = self.manager.create_character("first", combo_id)
         second_id = self.manager.create_character("second", combo_id)
         tab.reload_preset_options()
-        with patch("src.ui.TeamManagerTab.NameInputDialog.exec", return_value=0):
-            tab.on_create_preset()
+        tab.on_create_preset()
         tab.preset_rows[0].set_data(first_id, combo_id)
         tab.on_preset_slot_changed(0)
         tab.last_scan_results = [

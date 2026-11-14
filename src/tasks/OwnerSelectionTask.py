@@ -1,8 +1,8 @@
 from ok import TaskDisabledException, WaitFailedException
+from ok.core.icons import Icon
 
 from src.tasks.NTEOneTimeTask import NTEOneTimeTask
 from src.tasks.RecordTask import RecordTask
-from src.ui.task_icons import Icon
 
 INST = (
     "功能说明：本功能仅负责『自动退出关卡』与『重新开启关卡』的点击循环，"

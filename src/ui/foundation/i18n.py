@@ -1,6 +1,13 @@
 """Small locale helpers shared by UI surfaces."""
 
 from ok import og
+from PySide6.QtCore import QCoreApplication
+
+
+def translate(text: str) -> str:
+    """Translate project-owned content independently of the Qt widget class."""
+    app = og.app
+    return app.tr(text) if app is not None else QCoreApplication.translate("app", text)
 
 
 def is_chinese() -> bool:

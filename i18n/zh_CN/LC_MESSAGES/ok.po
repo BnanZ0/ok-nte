@@ -955,7 +955,10 @@ msgstr ""
 msgid "停止"
 msgstr ""
 
-msgid "在游戏赠礼页点击{}。点击礼物卡片可设定优先级，再次点击取消。"
+msgid "在游戏赠礼页点击{}"
+msgstr ""
+
+msgid "点击礼物卡片可设定优先级，再次点击取消"
 msgstr ""
 
 msgid "赠礼状态"
@@ -1694,3 +1697,108 @@ msgstr "周六"
 
 msgid "周日"
 msgstr "周日"
+
+
+msgid "Close"
+msgstr "关闭"
+
+
+msgid "Drag to reorder"
+msgstr "拖动排序"
+
+
+msgid "Failed"
+msgstr "失败"
+
+
+msgid "Include in this daily routine"
+msgstr "加入本次日常任务"
+
+
+msgid "Name"
+msgstr "名称"
+
+
+msgid "No tasks available."
+msgstr "当前无可用任务。"
+
+
+msgid "Pause"
+msgstr "暂停"
+
+
+msgid "Paused"
+msgstr "已暂停"
+
+
+msgid "Pending"
+msgstr "待执行"
+
+
+msgid "Queued"
+msgstr "排队中"
+
+
+msgid "Reset"
+msgstr "重置"
+
+
+msgid "Resume"
+msgstr "继续"
+
+
+msgid "Routine settings"
+msgstr "日常设置"
+
+
+msgid "Run info"
+msgstr "运行信息"
+
+
+msgid "Running"
+msgstr "运行中"
+
+
+msgid "Select a task to see its settings."
+msgstr "选择任务以查看其配置。"
+
+
+msgid "Skipped"
+msgstr "已跳过"
+
+
+msgid "Start"
+msgstr "开始"
+
+
+msgid "Stop"
+msgstr "停止"
+
+
+msgid "Succeeded"
+msgstr "成功"
+
+
+msgid "Task settings"
+msgstr "任务配置"
+
+
+msgid "Value"
+msgstr "数值"
+
+
+msgid "检测到该方案包含外置代码, 是否同时删除对应的代码文件?"
+msgstr "检测到该方案包含外置代码, 是否同时删除对应的代码文件?"
+
+
+msgid "角色列表"
+msgstr "角色列表"
+
+msgid "音轨"
+msgstr "音轨"
+
+msgid "已选音轨"
+msgstr "已选音轨"
+
+msgid "选中音符"
+msgstr "选中音符"

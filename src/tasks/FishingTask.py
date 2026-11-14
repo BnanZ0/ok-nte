@@ -4,13 +4,13 @@ from enum import Enum
 import cv2
 import numpy as np
 from ok import TaskDisabledException, WaitFailedException
+from ok.core.icons import Icon
 
 from src import text_white_color
 from src.Labels import Labels
 from src.tasks.BaseNTETask import BaseNTETask
 from src.tasks.flow.scene_flow import SceneReplan, StepFailure, StepPolicy
 from src.tasks.NTEOneTimeTask import NTEOneTimeTask
-from src.ui.task_icons import Icon
 from src.utils import image_utils as iu
 
 

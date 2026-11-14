@@ -219,6 +219,22 @@ class TestDailyRoutineConfig(unittest.TestCase):
 
         self.assertEqual(selected_routine_tasks(task), [])
 
+    def test_select_all_preserves_the_selected_later_exclusive_item(self):
+        task = self._routine_task(
+            [
+                {"id": "daily_anomaly", "enabled": False},
+                {"id": "daily_anomaly_hunter", "enabled": True},
+            ]
+        )
+        task.task_for_id = lambda _task_id: object()
+
+        items = task.set_all_available_items_selected(True)
+        enabled = {item["id"] for item in items if item["enabled"]}
+
+        self.assertIn("daily_anomaly_hunter", enabled)
+        self.assertNotIn("daily_anomaly", enabled)
+        self.assertTrue(selection_is_complete(items, task.entries_by_id()))
+
     def test_full_selection_accepts_one_choice_per_exclusive_group(self):
         entries = DailyRoutineTask.entries_by_id()
         items = [
