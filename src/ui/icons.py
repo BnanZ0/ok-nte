@@ -14,16 +14,26 @@ _APP_ROOT = (
     if getattr(sys, "frozen", False)
     else Path(__file__).resolve().parents[2]
 )
-_ICON_FOLDER = _APP_ROOT / "icons" / "tasks"
+_FEATURE_ICON_FOLDER = _APP_ROOT / "icons" / "features"
+_TASK_ICON_FOLDER = _APP_ROOT / "icons" / "tasks"
 
 
-def task_icon(name: str) -> str:
-    """Resolve project artwork for a task card, preferring SVG over PNG."""
+def _icon_path(name: str, folder: Path) -> str | None:
     for suffix in ("svg", "png"):
-        path = _ICON_FOLDER / f"{name}.{suffix}"
+        path = folder / f"{name}.{suffix}"
         if path.is_file():
             return str(path)
-    raise FileNotFoundError(f"No SVG or PNG for task icon {name!r} in {_ICON_FOLDER}")
+    return None
+
+
+def feature_icon(name: str) -> str | None:
+    """Resolve project artwork for a software feature, preferring SVG over PNG."""
+    return _icon_path(name, _FEATURE_ICON_FOLDER)
+
+
+def task_icon(name: str) -> str | None:
+    """Resolve project artwork for an automation task, preferring SVG over PNG."""
+    return _icon_path(name, _TASK_ICON_FOLDER)
 
 
 def resource_icon(name: str, *, color: str = "text") -> QIcon:
@@ -31,4 +41,4 @@ def resource_icon(name: str, *, color: str = "text") -> QIcon:
     from ok.ui.qt.kit import load_icon
     from ok.ui.qt.kit.icons import tinted_icon
 
-    return tinted_icon(load_icon(task_icon(name)), color)
+    return tinted_icon(load_icon(feature_icon(name)), color)

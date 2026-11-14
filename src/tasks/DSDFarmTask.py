@@ -4,6 +4,7 @@ from src.combat.BaseCombatTask import BaseCombatTask
 from src.Labels import Labels
 from src.tasks.BaseNTETask import Box
 from src.tasks.NTEOneTimeTask import NTEOneTimeTask
+from src.ui.icons import task_icon
 
 SPACE = "&nbsp;" * 4 + "-"
 
@@ -47,6 +48,7 @@ class DSDFarmTask(NTEOneTimeTask, BaseCombatTask):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.name = "九百九十九夜"
+        self.icon = task_icon("999_night")
         self.description = "挂机刷经验"
         _locale = self.get_app_locale()
         self.instructions = INST if _locale and "zh" in _locale else EN_INST

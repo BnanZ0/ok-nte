@@ -1829,3 +1829,6 @@ msgstr "Selected tracks"
 
 msgid "选中音符"
 msgstr "Selected notes"
+
+msgid "体力本"
+msgstr "Stamina"

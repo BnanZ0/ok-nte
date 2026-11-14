@@ -2,6 +2,7 @@ from ok import Logger, TriggerTask
 
 from src.Labels import Labels
 from src.tasks.BaseNTETask import BaseNTETask
+from src.ui.icons import task_icon
 
 logger = Logger.get_logger(__name__)
 
@@ -17,6 +18,7 @@ class SkipDialogTask(TriggerTask, BaseNTETask):  # type: ignore
         self.skip_message_hold = False
         self._check_confirm_timer = self.clock.UNSET
         self.name = "任务跳过对话"
+        self.icon = task_icon("skip")
         self.description = "点击时将短暂控制物理鼠标"
         self.default_config.update(
             {

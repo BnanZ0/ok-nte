@@ -63,7 +63,7 @@ from src.ui.features.midi.widgets import (
 )
 from src.ui.foundation.widgets.lists import COLLECTION_STATUS_ROLE
 from src.ui.foundation.widgets.page_tabs import PageTabStrip
-from src.ui.icons import resource_icon, task_icon
+from src.ui.icons import feature_icon, resource_icon
 
 MIDI_PLAYER_CONFIG_DEFAULTS = {
     "instrument": Instrument.PIANO.value,
@@ -106,7 +106,7 @@ class MidiPlayerTab(CustomTab):
 
     def __init__(self):
         super().__init__()
-        self.icon = task_icon("music-note")
+        self.icon = feature_icon("music-note")
         self.tr_name_tab = self.tr("自动乐器")
         self.tr_no_song_selected = self.tr("未选择歌曲")
         self.is_playing = False
@@ -1408,14 +1408,12 @@ class MidiPlayerTab(CustomTab):
             display_name = song.title if song else current.text(0)
             self.selection_title.setText(display_name)
             if self.playing_song_id is None:
-                self.lbl_track_name.setText(display_name)
+                self._show_player_song(display_name, favorite=bool(song and song.favorite))
                 self.lbl_time_current.setText("00:00")
                 self.lbl_time_total.setText("--:--")
                 self._current_seconds = 0.0
                 self._duration_seconds = 0.0
                 self._set_progress_slider_value(0)
-                self.is_favorite = bool(song.favorite) if song else False
-                self._update_favorite_button()
             self._load_song_analysis_settings(song_id)
             self.btn_favorite.show()
             self.btn_play_selected.setDisabled(False)
@@ -1426,7 +1424,7 @@ class MidiPlayerTab(CustomTab):
             self.selected_song_id = None
             self.selection_title.setText(self.tr_no_song_selected)
             if self.playing_song_id is None:
-                self.lbl_track_name.setText(self.tr_no_song_selected)
+                self._show_player_song(self.tr_no_song_selected)
             self.btn_favorite.hide()
             self.btn_play_selected.setDisabled(True)
             # Clear chart data if no song is selected
@@ -1479,10 +1477,10 @@ class MidiPlayerTab(CustomTab):
         )
         self.is_playing = True
         song = self.songs_by_id.get(song_id)
-        self.lbl_track_name.setText(song.title if song else self.tr("播放中"))
-        if song:
-            self.is_favorite = bool(song.favorite)
-            self._update_favorite_button()
+        self._show_player_song(
+            song.title if song else self.tr("播放中"),
+            favorite=bool(song.favorite) if song else None,
+        )
         self._update_play_button_icon()
 
         def worker():
@@ -1562,9 +1560,7 @@ class MidiPlayerTab(CustomTab):
         self.playing_song_id = song_id
         song = self.songs_by_id.get(song_id)
         if song is not None:
-            self.lbl_track_name.setText(song.title)
-            self.is_favorite = bool(song.favorite)
-            self._update_favorite_button()
+            self._show_player_song(song.title, favorite=bool(song.favorite))
         if is_new_song:
             self._duration_seconds = 0.0
             self._current_seconds = 0.0
@@ -1603,6 +1599,12 @@ class MidiPlayerTab(CustomTab):
             self.btn_play_pause.set_icon(self._play_icon)
         # Kit icon-only buttons reset to a square when their icon changes.
         self.btn_play_pause.setFixedSize(self.PLAYBACK_BUTTON_SIZE)
+
+    def _show_player_song(self, title: str, *, favorite: bool | None = None) -> None:
+        self.lbl_track_name.setText(title)
+        if favorite is not None:
+            self.is_favorite = favorite
+            self._update_favorite_button()
 
     def _update_favorite_button(self):
         if self.is_favorite:

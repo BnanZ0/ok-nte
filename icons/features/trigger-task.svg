@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none">
+  <!-- Circular arrows mean recurring activation at each interval -->
+  <g stroke="#FFFFFF" stroke-width="2.15" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M4.45 8.15A8.25 8.25 0 0 1 20 8.65"/>
+    <path d="M20 4.65V8.65H16"/>
+    <path d="M19.55 15.85A8.25 8.25 0 0 1 4 15.35"/>
+    <path d="M4 19.35V15.35H8"/>
+    <!-- Clock hands -->
+    <path d="M12 8.7V12.1L14.7 13.85"/>
+  </g>
+</svg>

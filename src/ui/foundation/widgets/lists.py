@@ -2,7 +2,7 @@
 
 from ok.ui.qt.kit import theme
 from PySide6.QtCore import QEvent, QRect, QRectF, Qt
-from PySide6.QtGui import QFont, QFontMetrics, QPainter, QPen
+from PySide6.QtGui import QColor, QFont, QFontMetrics, QPainter, QPen
 from PySide6.QtWidgets import QStyle, QStyledItemDelegate, QStyleOptionViewItem, QToolTip
 
 COLLECTION_STATUS_ROLE = Qt.ItemDataRole.UserRole + 1
@@ -34,8 +34,7 @@ class CollectionItemDelegate(QStyledItemDelegate):
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         painter.setPen(Qt.PenStyle.NoPen)
         if selected:
-            fill = theme.accent()
-            fill.setAlphaF(0.20 if theme.is_dark() else 0.16)
+            fill = QColor(255, 255, 255, 20) if theme.is_dark() else QColor(0, 0, 0, 10)
             painter.setBrush(fill)
             painter.drawRoundedRect(row, 6, 6)
             painter.setBrush(theme.accent())

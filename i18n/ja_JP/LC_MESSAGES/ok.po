@@ -1827,3 +1827,6 @@ msgstr "選択中のトラック"
 
 msgid "选中音符"
 msgstr "選択中の音符"
+
+msgid "体力本"
+msgstr "スタミナ"

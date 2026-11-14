@@ -713,7 +713,7 @@ class TeamManagerTab(CustomTab):
         self.fixed_action.setCheckable(True)
         self.fixed_action.triggered.connect(self.on_toggle_fixed_preset)
         self.apply_action = QAction(
-            resource_icon("play"), self.tr("应用方案"), self.preset_command_bar
+            resource_icon("circle-check"), self.tr("应用方案"), self.preset_command_bar
         )
         self.apply_action.triggered.connect(self.on_apply_preset)
 
@@ -874,8 +874,7 @@ class TeamManagerTab(CustomTab):
             raise RuntimeError(self.tr("请等待当前导入或导出完成后再更新."))
 
     def _on_packages_updated(self) -> None:
-        self.reload_preset_options()
-        self.reload_presets()
+        self.reload_presets(refresh_options=True)
 
     def on_import_package(self) -> None:
         if not confirm_external_code_import(self.window()):
@@ -913,8 +912,7 @@ class TeamManagerTab(CustomTab):
         )
 
     def _on_package_imported(self, imported) -> None:
-        self.reload_preset_options()
-        self.reload_presets(imported.preset_id)
+        self.reload_presets(imported.preset_id, refresh_options=True)
         show_bar(
             self.window(),
             self.tr("导入完成"),
@@ -1036,7 +1034,9 @@ class TeamManagerTab(CustomTab):
             None,
         )
 
-    def reload_presets(self, selected_id: str | None = None) -> None:
+    def reload_presets(self, selected_id: str | None = None, *, refresh_options=False) -> None:
+        if refresh_options:
+            self._reload_slot_options()
         selected_id = selected_id or self.current_preset_id
         presets = self.manager.get_team_presets()
         self.preset_list.list_widget.blockSignals(True)
@@ -1059,9 +1059,7 @@ class TeamManagerTab(CustomTab):
         self.preset_list.reapply_filter()
         self._select_visible_preset()
         self.preset_list.list_widget.blockSignals(False)
-        item = self.preset_list.list_widget.currentItem()
-        self.current_preset_id = item.data(Qt.ItemDataRole.UserRole) if item else None
-        self.render_current_preset()
+        self.on_preset_selected(self.preset_list.list_widget.currentItem(), None)
 
     def _select_visible_preset(self) -> None:
         current = self.preset_list.list_widget.currentItem()
@@ -1077,9 +1075,12 @@ class TeamManagerTab(CustomTab):
     def on_preset_filter_changed(self, _text: str) -> None:
         self._select_visible_preset()
 
-    def reload_preset_options(self) -> None:
+    def _reload_slot_options(self) -> None:
         for row in self.preset_rows:
             row.reload_options()
+
+    def reload_preset_options(self) -> None:
+        self._reload_slot_options()
         self.render_current_preset()
 
     def render_current_preset(self) -> None:
@@ -1185,8 +1186,7 @@ class TeamManagerTab(CustomTab):
                     if not self.manager.delete_external_impl_and_references(impl_id)
                 ]
             self.current_preset_id = None
-            self.reload_preset_options()
-            self.reload_presets()
+            self.reload_presets(refresh_options=True)
             if failed_impl_ids:
                 show_bar(
                     self.window(),
@@ -1219,8 +1219,7 @@ class TeamManagerTab(CustomTab):
         applied = self.manager.apply_team_preset(preset["id"], fixed=True)
         if applied is None:
             return
-        self.reload_preset_options()
-        self.reload_presets(preset["id"])
+        self.reload_presets(preset["id"], refresh_options=True)
         show_bar(self.window(), self.tr("已应用"), self.tr_apply_success.format(len(applied)))
 
     def on_scan_clicked(self) -> None:

@@ -19,6 +19,7 @@ from src.config import config
 from src.tasks.DebugCharTask import DebugCharTask, TeamScanResult
 from src.ui.CharManagerTab import CharManagerTab
 from src.ui.TeamManagerTab import TeamManagerTab
+from tests.support.ok_runtime import isolate_qt_widgets
 
 
 class TestCustomChar(TaskTestCase):
@@ -133,6 +134,7 @@ class TestCustomChar(TaskTestCase):
             resolve.assert_called_with("get_stage")
 
     def setUp(self):
+        isolate_qt_widgets(self)
         super().setUp()
 
         # 建立隔離的沙盒資料夾

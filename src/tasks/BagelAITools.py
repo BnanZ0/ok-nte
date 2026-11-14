@@ -10,6 +10,7 @@ from ok import TaskDisabledException, get_path_relative_to_exe
 
 from src.tasks.BaseNTETask import BaseNTETask
 from src.tasks.NTEOneTimeTask import NTEOneTimeTask
+from src.ui.icons import task_icon
 
 INS = (
     "【呗果智能体】\n"
@@ -53,6 +54,7 @@ class BagelAITools(NTEOneTimeTask, BaseNTETask):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.name = "呗果智能体"
+        self.icon = task_icon("bagel")
         self.description = "请详阅使用说明"
         self.instructions = INS if self.is_chinese() else EN_INS
         self.bagel_supported_languages = [
@@ -96,7 +98,7 @@ class BagelAITools(NTEOneTimeTask, BaseNTETask):
                 self.CONF_HELPER_MODE: "开启助手模式后, 将只会辅助生成文案",
                 self.CONF_AUTO_AICONFIG: "自动回帖会同时点赞",
                 self.CONF_MODEL_URL: "文案生成模型调用地址, 需兼容OpenAI接口请求格式",
-                self.CONF_MODEL_TIMEOUT: "文案生成调用模型的超时时间, 超时将回退使用本地词库, 留空使用30s",
+                self.CONF_MODEL_TIMEOUT: "文案生成调用模型的超时时间, 超时将回退使用本地词库, 留空使用30s",  # noqa: E501
                 self.CONF_MODEL_MAX_TOKENS: "模型生成的最大Token数量",
                 self.CONF_MODEL_API: "未设置请留空, 请勿泄露API_Key!",
                 self.CONF_MODEL_NAME: "需要支持视觉输入的视觉语言模型",

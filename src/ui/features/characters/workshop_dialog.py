@@ -1011,17 +1011,20 @@ class WorkshopDialog(Dialog):
             for item in self.installations
             if latest and item.identity == latest.package.identity
         ]
-        pending = (
-            selected == latest
+        pending_version = (
+            latest.package.version
+            if selected == latest
             and latest is not None
             and any(item.can_update(latest.package) for item in installed)
+            else None
         )
+        pending = pending_version is not None
         show_update = bool(self.service is not None and not self.metadata_only and pending)
         self.update_controls.setVisible(show_update)
         self.update_menu_button.setEnabled(self.import_button.isEnabled())
         self.import_button.setVisible(not self.metadata_only and not show_update)
         self.update_button.setToolTip(
-            translate("更新到 {}").format(latest.package.version) if pending else ""
+            translate("更新到 {}").format(pending_version) if pending else ""
         )
         self.update_button.setEnabled(bool(available and pending))
         self.import_action.setEnabled(self.import_button.isEnabled())
@@ -1047,7 +1050,9 @@ class WorkshopDialog(Dialog):
             self._start_updates([selected])
 
     def _start_updates(self, entries: list[CatalogEntry]) -> None:
-        if self.service is None or self.current_source is None or self._updating:
+        service = self.service
+        source = self.current_source
+        if service is None or source is None or self._updating:
             return
         try:
             self.before_update()
@@ -1063,13 +1068,12 @@ class WorkshopDialog(Dialog):
         self._refresh_update_actions()
         self.loading_ring.show()
         self.status_label.setText(translate("正在更新出招表..."))
-        source = self.current_source
 
         def update():
-            result = self.service.update_from_catalog(
+            result = service.update_from_catalog(
                 entries, self.repository, source, self.before_update, self._cancel_update.is_set
             )
-            return result, self.service.get_installations()
+            return result, service.get_installations()
 
         self._worker = BackgroundCall(update, self)
         self._worker.succeeded.connect(self._updates_finished)

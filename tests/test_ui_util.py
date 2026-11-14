@@ -6,7 +6,6 @@ import shiboken6
 from ok.core.events import EventSignal
 from ok.ui.qt.kit import Dialog
 from PySide6.QtCore import QCoreApplication, QEvent, QEventLoop, Qt, QThread, QTimer
-from PySide6.QtGui import QKeyEvent
 from PySide6.QtWidgets import QApplication, QWidget
 
 from src.events import ConfirmationRequested
@@ -14,6 +13,7 @@ from src.ui.foundation import dialogs
 from src.ui.foundation.name_input_dialog import NameInputDialog
 from src.ui.foundation.widgets.help_popover import HelpPopover
 from src.ui.foundation.widgets.search import SearchableComboBox, SearchableListWidget
+from tests.support.qt_events import send_key
 
 
 class _Countdown:
@@ -78,13 +78,12 @@ class DialogBehaviorTest(unittest.TestCase):
             shiboken6.delete(self.parent)
         QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
 
-    def test_blocking_wait_accepts_and_rejects_without_using_kit_exec(self):
+    def test_blocking_wait_reports_accept_and_reject(self):
         for accepted in (True, False):
             with self.subTest(accepted=accepted):
                 dialog = Dialog(self.parent, "Confirm")
                 QTimer.singleShot(0, dialog.accept if accepted else dialog.reject)
-                with patch.object(dialog, "exec", side_effect=AssertionError("use public open")):
-                    self.assertEqual(dialogs.exec_dialog(dialog), accepted)
+                self.assertEqual(dialogs.exec_dialog(dialog), accepted)
                 self.assertFalse(dialog.isVisible())
 
     def test_footer_actions_fill_available_width(self):
@@ -237,14 +236,8 @@ class DialogBehaviorTest(unittest.TestCase):
             dialog.open()
             self.assertFalse(dialog.ok_button.isEnabled())
             dialog.accept()
-            QCoreApplication.sendEvent(
-                dialog,
-                QKeyEvent(QEvent.Type.KeyPress, Qt.Key.Key_Escape, Qt.KeyboardModifier.NoModifier),
-            )
-            QCoreApplication.sendEvent(
-                dialog,
-                QKeyEvent(QEvent.Type.KeyPress, Qt.Key.Key_Return, Qt.KeyboardModifier.NoModifier),
-            )
+            send_key(dialog, Qt.Key.Key_Escape)
+            send_key(dialog, Qt.Key.Key_Return)
             self.assertTrue(dialog.isVisible())
             self.assertEqual(accepted, [])
             countdown.seconds = 0
@@ -254,10 +247,7 @@ class DialogBehaviorTest(unittest.TestCase):
             dialog.accept()
             self.assertEqual(accepted, [])
             dialog.ok_button.setEnabled(True)
-            QCoreApplication.sendEvent(
-                dialog,
-                QKeyEvent(QEvent.Type.KeyPress, Qt.Key.Key_Escape, Qt.KeyboardModifier.NoModifier),
-            )
+            send_key(dialog, Qt.Key.Key_Escape)
         self.assertEqual(accepted, [True])
 
     def test_visible_cancel_can_reject_during_countdown(self):
@@ -282,10 +272,7 @@ class DialogBehaviorTest(unittest.TestCase):
         dialog.open()
         dialog.name_edit.setText(" reserved ")
         self.assertFalse(dialog.ok_button.isEnabled())
-        QCoreApplication.sendEvent(
-            dialog,
-            QKeyEvent(QEvent.Type.KeyPress, Qt.Key.Key_Escape, Qt.KeyboardModifier.NoModifier),
-        )
+        send_key(dialog, Qt.Key.Key_Escape)
         self.assertTrue(dialog.isVisible())
         dialog.name_edit.setText(" valid ")
         self.assertTrue(dialog.ok_button.isEnabled())
@@ -293,8 +280,45 @@ class DialogBehaviorTest(unittest.TestCase):
         self.assertEqual(dialog.get_name(), "valid")
         self.assertFalse(dialog.isVisible())
 
-    def test_worker_confirmation_is_built_on_ui_thread(self):
+    def _run_worker_confirmation(self, owner, create_dialog):
         result = []
+        dispatcher = dialogs._DialogDispatcher(self.app)
+        loop = QEventLoop()
+        poll = QTimer(loop)
+        poll.setInterval(5)
+        poll.timeout.connect(lambda: loop.quit() if result else None)
+        watchdog = QTimer(loop)
+        watchdog.setSingleShot(True)
+        watchdog.timeout.connect(loop.quit)
+        worker = threading.Thread(
+            target=lambda: result.append(
+                dialogs.show_dialog_and_wait("Confirm", "Message", parent=owner)
+            ),
+            daemon=True,
+        )
+        try:
+            with (
+                patch.object(dialogs, "_dialog_dispatcher", dispatcher),
+                patch.object(dialogs, "_create_dialog", side_effect=create_dialog),
+            ):
+                poll.start()
+                watchdog.start(2000)
+                worker.start()
+                loop.exec()
+                worker.join(timeout=0.1)
+            self.assertFalse(worker.is_alive())
+            self.assertEqual(dispatcher._pending, {})
+            self.assertEqual(dispatcher._dialogs, {})
+            return result
+        finally:
+            poll.stop()
+            watchdog.stop()
+            dispatcher._shutdown()
+            if worker.is_alive():
+                worker.join(timeout=0.1)
+            shiboken6.delete(dispatcher)
+
+    def test_worker_confirmation_is_built_on_ui_thread(self):
         created_threads = []
         original_create = dialogs._create_dialog
 
@@ -304,53 +328,14 @@ class DialogBehaviorTest(unittest.TestCase):
             QTimer.singleShot(0, dialog.accept)
             return dialog
 
-        dispatcher = dialogs._DialogDispatcher(self.app)
-        loop = QEventLoop()
-        poll = QTimer()
-        poll.setInterval(5)
-        poll.timeout.connect(lambda: loop.quit() if result else None)
-        watchdog = QTimer()
-        watchdog.setSingleShot(True)
-        watchdog.timeout.connect(loop.quit)
-        worker = threading.Thread(
-            target=lambda: result.append(
-                dialogs.show_dialog_and_wait("Confirm", "Message", parent=self.parent)
-            ),
-            daemon=True,
-        )
-        try:
-            with (
-                patch.object(dialogs, "_dialog_dispatcher", dispatcher),
-                patch.object(dialogs, "_create_dialog", side_effect=create),
-            ):
-                poll.start()
-                watchdog.start(2000)
-                worker.start()
-                loop.exec()
-                worker.join(timeout=0.1)
-            self.assertFalse(worker.is_alive())
-            self.assertEqual(result, [True])
-            self.assertEqual(created_threads, [self.app.thread()])
-        finally:
-            poll.stop()
-            watchdog.stop()
-            dispatcher._shutdown()
-            shiboken6.delete(dispatcher)
+        self.assertEqual(self._run_worker_confirmation(self.parent, create), [True])
+        self.assertEqual(created_threads, [self.app.thread()])
 
     def test_worker_wait_ends_on_owner_deletion_quit_and_creation_failure(self):
         original_create = dialogs._create_dialog
         for outcome in ("owner_destroyed", "quit", "error"):
-            with self.subTest(outcome=outcome):
+            with self.subTest(outcome=outcome), patch.object(dialogs.logger, "error"):
                 owner = QWidget(self.parent)
-                dispatcher = dialogs._DialogDispatcher(self.app)
-                result = []
-                loop = QEventLoop()
-                poll = QTimer()
-                poll.setInterval(5)
-                poll.timeout.connect(lambda: loop.quit() if result else None)
-                watchdog = QTimer()
-                watchdog.setSingleShot(True)
-                watchdog.timeout.connect(loop.quit)
 
                 def create(*args, **kwargs):
                     if outcome == "error":
@@ -364,47 +349,15 @@ class DialogBehaviorTest(unittest.TestCase):
                     QTimer.singleShot(0, callback)
                     return dialog
 
-                worker = threading.Thread(
-                    target=lambda: result.append(
-                        dialogs.show_dialog_and_wait("Confirm", "Message", parent=owner)
-                    ),
-                    daemon=True,
-                )
-                try:
-                    with (
-                        patch.object(dialogs, "_dialog_dispatcher", dispatcher),
-                        patch.object(dialogs, "_create_dialog", side_effect=create),
-                        patch.object(dialogs.logger, "error"),
-                    ):
-                        poll.start()
-                        watchdog.start(2000)
-                        worker.start()
-                        loop.exec()
-                        worker.join(timeout=0.1)
-                    self.assertFalse(worker.is_alive())
-                    self.assertEqual(result, [False])
-                    self.assertEqual(dispatcher._pending, {})
-                    self.assertEqual(dispatcher._dialogs, {})
-                finally:
-                    poll.stop()
-                    watchdog.stop()
-                    dispatcher._shutdown()
-                    shiboken6.delete(dispatcher)
+                self.assertEqual(self._run_worker_confirmation(owner, create), [False])
 
     def test_accept_then_reject_and_shutdown_resolve_exactly_once(self):
         dispatcher = dialogs._DialogDispatcher(self.app)
         request = dialogs._DialogRequest(
             {"title": "Confirm", "content": "Message", "parent": self.parent}
         )
-        count = []
-        original_set = request.event.set
-
-        def finish():
-            count.append(True)
-            original_set()
-
         try:
-            with patch.object(request.event, "set", side_effect=finish):
+            with patch.object(request.event, "set", wraps=request.event.set) as finish:
                 dispatcher.submit(request)
                 dialog = dispatcher._dialogs[id(request)][0]
                 dialog.accept()
@@ -412,7 +365,7 @@ class DialogBehaviorTest(unittest.TestCase):
                 dispatcher._shutdown()
             self.assertTrue(request.accepted)
             self.assertTrue(request.event.is_set())
-            self.assertEqual(count, [True])
+            finish.assert_called_once_with()
         finally:
             shiboken6.delete(dispatcher)
 

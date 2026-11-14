@@ -5,6 +5,7 @@ from ok import Logger, TaskDisabledException, og
 from src.combat.CombatCheck import CombatCheck
 from src.runtime.services import create_openvino_detector
 from src.tasks.NTEOneTimeTask import NTEOneTimeTask
+from src.ui.icons import feature_icon
 from src.utils import clock
 from src.vision.openvino_detector import YOLO26OpenVINOAsyncDetector
 
@@ -96,6 +97,7 @@ class CombatDetectionTestTask(NTEOneTimeTask, CombatCheck):
         self.description = (
             "持续检测诊断 Lv, 锁定目标标记(白色菱形)和红色血条; 请手动停止以查看完整报告"
         )
+        self.icon = feature_icon("monitor-activity")
         self._stats: CombatDetectionTestStats | None = None
         self._using_avx2_bypass = False
         self._test_detector_state = "uninitialized"

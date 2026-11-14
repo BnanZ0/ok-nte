@@ -1828,3 +1828,6 @@ msgstr "已選音軌"
 
 msgid "选中音符"
 msgstr "選中音符"
+
+msgid "体力本"
+msgstr "體力本"

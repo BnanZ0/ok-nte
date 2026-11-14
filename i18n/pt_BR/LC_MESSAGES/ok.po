@@ -1572,3 +1572,6 @@ msgstr "Faixas selecionadas"
 
 msgid "选中音符"
 msgstr "Notas selecionadas"
+
+msgid "体力本"
+msgstr "Vigor"

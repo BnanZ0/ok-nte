@@ -7,6 +7,7 @@ from pynput import keyboard
 from pynput.keyboard import Controller, Key
 
 from src.tasks.BaseNTETask import BaseNTETask
+from src.ui.icons import task_icon
 
 logger = Logger.get_logger(__name__)
 
@@ -57,6 +58,7 @@ class HeistTask(BaseNTETask, TriggerTask):
         self._quick_run_time = self.clock.UNSET
         self._quick_run_step = 0
         self.name = "粉爪大劫案"
+        self.icon = task_icon("heist")
         self.description = "粉爪大劫案便利性功能"
         self.default_config.update(
             {
@@ -248,11 +250,7 @@ class HeistTask(BaseNTETask, TriggerTask):
             timer = self.clock.timer(timeout=self.QUICK_RUN_KEY_AFTER_SLEEP)
             next_send = self.clock.UNSET
             self.scene.clear_health_snapshot()
-            while (
-                self._is_active()
-                and self._is_key_pressed("shift")
-                and not max_time.expired()
-            ):
+            while self._is_active() and self._is_key_pressed("shift") and not max_time.expired():
                 frame = self.next_frame()
                 if frame is not None:
                     timer.extend(0.1)

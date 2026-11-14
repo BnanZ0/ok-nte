@@ -1829,3 +1829,6 @@ msgstr "Pistas seleccionadas"
 
 msgid "选中音符"
 msgstr "Notas seleccionadas"
+
+msgid "体力本"
+msgstr "Energía"

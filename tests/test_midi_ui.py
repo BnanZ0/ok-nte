@@ -7,10 +7,11 @@ from unittest.mock import Mock, patch
 
 from ok import og
 from PySide6.QtCore import QEvent, QPointF, Qt
-from PySide6.QtGui import QKeyEvent, QMouseEvent
+from PySide6.QtGui import QMouseEvent
 from PySide6.QtWidgets import QApplication
 
-from src.midi_player.models import MidiTrackInfo, SongInfo
+from src.midi_player.models import MidiTrackInfo, SongInfo, SongStats
+from tests.support.qt_events import click_at, send_key
 
 midi_ui = importlib.import_module("src.ui.MidiPlayerTab")
 
@@ -105,31 +106,14 @@ class TestMidiUi(unittest.TestCase):
         self.tab.show()
         self.app.processEvents()
         checkbox = self.tab.track_checkboxes[1]
-        position = QPointF(checkbox.width() - 8, checkbox.height() / 2)
-        for event_type, buttons in (
-            (QEvent.Type.MouseButtonPress, Qt.MouseButton.LeftButton),
-            (QEvent.Type.MouseButtonRelease, Qt.MouseButton.NoButton),
-        ):
-            QApplication.sendEvent(
-                checkbox,
-                QMouseEvent(
-                    event_type,
-                    position,
-                    QPointF(checkbox.mapToGlobal(position.toPoint())),
-                    Qt.MouseButton.LeftButton,
-                    buttons,
-                    Qt.KeyboardModifier.NoModifier,
-                ),
-            )
+        click_at(checkbox, QPointF(checkbox.width() - 8, checkbox.height() / 2))
         self.assertEqual(self.tab.track_selected_value.text(), "0 / 2")
         self.assertEqual(self.tab.track_notes_value.text(), "0")
         self.assertFalse(self.tab.btn_play_tracks.isEnabled())
         self.assertEqual(self.config["track_selection"]["song"], [])
 
         for event_type in (QEvent.Type.KeyPress, QEvent.Type.KeyRelease):
-            QApplication.sendEvent(
-                checkbox, QKeyEvent(event_type, Qt.Key.Key_Space, Qt.KeyboardModifier.NoModifier)
-            )
+            send_key(checkbox, Qt.Key.Key_Space, event_type)
         self.assertEqual(self.tab.track_selected_value.text(), "1 / 2")
         self.assertEqual(self.config["track_selection"]["song"], [1])
 
@@ -165,11 +149,6 @@ class TestMidiUi(unittest.TestCase):
         self.tab.songs_by_id = {song.id: song for song in songs}
         tree = self.tab.song_tree_widget
 
-        def press(key):
-            QApplication.sendEvent(
-                tree, QKeyEvent(QEvent.Type.KeyPress, key, Qt.KeyboardModifier.NoModifier)
-            )
-
         with patch.object(self.tab, "_request_analysis_for_current_song"):
             self.tab.populate_song_list()
             self.tab.show()
@@ -178,20 +157,20 @@ class TestMidiUi(unittest.TestCase):
             folder = tree.topLevelItem(0)
             self.assertTrue(folder.isExpanded())
             self.assertEqual(self.tab.selected_song_id, "first")
-            press(Qt.Key.Key_Down)
+            send_key(tree, Qt.Key.Key_Down)
             self.assertEqual(self.tab.selected_song_id, "second")
             self.assertEqual(tree.currentItem().data(0, Qt.ItemDataRole.UserRole), "second")
-            press(Qt.Key.Key_Left)
+            send_key(tree, Qt.Key.Key_Left)
             self.assertIs(tree.currentItem(), folder)
-            press(Qt.Key.Key_Left)
+            send_key(tree, Qt.Key.Key_Left)
             self.assertFalse(folder.isExpanded())
-            press(Qt.Key.Key_Right)
+            send_key(tree, Qt.Key.Key_Right)
             self.assertTrue(folder.isExpanded())
             self.tab.song_search_edit.setText("Second")
             self.assertTrue(folder.child(0).isHidden())
             self.assertFalse(folder.child(1).isHidden())
             self.assertEqual(self.tab._playlist_song_ids(), ["second"])
-            press(Qt.Key.Key_Down)
+            send_key(tree, Qt.Key.Key_Down)
             self.assertEqual(tree.currentItem().data(0, Qt.ItemDataRole.UserRole), "second")
             self.tab.song_search_edit.clear()
             self.assertEqual(self.tab._playlist_song_ids(), ["first", "second"])
@@ -225,9 +204,17 @@ class TestMidiUi(unittest.TestCase):
         interaction.mouse_up.assert_called_once()
 
     def test_disposed_page_ignores_late_indexing_and_analysis_results(self):
+        self.tab.selected_song_id = "song"
         self.tab.dispose()
+        self.library.list_songs.reset_mock()
+        previous_time = self.tab.lbl_time_total.text()
         self.tab._on_library_indexed(None)
-        self.tab.on_song_analysis_done("song", None, {}, 0, [], None)
+        self.tab.on_song_analysis_done(
+            "song", SongStats(1, 1, 0, (60,), ()), {60: 1}, 30,
+            [MidiTrackInfo(0, "Piano", 1)], None,
+        )
         self.tab.on_playback_status_changed("playing")
         self.library.list_songs.assert_not_called()
+        self.assertEqual(self.tab.lbl_time_total.text(), previous_time)
+        self.assertFalse(self.tab.track_checkboxes)
         self.assertFalse(self.tab.is_playing)

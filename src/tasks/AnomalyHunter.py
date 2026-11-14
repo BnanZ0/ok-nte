@@ -6,6 +6,7 @@ from src.combat.BaseCombatTask import BaseCombatTask
 from src.Labels import Labels
 from src.tasks.BaseNTETask import BaseNTETask
 from src.tasks.BaseStaminaTask import BaseStaminaTask
+from src.ui.icons import task_icon
 
 
 class AnomalyHunter(BaseStaminaTask, BaseCombatTask):
@@ -55,6 +56,9 @@ class AnomalyHunter(BaseStaminaTask, BaseCombatTask):
         super().__init__(*args, **kwargs)
         self.name = "异象追猎"
         self.description = "自动进行异象追猎任务"
+        self.icon = task_icon("anomaly_hunt")
+        self.group_name = "体力本"
+        self.group_icon = task_icon("stam")
         self.setup_config(self)
 
     @classmethod

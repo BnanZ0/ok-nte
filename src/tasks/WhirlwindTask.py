@@ -4,6 +4,7 @@ from src.combat.BaseCombatTask import BaseCombatTask
 from src.Labels import Labels
 from src.sound_trigger.SoundCombatContext import SoundCombatContext
 from src.tasks.NTEOneTimeTask import NTEOneTimeTask
+from src.ui.icons import task_icon
 
 
 class WhirlwindTask(NTEOneTimeTask, BaseCombatTask):
@@ -22,6 +23,7 @@ class WhirlwindTask(NTEOneTimeTask, BaseCombatTask):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.name = "自动小旋风"
+        self.icon = task_icon("whirl")
         self.description = "可交互「小旋风」下按开始"
         self.default_config.update(
             {

@@ -12,7 +12,7 @@ from ok.ui.qt.tasks.PythonHighlighter import PythonHighlighter
 from ok.ui.qt.util.app import show_info_bar
 from ok.ui.qt.widget.CustomTab import CustomTab
 from ok.util.explorer import open_explorer_folder, reveal_in_explorer
-from PySide6.QtCore import QEvent, Qt, QTimer, QUrl, Signal, Slot
+from PySide6.QtCore import QEvent, QSignalBlocker, Qt, QTimer, QUrl, Signal, Slot
 from PySide6.QtGui import QAction, QDesktopServices
 from PySide6.QtWidgets import (
     QAbstractItemView,
@@ -370,13 +370,19 @@ class CharManagerTab(CustomTab):
         self.combo_actions_layout.addWidget(self.ask_ai_btn)
 
         self.combo_test_btn = Button(
-            self.tr("运行一次测试"), variant="secondary", icon="play", parent=self.combo_main_widget
+            self.tr("运行一次测试"),
+            variant="secondary",
+            icon=resource_icon("play"),
+            parent=self.combo_main_widget,
         )
         self.combo_test_btn.clicked.connect(self.on_test_combo)
         self.combo_actions_layout.addWidget(self.combo_test_btn)
 
         self.combo_save_btn = Button(
-            self.tr("应用更改"), variant="primary", icon="check", parent=self.combo_main_widget
+            self.tr("应用更改"),
+            variant="primary",
+            icon=resource_icon("save", color="on_accent"),
+            parent=self.combo_main_widget,
         )
         self.combo_save_btn.clicked.connect(self.on_save_combo)
         self.combo_actions_layout.addWidget(self.combo_save_btn)
@@ -459,57 +465,28 @@ class CharManagerTab(CustomTab):
     def refresh_list(self):
         if self._disposed:
             return
-        select = self.char_list_widget.list_widget.currentItem()
+        items = self.char_list_widget.list_widget
+        select = items.currentItem()
         select_id = select.data(Qt.ItemDataRole.UserRole) if select else None
-        self.current_char_id = None
-        self.current_char_name = None
         self._all_characters = self.manager.get_all_characters()
-        self.char_list_widget.setUpdatesEnabled(False)
-        self.char_list_widget.list_widget.clear()
-        for char_id, char_data in self._all_characters.items():
-            item = QListWidgetItem(char_data["char_name"])
-            item.setData(Qt.ItemDataRole.UserRole, char_id)
-            self.char_list_widget.list_widget.addItem(item)
-        self.char_list_widget.reapply_filter()
-        self.char_list_widget.setUpdatesEnabled(True)
-
-        # Test Code: Add dummy items
-        # for i in range(20):
-        #     self.char_list_widget.list_widget.addItem(f"测试角色 {i}")
-
-        if self.char_list_widget.list_widget.count() != 0:
-            self.char_subtitle.hide()
-        else:
-            self.char_subtitle.show()
-
+        with QSignalBlocker(items):
+            items.clear()
+            selected_item = None
+            for char_id, char_data in self._all_characters.items():
+                item = QListWidgetItem(char_data["char_name"])
+                item.setData(Qt.ItemDataRole.UserRole, char_id)
+                items.addItem(item)
+                if char_id == select_id:
+                    selected_item = item
+            self.char_list_widget.reapply_filter()
+            items.setCurrentItem(
+                selected_item
+                if selected_item is not None and not selected_item.isHidden()
+                else None
+            )
+        self.char_subtitle.setVisible(items.count() == 0)
         self._reload_combo_options()
-
-        self.on_combo_changed("")
-
-        self.delete_char_btn.setEnabled(False)
-        self.char_title.setText(self.tr_choose_char)
-        self.char_title.setWordWrap(True)
-        self.title_spacer.changeSize(0, 0, QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Minimum)
-        self.title_h_layout.invalidate()
-        self.char_name_edit_btn.hide()
-        for i in reversed(range(self.feature_grid.count())):
-            layout_item = self.feature_grid.takeAt(i)  # 1. 从布局中取回 QLayoutItem
-            if layout_item:
-                widget = layout_item.widget()
-                if widget is not None:
-                    widget.hide()
-                    widget.deleteLater()
-
-        if select_id:
-            for i in range(self.char_list_widget.list_widget.count()):
-                item = self.char_list_widget.list_widget.item(i)
-                if item.data(Qt.ItemDataRole.UserRole) == select_id and not item.isHidden():
-                    self.char_list_widget.list_widget.setCurrentItem(item)
-                    break
-        else:
-            self.char_list_widget.list_widget.setCurrentItem(None)
-
-        self._feature_size_timer.start(0)
+        self.on_char_selected(items.currentItem())
 
     def on_refresh_btn_clicked(self):
         char_registry.rescan_external()
@@ -802,10 +779,7 @@ class CharManagerTab(CustomTab):
 
         if modified and shiboken6.isValid(self) and not self._disposed:
             self._reload_combo_options()
-            if self.current_char_id:
-                self._render_right_panel()
-            else:
-                self.on_combo_changed("")
+            self._render_right_panel(refresh_features=False)
 
     show_combo_manager_dialog = show_data_manager
 
@@ -893,17 +867,7 @@ class CharManagerTab(CustomTab):
         show_info_bar(self.window(), self.tr_import_msg.format(imported), self.tr_import_success)
 
     def on_char_selected(self, item):
-        if not item:
-            self.current_char_id = None
-            self.current_char_name = None
-            self.char_title.setText(self.tr_choose_char)
-            self.char_title.setWordWrap(True)
-            self.title_spacer.changeSize(0, 0, QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Minimum)
-            self.title_h_layout.invalidate()
-            self.char_name_edit_btn.hide()
-            return
-        self.current_char_id = item.data(Qt.ItemDataRole.UserRole)
-        self.current_char_name = item.text()
+        self.current_char_id = item.data(Qt.ItemDataRole.UserRole) if item is not None else None
         self._render_right_panel()
 
     def _reload_combo_options(self):
@@ -935,27 +899,31 @@ class CharManagerTab(CustomTab):
             self.combo_select.setCurrentText(combo_name)
         self.combo_select.blockSignals(False)
 
-    def _render_right_panel(self):
-        if not self.current_char_id:
-            return
-        char_info = self.manager.get_character_info_by_id(self.current_char_id)
-        if not char_info:
-            return
-
-        self.delete_char_btn.setEnabled(True)
-        self.char_title.setText(self.current_char_name)
-        self.char_title.setWordWrap(False)
-        self.title_spacer.changeSize(0, 0, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
+    def _render_right_panel(self, *, refresh_features=True):
+        char_id = self.current_char_id
+        char_info = self.manager.get_character_info_by_id(char_id) if char_id else None
+        has_character = char_info is not None
+        if char_info is None:
+            self.current_char_id = None
+        self.current_char_name = char_info["char_name"] if char_info is not None else None
+        self.delete_char_btn.setEnabled(has_character)
+        self.char_title.setText(self.current_char_name or self.tr_choose_char)
+        self.char_title.setWordWrap(not has_character)
+        title_policy = QSizePolicy.Policy.Expanding if has_character else QSizePolicy.Policy.Fixed
+        self.title_spacer.changeSize(0, 0, title_policy, QSizePolicy.Policy.Minimum)
         self.title_h_layout.invalidate()
-        self.char_name_edit_btn.show()
-        combo_id = char_info["impl_id"]
+        self.char_name_edit_btn.setVisible(has_character)
+        combo_id = char_info["impl_id"] if char_info is not None else ""
         combo_name = self.manager.get_impl_name(combo_id, with_source_prefix=True)
         self._set_combo_selection_by_id(combo_id)
 
         # Manually trigger the text change logic to ensure the implementation source renders.
         self.on_combo_changed(combo_name, combo_id)
 
-        # update feature grid
+        if refresh_features or not has_character:
+            self._render_features(char_info["feature_ids"] if char_info is not None else ())
+
+    def _render_features(self, feature_ids):
         while self.feature_grid.count() > 0:
             item = self.feature_grid.takeAt(0)
             widget = item.widget() if item is not None else None
@@ -963,19 +931,11 @@ class CharManagerTab(CustomTab):
                 widget.hide()
                 widget.deleteLater()
 
-        feature_ids = char_info["feature_ids"]
         for fid in feature_ids:
             img_mat, _, _ = self.manager.load_feature_image(fid)
             if img_mat is not None:
                 card = FeatureCard(fid, img_mat, self.on_delete_feature)
                 self.feature_grid.addWidget(card)
-
-        # Test Code: Add dummy items
-        # for i in range(20):
-        #     test_fid = f"test_feature_{i}"
-        #     if img_mat is not None:
-        #         card = FeatureCard(test_fid, img_mat, lambda fid: None)
-        #         self.feature_grid.addWidget(card)
 
         self._feature_size_timer.start(0)
 
@@ -1272,8 +1232,7 @@ class CharManagerTab(CustomTab):
 
         self.manager.update_character(self.current_char_id, impl_id="")
 
-        # 刷新列表和右侧界面
-        self._render_right_panel()
+        self._render_right_panel(refresh_features=False)
 
         show_info_bar(
             self.window(), self.tr_unbind_msg.format(self.current_char_name), self.tr_unbind_success
@@ -1295,11 +1254,7 @@ class CharManagerTab(CustomTab):
         # 刷新出招表下拉列表
         self._reload_combo_options()
 
-        # 刷新当前角色的内容显示
-        if self.current_char_id:
-            self._render_right_panel()
-        else:
-            self.on_combo_changed("")
+        self._render_right_panel(refresh_features=False)
 
         show_info_bar(self.window(), self.tr_del_combo_msg.format(combo_name), self.tr_del_success)
 

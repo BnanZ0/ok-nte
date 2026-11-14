@@ -392,17 +392,17 @@ class DailyRoutineTab(CustomTab):
         self.rows.clear()
         routine = self.task
         self.routine_row.setVisible(routine is not None)
-        items = routine.normalize_items() if routine is not None else []
-        for item in items:
-            child = routine.task_for_id(item["id"])
-            if child is None:
-                continue
-            row = _RoutineRow(item["id"], self.tr(child.name), self, self.list_contents)
-            row.set_enabled(item["enabled"])
-            row.picked.connect(self.select_task)
-            row.enabled_changed.connect(self._set_enabled)
-            self.rows[item["id"]] = row
-            self.list_layout.insertWidget(self.list_layout.count() - 1, row)
+        if routine is not None:
+            for item in routine.normalize_items():
+                child = routine.task_for_id(item["id"])
+                if child is None:
+                    continue
+                row = _RoutineRow(item["id"], self.tr(child.name), self, self.list_contents)
+                row.set_enabled(item["enabled"])
+                row.picked.connect(self.select_task)
+                row.enabled_changed.connect(self._set_enabled)
+                self.rows[item["id"]] = row
+                self.list_layout.insertWidget(self.list_layout.count() - 1, row)
         self.empty_label.setVisible(not self.rows)
         self.routine_separator.setVisible(bool(self.rows))
         self.select_all_check.setEnabled(bool(self.rows))
@@ -465,11 +465,13 @@ class DailyRoutineTab(CustomTab):
         self.selected_task_id = task_id if task_id in self.rows else None
         self._update_selection()
         task = self.task
-        running = task is not None and task.enabled and task.running
-        if self.selected_task_id is None:
-            show_info = running and not self._info_closed
-        else:
-            show_info = running and self.selected_task_id == task.current_task_key
+        selected_id = self.selected_task_id
+        show_info = (
+            task is not None
+            and task.enabled
+            and task.running
+            and (not self._info_closed if selected_id is None else selected_id == task.current_task_key)
+        )
         with QSignalBlocker(self.tabs):
             self.tabs.set_current("info" if show_info else "settings")
         self._show_detail()
@@ -483,9 +485,12 @@ class DailyRoutineTab(CustomTab):
     def _bind_task_form(self):
         routine = self.task
         task_id = self.selected_task_id
-        child = routine.task_for_id(task_id) if routine is not None and task_id else None
         self.task_form = None
         self._daily_config = None
+        if routine is None or task_id is None:
+            self._replace_form(self.task_scroll, None)
+            return
+        child = routine.task_for_id(task_id)
         if child is None:
             self._replace_form(self.task_scroll, None)
             return
@@ -503,10 +508,11 @@ class DailyRoutineTab(CustomTab):
 
     def _show_detail(self):
         task_id = self.selected_task_id
-        routine_selected = task_id is None
-        if routine_selected:
+        routine = self.task
+        routine_selected = task_id is None or routine is None
+        if task_id is None or routine is None:
             self.detail_title.setText(self.tr_name)
-            selected = self.task
+            selected = routine
             info = dict(selected.info) if selected is not None else {}
             has_info = bool(
                 selected is not None and (selected.enabled or info) and not self._info_closed
@@ -514,7 +520,7 @@ class DailyRoutineTab(CustomTab):
         else:
             name = self.rows[task_id].name_label.text()
             self.detail_title.setText(name)
-            selected = self.task.task_for_id(task_id)
+            selected = routine.task_for_id(task_id)
             # The same child object can run standalone. Its info is not scoped
             # to daily execution, but its status on the parent routine is.
             status = self._row_status_text.get(task_id)
@@ -703,9 +709,12 @@ class DailyRoutineTab(CustomTab):
 
     def _refresh_state(self):
         task = self.task
-        active = bool(task is not None and task.enabled)
-        running = bool(active and task.running)
-        paused = bool(active and task.paused)
+        if task is None:
+            active = running = paused = False
+        else:
+            active = task.enabled
+            running = active and task.running
+            paused = active and task.paused
         if active and not self._was_active:
             self._info_closed = False
             self._previous_run_statuses = self._last_statuses

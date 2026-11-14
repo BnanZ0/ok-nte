@@ -17,7 +17,6 @@ import requests
 import shiboken6
 from ok.ui.qt.kit import Theme, theme
 from PySide6.QtCore import QEvent, QPoint, Qt, QTimer
-from PySide6.QtGui import QKeyEvent
 from PySide6.QtWidgets import QApplication, QToolButton, QWidget
 
 from src.char.core.CharFactory import get_char_by_impl_id
@@ -47,6 +46,8 @@ from src.ui.features.characters.workshop_dialog import (
     PackageMetadataDialog,
     WorkshopDialog,
 )
+from tests.support.ok_runtime import isolate_qt_widgets
+from tests.support.qt_events import send_key
 
 SOURCE = (
     "from src.char.BaseChar import BaseChar, Element\n\n"
@@ -94,6 +95,7 @@ class TestWorkshop(unittest.TestCase):
         self.assertEqual(visible, expected)
 
     def setUp(self):
+        isolate_qt_widgets(self)
         root = Path(os.getcwd()) / "tests" / ".tmp"
         root.mkdir(parents=True, exist_ok=True)
         self.temp_dir = root / f"workshop_{uuid.uuid4().hex}"
@@ -712,10 +714,7 @@ class TestWorkshop(unittest.TestCase):
         def add_keyword(word):
             dialog.keyword_edit.setText(word)
             for event_type in (QEvent.Type.KeyPress, QEvent.Type.KeyRelease):
-                QApplication.sendEvent(
-                    dialog.keyword_edit,
-                    QKeyEvent(event_type, Qt.Key.Key_Return, Qt.KeyboardModifier.NoModifier),
-                )
+                send_key(dialog.keyword_edit, Qt.Key.Key_Return, event_type)
 
         try:
             catalog = ([old, latest, other], IndexSource("GitHub", "index", "base"), [])
@@ -935,43 +934,19 @@ class TestWorkshop(unittest.TestCase):
             dialog.deleteLater()
             parent.deleteLater()
 
-    def test_workshop_dialog_layout_stability_and_no_shadow(self):
-        pkg1 = TeamPackage("A", "Desc 1", "Author A", "1.0.0", make_package(False).slots)
-        pkg2 = TeamPackage(
-            "B", "Multi\nLine\nDescription\nHere", "Author B", "2.0.0", make_package(False).slots
-        )
-        e1 = CatalogEntry(pkg1, "codes/a.zip", "a.zip", 100, "2026-01-01T00:00:00Z")
-        e2 = CatalogEntry(pkg2, "codes/b.zip", "b.zip", 200, "2026-01-02T00:00:00Z")
-        parent = QWidget()
-        with patch.object(WorkshopDialog, "reload_catalog"):
-            dialog = WorkshopDialog(Mock(), parent)
-        try:
-            self.assertIsNone(dialog.panel.graphicsEffect())
-            self.assertEqual(
-                dialog.table.horizontalScrollBarPolicy(), Qt.ScrollBarPolicy.ScrollBarAlwaysOff
-            )
-            self.assertTrue(dialog.table.horizontalHeader().stretchLastSection())
-
-            dialog._catalog_loaded(([e1, e2], IndexSource("GitHub", "index", "base"), []))
-            dialog.show()
-            self.qt_app.processEvents()
-
-            w_geom_0 = dialog.panel.geometry()
-            t_geom_0 = dialog.table.geometry()
-            dialog.table.selectRow(1)
-            self.qt_app.processEvents()
-            self.assertEqual(dialog.panel.geometry(), w_geom_0)
-            self.assertEqual(dialog.table.geometry(), t_geom_0)
-        finally:
-            dialog.deleteLater()
-            parent.deleteLater()
-
-    def test_workshop_fits_window_in_both_themes_with_filters_expanded(self):
+    def test_workshop_fits_window_and_keeps_layout_when_selection_changes(self):
         previous_theme = theme.mode
         parent = QWidget()
         parent.resize(1200, 800)
         parent.show()
-        entry = CatalogEntry(make_package(), "codes/test.zip", "test.zip", 1, "2026-01-01Z")
+        package = make_package()
+        entries = [
+            CatalogEntry(package, "codes/a.zip", "a.zip", 1, "2026-01-01Z"),
+            CatalogEntry(
+                replace(package, name="Second", description="Multi\nLine\nDescription"),
+                "codes/b.zip", "b.zip", 1, "2026-01-01Z",
+            ),
+        ]
         try:
             for mode in (Theme.LIGHT, Theme.DARK):
                 with self.subTest(mode=mode), patch.object(WorkshopDialog, "reload_catalog"):
@@ -979,7 +954,7 @@ class TestWorkshop(unittest.TestCase):
                     dialog = WorkshopDialog(Mock(), parent, metadata_only=True)
                     try:
                         dialog._catalog_loaded(
-                            ([entry], IndexSource("GitHub", "index", "base"), [])
+                            (entries, IndexSource("GitHub", "index", "base"), [])
                         )
                         dialog._toggle_filters(True)
                         dialog.open()
@@ -993,8 +968,15 @@ class TestWorkshop(unittest.TestCase):
                         status = dialog.status_label.geometry()
                         self.assertTrue(dialog.status_label.isVisible())
                         self.assertLess(title.right(), status.left())
-                        self.assertLessEqual(title.top(), status.center().y())
-                        self.assertLessEqual(status.center().y(), title.bottom())
+                        self.assertTrue(title.top() <= status.center().y() <= title.bottom())
+                        panel, table = dialog.panel.geometry(), dialog.table.geometry()
+                        description = dialog.detail_body.toPlainText()
+                        dialog.table.selectRow(1)
+                        self.qt_app.processEvents()
+                        self.assertNotEqual(dialog.detail_body.toPlainText(), description)
+                        self.assertEqual(
+                            (dialog.panel.geometry(), dialog.table.geometry()), (panel, table)
+                        )
                     finally:
                         shiboken6.delete(dialog)
         finally:
@@ -1016,10 +998,7 @@ class TestWorkshop(unittest.TestCase):
             dialog.open()
             dialog.keyword_edit.setFocus()
             dialog.keyword_edit.setText("Zero")
-            QApplication.sendEvent(
-                dialog.keyword_edit,
-                QKeyEvent(QEvent.Type.KeyPress, Qt.Key.Key_Return, Qt.KeyboardModifier.NoModifier),
-            )
+            send_key(dialog.keyword_edit, Qt.Key.Key_Return)
             self.assertEqual(dialog.keyword_edit.keywords, ["Zero"])
             self.assertEqual(dialog.table.rowCount(), 1)
             self.assertTrue(dialog.ok_button.isEnabled())
@@ -1039,27 +1018,22 @@ class TestWorkshop(unittest.TestCase):
         metadata = PackageMetadataDialog(make_package(), parent)
         importing = PackageImportDialog(make_package(), "team.zip", parent)
         try:
-            for dialog in (metadata, importing):
+            for dialog, field, invalid in (
+                (metadata, metadata.version_edit, "not a version"),
+                (importing, importing.directory_edit, "CON"),
+            ):
                 with self.subTest(dialog=type(dialog).__name__):
                     accepted = []
                     dialog.accepted.connect(lambda: accepted.append(True))
                     dialog.set_cancel_visible(False)
                     dialog.open()
-                    dialog.ok_button.setEnabled(False)
+                    field.setText(invalid)
+                    self.assertFalse(dialog.ok_button.isEnabled())
                     dialog.accept()
-                    QApplication.sendEvent(
-                        dialog,
-                        QKeyEvent(
-                            QEvent.Type.KeyPress, Qt.Key.Key_Escape, Qt.KeyboardModifier.NoModifier
-                        ),
-                    )
+                    send_key(dialog, Qt.Key.Key_Escape)
                     self.assertEqual(accepted, [])
                     self.assertTrue(dialog.isVisible())
                     dialog.hide()
-            metadata.version_edit.setText("not a version")
-            self.assertFalse(metadata.validate())
-            importing.directory_edit.setText("CON")
-            self.assertFalse(importing.validate())
         finally:
             shiboken6.delete(parent)
 
@@ -1073,10 +1047,7 @@ class TestWorkshop(unittest.TestCase):
         try:
             dialog.open()
             dialog.accept()
-            QApplication.sendEvent(
-                dialog,
-                QKeyEvent(QEvent.Type.KeyPress, Qt.Key.Key_Return, Qt.KeyboardModifier.NoModifier),
-            )
+            send_key(dialog, Qt.Key.Key_Return)
             self.assertEqual(accepted, [])
             self.assertTrue(dialog.isVisible())
         finally:

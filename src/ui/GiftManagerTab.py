@@ -10,7 +10,7 @@ from ok.ui.qt.kit import (
 )
 from ok.ui.qt.tasks.tasks_page import start_task, stop_task
 from ok.ui.qt.widget.CustomTab import CustomTab
-from PySide6.QtCore import Qt, QTimer, Signal
+from PySide6.QtCore import QSignalBlocker, Qt, QTimer, Signal
 from PySide6.QtGui import QColor, QCursor
 from PySide6.QtWidgets import (
     QFrame,
@@ -124,7 +124,6 @@ class GiftManagerTab(CustomTab):
         self.tr_name = self.tr("羁遇赠礼")
         self.manager = GiftManager()
         self.current_profile_id: str | None = None
-        self._loading_profile = False
         self.gift_cards: list[GiftPriorityCard] = []
         self.task: GiftTask | None = None
         self._capture_pending = False
@@ -150,7 +149,6 @@ class GiftManagerTab(CustomTab):
         self.stop_button.clicked.connect(self._stop_run)
         self.pause_button.clicked.connect(self._pause_run)
         self.profile_list.currentItemChanged.connect(self._on_profile_selected)
-        self.enabled_switch.toggled.connect(self._update_enabled_status)
         self.enabled_switch.toggled.connect(self._save_current_options)
         self.count_combo.currentIndexChanged.connect(self._save_current_options)
         self.name_edit.editingFinished.connect(self._save_current_options)
@@ -162,9 +160,6 @@ class GiftManagerTab(CustomTab):
     @property
     def name(self):  # type: ignore
         return self.tr_name
-
-    def _update_enabled_status(self, enabled: bool) -> None:
-        self.enabled_status.setText(self.tr("已启用") if enabled else self.tr("未启用"))
 
     def _add_section_help(self, card: SectionCard, content: str) -> HelpPopover:
         title = self.tr("提示")
@@ -290,14 +285,10 @@ class GiftManagerTab(CustomTab):
             self.profile_list.addItem(item)
             if profile_id == selected_id:
                 self.profile_list.setCurrentItem(item)
-        self.profile_list.blockSignals(False)
         if self.profile_list.currentItem() is None and self.profile_list.count():
             self.profile_list.setCurrentRow(0)
-        current_item = self.profile_list.currentItem()
-        self.current_profile_id = (
-            current_item.data(Qt.ItemDataRole.UserRole) if current_item is not None else None
-        )
-        self._render_current()
+        self.profile_list.blockSignals(False)
+        self._on_profile_selected(self.profile_list.currentItem(), None)
 
     def _on_profile_selected(self, current, _previous) -> None:
         self.current_profile_id = (
@@ -313,9 +304,7 @@ class GiftManagerTab(CustomTab):
                 card.hide()
                 card.deleteLater()
 
-    def _render_current(self) -> None:
-        self._loading_profile = True
-        self._clear_gift_grid()
+    def _render_current(self, *, refresh_gifts: bool = True) -> None:
         profile = (
             self.manager.get_profile(self.current_profile_id) if self.current_profile_id else None
         )
@@ -327,19 +316,25 @@ class GiftManagerTab(CustomTab):
         self.name_edit.setEnabled(has_profile)
         self.name_card.setVisible(has_profile)
         self.gift_grid_widget.setVisible(has_profile)
-        if not profile:
-            self.enabled_switch.setChecked(False)
-            self._update_enabled_status(False)
-            self.count_combo.setCurrentIndex(2)
-            self.name_edit.clear()
-            self.name_preview.clear()
-            self._loading_profile = False
-            return
+        enabled = profile["enabled"] if has_profile else False
+        target_count = profile["target_count"] if has_profile else 3
+        display_name = profile["display_name"] if has_profile else ""
+        with QSignalBlocker(self.enabled_switch), QSignalBlocker(self.count_combo):
+            self.enabled_switch.setChecked(enabled)
+            self.count_combo.setCurrentIndex(target_count - 1)
+        self.enabled_status.setText(self.tr("已启用") if enabled else self.tr("未启用"))
+        if self.name_edit.text() != display_name:
+            self.name_edit.setText(display_name)
+        current = self.profile_list.currentItem()
+        if has_profile and current is not None:
+            current.setText(display_name)
 
-        self.enabled_switch.setChecked(profile["enabled"])
-        self._update_enabled_status(profile["enabled"])
-        self.count_combo.setCurrentIndex(profile["target_count"] - 1)
-        self.name_edit.setText(profile["display_name"])
+        if not refresh_gifts:
+            return
+        self._clear_gift_grid()
+        self.name_preview.clear()
+        if profile is None:
+            return
         frame = self.manager.load_frame(profile)
         if frame is not None:
             height, width = frame.shape[:2]
@@ -384,10 +379,9 @@ class GiftManagerTab(CustomTab):
                 card.slot_clicked.connect(self._toggle_gift_slot)
                 self.gift_cards.append(card)
                 self.gift_grid.addWidget(card, index // 5, index % 5)
-        self._loading_profile = False
 
     def _toggle_gift_slot(self, slot: int) -> None:
-        if self._loading_profile or not self.current_profile_id:
+        if not self.current_profile_id:
             return
         profile = self.manager.get_profile(self.current_profile_id)
         if not profile:
@@ -403,7 +397,7 @@ class GiftManagerTab(CustomTab):
         self._render_current()
 
     def _save_current_options(self) -> None:
-        if self._loading_profile or not self.current_profile_id:
+        if not self.current_profile_id:
             return
         self.manager.update_profile(
             self.current_profile_id,
@@ -411,11 +405,7 @@ class GiftManagerTab(CustomTab):
             target_count=self.count_combo.currentData(),
             display_name=self.name_edit.text(),
         )
-        profile = self.manager.get_profile(self.current_profile_id)
-        display_name = profile["display_name"]
-        self.profile_list.currentItem().setText(display_name)
-        if self.name_edit.text() != display_name:
-            self.name_edit.setText(display_name)
+        self._render_current(refresh_gifts=False)
 
     def _start_capture(self, profile_id: str | None) -> None:
         task = self._get_task()
@@ -432,6 +422,9 @@ class GiftManagerTab(CustomTab):
 
     def _check_capture_launch(self) -> None:
         task = self.task
+        if task is None:
+            self._capture_launch_check.stop()
+            return
         controller = og.app.start_controller
         # The controller removes a successful launch from the pending queue
         # before enabling it. Wait for both steps before checking for failure.
@@ -485,9 +478,9 @@ class GiftManagerTab(CustomTab):
         if error:
             self._show_error(self.tr("捕获失败"), error)
             return
-        profile = self.manager.get_profile(profile_id)
+        profile = self.manager.get_profile(profile_id) if profile_id is not None else None
         try:
-            if profile:
+            if profile_id is not None and profile is not None:
                 self.manager.recapture_profile(
                     profile_id,
                     frame,
