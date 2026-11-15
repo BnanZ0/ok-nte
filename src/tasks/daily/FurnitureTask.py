@@ -245,11 +245,11 @@ class FurnitureTask(NTEOneTimeTask, BaseCombatTask):
 
         # 点击异象家具
         def action():
-            box = self.find_sift_feature(furniture, box=box_left)
+            box = self.find_sift_feature(furniture, box=box_left, small_target_scene_scale=3)
             if box:
                 self.operate_click(box)
                 self.sleep(0.5)
-                if self.find_sift_feature(furniture, box=box_right):
+                if self.find_sift_feature(furniture, box=box_right, small_target_scene_scale=3):
                     return True
             self.sleep(0.5)
 
