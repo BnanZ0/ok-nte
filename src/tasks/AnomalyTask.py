@@ -1,7 +1,15 @@
+import csv
+import json
+from copy import deepcopy
+from datetime import datetime
+from pathlib import Path
+
 from ok import TaskDisabledException
 
 from src.combat.BaseCombatTask import BaseCombatTask
 from src.Labels import Labels
+from src.tasks.anomaly_rotation import RotationTarget, StaminaRotation, rounded_quota
+from src.tasks.anomaly_statistics import FarmingStatistics
 from src.tasks.BaseNTETask import BaseNTETask
 from src.tasks.BaseStaminaTask import BaseStaminaTask
 from src.utils.i18n_format import register_i18n_format
@@ -18,6 +26,23 @@ class AnomalyTask(BaseStaminaTask, BaseCombatTask):
     CONF_CONSOLE_ID = "空幕序号"
     CONF_CYCLEB_TASK_MODE = "循环模式"
     CONF_CUSTOM_CYCLE = "循环序列"
+    CONF_ROTATION_SEQUENCE = "轮换队列"
+    CONF_STRATEGY = "刷取策略"
+    CONF_QUOTA = "每项最低体力"
+    CONF_QUOTAS = "自定义体力额度"
+    CONF_PREFER_DOUBLE = "优先双倍领取"
+    CONF_ROTATION_STATE = "额度轮换进度"
+    CONF_RESET_ROTATION = "下次运行重置轮换"
+    CONF_STAMINA_MODE = "体力使用"
+    CONF_STAMINA_LIMIT = "本次体力上限"
+    CONF_ADVANCED = "进阶设置"
+    CONF_TOTALS = "_刷取累计统计"
+    STAMINA_ALL = "用完当前体力"
+    STAMINA_LIMIT = "消耗指定体力"
+    STAMINA_DAILY = "完成每日"
+    STRATEGY_FIXED = "固定目标"
+    STRATEGY_SAME_TYPE = "同类轮换"
+    STRATEGY_CUSTOM = "自定义轮换"
 
     # --- 循环模式 ---
     CYCLE_NONE = "停用"
@@ -84,6 +109,8 @@ class AnomalyTask(BaseStaminaTask, BaseCombatTask):
 
     # --- 任务消耗体力 ---
     TASK_COST = 40
+    CONSOLE_COST = 60
+    MAX_CLAIM_FAILURES = 3
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -91,104 +118,159 @@ class AnomalyTask(BaseStaminaTask, BaseCombatTask):
         self.description = "自动进行异象界域任务"
         self.setup_config(self)
 
-    # ruff: disable[E501]
     @classmethod
     def setup_config(cls, instance: "BaseNTETask", daily=False):
-        """
-        初始化任务配置或日常任务的配置结构。
-        """
-        config_updates = {}
         if daily:
             cls.setup_daily_stamina_config(instance, reward_cost=cls.TASK_COST)
-        config_updates.update(
+        instance.default_config.update(
             {
+                cls.CONF_STRATEGY: cls.STRATEGY_FIXED,
                 cls.CONF_TASK_TYPE: cls.TASK_EXP_COIN,
                 cls.CONF_EXP_TARGET: cls.EXP_CHAR,
                 cls.CONF_ABILITY_ID: 1,
                 cls.CONF_ARC_ID: 1,
                 cls.CONF_CONSOLE_ID: 1,
+                cls.CONF_ROTATION_SEQUENCE: [],
+                cls.CONF_STAMINA_MODE: cls.STAMINA_DAILY if daily else cls.STAMINA_ALL,
+                cls.CONF_STAMINA_LIMIT: 180,
+                cls.CONF_ADVANCED: False,
+                cls.CONF_QUOTA: 0,
+                cls.CONF_QUOTAS: "",
+                cls.CONF_PREFER_DOUBLE: True,
+                cls.CONF_RESET_ROTATION: False,
+                cls.CONF_ROTATION_STATE: {},
+                cls.CONF_TOTALS: {},
             }
         )
         if daily:
-            config_updates.update(
+            instance.default_config.update(
                 {
                     cls.CONF_CYCLEB_TASK_MODE: cls.CYCLE_NONE,
                     cls.CONF_CUSTOM_CYCLE: [],
                 }
             )
-        instance.default_config.update(config_updates)
+        else:
+            instance.add_claim_reward_count_config()
+
+        fixed_targets = [
+            cls.CONF_EXP_TARGET,
+            cls.CONF_ABILITY_ID,
+            cls.CONF_ARC_ID,
+            cls.CONF_CONSOLE_ID,
+        ]
+        fixed_fields = [cls.CONF_TASK_TYPE, *fixed_targets]
+        if daily:
+            fixed_fields += [cls.CONF_CYCLEB_TASK_MODE, cls.CONF_CUSTOM_CYCLE]
+        rotation_fields = [cls.CONF_QUOTA, cls.CONF_QUOTAS, cls.CONF_RESET_ROTATION]
+        advanced_fields = [*rotation_fields, cls.CONF_PREFER_DOUBLE]
+        if daily:
+            advanced_fields += [cls.CONF_CYCLEB_TASK_MODE, cls.CONF_CUSTOM_CYCLE]
+        else:
+            advanced_fields.append(cls.CONF_CLAIM_REWARD_COUNT)
+
         instance.config_type.update(
             {
-                cls.CONF_ABILITY_ID: {
-                    "min": cls.ABILITY_ID_RANGE[0],
-                    "max": cls.ABILITY_ID_RANGE[1],
-                },
-                cls.CONF_ARC_ID: {
-                    "min": cls.ARC_ID_RANGE[0],
-                    "max": cls.ARC_ID_RANGE[1],
-                },
-                cls.CONF_CONSOLE_ID: {
-                    "min": cls.CONSOLE_ID_RANGE[0],
-                    "max": cls.CONSOLE_ID_RANGE[1],
+                cls.CONF_STRATEGY: {
+                    "type": "drop_down",
+                    "options": [cls.STRATEGY_FIXED, cls.STRATEGY_SAME_TYPE, cls.STRATEGY_CUSTOM],
+                    "sub_configs": {
+                        cls.STRATEGY_FIXED: fixed_fields,
+                        cls.STRATEGY_SAME_TYPE: [cls.CONF_TASK_TYPE, *rotation_fields],
+                        cls.STRATEGY_CUSTOM: [cls.CONF_ROTATION_SEQUENCE, *rotation_fields],
+                    },
                 },
                 cls.CONF_TASK_TYPE: {
                     "type": "drop_down",
                     "options": cls.TASK_TYPES,
                     "sub_configs": cls.TASK_SUB_CONFIGS,
                 },
-                cls.CONF_EXP_TARGET: {
-                    "type": "drop_down",
-                    "options": cls.EXP_TARGET_OPTIONS,
+                cls.CONF_EXP_TARGET: {"type": "drop_down", "options": cls.EXP_TARGET_OPTIONS},
+                cls.CONF_ABILITY_ID: {
+                    "min": cls.ABILITY_ID_RANGE[0],
+                    "max": cls.ABILITY_ID_RANGE[1],
                 },
-                cls.CONF_CUSTOM_CYCLE: {
+                cls.CONF_ARC_ID: {"min": cls.ARC_ID_RANGE[0], "max": cls.ARC_ID_RANGE[1]},
+                cls.CONF_CONSOLE_ID: {
+                    "min": cls.CONSOLE_ID_RANGE[0],
+                    "max": cls.CONSOLE_ID_RANGE[1],
+                },
+                cls.CONF_ROTATION_SEQUENCE: {
                     "options_available": cls.CYCLE_CUSTOM_OPTIONS,
                     "allow_duplication": False,
                 },
-                cls.CONF_CYCLEB_TASK_MODE: {
+                cls.CONF_STAMINA_MODE: {
                     "type": "drop_down",
-                    "options": [
-                        cls.CYCLE_NONE,
-                        cls.CYCLE_SUB_TASK,
-                        cls.CYCLE_CUSTOM,
-                    ],
+                    "options": [cls.STAMINA_ALL, cls.STAMINA_LIMIT, cls.STAMINA_DAILY]
+                    if daily
+                    else [cls.STAMINA_ALL, cls.STAMINA_LIMIT],
                     "sub_configs": {
-                        cls.CYCLE_CUSTOM: cls.CONF_CUSTOM_CYCLE,
+                        cls.STAMINA_LIMIT: cls.CONF_STAMINA_LIMIT,
+                        **({cls.STAMINA_DAILY: cls.CONF_STAMINA_TARGET} if daily else {}),
                     },
                 },
+                cls.CONF_STAMINA_LIMIT: {"min": 1, "max": 100000},
+                cls.CONF_ADVANCED: {"sub_configs": {True: advanced_fields}},
+                cls.CONF_QUOTA: {"min": 0, "max": 100000},
+                cls.CONF_ROTATION_STATE: {"hidden": True},
+                cls.CONF_TOTALS: {"hidden": True},
             }
         )
+        if daily:
+            instance.config_type[cls.CONF_CYCLEB_TASK_MODE] = {
+                "type": "drop_down",
+                "options": [cls.CYCLE_NONE, cls.CYCLE_SUB_TASK, cls.CYCLE_CUSTOM],
+                "sub_configs": {cls.CYCLE_CUSTOM: cls.CONF_CUSTOM_CYCLE},
+            }
+            instance.config_type[cls.CONF_CUSTOM_CYCLE] = {
+                "options_available": cls.CYCLE_CUSTOM_OPTIONS,
+                "allow_duplication": False,
+            }
+
         instance.config_description.update(
             {
-                cls.CONF_TASK_TYPE: "选择要进行的任务类型",
-                cls.CONF_EXP_TARGET: "选择经验与甲硬币任务的具体奖励目标",
+                cls.CONF_STRATEGY: (
+                    "固定目标只刷一种材料; 同类轮换依序刷该类别; 自定义轮换按队列顺序刷。"
+                ),
+                cls.CONF_TASK_TYPE: "选择要刷取的类别",
+                cls.CONF_EXP_TARGET: "选择奖励目标",
                 cls.CONF_ABILITY_ID: cls.DESC_ID_RANGE_FMT.format(*cls.ABILITY_ID_RANGE),
                 cls.CONF_ARC_ID: cls.DESC_ID_RANGE_FMT.format(*cls.ARC_ID_RANGE),
                 cls.CONF_CONSOLE_ID: cls.DESC_ID_RANGE_FMT.format(*cls.CONSOLE_ID_RANGE),
+                cls.CONF_ROTATION_SEQUENCE: "添加要刷取的材料并调整顺序, 刷完末项后回到首项。",
+                cls.CONF_STAMINA_MODE: (
+                    "用完当前体力会重新读取剩余体力, 不受每日完成状态影响。"
+                    "不足一份奖励时结束, 不会自动使用体力药。"
+                ),
+                cls.CONF_STAMINA_LIMIT: "本次最多消耗的体力, 不够一份奖励的剩余额度不会使用。",
+                cls.CONF_ADVANCED: "调整每项额度、双倍领取和轮换进度。",
+                cls.CONF_QUOTA: (
+                    "0表示每项刷一次双倍奖励的体力: 普通副本80, 空幕120。"
+                    "其他值按单份消耗向上取整, 普通副本40, 空幕60。"
+                ),
+                cls.CONF_QUOTAS: (
+                    "可留空。按队列顺序填写各项体力额度, 用英文逗号分隔; "
+                    "例如120,120,80。数量须与队列一致, 0使用自动额度。"
+                ),
+                cls.CONF_PREFER_DOUBLE: "额度和剩余体力允许时优先双倍, 否则领取单倍。",
+                cls.CONF_RESET_ROTATION: "下次从队列首项重新开始, 执行后自动关闭。",
             }
         )
         if daily:
             instance.config_description.update(
                 {
-                    cls.CONF_TASK_TYPE: (
-                        "本次仅刷所选类型及其目标; 成功结束后才按循环模式更新下次目标。"
+                    cls.CONF_STAMINA_TARGET: (
+                        "按今日累计消耗计算, 扣除已完成部分; 今日已消耗180体力或活跃度达100时跳过。"
                     ),
                     cls.CONF_CYCLEB_TASK_MODE: (
-                        "每次日常仅刷当前目标, 本次不在多个目标间分配体力。\n"
-                        "停用: 下次仍刷当前目标。\n"
-                        "自动循环序号/目标: 成功结束后切到同类型的下一个序号或奖励目标, 末项后回到首项。\n"
-                        "自定义循环: 成功结束后按下方序列更新下次目标; 失败或跳过时不切换。"
+                        "仅用于固定目标: 本次日常成功结束后更新下次目标, 不在本次分配体力。"
                     ),
-                    cls.CONF_CUSTOM_CYCLE: (
-                        "按列表顺序轮换, 末项后回到首项; 每次日常只刷一个目标, 下次运行才刷下一个。\n"
-                        "数字是副本序号, 不是次数; 例如「异能升级材料: 1」表示该类型的第1项。\n"
-                        "首次仍刷上方当前目标; 若其不在序列中, 成功后将下次目标设为序列首项; 空序列不切换。"
-                    ),
+                    cls.CONF_CUSTOM_CYCLE: "固定目标的跨次循环序列, 不用于本次体力轮换。",
                 }
             )
-        if not daily:
-            instance.add_claim_reward_count_config()
-
-    # ruff: enable[E501]
+        else:
+            instance.config_description[cls.CONF_CLAIM_REWARD_COUNT] = (
+                "0不限制; 双倍按两份计算, 所有目标合计不超过此份数。"
+            )
 
     def run(self):
         super().run()
@@ -201,95 +283,288 @@ class AnomalyTask(BaseStaminaTask, BaseCombatTask):
         finally:
             self.exit_anomaly()
 
-    def do_run(self) -> bool | None:
-        task_type = self.config.get(self.CONF_TASK_TYPE)
-        idx = self.get_sub_idx()
+    @classmethod
+    def reward_cost(cls, task_type):
+        if task_type not in cls.TASK_TYPES:
+            raise ValueError("无效的任务类型")
+        return cls.CONSOLE_COST if task_type == cls.TASK_CONSOLE else cls.TASK_COST
 
-        # 记录当前执行状态
-        self.info_set("任务类型", task_type)
-        if task_type == self.TASK_EXP_COIN:
-            self.info_set("奖励目标", self.config.get(self.CONF_EXP_TARGET))
+    def rotation_enabled(self):
+        return self.config.get(self.CONF_STRATEGY, self.STRATEGY_FIXED) != self.STRATEGY_FIXED
+
+    def build_rotation(self):
+        strategy = self.config.get(self.CONF_STRATEGY, self.STRATEGY_FIXED)
+        if strategy == self.STRATEGY_SAME_TYPE:
+            task_type = self.config.get(self.CONF_TASK_TYPE)
+            if task_type not in self.TASKS_ID_RANGE:
+                raise ValueError("请选择有效的材料类别")
+            minimum, maximum = self.TASKS_ID_RANGE[task_type]
+            options = [self.get_cycle_option(task_type, idx) for idx in range(minimum, maximum + 1)]
+        elif strategy == self.STRATEGY_CUSTOM:
+            options = self.config.get(self.CONF_ROTATION_SEQUENCE, [])
         else:
-            self.info_set("项目序号", f"第 {idx + 1} 个项目")
+            raise ValueError("无效的刷取策略")
+        if (
+            not isinstance(options, list)
+            or not options
+            or not all(isinstance(option, str) for option in options)
+        ):
+            raise ValueError("请选择轮换队列中的材料")
+        if len(options) != len(set(options)):
+            raise ValueError("轮换序列不能为空或包含重复目标")
+        minimum = self.config.get(self.CONF_QUOTA, 0)
+        if type(minimum) is not int or not 0 <= minimum <= 100000:
+            raise ValueError("每项体力额度须为0到100000的整数")
+        raw_quotas = self.config.get(self.CONF_QUOTAS, "")
+        if not isinstance(raw_quotas, str):
+            raise ValueError("自定义体力额度须为英文逗号分隔的非负整数")
+        raw_quotas = raw_quotas.strip()
+        quotas = [minimum] * len(options)
+        if raw_quotas:
+            try:
+                quotas = [int(value.strip()) for value in raw_quotas.split(",")]
+            except ValueError:
+                raise ValueError("自定义体力额度须为英文逗号分隔的非负整数") from None
+            if len(quotas) != len(options):
+                raise ValueError("自定义体力额度个数须与轮换目标个数一致")
+        targets = []
+        for option, quota in zip(options, quotas):
+            if option not in self.CYCLE_OPTION_TO_TASK_ID or not 0 <= quota <= 100000:
+                raise ValueError("轮换目标或体力额度无效")
+            task_type, task_id = self.CYCLE_OPTION_TO_TASK_ID[option]
+            cost = self.reward_cost(task_type)
+            targets.append(
+                RotationTarget(option, task_type, task_id, cost, rounded_quota(quota, cost))
+            )
+        reset = self.config.get(self.CONF_RESET_ROTATION, False)
+        saved = None if reset else self.config.get(self.CONF_ROTATION_STATE)
+        initial = options[0]
+        rotation = StaminaRotation(targets, saved, initial)
+        return rotation
 
-        self.log_info(f"开始任务: {task_type}, 目标索引: {idx + 1}")
+    def resolve_stamina_target(self):
+        mode = self.stamina_mode()
+        if mode == self.STAMINA_ALL:
+            return None
+        if mode == self.STAMINA_LIMIT:
+            limit = self.config.get(self.CONF_STAMINA_LIMIT)
+            if type(limit) is not int or not 1 <= limit <= 100000:
+                raise ValueError("本次体力上限须为1到100000的整数")
+            return limit
+        if mode != self.STAMINA_DAILY or self.CONF_STAMINA_TARGET not in self.config:
+            raise ValueError("无效的体力使用方式")
+        return super().resolve_stamina_target()
 
-        # 共同操作 1
+    def stamina_mode(self):
+        default = (
+            self.STAMINA_DAILY if self.CONF_STAMINA_TARGET in self.config else self.STAMINA_ALL
+        )
+        return self.config.get(self.CONF_STAMINA_MODE, default)
+
+    @staticmethod
+    def configuration_storage(config):
+        if getattr(config, "config_file", None):
+            return Path(config.config_file), None
+        routine = getattr(config, "routine_task", None)
+        store = getattr(routine, "routine_task_configs", None)
+        if getattr(store, "config_file", None):
+            return Path(store.config_file), config.task_id
+        return None, None
+
+    def persist_checkpoint(self, updates):
+        # Save related progress/counts together, rather than once for each key.
+        for key, value in updates.items():
+            dict.__setitem__(self.config, key, deepcopy(value))
+        if callable(getattr(self.config, "save_file", None)):
+            self.config.save_file()
+        path, task_id = self.configuration_storage(self.config)
+        if path is not None:
+            try:
+                saved = json.loads(path.read_text(encoding="utf-8"))
+                if task_id is not None:
+                    saved = saved[task_id]
+                if any(saved.get(key) != value for key, value in updates.items()):
+                    raise ValueError("Saved checkpoint does not match")
+            except (OSError, ValueError, KeyError, TypeError) as error:
+                raise RuntimeError("领奖进度未能保存, 已停止任务, 请检查配置目录") from error
+
+    def write_claim_log(self, option, units, cost):
+        path, _ = self.configuration_storage(self.config)
+        if path is None:
+            return
+        try:
+            directory = path.parent.parent / "stats"
+            directory.mkdir(parents=True, exist_ok=True)
+            log = directory / "anomaly_claims.csv"
+            new_file = not log.exists() or log.stat().st_size == 0
+            with log.open("a", encoding="utf-8-sig", newline="") as stream:
+                writer = csv.writer(stream)
+                if new_file:
+                    writer.writerow(["时间", "任务", "目标", "领奖倍数", "消耗体力"])
+                writer.writerow(
+                    [
+                        datetime.now().astimezone().isoformat(),
+                        type(self).__name__,
+                        option,
+                        units,
+                        cost * units,
+                    ]
+                )
+        except OSError:
+            self.log_warning("领奖明细写入失败, 已保存累计统计")
+
+    def do_run(self) -> bool | None:
+        rotation = self.build_rotation() if self.rotation_enabled() else None
         self.ensure_main()
         stamina_target = self.resolve_stamina_target()
         if stamina_target == 0:
             return None
+        reward_limit = self.config.get(self.CONF_CLAIM_REWARD_COUNT, 0) or None
+        if reward_limit is not None and (type(reward_limit) is not int or reward_limit < 1):
+            raise ValueError("领取奖励次数须为非负整数")
+        round_up = self.stamina_mode() == self.STAMINA_DAILY
+        fixed = None
+        if rotation is None:
+            task_type = self.config.get(self.CONF_TASK_TYPE)
+            task_id = self.resolve_sub_id()
+            option = self.get_cycle_option(task_type, task_id)
+            fixed = RotationTarget(
+                option, task_type, task_id, self.reward_cost(task_type), self.reward_cost(task_type)
+            )
+        else:
+            self.persist_checkpoint(
+                {self.CONF_ROTATION_STATE: rotation.snapshot(), self.CONF_RESET_ROTATION: False}
+            )
+        current_stats = FarmingStatistics()
+        total_stats = FarmingStatistics(self.config.get(self.CONF_TOTALS))
+        units = 0
+        while stamina_target is None or current_stats.stamina < stamina_target:
+            if reward_limit is not None and units >= reward_limit:
+                break
+            target = rotation.current if rotation is not None else fixed
+            budget = rotation.remaining if rotation is not None else None
+            if stamina_target is not None:
+                remaining = stamina_target - current_stats.stamina
+                budget = remaining if budget is None else min(budget, remaining)
+            remaining_units = None if reward_limit is None else reward_limit - units
 
+            def on_claim(claimed_units):
+                nonlocal units
+                current_stats.record(target.option, claimed_units, target.cost)
+                total_stats.record(target.option, claimed_units, target.cost)
+                units += claimed_units
+                updates = {self.CONF_TOTALS: total_stats.snapshot()}
+                if rotation is not None:
+                    rotation.record_claim(claimed_units)
+                    updates[self.CONF_ROTATION_STATE] = rotation.snapshot()
+                self.persist_checkpoint(updates)
+                self.write_claim_log(target.option, claimed_units, target.cost)
+                self.info_set("本次已消耗体力", current_stats.stamina)
+                self.info_set("累计已消耗体力", total_stats.stamina)
+                summary = "\n".join(
+                    f"{option}: 单倍{counts['single']}次, 双倍{counts['double']}次, "
+                    f"{counts['stamina']}体力"
+                    for option, counts in current_stats.targets.items()
+                )
+                self.info_set("本次领奖统计", summary)
+                if rotation is not None:
+                    self.info_set("下个目标", rotation.current.option)
+                    self.info_set("轮换进度", f"{rotation.spent} / {rotation.current.quota} 体力")
+
+            before = units
+            success, completed = self.run_target(
+                budget, remaining_units, on_claim, target=target, round_up=round_up
+            )
+            if type(completed) is not int or completed < 0 or units - before != completed:
+                raise ValueError("领奖进度异常, 已停止任务")
+            if not success:
+                return False
+            if completed == 0:
+                return units > 0
+        return units > 0
+
+    def run_target(
+        self, stamina_budget=None, reward_limit=None, on_claim=None, *, target=None, round_up=True
+    ):
+        """Run one quota batch; return (success, confirmed reward units)."""
+        task_type = target.task_type if target else self.config.get(self.CONF_TASK_TYPE)
+        idx = target.task_id - 1 if target else self.get_sub_idx()
+        cost = self.reward_cost(task_type)
+        self.info_set("任务类型", task_type)
+        self.info_set("项目序号", f"第 {idx + 1} 个项目")
+        self.info_set("单份奖励体力", cost)
+        self.log_info(f"开始任务: {task_type}, 目标索引: {idx + 1}, 单份体力: {cost}")
+        self.ensure_main()
         self.open_f1_domain_page()
-
         self.sleep(0.5)
-
-        # 不同操作 1: 选择任务类型
-        self.log_info(f"切换至任务页签: {task_type}")
-        if task_type == self.TASK_EXP_COIN:
-            self.operate_click(*self.pos.panels.f1.domain.exp)
-        elif task_type == self.TASK_ABILITY:
-            self.operate_click(*self.pos.panels.f1.domain.skill)
-        elif task_type == self.TASK_ARC:
-            self.operate_click(*self.pos.panels.f1.domain.arc)
-        elif task_type == self.TASK_CONSOLE:
-            self.operate_click(*self.pos.panels.f1.domain.console)
-
+        tab = {
+            self.TASK_EXP_COIN: self.pos.panels.f1.domain.exp,
+            self.TASK_ABILITY: self.pos.panels.f1.domain.skill,
+            self.TASK_ARC: self.pos.panels.f1.domain.arc,
+            self.TASK_CONSOLE: self.pos.panels.f1.domain.console,
+        }[task_type]
+        self.operate_click(*tab)
         self.sleep(0.5)
-
         stamina = self.get_stamina()
+        if stamina < 0:
+            raise ValueError("无法识别当前体力, 停止任务并保留进度")
+        stamina_units = stamina // cost
+        if stamina_budget is not None:
+            budget_units = (
+                (stamina_budget + cost - 1) // cost if round_up else stamina_budget // cost
+            )
+            stamina_units = min(stamina_units, budget_units)
+        if reward_limit is not None:
+            stamina_units = min(stamina_units, reward_limit)
+        if stamina_units <= 0:
+            self.log_info("当前目标可用体力不足一份奖励, 保留进度并结束")
+            return True, 0
 
-        if stamina < self.TASK_COST:
-            self.log_warning("体力不足，退出任务", notify=True)
-            return False
-
-        # 共同操作 2
-        self.log_info("正在传送至目标地点")
         btns = self.wait_until(
             lambda: self.find_confirms(self.box_of_screen(0.925, 0.190, 0.982, 0.760)), time_out=10
         )
         if not btns:
-            self.log_warning("未找到副本按钮, 退出任务", notify=True)
-            return False
-
-        btn = min(btns, key=lambda x: x.y)
-        self.operate_click(btn)
+            return False, 0
+        self.operate_click(min(btns, key=lambda box: box.y))
         self.click_traval_button()
         self.wait_in_team(time_out=300)
-
-        stamina_units = stamina // self.TASK_COST
-        if stamina_target is not None:
-            target_units = (stamina_target + self.TASK_COST - 1) // self.TASK_COST
-            stamina_units = min(stamina_units, target_units)
-            self.info_set("体力消耗目标", stamina_target)
-        reward_count = self.config.get(self.CONF_CLAIM_REWARD_COUNT, 0)
-        if reward_count > 0:
-            stamina_units = min(stamina_units, reward_count)
-        double_count = stamina_units // 2
-        single_count = stamina_units % 2
-        self.log_info(f"双倍次数: {double_count}, 单倍次数: {single_count}")
-
         self.enter_anomaly_from_interac(idx)
 
-        total_count = double_count + single_count
-        completed_count = 0
-        while completed_count < total_count:
-            double = completed_count < double_count
+        completed = 0
+        failures = 0
+        while completed < stamina_units:
+            double = (
+                self.config.get(self.CONF_PREFER_DOUBLE, True) and stamina_units - completed >= 2
+            )
             self.wait_until(self.find_exit, time_out=30)
             self.wait_in_team()
             self.sleep(1)
-            if not self.do_combat_and_claim(double):
-                self.log_warning("本次未成功领取奖励，退出副本后重试当前目标")
+            claimed = self.do_combat_and_claim(double)
+            if not claimed:
+                failures += 1
                 self.exit_anomaly()
+                if failures >= self.MAX_CLAIM_FAILURES:
+                    self.log_warning("连续领奖失败, 停止任务并保留进度", notify=True)
+                    return False, completed
                 self.enter_anomaly_from_interac(idx, retry=True)
                 continue
-            completed_count += 1
+            if (
+                type(claimed) is not int
+                or claimed not in (1, 2)
+                or claimed > stamina_units - completed
+            ):
+                raise ValueError("领奖份数异常, 已停止任务")
+            failures = 0
+            completed += claimed
+            if on_claim is not None:
+                on_claim(claimed)
+            self.info_set("已领取奖励份数", f"{completed} / {stamina_units}")
             self.sleep(2)
-            if completed_count < total_count:
+            if completed < stamina_units:
                 self.wait_click_confirm(range=(0.6469, 0.8174, 0.7027, 0.9097))
         self.wait_click_confirm(range=(0.4074, 0.8174, 0.4578, 0.9056))
-        self.log_info("任务执行完毕")
-        return True
+        self.log_info("当前目标额度执行完毕")
+        return True, completed
 
     def enter_anomaly_from_interac(self, idx, retry=False):
         self.log_info("寻路至交互点并触发交互")
@@ -334,13 +609,26 @@ class AnomalyTask(BaseStaminaTask, BaseCombatTask):
         if not claims:
             return False
 
-        if double:
-            box = max(claims, key=lambda x: x.x)
+        midpoint = self.width_of_screen(0.5)
+        singles = [box for box in claims if box.x < midpoint]
+        doubles = [box for box in claims if box.x >= midpoint]
+        if double and doubles:
+            box, units = max(doubles, key=lambda box: box.x), 2
+        elif singles:
+            box, units = min(singles, key=lambda box: box.x), 1
         else:
-            box = min(claims, key=lambda x: x.x)
-        btn = box.copy(x_offset=box.width * 3)
-        self.operate_click(btn)
-        return True
+            raise ValueError("未识别到所需的领奖按钮, 停止任务以避免超额消耗")
+        self.operate_click(box.copy(x_offset=box.width * 3))
+        # Do not advance persisted progress merely because a click was sent.
+        # A timeout here stops the task rather than retrying an uncertain claim.
+        settled = self.wait_until(
+            lambda: self.find_confirm(box=self.box_of_screen(0.4074, 0.8174, 0.4578, 0.9056)),
+            time_out=20,
+            settle_time=0.25,
+        )
+        if not settled:
+            raise ValueError("未能确认领奖结算, 已停止任务并保留上次进度")
+        return units
 
     def click_sub_idx(self, idx):
         y = 0.1715 + idx * (0.2806 - 0.1715)
@@ -353,10 +641,18 @@ class AnomalyTask(BaseStaminaTask, BaseCombatTask):
     def resolve_sub_id(self) -> int:
         """Return the selected task ID from the UI-constrained configuration."""
         task_type = self.config.get(self.CONF_TASK_TYPE)
-        config_value = self.config.get(self.TASK_SUB_CONFIGS.get(task_type))
+        if task_type not in self.TASK_SUB_CONFIGS:
+            raise ValueError("无效的任务类型")
+        config_value = self.config.get(self.TASK_SUB_CONFIGS[task_type])
         id_to_value = self.TASK_ID_TO_CONFIG_VALUE.get(task_type)
         if id_to_value:
-            return next(id for id, value in id_to_value.items() if value == config_value)
+            task_id = next((id for id, value in id_to_value.items() if value == config_value), None)
+            if task_id is None:
+                raise ValueError("无效的奖励目标")
+            return task_id
+        minimum, maximum = self.TASKS_ID_RANGE[task_type]
+        if type(config_value) is not int or not minimum <= config_value <= maximum:
+            raise ValueError("材料序号不在可选范围内")
         return config_value
 
     def set_task_type_and_id(self, task_type: str, task_id: int) -> None:
@@ -375,7 +671,8 @@ class AnomalyTask(BaseStaminaTask, BaseCombatTask):
 
     def on_daily_end(self, result: bool | None) -> None:
         """Advance the configured cycle after a successful daily execution."""
-        if result is True:
+        strategy = self.config.get(AnomalyTask.CONF_STRATEGY, AnomalyTask.STRATEGY_FIXED)
+        if result is True and strategy == AnomalyTask.STRATEGY_FIXED:
             self.shift_id()
 
     def shift_id(self):

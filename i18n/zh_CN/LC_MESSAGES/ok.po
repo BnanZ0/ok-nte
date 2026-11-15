@@ -1694,3 +1694,123 @@ msgstr "周六"
 
 msgid "周日"
 msgstr "周日"
+
+#: src/tasks/AnomalyTask.py
+msgid "刷取策略"
+msgstr "刷取策略"
+
+#: src/tasks/AnomalyTask.py
+msgid "固定目标"
+msgstr "固定目标"
+
+#: src/tasks/AnomalyTask.py
+msgid "同类轮换"
+msgstr "同类轮换"
+
+#: src/tasks/AnomalyTask.py
+msgid "自定义轮换"
+msgstr "自定义轮换"
+
+#: src/tasks/AnomalyTask.py
+msgid "轮换队列"
+msgstr "轮换队列"
+
+#: src/tasks/AnomalyTask.py
+msgid "体力使用"
+msgstr "体力使用"
+
+#: src/tasks/AnomalyTask.py
+msgid "用完当前体力"
+msgstr "用完当前体力"
+
+#: src/tasks/AnomalyTask.py
+msgid "消耗指定体力"
+msgstr "消耗指定体力"
+
+#: src/tasks/AnomalyTask.py
+msgid "完成每日"
+msgstr "完成每日"
+
+#: src/tasks/AnomalyTask.py
+msgid "本次体力上限"
+msgstr "本次体力上限"
+
+#: src/tasks/AnomalyTask.py
+msgid "进阶设置"
+msgstr "进阶设置"
+
+#: src/tasks/AnomalyTask.py
+msgid "每项最低体力"
+msgstr "每项最低体力"
+
+#: src/tasks/AnomalyTask.py
+msgid "自定义体力额度"
+msgstr "自定义体力额度"
+
+#: src/tasks/AnomalyTask.py
+msgid "优先双倍领取"
+msgstr "优先双倍领取"
+
+#: src/tasks/AnomalyTask.py
+msgid "下次运行重置轮换"
+msgstr "下次运行重置轮换"
+
+#: src/tasks/AnomalyTask.py
+msgid "固定目标只刷一种材料; 同类轮换依序刷该类别; 自定义轮换按队列顺序刷。"
+msgstr "固定目标只刷一种材料; 同类轮换依序刷该类别; 自定义轮换按队列顺序刷。"
+
+#: src/tasks/AnomalyTask.py
+msgid "选择要刷取的类别"
+msgstr "选择要刷取的类别"
+
+#: src/tasks/AnomalyTask.py
+msgid "选择奖励目标"
+msgstr "选择奖励目标"
+
+#: src/tasks/AnomalyTask.py
+msgid "添加要刷取的材料并调整顺序, 刷完末项后回到首项。"
+msgstr "添加要刷取的材料并调整顺序, 刷完末项后回到首项。"
+
+#: src/tasks/AnomalyTask.py
+msgid "用完当前体力会重新读取剩余体力, 不受每日完成状态影响。不足一份奖励时结束, 不会自动使用体力药。"
+msgstr "用完当前体力会重新读取剩余体力, 不受每日完成状态影响。不足一份奖励时结束, 不会自动使用体力药。"
+
+#: src/tasks/AnomalyTask.py
+msgid "本次最多消耗的体力, 不够一份奖励的剩余额度不会使用。"
+msgstr "本次最多消耗的体力, 不够一份奖励的剩余额度不会使用。"
+
+#: src/tasks/AnomalyTask.py
+msgid "调整每项额度、双倍领取和轮换进度。"
+msgstr "调整每项额度、双倍领取和轮换进度。"
+
+#: src/tasks/AnomalyTask.py
+msgid "0表示每项刷一次双倍奖励的体力: 普通副本80, 空幕120。其他值按单份消耗向上取整, 普通副本40, 空幕60。"
+msgstr "0表示每项刷一次双倍奖励的体力: 普通副本80, 空幕120。其他值按单份消耗向上取整, 普通副本40, 空幕60。"
+
+#: src/tasks/AnomalyTask.py
+msgid "可留空。按队列顺序填写各项体力额度, 用英文逗号分隔; 例如120,120,80。数量须与队列一致, 0使用自动额度。"
+msgstr "可留空。按队列顺序填写各项体力额度, 用英文逗号分隔; 例如120,120,80。数量须与队列一致, 0使用自动额度。"
+
+#: src/tasks/AnomalyTask.py
+msgid "额度和剩余体力允许时优先双倍, 否则领取单倍。"
+msgstr "额度和剩余体力允许时优先双倍, 否则领取单倍。"
+
+#: src/tasks/AnomalyTask.py
+msgid "下次从队列首项重新开始, 执行后自动关闭。"
+msgstr "下次从队列首项重新开始, 执行后自动关闭。"
+
+#: src/tasks/AnomalyTask.py
+msgid "按今日累计消耗计算, 扣除已完成部分; 今日已消耗180体力或活跃度达100时跳过。"
+msgstr "按今日累计消耗计算, 扣除已完成部分; 今日已消耗180体力或活跃度达100时跳过。"
+
+#: src/tasks/AnomalyTask.py
+msgid "仅用于固定目标: 本次日常成功结束后更新下次目标, 不在本次分配体力。"
+msgstr "仅用于固定目标: 本次日常成功结束后更新下次目标, 不在本次分配体力。"
+
+#: src/tasks/AnomalyTask.py
+msgid "固定目标的跨次循环序列, 不用于本次体力轮换。"
+msgstr "固定目标的跨次循环序列, 不用于本次体力轮换。"
+
+#: src/tasks/AnomalyTask.py
+msgid "0不限制; 双倍按两份计算, 所有目标合计不超过此份数。"
+msgstr "0不限制; 双倍按两份计算, 所有目标合计不超过此份数。"

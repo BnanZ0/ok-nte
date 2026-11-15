@@ -25,6 +25,7 @@ update.bat
 click_screenshots/
 test_scripts/
 screenshots/
+stats/
 thread_dumps.txt
 # C extensions
 *.so
