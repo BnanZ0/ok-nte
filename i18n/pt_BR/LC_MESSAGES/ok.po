@@ -1462,3 +1462,123 @@ msgstr "Sábado"
 
 msgid "周日"
 msgstr "Domingo"
+
+#: src/tasks/AnomalyTask.py
+msgid "刷取策略"
+msgstr "Estratégia de farm"
+
+#: src/tasks/AnomalyTask.py
+msgid "固定目标"
+msgstr "Alvo fixo"
+
+#: src/tasks/AnomalyTask.py
+msgid "同类轮换"
+msgstr "Rotação da mesma categoria"
+
+#: src/tasks/AnomalyTask.py
+msgid "自定义轮换"
+msgstr "Rotação personalizada"
+
+#: src/tasks/AnomalyTask.py
+msgid "轮换队列"
+msgstr "Fila de rotação"
+
+#: src/tasks/AnomalyTask.py
+msgid "体力使用"
+msgstr "Uso de energia"
+
+#: src/tasks/AnomalyTask.py
+msgid "用完当前体力"
+msgstr "Usar toda a energia atual"
+
+#: src/tasks/AnomalyTask.py
+msgid "消耗指定体力"
+msgstr "Gastar energia especificada"
+
+#: src/tasks/AnomalyTask.py
+msgid "完成每日"
+msgstr "Concluir diárias"
+
+#: src/tasks/AnomalyTask.py
+msgid "本次体力上限"
+msgstr "Limite de energia desta execução"
+
+#: src/tasks/AnomalyTask.py
+msgid "进阶设置"
+msgstr "Configurações avançadas"
+
+#: src/tasks/AnomalyTask.py
+msgid "每项最低体力"
+msgstr "Energia mínima por alvo"
+
+#: src/tasks/AnomalyTask.py
+msgid "自定义体力额度"
+msgstr "Cotas de energia personalizadas"
+
+#: src/tasks/AnomalyTask.py
+msgid "优先双倍领取"
+msgstr "Preferir resgates duplos"
+
+#: src/tasks/AnomalyTask.py
+msgid "下次运行重置轮换"
+msgstr "Reiniciar rotação na próxima execução"
+
+#: src/tasks/AnomalyTask.py
+msgid "固定目标只刷一种材料; 同类轮换依序刷该类别; 自定义轮换按队列顺序刷。"
+msgstr "Alvo fixo obtém um material; a rotação de categoria percorre seus alvos; a personalizada segue a fila."
+
+#: src/tasks/AnomalyTask.py
+msgid "选择要刷取的类别"
+msgstr "Selecione a categoria"
+
+#: src/tasks/AnomalyTask.py
+msgid "选择奖励目标"
+msgstr "Selecione a recompensa"
+
+#: src/tasks/AnomalyTask.py
+msgid "添加要刷取的材料并调整顺序, 刷完末项后回到首项。"
+msgstr "Adicione materiais e ajuste a ordem. Após o último alvo, volte ao primeiro."
+
+#: src/tasks/AnomalyTask.py
+msgid "用完当前体力会重新读取剩余体力, 不受每日完成状态影响。不足一份奖励时结束, 不会自动使用体力药。"
+msgstr "Usar toda a energia relê a energia restante e ignora diárias concluídas. Para quando não há energia para uma recompensa; não usa poções."
+
+#: src/tasks/AnomalyTask.py
+msgid "本次最多消耗的体力, 不够一份奖励的剩余额度不会使用。"
+msgstr "Máximo de energia desta execução. O saldo insuficiente para uma recompensa não é usado."
+
+#: src/tasks/AnomalyTask.py
+msgid "调整每项额度、双倍领取和轮换进度。"
+msgstr "Ajuste cotas por alvo, resgates duplos e progresso da rotação."
+
+#: src/tasks/AnomalyTask.py
+msgid "0表示每项刷一次双倍奖励的体力: 普通副本80, 空幕120。其他值按单份消耗向上取整, 普通副本40, 空幕60。"
+msgstr "0 atribui um resgate duplo por alvo: 80 em domínios comuns, 120 em Console. Outros valores arredondam para cima em recompensas de 40/60 de energia."
+
+#: src/tasks/AnomalyTask.py
+msgid "可留空。按队列顺序填写各项体力额度, 用英文逗号分隔; 例如120,120,80。数量须与队列一致, 0使用自动额度。"
+msgstr "Opcional. Informe cotas na ordem, separadas por vírgulas, ex.: 120,120,80. A quantidade deve corresponder à fila; 0 usa a cota automática."
+
+#: src/tasks/AnomalyTask.py
+msgid "额度和剩余体力允许时优先双倍, 否则领取单倍。"
+msgstr "Prefira resgates duplos quando a cota e a energia permitirem; caso contrário, resgate simples."
+
+#: src/tasks/AnomalyTask.py
+msgid "下次从队列首项重新开始, 执行后自动关闭。"
+msgstr "Comece pelo primeiro alvo na próxima execução. Desativa automaticamente após aplicar."
+
+#: src/tasks/AnomalyTask.py
+msgid "按今日累计消耗计算, 扣除已完成部分; 今日已消耗180体力或活跃度达100时跳过。"
+msgstr "Conta a energia gasta hoje e desconta o progresso. Pula com 180 de energia gasta ou 100 de atividade."
+
+#: src/tasks/AnomalyTask.py
+msgid "仅用于固定目标: 本次日常成功结束后更新下次目标, 不在本次分配体力。"
+msgstr "Apenas alvo fixo: atualiza o próximo após concluir as diárias, sem dividir energia nesta execução."
+
+#: src/tasks/AnomalyTask.py
+msgid "固定目标的跨次循环序列, 不用于本次体力轮换。"
+msgstr "Ciclo de alvo fixo entre execuções; não distribui energia nesta execução."
+
+#: src/tasks/AnomalyTask.py
+msgid "0不限制; 双倍按两份计算, 所有目标合计不超过此份数。"
+msgstr "0 sem limite. Resgates duplos contam como duas unidades; o limite vale para todos os alvos juntos."

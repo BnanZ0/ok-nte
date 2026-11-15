@@ -21,6 +21,12 @@ Automatically complete selected daily and weekly tasks.
 ### 📋 Specific AFK & Instances (Tasks)
 - **999 Nights**: AFK farming for EXP.
 - **Anomaly Domain**: Automate Anomaly Domain.
+    - **Farming strategy**: Fixed target shows the category and target ID. Same-category rotation only needs a category. Custom rotation uses an ordered target list. Fixed target remains the default.
+    - **Stamina use**: Use all current stamina reads the remaining stamina again and ignores daily completion, without using stamina potions. Spend specified stamina applies a hard limit for this run. The daily entry also offers Complete dailies, preserving the existing daily stamina and activity checks.
+    - **Advanced settings**: Each target defaults to one double claim's stamina: `80` for ordinary domains and `120` for Console. A custom minimum rounds up to whole rewards at `40`/`60` stamina each. Optional comma-separated quotas follow the target order. Double claims are preferred when affordable; a remaining single reward uses a single claim. The reward-count limit counts a double claim as two reward units.
+    - **Resume and statistics**: Confirmed settlement saves rotation progress, single/double claim counts and stamina by target. Details are written to `stats/anomaly_claims.csv`. These are claim statistics, not actual material drop quantities. Later runs resume the unfinished quota. Changing the queue or quotas starts a new plan; Reset rotation on next run starts at the first target.
+    - When the remaining stamina or run budget cannot afford the current target's next reward, the task stops without skipping that target. The old daily cycle remains under Advanced settings for Fixed target and advances only after a successful daily run.
+
 - **Anomaly Hunt**: Automate Anomaly Hunt challenges.
 - **Auto Whirlwind**: Automatically completes 'Whirlwind' challenges.
 - **Volley Star**: Supports EXP farming, automatic match progression, and automated weekly competitions.

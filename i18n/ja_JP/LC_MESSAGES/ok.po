@@ -1719,3 +1719,123 @@ msgstr "土曜日"
 
 msgid "周日"
 msgstr "日曜日"
+
+#: src/tasks/AnomalyTask.py
+msgid "刷取策略"
+msgstr "周回方針"
+
+#: src/tasks/AnomalyTask.py
+msgid "固定目标"
+msgstr "固定対象"
+
+#: src/tasks/AnomalyTask.py
+msgid "同类轮换"
+msgstr "同カテゴリで順番に周回"
+
+#: src/tasks/AnomalyTask.py
+msgid "自定义轮换"
+msgstr "カスタム周回"
+
+#: src/tasks/AnomalyTask.py
+msgid "轮换队列"
+msgstr "周回リスト"
+
+#: src/tasks/AnomalyTask.py
+msgid "体力使用"
+msgstr "スタミナの使い方"
+
+#: src/tasks/AnomalyTask.py
+msgid "用完当前体力"
+msgstr "現在のスタミナを使い切る"
+
+#: src/tasks/AnomalyTask.py
+msgid "消耗指定体力"
+msgstr "指定量のスタミナを消費"
+
+#: src/tasks/AnomalyTask.py
+msgid "完成每日"
+msgstr "デイリーを完了"
+
+#: src/tasks/AnomalyTask.py
+msgid "本次体力上限"
+msgstr "今回のスタミナ上限"
+
+#: src/tasks/AnomalyTask.py
+msgid "进阶设置"
+msgstr "詳細設定"
+
+#: src/tasks/AnomalyTask.py
+msgid "每项最低体力"
+msgstr "対象ごとの最低スタミナ"
+
+#: src/tasks/AnomalyTask.py
+msgid "自定义体力额度"
+msgstr "スタミナ割当の個別設定"
+
+#: src/tasks/AnomalyTask.py
+msgid "优先双倍领取"
+msgstr "2倍受取を優先"
+
+#: src/tasks/AnomalyTask.py
+msgid "下次运行重置轮换"
+msgstr "次回実行時に周回進捗をリセット"
+
+#: src/tasks/AnomalyTask.py
+msgid "固定目标只刷一种材料; 同类轮换依序刷该类别; 自定义轮换按队列顺序刷。"
+msgstr "固定対象は1種類のみ, 同カテゴリ周回はカテゴリ内を順番に, カスタム周回はリスト順に周回します。"
+
+#: src/tasks/AnomalyTask.py
+msgid "选择要刷取的类别"
+msgstr "周回するカテゴリを選択"
+
+#: src/tasks/AnomalyTask.py
+msgid "选择奖励目标"
+msgstr "報酬対象を選択"
+
+#: src/tasks/AnomalyTask.py
+msgid "添加要刷取的材料并调整顺序, 刷完末项后回到首项。"
+msgstr "素材を追加して順番を調整します。最後まで周回したら先頭に戻ります。"
+
+#: src/tasks/AnomalyTask.py
+msgid "用完当前体力会重新读取剩余体力, 不受每日完成状态影响。不足一份奖励时结束, 不会自动使用体力药。"
+msgstr "現在のスタミナを使い切る場合は残量を再確認し, デイリー完了状況を無視します。報酬1回分に足りなければ終了し, 回復薬は使いません。"
+
+#: src/tasks/AnomalyTask.py
+msgid "本次最多消耗的体力, 不够一份奖励的剩余额度不会使用。"
+msgstr "今回消費するスタミナの上限です。報酬1回分に満たない残りの割当は使いません。"
+
+#: src/tasks/AnomalyTask.py
+msgid "调整每项额度、双倍领取和轮换进度。"
+msgstr "対象ごとの割当, 2倍受取, 周回進捗を調整します。"
+
+#: src/tasks/AnomalyTask.py
+msgid "0表示每项刷一次双倍奖励的体力: 普通副本80, 空幕120。其他值按单份消耗向上取整, 普通副本40, 空幕60。"
+msgstr "0は対象ごとに2倍報酬1回分: 通常80, 空幕120。その他は報酬1回の消費量で切り上げます: 通常40, 空幕60。"
+
+#: src/tasks/AnomalyTask.py
+msgid "可留空。按队列顺序填写各项体力额度, 用英文逗号分隔; 例如120,120,80。数量须与队列一致, 0使用自动额度。"
+msgstr "空欄可。リスト順に割当を半角カンマで区切ります。例: 120,120,80。項目数をリストに合わせ, 0は自動割当です。"
+
+#: src/tasks/AnomalyTask.py
+msgid "额度和剩余体力允许时优先双倍, 否则领取单倍。"
+msgstr "割当と残スタミナが足りれば2倍を優先し, 足りなければ1倍で受け取ります。"
+
+#: src/tasks/AnomalyTask.py
+msgid "下次从队列首项重新开始, 执行后自动关闭。"
+msgstr "次回はリストの先頭から開始します。適用後は自動的にオフになります。"
+
+#: src/tasks/AnomalyTask.py
+msgid "按今日累计消耗计算, 扣除已完成部分; 今日已消耗180体力或活跃度达100时跳过。"
+msgstr "今日の累計消費から完了分を差し引きます。180スタミナ消費済み, または活躍度100でスキップします。"
+
+#: src/tasks/AnomalyTask.py
+msgid "仅用于固定目标: 本次日常成功结束后更新下次目标, 不在本次分配体力。"
+msgstr "固定対象のみ: 今回のデイリー成功後に次回の対象を更新し, 今回のスタミナは分配しません。"
+
+#: src/tasks/AnomalyTask.py
+msgid "固定目标的跨次循环序列, 不用于本次体力轮换。"
+msgstr "固定対象を実行ごとに切り替えるリストです。今回のスタミナ配分には使いません。"
+
+#: src/tasks/AnomalyTask.py
+msgid "0不限制; 双倍按两份计算, 所有目标合计不超过此份数。"
+msgstr "0は無制限。2倍受取は2回分として数え, 全対象の合計をこの上限内に抑えます。"
