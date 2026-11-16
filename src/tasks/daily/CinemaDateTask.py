@@ -66,7 +66,7 @@ class CinemaDateTask(NTEOneTimeTask, BaseNTETask):
 
     def _tp_to_cinema(self):
         def action():
-            self.open_f1_domain_page()
+            self.open_f1_domain()
             self.sleep(0.5)
             self.operate_click(0.90, 0.15)
             self.sleep(0.5)

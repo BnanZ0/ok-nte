@@ -152,7 +152,7 @@ class AnomalyPilgrimage(NTEOneTimeTask, BaseCombatTask):
 
     def open_target_list(self) -> None:
         self.ensure_main()
-        self.open_f1_domain_page()
+        self.open_f1_domain()
         self.operate_click(*self.pos.panels.f1.domain.pilgrimage, after_sleep=1.5)
 
     def enter_target(self, target: str) -> bool:

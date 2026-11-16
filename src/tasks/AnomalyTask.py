@@ -268,7 +268,7 @@ class AnomalyTask(BaseStaminaTask, BaseCombatTask):
         if stamina_target == 0:
             return None
 
-        self.open_f1_domain_page()
+        self.open_f1_domain()
 
         self.sleep(0.5)
 

@@ -1,4 +1,9 @@
-from ok import CannotFindException, TaskDisabledException, find_color_rectangles
+from ok import (
+    CannotFindException,
+    TaskDisabledException,
+    WaitFailedException,
+    find_color_rectangles,
+)
 
 from src import text_white_color
 from src.Labels import Labels
@@ -42,9 +47,14 @@ class DailyClaimTask(BaseStaminaTask):
             self.CONF_CLAIM_BATTLE_PASS: self.claim_battle_pass_rewards,
         }
         for key, task in tasks.items():
-            self.ensure_main()
-            if self.config.get(key, True):
+            if not self.config.get(key, True):
+                continue
+            self.ensure_main(check_exit=True)
+            try:
                 results.append(task())
+            except (CannotFindException, WaitFailedException) as error:
+                self.log_error(f"领取失败: {key}", error)
+                results.append(False)
 
         return all(result is not False for result in results)
 
@@ -71,8 +81,7 @@ class DailyClaimTask(BaseStaminaTask):
 
     def claim_activity_rewards(self):
         self.log_info("正在领取活跃度奖励")
-        if not self.open_activity_panel():
-            return False
+        self.open_f1_activity()
         if self.find_one(Labels.f1_activity_mission):
             self.operate_click(0.2348, 0.7653)
             self.sleep(2)

@@ -30,7 +30,7 @@ def trim_right_background(image, threshold=24):
     return image[:, :right]
 
 
-def binarize_bgr_by_brightness(image, threshold=180, to_bgr: bool = True):
+def binarize_bgr_by_brightness(image, threshold=180, invert: bool = False, to_bgr: bool = True):
     """
     根据亮度阈值对 BGR 图像进行二值化，并返回 BGR 格式的结果。
 
@@ -42,6 +42,8 @@ def binarize_bgr_by_brightness(image, threshold=180, to_bgr: bool = True):
     """
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
     _, binary_mask = cv2.threshold(gray, threshold, 255, cv2.THRESH_BINARY)
+    if invert:
+        binary_mask = cv2.bitwise_not(binary_mask)
     if not to_bgr:
         return binary_mask
     binary_bgr = cv2.cvtColor(binary_mask, cv2.COLOR_GRAY2BGR)

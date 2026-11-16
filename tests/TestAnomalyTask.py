@@ -26,7 +26,7 @@ class TestAnomalyTask(unittest.TestCase):
         task.info = {}
         task.info_set = task.info.__setitem__
         task.ensure_main = Mock()
-        task.open_f1_domain_page = Mock()
+        task.open_f1_domain = Mock()
         task.pos = SimpleNamespace(
             panels=SimpleNamespace(f1=SimpleNamespace(domain=SimpleNamespace(exp=(0.1, 0.2))))
         )
@@ -53,7 +53,7 @@ class TestAnomalyTask(unittest.TestCase):
     def test_full_entry_restarts_after_failures_at_each_navigation_stage(self):
         for stage in (
             "ensure_main",
-            "open_f1_domain_page",
+            "open_f1_domain",
             "wait_until",
             "click_traval_button",
             "wait_in_team",
@@ -84,7 +84,7 @@ class TestAnomalyTask(unittest.TestCase):
 
         self.assertFalse(task.enter_anomaly(0))
 
-        self.assertEqual(task.open_f1_domain_page.call_count, 4)
+        self.assertEqual(task.open_f1_domain.call_count, 4)
         self.assertEqual(task.enter_anomaly_from_interac.call_count, 4)
         task.get_stamina.assert_called_once_with()
 
@@ -94,7 +94,7 @@ class TestAnomalyTask(unittest.TestCase):
         self.assertTrue(task.enter_anomaly(2, retry=True))
 
         task.enter_anomaly_from_interac.assert_called_once_with(2, retry=True)
-        task.open_f1_domain_page.assert_not_called()
+        task.open_f1_domain.assert_not_called()
 
     def test_reentry_fallback_preserves_reward_plan_and_completed_progress(self):
         task = self._entry_task()
@@ -105,7 +105,7 @@ class TestAnomalyTask(unittest.TestCase):
 
         self.assertTrue(task.do_run())
 
-        self.assertEqual(task.open_f1_domain_page.call_count, 2)
+        self.assertEqual(task.open_f1_domain.call_count, 2)
         task.get_stamina.assert_called_once_with()
         task.resolve_stamina_target.assert_called_once_with()
         self.assertEqual(
@@ -123,7 +123,7 @@ class TestAnomalyTask(unittest.TestCase):
 
         self.assertFalse(task.do_run())
 
-        self.assertEqual(task.open_f1_domain_page.call_count, 5)
+        self.assertEqual(task.open_f1_domain.call_count, 5)
         task.do_combat_and_claim.assert_called_once_with(True)
         task.wait_click_confirm.assert_not_called()
 

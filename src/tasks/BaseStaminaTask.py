@@ -1,8 +1,6 @@
 import re
 from dataclasses import dataclass
 
-from ok import CannotFindException
-
 from src.Labels import Labels
 from src.tasks.BaseNTETask import BaseNTETask
 from src.tasks.NTEOneTimeTask import NTEOneTimeTask
@@ -24,23 +22,33 @@ class BaseStaminaTask(NTEOneTimeTask, BaseNTETask):
         "今日已消耗180体力或活跃度达100时跳过; 体力不足时仅刷可领取的次数。"
     )
 
-    def open_activity_panel(self) -> bool:
+    def open_f1_activity(self):
+        from src.utils import image_utils as iu
+
         def action():
             self.openF1panel()
-            self.operate_click(*self.pos.panels.f1.activity)
-            self.sleep(0.5)
+
+            feature = self.get_feature_by_name(Labels.f1_activity).mat
+            for invert in (False, True):
+                template = iu.binarize_bgr_by_brightness(feature, threshold=20, invert=invert)
+                if entry := self.find_one(
+                    Labels.f1_activity,
+                    template=template,
+                    box=self.pos.panels.f1.entry_area.to_box(),
+                ):
+                    break
+            else:
+                return False
+
+            self.operate_click(entry)
             return self.wait_panel(Labels.f1_activity_panel)
 
-        self.log_info("开启活跃度面板")
-        result = self.retry_on_action(action, self.ensure_main)
-        if not result:
-            self.log_error("无法找到活跃度面板")
-            return False
-        return True
+        return self.retry_on_action(
+            action=action, reset_action=self.ensure_main, raise_if_failed=True
+        )
 
     def read_daily_activity(self) -> DailyActivity:
-        if not self.open_activity_panel():
-            raise CannotFindException("无法打开活跃度面板")
+        self.open_f1_activity()
 
         activity_re = re.compile(r"(\d+)")
         mission_re = re.compile(r"^(\d+)\s*/\s*180$")

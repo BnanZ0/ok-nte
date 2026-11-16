@@ -179,7 +179,7 @@ class AnomalyHunter(BaseStaminaTask, BaseCombatTask):
     def open_hunter_page(self):
         self.ensure_main()
         self.log_info("打开F1面板并切换至异象追猎页签")
-        self.open_f1_domain_page()
+        self.open_f1_domain()
         self.sleep(0.5)
         self.operate_click(*self.pos.panels.f1.domain.hunter)
         self.sleep(0.5)

@@ -2,7 +2,7 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import Mock
 
-from ok import CannotFindException
+from ok import WaitFailedException
 
 from src.tasks.BaseStaminaTask import BaseStaminaTask, DailyActivity
 
@@ -10,7 +10,7 @@ from src.tasks.BaseStaminaTask import BaseStaminaTask, DailyActivity
 class TestDailyActivity(unittest.TestCase):
     def _reader(self):
         task = object.__new__(BaseStaminaTask)
-        task.open_activity_panel = Mock(return_value=True)
+        task.open_f1_activity = Mock(return_value=True)
         task.box_of_screen = Mock(return_value="ocr box")
         task.ocr = Mock()
         task.sleep = Mock()
@@ -46,9 +46,9 @@ class TestDailyActivity(unittest.TestCase):
 
     def test_panel_failure_stops_before_ocr(self):
         task = self._reader()
-        task.open_activity_panel.return_value = False
+        task.open_f1_activity.side_effect = WaitFailedException()
 
-        with self.assertRaises(CannotFindException):
+        with self.assertRaises(WaitFailedException):
             task.read_daily_activity()
 
         task.ocr.assert_not_called()

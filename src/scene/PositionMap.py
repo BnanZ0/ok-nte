@@ -29,6 +29,7 @@ class Position_6_panels__2_f1__6_domain:
 
 class Position_6_panels__2_f1:
     activity = ScreenRatio(0.055469, 0.30625)
+    entry_area = ScreenRatio(0.031641, 0.129861, 0.080469, 0.874306)
 
     def __init__(self, parent):
         self._parent = parent
@@ -52,7 +53,6 @@ class Position_6_panels__2_f5:
 
 
 class Position_6_panels:
-
     def __init__(self, parent):
         self._parent = parent
         self.esc = Position_6_panels__3_esc(parent)

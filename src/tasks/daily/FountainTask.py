@@ -101,7 +101,7 @@ class FountainTask(NTEOneTimeTask, BaseNTETask):
 
     def transport_to_fountain_teleport(self):
         self.ensure_main(time_out=30)
-        self.open_f1_domain_page()
+        self.open_f1_domain()
         self.operate_click(*self.DOMAIN_ENTRY_POS, after_sleep=1)
         self.operate_click(*self.DOMAIN_CONFIRM_POS, after_sleep=2)
         self.click_traval_button()
