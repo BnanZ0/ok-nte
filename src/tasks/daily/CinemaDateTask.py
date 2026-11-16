@@ -6,6 +6,7 @@ from ok import Box, TaskDisabledException
 from src.Labels import Labels
 from src.tasks.BaseNTETask import BaseNTETask
 from src.tasks.NTEOneTimeTask import NTEOneTimeTask
+from src.utils import game_filters as gf
 from src.utils import image_utils as iu
 
 
@@ -140,12 +141,15 @@ class CinemaDateTask(NTEOneTimeTask, BaseNTETask):
             self.log_info("默认使用顶部可选目标")
             target_box = self._top_selectable_target()
         else:
-            page = 20
+            pages = 20
             match = re.compile(target, re.IGNORECASE)
-            snap_box = self.box_of_screen(0.724, 0.723, 0.771, 0.892)
+            snap_box = self.box_of_screen(0.7234, 0.5463, 0.7714, 0.8741)
 
-            for _ in range(page):
-                target_boxes = self.ocr(0.772, 0.228, 0.914, 0.905, match=match, log=True)
+            for page in range(pages):
+                box = self.box_of_screen(0.772, 0.228, 0.914, 0.905)
+                target_boxes = self.ocr(
+                    box=box, frame_processor=gf.isolate_text_to_black, match=match, log=True
+                )
                 if target_boxes:
                     loc_y = target_boxes[0].y + target_boxes[0].height
                     boxes = self._find_selectable_target()
@@ -159,7 +163,10 @@ class CinemaDateTask(NTEOneTimeTask, BaseNTETask):
                         self.log_warning(f"找到目标 {target_boxes[0]} 但不可用")
                     break
                 if self.scroll_and_is_end(0.8391, 0.5333, -19, snap_box):
+                    self.log_info(f"已滚动 {page + 1} 次, 判断达到末页")
                     break
+            else:
+                self.log_info(f"已滚动 {page + 1} 次, 达到滚动上限")
 
             if not target_box:
                 self.log_info("尝试使用顶部可选目标")
@@ -171,7 +178,7 @@ class CinemaDateTask(NTEOneTimeTask, BaseNTETask):
         if not target_box:
             self.log_info("未找到任何可选目标，结束任务")
             return False
-        
+
         self.fallback_target = "fallback" in target_box.name
 
         return self.wait_click_confirm(

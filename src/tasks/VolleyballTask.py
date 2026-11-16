@@ -46,7 +46,7 @@ class VolleyballTask(NTEOneTimeTask, RecordTask):
         self.default_config.update(
             {
                 self.CONF_MODE: self.MODE_EXP,
-                self.CONF_REPEAT_RECEIVE_PASS: True,
+                self.CONF_REPEAT_RECEIVE_PASS: False,
             }
         )
         self.config_type.update(
