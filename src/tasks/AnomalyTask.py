@@ -1,4 +1,4 @@
-from ok import TaskDisabledException
+from ok import CannotFindException, TaskDisabledException, WaitFailedException
 
 from src.combat.BaseCombatTask import BaseCombatTask
 from src.Labels import Labels
@@ -84,6 +84,7 @@ class AnomalyTask(BaseStaminaTask, BaseCombatTask):
 
     # --- 任务消耗体力 ---
     TASK_COST = 40
+    MAX_ENTRY_ATTEMPTS = 4
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -214,9 +215,56 @@ class AnomalyTask(BaseStaminaTask, BaseCombatTask):
 
         self.log_info(f"开始任务: {task_type}, 目标索引: {idx + 1}")
 
-        # 共同操作 1
-        self.ensure_main()
-        stamina_target = self.resolve_stamina_target()
+        entered = self.enter_anomaly(idx)
+        if entered is not True:
+            return entered
+
+        double_count = self.info_get("双倍次数")
+        single_count = self.info_get("单倍次数")
+        total_count = double_count + single_count
+        completed_count = 0
+        while completed_count < total_count:
+            double = completed_count < double_count
+            self.wait_until(self.find_exit, time_out=30)
+            self.wait_in_team()
+            self.sleep(1)
+            if not self.do_combat_and_claim(double):
+                self.log_warning("本次未成功领取奖励, 退出副本后重试当前目标")
+                self.exit_anomaly()
+                if self.enter_anomaly(idx, retry=True) is not True:
+                    return False
+                continue
+            completed_count += 1
+            self.sleep(2)
+            if completed_count < total_count:
+                self.wait_click_confirm(range=(0.6469, 0.8174, 0.7027, 0.9097))
+        self.wait_click_confirm(range=(0.4074, 0.8174, 0.4578, 0.9056))
+        self.log_info("任务执行完毕")
+        return True
+
+    def enter_anomaly(self, idx: int, retry: bool = False) -> bool | None:
+        """Try nearby re-entry first when requested, then retry the full entry flow."""
+        if retry:
+            try:
+                self.enter_anomaly_from_interac(idx, retry=True)
+                return True
+            except (CannotFindException, WaitFailedException):
+                self.log_warning("简易进入失败, 重新执行完整进入流程")
+
+        for attempt in range(1, self.MAX_ENTRY_ATTEMPTS + 1):
+            try:
+                return self.enter_anomaly_full(idx)
+            except (CannotFindException, WaitFailedException) as e:
+                self.log_warning(f"完整进入流程失败 ({attempt}/{self.MAX_ENTRY_ATTEMPTS}): {e}")
+        self.log_warning("多次尝试后仍无法进入副本, 退出任务", notify=True)
+        return False
+
+    def enter_anomaly_full(self, idx: int) -> bool | None:
+        """Navigate from the main screen, retaining this run's stamina and reward plan."""
+        self.ensure_main(check_exit=True)
+        stamina_target = self.info_get("must use stamina")
+        if stamina_target is None:
+            stamina_target = self.resolve_stamina_target()
         if stamina_target == 0:
             return None
 
@@ -225,6 +273,7 @@ class AnomalyTask(BaseStaminaTask, BaseCombatTask):
         self.sleep(0.5)
 
         # 不同操作 1: 选择任务类型
+        task_type = self.config.get(self.CONF_TASK_TYPE)
         self.log_info(f"切换至任务页签: {task_type}")
         if task_type == self.TASK_EXP_COIN:
             self.operate_click(*self.pos.panels.f1.domain.exp)
@@ -237,58 +286,44 @@ class AnomalyTask(BaseStaminaTask, BaseCombatTask):
 
         self.sleep(0.5)
 
-        stamina = self.get_stamina()
+        stamina = self.info_get("当前体力")
+        if stamina is None:
+            stamina = self.get_stamina()
+        if stamina < 0:
+            raise CannotFindException("无法识别当前体力")
 
         if stamina < self.TASK_COST:
-            self.log_warning("体力不足，退出任务", notify=True)
+            self.log_warning("体力不足, 退出任务", notify=True)
             return False
+
+        if self.info_get("双倍次数") is None:
+            stamina_units = stamina // self.TASK_COST
+            if stamina_target is not None:
+                target_units = (stamina_target + self.TASK_COST - 1) // self.TASK_COST
+                stamina_units = min(stamina_units, target_units)
+                self.info_set("体力消耗目标", stamina_target)
+            reward_count = self.config.get(self.CONF_CLAIM_REWARD_COUNT, 0)
+            if reward_count > 0:
+                stamina_units = min(stamina_units, reward_count)
+            double_count, single_count = divmod(stamina_units, 2)
+            self.info_set("双倍次数", double_count)
+            self.info_set("单倍次数", single_count)
+            self.log_info(f"双倍次数: {double_count}, 单倍次数: {single_count}")
 
         # 共同操作 2
         self.log_info("正在传送至目标地点")
         btns = self.wait_until(
-            lambda: self.find_confirms(self.box_of_screen(0.925, 0.190, 0.982, 0.760)), time_out=10
+            lambda: self.find_confirms(self.box_of_screen(0.925, 0.190, 0.982, 0.760)),
+            time_out=10,
+            raise_if_not_found=True,
         )
-        if not btns:
-            self.log_warning("未找到副本按钮, 退出任务", notify=True)
-            return False
 
         btn = min(btns, key=lambda x: x.y)
         self.operate_click(btn)
         self.click_traval_button()
         self.wait_in_team(time_out=300)
 
-        stamina_units = stamina // self.TASK_COST
-        if stamina_target is not None:
-            target_units = (stamina_target + self.TASK_COST - 1) // self.TASK_COST
-            stamina_units = min(stamina_units, target_units)
-            self.info_set("体力消耗目标", stamina_target)
-        reward_count = self.config.get(self.CONF_CLAIM_REWARD_COUNT, 0)
-        if reward_count > 0:
-            stamina_units = min(stamina_units, reward_count)
-        double_count = stamina_units // 2
-        single_count = stamina_units % 2
-        self.log_info(f"双倍次数: {double_count}, 单倍次数: {single_count}")
-
         self.enter_anomaly_from_interac(idx)
-
-        total_count = double_count + single_count
-        completed_count = 0
-        while completed_count < total_count:
-            double = completed_count < double_count
-            self.wait_until(self.find_exit, time_out=30)
-            self.wait_in_team()
-            self.sleep(1)
-            if not self.do_combat_and_claim(double):
-                self.log_warning("本次未成功领取奖励，退出副本后重试当前目标")
-                self.exit_anomaly()
-                self.enter_anomaly_from_interac(idx, retry=True)
-                continue
-            completed_count += 1
-            self.sleep(2)
-            if completed_count < total_count:
-                self.wait_click_confirm(range=(0.6469, 0.8174, 0.7027, 0.9097))
-        self.wait_click_confirm(range=(0.4074, 0.8174, 0.4578, 0.9056))
-        self.log_info("任务执行完毕")
         return True
 
     def enter_anomaly_from_interac(self, idx, retry=False):
@@ -300,9 +335,15 @@ class AnomalyTask(BaseStaminaTask, BaseCombatTask):
             post_action=lambda: self.send_interac(handle_claim=False),
             time_out=10,
             settle_time=0.5,
+            raise_if_not_found=True,
         )
 
-        self.wait_until(lambda: self.find_one(Labels.stamina_icon), settle_time=0.5, time_out=10)
+        self.wait_until(
+            lambda: self.find_one(Labels.stamina_icon),
+            settle_time=0.5,
+            time_out=10,
+            raise_if_not_found=True,
+        )
 
         # 不同操作 2: 选择对应序号的项目
         self.log_info(f"选择项目序号: {idx + 1}")
@@ -315,7 +356,10 @@ class AnomalyTask(BaseStaminaTask, BaseCombatTask):
             lambda: not self.find_one(Labels.stamina_icon),
             pre_action=lambda: self.operate_click(0.8008, 0.9042),
             time_out=10,
+            raise_if_not_found=True,
         )
+        self.wait_until(self.find_exit, time_out=30, raise_if_not_found=True)
+        self.wait_in_team()
 
     def do_combat_and_claim(self, double: bool):
         self.log_info("开始执行战斗流程")
