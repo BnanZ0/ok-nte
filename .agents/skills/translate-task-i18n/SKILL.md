@@ -37,8 +37,8 @@ When running helper scripts or validation commands, use the project virtual envi
 If no project virtual environment exists, fall back to global `python`.
 
 ```powershell
-.\.venv\Scripts\python.exe C:\Users\ok\.codex\skills\translate-task-i18n\scripts\task_i18n_helper.py scan --task src\tasks\LauncherTask.py
-.\.venv\Scripts\python.exe C:\Users\ok\.codex\skills\translate-task-i18n\scripts\task_i18n_helper.py compile --i18n i18n
+.\.venv\Scripts\python.exe ~\.codex\skills\translate-task-i18n\scripts\task_i18n_helper.py scan --task src\tasks\LauncherTask.py
+.\.venv\Scripts\python.exe ~\.codex\skills\translate-task-i18n\scripts\task_i18n_helper.py compile --i18n i18n
 ```
 
 The scanner is a helper, not a substitute for reading the task. It finds common literal strings but may miss values built through constants or formatting.
