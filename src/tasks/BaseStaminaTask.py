@@ -29,7 +29,9 @@ class BaseStaminaTask(NTEOneTimeTask, BaseNTETask):
             self.openF1panel()
 
             feature = self.get_feature_by_name(Labels.f1_activity).mat
-            for invert in (False, True):
+            timer = self.clock.timer(timeout=5)
+            invert = False
+            while not timer.expired():
                 template = iu.binarize_bgr_by_brightness(feature, threshold=20, invert=invert)
                 if entry := self.find_one(
                     Labels.f1_activity,
@@ -37,6 +39,7 @@ class BaseStaminaTask(NTEOneTimeTask, BaseNTETask):
                     box=self.pos.panels.f1.entry_area.to_box(),
                 ):
                     break
+                invert = not invert
             else:
                 return False
 

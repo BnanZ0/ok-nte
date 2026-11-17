@@ -1015,12 +1015,15 @@ class BaseNTETask(
 
             box = self.box_of_screen(0.785, 0.022, 0.814, 0.076, name="stamina_icon")
             feature = self.get_feature_by_name(Labels.f1_domain).mat
-            for invert in (False, True):
+            timer = self.clock.timer(timeout=5)
+            invert = False
+            while not timer.expired():
                 template = iu.binarize_bgr_by_brightness(feature, threshold=20, invert=invert)
                 if entry := self.find_one(
                     Labels.f1_domain, template=template, box=self.pos.panels.f1.entry_area.to_box()
                 ):
                     break
+                invert = not invert
             else:
                 return False
 
