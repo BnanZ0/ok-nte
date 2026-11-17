@@ -2,17 +2,20 @@
 
 from ok import og
 from ok.ui.qt.kit import Label, icon, theme
-from PySide6.QtCore import QLocale, QRect, QSize, Qt, QTimer
+from PySide6.QtCore import QLocale, QRect, QRectF, QSize, Qt, QTimer
 from PySide6.QtGui import QColor, QFont, QFontMetrics, QPainter, QPen
 from PySide6.QtWidgets import (
     QCheckBox,
     QFrame,
     QHBoxLayout,
     QLineEdit,
+    QProxyStyle,
     QScrollArea,
     QSizePolicy,
+    QSlider,
     QStyle,
     QStyleOptionButton,
+    QStyleOptionSlider,
     QTreeWidget,
     QVBoxLayout,
     QWidget,
@@ -20,6 +23,65 @@ from PySide6.QtWidgets import (
 
 from src.midi_player.models import MidiTrackInfo
 from src.ui.foundation.widgets.lists import CollectionItemDelegate
+
+
+class _PlaybackSliderStyle(QProxyStyle):
+    """Scale native slider painting and hit areas together without replacing its skin."""
+
+    SCALE = 1.25
+
+    def _unscaled_option(self, option):
+        native = QStyleOptionSlider(option)
+        rect = option.rect
+        native.rect = QRectF(
+            rect.x() / self.SCALE,
+            rect.y() / self.SCALE,
+            rect.width() / self.SCALE,
+            rect.height() / self.SCALE,
+        ).toRect()
+        return native
+
+    def pixelMetric(self, metric, option=None, widget=None):
+        value = super().pixelMetric(metric, option, widget)
+        if widget is not None and metric in (
+            QStyle.PixelMetric.PM_SliderLength,
+            QStyle.PixelMetric.PM_SliderThickness,
+            QStyle.PixelMetric.PM_SliderControlThickness,
+        ):
+            return round(value * self.SCALE)
+        return value
+
+    def subControlRect(self, control, option, sub_control, widget=None):
+        if control == QStyle.ComplexControl.CC_Slider and widget is not None:
+            # A null widget keeps native geometry queries from being scaled twice.
+            rect = super().subControlRect(control, self._unscaled_option(option), sub_control, None)
+            return QRectF(
+                rect.x() * self.SCALE,
+                rect.y() * self.SCALE,
+                rect.width() * self.SCALE,
+                rect.height() * self.SCALE,
+            ).toRect()
+        return super().subControlRect(control, option, sub_control, widget)
+
+    def drawComplexControl(self, control, option, painter, widget=None):
+        if control == QStyle.ComplexControl.CC_Slider and widget is not None:
+            painter.save()
+            painter.scale(self.SCALE, self.SCALE)
+            super().drawComplexControl(control, self._unscaled_option(option), painter, None)
+            painter.restore()
+        else:
+            super().drawComplexControl(control, option, painter, widget)
+
+
+class PlaybackSlider(QSlider):
+    """Horizontal playback slider with larger native controls."""
+
+    def __init__(self, parent=None):
+        super().__init__(Qt.Orientation.Horizontal, parent)
+        self._size_style = _PlaybackSliderStyle()
+        self._size_style.setParent(self)
+        self.setStyle(self._size_style)
+        self.setMinimumHeight(32)
 
 
 class TrackListScroll(QScrollArea):

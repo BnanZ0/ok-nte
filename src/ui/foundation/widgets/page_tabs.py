@@ -16,7 +16,7 @@ class PageTabStrip(TabStrip):
             label_style += f"font-size: {label_size}px;"
         style = 'PageTabStrip[look="underline"] { border-bottom: 0; }'
         if label_style:
-            style += f"QLabel {{ {label_style} }}"
+            style += f"TabItem QLabel#tabText {{ {label_style} }}"
         self.setStyleSheet(style)
         # Keep room at the bottom edge for the kit's selected indicator.
         self.layout().setContentsMargins(0, 0, 0, 1)

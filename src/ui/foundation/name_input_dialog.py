@@ -1,6 +1,6 @@
 from collections.abc import Callable
 
-from ok.ui.qt.kit import Dialog, Label, theme
+from ok.ui.qt.kit import Dialog, Label
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QLineEdit
 
@@ -34,8 +34,7 @@ class NameInputDialog(Dialog):
         self.body.addWidget(self.name_edit)
 
         self.name_error_label = Label(translate(error_message), "caption", self.panel)
-        self._refresh_error_color()
-        theme.changed.connect(self._refresh_error_color)
+        self.name_error_label.setProperty("tone", "danger")
         self.name_error_label.setVisible(False)
         self.body.addWidget(self.name_error_label)
 
@@ -47,9 +46,6 @@ class NameInputDialog(Dialog):
         super().open()
         self.name_edit.setFocus()
         self.name_edit.selectAll()
-
-    def _refresh_error_color(self) -> None:
-        self.name_error_label.setStyleSheet(f"color: {theme.color('danger').name()};")
 
     def _validate_name(self, name: str) -> None:
         normalized_name = name.strip()

@@ -17,164 +17,7 @@ from PySide6.QtCore import QEvent, QSignalBlocker, Qt, QTimer, Signal
 from PySide6.QtGui import QGuiApplication, QTextCursor
 from PySide6.QtWidgets import QFileDialog, QFrame, QHBoxLayout, QPlainTextEdit, QVBoxLayout, QWidget
 
-
-class CodeEditor(QPlainTextEdit):
-    indent = "    "
-
-    def keyPressEvent(self, event):
-        modifiers = event.modifiers()
-        if (
-            event.key() == Qt.Key.Key_Slash
-            and modifiers & Qt.KeyboardModifier.ControlModifier
-            and not modifiers & (Qt.KeyboardModifier.AltModifier | Qt.KeyboardModifier.MetaModifier)
-        ):
-            self._toggle_comment()
-            return
-        if event.key() in (Qt.Key.Key_Tab, Qt.Key.Key_Backtab) and not modifiers & (
-            Qt.KeyboardModifier.ControlModifier
-            | Qt.KeyboardModifier.AltModifier
-            | Qt.KeyboardModifier.MetaModifier
-        ):
-            if event.key() == Qt.Key.Key_Backtab or modifiers & Qt.KeyboardModifier.ShiftModifier:
-                self._unindent()
-            else:
-                self._indent()
-            return
-        super().keyPressEvent(event)
-
-    def _toggle_comment(self):
-        cursor = self.textCursor()
-        positions = self._block_positions(cursor)
-        lines = []
-        for line_start in positions:
-            line = self.document().findBlock(line_start).text()
-            indent = len(line) - len(line.lstrip(" \t"))
-            if line[indent:].strip():
-                content = line[indent:]
-                marker_length = 1 + int(content.startswith("# "))
-                lines.append((line_start + indent, content.startswith("#"), marker_length))
-
-        if not lines:
-            return
-
-        uncomment = all(commented for _, commented, _ in lines)
-        changes = []
-        if uncomment:
-            for position, _, marker_length in lines:
-                changes.append((position, marker_length, ""))
-        else:
-            changes.extend((position, 0, "# ") for position, commented, _ in lines if not commented)
-
-        anchor, position = cursor.anchor(), cursor.position()
-        edit = QTextCursor(self.document())
-        edit.beginEditBlock()
-        for change_position, removed, inserted in reversed(changes):
-            edit.setPosition(change_position)
-            if removed:
-                edit.setPosition(change_position + removed, QTextCursor.MoveMode.KeepAnchor)
-                edit.removeSelectedText()
-            if inserted:
-                edit.insertText(inserted)
-        edit.endEditBlock()
-
-        def adjusted(offset):
-            delta = 0
-            for change_position, removed, inserted in changes:
-                if inserted and offset >= change_position:
-                    delta += len(inserted)
-                if removed and offset > change_position:
-                    delta -= min(removed, offset - change_position)
-            return offset + delta
-
-        selection = QTextCursor(self.document())
-        selection.setPosition(adjusted(anchor))
-        selection.setPosition(adjusted(position), QTextCursor.MoveMode.KeepAnchor)
-        self.setTextCursor(selection)
-
-    def _block_positions(self, cursor):
-        document = self.document()
-        first = document.findBlock(
-            cursor.selectionStart() if cursor.hasSelection() else cursor.position()
-        )
-        last = document.findBlock(
-            cursor.selectionEnd() if cursor.hasSelection() else cursor.position()
-        )
-        if cursor.hasSelection() and cursor.selectionEnd() == last.position():
-            last = last.previous()
-        last_number = last.blockNumber()
-        positions = []
-        block = first
-        while block.isValid() and block.blockNumber() <= last_number:
-            positions.append(block.position())
-            block = block.next()
-        return positions
-
-    def _indent(self):
-        cursor = self.textCursor()
-        if not cursor.hasSelection():
-            spaces = 4 - cursor.positionInBlock() % 4
-            cursor.insertText(" " * spaces)
-            self.setTextCursor(cursor)
-            return
-
-        positions = self._block_positions(cursor)
-        anchor, position = cursor.anchor(), cursor.position()
-        edit = QTextCursor(self.document())
-        edit.beginEditBlock()
-        for line_start in reversed(positions):
-            edit.setPosition(line_start)
-            edit.insertText(self.indent)
-        edit.endEditBlock()
-
-        new_anchor = anchor + len(self.indent) * sum(
-            line_start <= anchor for line_start in positions
-        )
-        new_position = position + len(self.indent) * sum(
-            line_start <= position for line_start in positions
-        )
-        selection = QTextCursor(self.document())
-        selection.setPosition(new_anchor)
-        selection.setPosition(new_position, QTextCursor.MoveMode.KeepAnchor)
-        self.setTextCursor(selection)
-
-    def _unindent(self):
-        cursor = self.textCursor()
-        positions = self._block_positions(cursor)
-        changes = []
-        for line_start in positions:
-            block = self.document().findBlock(line_start)
-            line = block.text()
-            if line.startswith("\t"):
-                changes.append((line_start, 1))
-            else:
-                spaces = min(len(self.indent), len(line) - len(line.lstrip(" ")))
-                if spaces:
-                    changes.append((line_start, spaces))
-
-        if not changes:
-            return
-
-        anchor, position = cursor.anchor(), cursor.position()
-        edit = QTextCursor(self.document())
-        edit.beginEditBlock()
-        for line_start, length in reversed(changes):
-            edit.setPosition(line_start)
-            edit.setPosition(line_start + length, QTextCursor.MoveMode.KeepAnchor)
-            edit.removeSelectedText()
-        edit.endEditBlock()
-
-        def adjusted(offset):
-            removed = 0
-            for line_start, length in changes:
-                if offset <= line_start:
-                    break
-                removed += min(length, offset - line_start)
-            return offset - removed
-
-        selection = QTextCursor(self.document())
-        selection.setPosition(adjusted(anchor))
-        selection.setPosition(adjusted(position), QTextCursor.MoveMode.KeepAnchor)
-        self.setTextCursor(selection)
+from src.ui.foundation.widgets.code_editor import CodeEditor
 
 
 class RunCodeTab(CustomTab):
@@ -305,7 +148,6 @@ class RunCodeTab(CustomTab):
         self.output.setStyleSheet(
             "QPlainTextEdit#logView { background: transparent; border: 0; "
             "border-radius: 0; padding: 6px 4px; }"
-            "QScrollBar:vertical { width: 10px; }"
         )
         output_content_layout.addWidget(self.output, 1)
         output_layout.addWidget(output_container, 1)
@@ -429,7 +271,8 @@ class RunCodeTab(CustomTab):
                 else:
                     # Reloads recreate the class as well as the instance.
                     matches = (task_class.__module__, task_class.__qualname__) == (
-                        selected_class.__module__, selected_class.__qualname__
+                        selected_class.__module__,
+                        selected_class.__qualname__,
                     )
                 if matches:
                     self.task_selector.setCurrentIndex(self.task_selector.count() - 1)

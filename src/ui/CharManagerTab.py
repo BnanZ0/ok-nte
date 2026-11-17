@@ -5,9 +5,8 @@ from pathlib import Path
 import requests
 import shiboken6
 from ok import og
-from ok.ui.qt.kit import Button, Card, Dialog, FlowLayout, Label, SettingRow, theme
+from ok.ui.qt.kit import Button, Card, Dialog, FlowLayout, Label, SettingRow
 from ok.ui.qt.kit import icon as kit_icon
-from ok.ui.qt.tasks.EditTaskTab import CodeEditor
 from ok.ui.qt.tasks.PythonHighlighter import PythonHighlighter
 from ok.ui.qt.util.app import show_info_bar
 from ok.ui.qt.widget.CustomTab import CustomTab
@@ -37,6 +36,7 @@ from src.char.core.CharRegistry import char_registry
 from src.char.custom.CustomCharManager import EXTERNAL_CHARS_DIR, CustomCharManager
 from src.events import communicate
 from src.tasks.DebugCharTask import DebugCharTask
+from src.ui.features.characters.editor_widgets import CharacterTitleLabel, ComboEditorFrame
 from src.ui.features.characters.safety_dialog import confirm_external_code_import
 from src.ui.foundation.dialogs import exec_owned_dialog
 from src.ui.foundation.i18n import is_chinese
@@ -239,8 +239,7 @@ class CharManagerTab(CustomTab):
 
         self.title_h_layout = QHBoxLayout()
 
-        self.char_title = Label(self.tr_choose_char, "display")
-        self.char_title.setStyleSheet("font-size: 28px; font-weight: 600;")
+        self.char_title = CharacterTitleLabel(self.tr_choose_char)
         self.char_title.setWordWrap(True)
         self.title_h_layout.addWidget(self.char_title)
 
@@ -256,7 +255,7 @@ class CharManagerTab(CustomTab):
         self.title_h_layout.addItem(self.title_spacer)
         self.detail_v_layout.addLayout(self.title_h_layout)
 
-        self.char_subtitle = Label(self.tr_first_time_hint, "subtitle")
+        self.char_subtitle = CharacterTitleLabel(self.tr_first_time_hint, "subtitle")
         self.char_subtitle.setWordWrap(True)
         self.char_subtitle.setProperty("tone", "danger")
         self.detail_v_layout.addWidget(self.char_subtitle)
@@ -349,14 +348,12 @@ class CharManagerTab(CustomTab):
         self.combo_main_layout.addLayout(self.combo_header_layout)
 
         # 【区块 2：出招表编辑区】
-        self.combo_text = CodeEditor(self.combo_main_widget)
+        combo_editor = ComboEditorFrame(self.combo_main_widget)
+        self.combo_text = combo_editor.editor
         self.combo_text.setLineWrapMode(QPlainTextEdit.LineWrapMode.NoWrap)
         self.combo_text.setPlaceholderText("skill,wait(0.5),l_click(3),ultimate")
-        self.combo_text.setMinimumHeight(140)
-        self._style_combo_editor()
-        theme.changed.connect(self._style_combo_editor)
         self.highlighter = PythonHighlighter(self.combo_text.document())
-        self.combo_main_layout.addWidget(self.combo_text, 1)
+        self.combo_main_layout.addWidget(combo_editor, 1)
 
         # 【区块 4：动作按钮组 (靠右排列)】
         self.combo_actions_layout = QHBoxLayout()
@@ -410,16 +407,6 @@ class CharManagerTab(CustomTab):
         self.current_char_id = None
         self.current_char_name = None
         self.refresh_list()
-
-    def _style_combo_editor(self):
-        border = theme.color("border_strong").name()
-        surface = theme.color("surface_alt").name()
-        accent = theme.accent().name()
-        self.combo_text.setStyleSheet(
-            f"QPlainTextEdit#codeEditor {{ background: {surface}; "
-            f"border: 1px solid {border}; border-radius: 8px; }}"
-            f"QPlainTextEdit#codeEditor:focus {{ border-color: {accent}; }}"
-        )
 
     def eventFilter(self, watched, event: QEvent):
         if (
@@ -485,6 +472,7 @@ class CharManagerTab(CustomTab):
                 else None
             )
         self.char_subtitle.setVisible(items.count() == 0)
+        self.char_title.setVisible(items.count() != 0)
         self._reload_combo_options()
         self.on_char_selected(items.currentItem())
 

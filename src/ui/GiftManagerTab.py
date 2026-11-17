@@ -258,10 +258,8 @@ class GiftManagerTab(CustomTab):
         gift_scroll.setFrameShape(QFrame.Shape.NoFrame)
         gift_scroll.setWidgetResizable(True)
         gift_scroll.setWidget(self.gift_grid_widget)
-        gift_scroll.setStyleSheet("QScrollArea { background: transparent; border: none; }")
         gift_scroll.viewport().setAutoFillBackground(False)
-        gift_scroll.viewport().setStyleSheet("background: transparent;")
-        self.gift_grid_widget.setStyleSheet("background: transparent;")
+        self.gift_grid_widget.setAutoFillBackground(False)
         gifts_card.body.addWidget(gift_scroll, 1)
         self.gift_scroll = gift_scroll
         layout.addWidget(gifts_card, 1)

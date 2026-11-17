@@ -31,7 +31,6 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QScrollArea,
     QSizePolicy,
-    QSlider,
     QStackedWidget,
     QStyle,
     QStyleOptionSlider,
@@ -57,6 +56,7 @@ from src.ui.features.midi.widgets import (
     MarqueeBodyLabel,
     MarqueeTitleLabel,
     PitchChartWidget,
+    PlaybackSlider,
     SongLibraryTree,
     TrackCheckBox,
     TrackListScroll,
@@ -169,8 +169,8 @@ class MidiPlayerTab(CustomTab):
 
         self.setup_left_panel()
         self.setup_right_panel()
-        self._refresh_control_styles()
-        theme.changed.connect(self._refresh_control_styles)
+        self._refresh_control_icons()
+        theme.changed.connect(self._refresh_control_icons)
 
         self.main_h_layout.addWidget(self.left_widget, 1)
         self.main_h_layout.addWidget(self.right_widget, 3)
@@ -225,26 +225,23 @@ class MidiPlayerTab(CustomTab):
 
         library_layout.addLayout(hbox_search)
 
-        self.progress_container = QWidget(self.library_card)
-        self.progress_ring = ProgressRing()
-        self.progress_ring.setFixedSize(50, 50)
+        self.library_stack = QStackedWidget(self.library_card)
+        self.progress_container = QWidget(self.library_stack)
+        self.progress_ring = ProgressRing(size=50)
         progress_layout = QVBoxLayout(self.progress_container)
-        progress_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        progress_layout.setContentsMargins(0, 0, 0, 0)
         progress_layout.addWidget(self.progress_ring, alignment=Qt.AlignmentFlag.AlignCenter)
-        self.progress_container.setSizePolicy(
-            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding
-        )
-        library_layout.addWidget(self.progress_container)
-        self.progress_container.hide()
 
-        self.song_tree_widget = SongLibraryTree(self.library_card)
+        self.song_tree_widget = SongLibraryTree(self.library_stack)
         self.song_tree_widget.setHeaderHidden(True)
         self.song_tree_widget.setRootIsDecorated(True)
         self.song_tree_widget.setIndentation(12)
         self.song_tree_widget.setFrameShape(QFrame.Shape.NoFrame)
         self.song_tree_widget.setStyleSheet("QTreeWidget { background: transparent; border: 0; }")
         self.song_tree_widget.currentItemChanged.connect(self.on_song_selected)
-        library_layout.addWidget(self.song_tree_widget, 1)
+        self.library_stack.addWidget(self.song_tree_widget)
+        self.library_stack.addWidget(self.progress_container)
+        library_layout.addWidget(self.library_stack, 1)
         self.left_v_layout.addWidget(self.library_card, 1)
 
     def setup_right_panel(self):
@@ -303,7 +300,7 @@ class MidiPlayerTab(CustomTab):
         vbox_player.addLayout(hbox_top)
 
         # Progress Slider
-        self.slider_progress = QSlider(Qt.Orientation.Horizontal)
+        self.slider_progress = PlaybackSlider()
         self.slider_progress.setRange(0, 10000)
         self.slider_progress.setValue(0)
         self.slider_progress.valueChanged.connect(self.on_progress_changed)
@@ -358,29 +355,12 @@ class MidiPlayerTab(CustomTab):
         self.btn_play_selected.setDisabled(True)
         layout.addWidget(self.btn_play_selected)
 
-    def _refresh_control_styles(self):
-        rail = theme.color("border_strong").name()
-        accent = theme.accent().name()
-        surface = theme.color("surface").name()
+    def _refresh_control_icons(self):
         self.selection_icon.setPixmap(
             self._selection_note_icon.pixmap(QSize(18, 18), self.selection_icon.devicePixelRatioF())
         )
         self.song_tree_widget.viewport().update()
         self.track_scroll.viewport().update()
-        style = f"""
-            QSlider {{ min-height: 20px; }}
-            QSlider::groove:horizontal {{ height: 4px; border-radius: 2px; background: {rail}; }}
-            QSlider::sub-page:horizontal {{ border-radius: 2px; background: {accent}; }}
-            QSlider::handle:horizontal {{
-                width: 12px; margin: -6px 0; border-radius: 8px;
-                border: 2px solid {accent}; background: {surface};
-            }}
-            QSlider::handle:horizontal:hover, QSlider::handle:horizontal:focus {{
-                background: {accent};
-            }}
-        """
-        self.slider_progress.setStyleSheet(style)
-        self.slider_speed.setStyleSheet(style)
 
     def setup_playback_settings(self):
         self.settings_card = QWidget()
@@ -406,7 +386,7 @@ class MidiPlayerTab(CustomTab):
         self.lbl_speed_value = Label("1.00x", "body")
         self.lbl_speed_value.setFixedWidth(50)
         self.lbl_speed_value.setAlignment(Qt.AlignCenter)
-        self.slider_speed = QSlider(Qt.Orientation.Horizontal)
+        self.slider_speed = PlaybackSlider()
         self.slider_speed.setRange(25, 200)
         self.slider_speed.setValue(100)
         self.slider_speed.setFixedWidth(200)
@@ -814,14 +794,14 @@ class MidiPlayerTab(CustomTab):
                 self.logger.error("Failed to index MIDI library", e)
             self.midi_signals.library_indexed.emit(selected_id)
 
-        self.progress_container.setVisible(True)
+        self.library_stack.setCurrentWidget(self.progress_container)
 
         threading.Thread(target=_task, daemon=True).start()
 
     def _on_library_indexed(self, selected_id):
         if self._disposed:
             return
-        self.progress_container.setVisible(False)
+        self.library_stack.setCurrentWidget(self.song_tree_widget)
         self.songs_by_id = {song.id: song for song in self.library.list_songs()}
         self._prune_missing_song_settings()
         self.populate_song_list(selected_id)
@@ -1696,9 +1676,6 @@ class MidiPlayerTab(CustomTab):
         self.slider_progress.blockSignals(True)
         self.slider_progress.setValue(value)
         self.slider_progress.setSliderPosition(value)
-        adjust_handle = getattr(self.slider_progress, "_adjustHandlePos", None)
-        if callable(adjust_handle):
-            adjust_handle()
         self.slider_progress.update()
         self.slider_progress.blockSignals(False)
 

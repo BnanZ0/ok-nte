@@ -8,7 +8,7 @@ from typing import cast
 from ok.ui.qt.kit import Button, Card, ComboBox, Dialog, Label, ProgressRing, icon, theme
 from ok.ui.qt.kit.theme import set_style_property
 from PySide6.QtCore import QEvent, QObject, QPoint, QSignalBlocker, QSize, Qt, Signal
-from PySide6.QtGui import QAction, QColor, QIcon, QPixmap
+from PySide6.QtGui import QAction, QIcon, QPixmap
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QGridLayout,
@@ -43,6 +43,7 @@ from src.char.workshop.service import (
     WorkshopPackageService,
 )
 from src.ui.features.characters.safety_dialog import EXTERNAL_CODE_SAFETY_NOTICE
+from src.ui.features.characters.workshop_table import WorkshopHeader, WorkshopItemDelegate
 from src.ui.foundation.dialogs import exec_owned_dialog
 from src.ui.foundation.i18n import is_chinese, translate
 from src.ui.foundation.info_bar import show_bar
@@ -93,7 +94,6 @@ class WorkshopKeywordEdit(QLineEdit):
         self.setAccessibleName(translate("阵容关键词"))
         self.chip_scroll = QScrollArea(self)
         self.chip_scroll.setFrameShape(QScrollArea.Shape.NoFrame)
-        self.chip_scroll.setStyleSheet("QScrollArea { background: transparent; border: none; }")
         self.chip_scroll.viewport().setAutoFillBackground(False)
         self.chip_scroll.viewport().installEventFilter(self)
         self.chip_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
@@ -114,8 +114,8 @@ class WorkshopKeywordEdit(QLineEdit):
     def _refresh_chip_style(self) -> None:
         hover = theme.color("control_hover").name()
         self.chip_view.setStyleSheet(
-            "QToolButton { background: transparent; border: 0; padding: 0; }"
-            f"QToolButton:hover {{ background: {hover}; border-radius: 4px; }}"
+            "QToolButton#removeWorkshopKeyword { background: transparent; border: 0; padding: 0; }"
+            f"QToolButton#removeWorkshopKeyword:hover {{ background: {hover}; border-radius: 4px; }}"
         )
 
     def keyPressEvent(self, event) -> None:
@@ -154,6 +154,7 @@ class WorkshopKeywordEdit(QLineEdit):
             label = ElidedCaptionLabel(keyword, chip)
             label.setFixedWidth(min(130, label.fontMetrics().horizontalAdvance(keyword) + 2))
             close = QToolButton(chip)
+            close.setObjectName("removeWorkshopKeyword")
             close.setAutoRaise(True)
             close.setIcon(icon("x"))
             close.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -319,6 +320,7 @@ class PackageMetadataDialog(Dialog):
 
         self.body.addWidget(Label(translate("版本"), parent=self.panel))
         self.version_edit = QLineEdit(self.panel)
+        self.version_edit.setObjectName("workshopVersion")
         self.version_edit.setPlaceholderText("1.0.0")
         self.version_edit.setToolTip("major.minor.patch (1.0.0)")
         self.version_edit.setText(defaults.version)
@@ -351,7 +353,9 @@ class PackageMetadataDialog(Dialog):
 
     def _refresh_version_style(self) -> None:
         color = theme.color("danger").name()
-        self.version_edit.setStyleSheet(f'QLineEdit[invalid="true"] {{ border-color: {color}; }}')
+        self.version_edit.setStyleSheet(
+            f'QLineEdit#workshopVersion[invalid="true"]:enabled {{ border-color: {color}; }}'
+        )
 
     def _validate(self) -> None:
         try:
@@ -411,13 +415,13 @@ class PackageImportDialog(Dialog):
         self.body.addWidget(self.directory_edit)
 
         self.error_label = Label("", "caption", self.panel, word_wrap=True)
+        self.error_label.setProperty("tone", "danger")
         self.body.addWidget(self.error_label)
 
         self.preset_name_edit.textChanged.connect(self._validate)
         self.directory_edit.textChanged.connect(self._validate)
         self.ok_button.setText(translate("导入"))
         self.cancel_button.setText(translate("取消"))
-        theme.changed.connect(self._refresh_error_color)
         self._validate()
 
     def _validate(self) -> None:
@@ -436,12 +440,8 @@ class PackageImportDialog(Dialog):
             error = translate("外置代码目录名称无效")
         valid = bool(self.preset_name_edit.text().strip()) and valid_directory
         self.ok_button.setEnabled(valid)
-        self._refresh_error_color()
         self.error_label.setText(error)
         self.error_label.setVisible(bool(error))
-
-    def _refresh_error_color(self) -> None:
-        self.error_label.setStyleSheet(f"color: {theme.color('danger').name()};")
 
     def validate(self) -> bool:
         return self.ok_button.isEnabled()
@@ -574,6 +574,8 @@ class WorkshopDialog(Dialog):
 
         # Left: compact table with user-resizable columns
         self.table = QTableWidget(self.panel)
+        self.table.setHorizontalHeader(WorkshopHeader(self.table))
+        self.table.setItemDelegate(WorkshopItemDelegate(self.table))
         self.table.setMinimumHeight(260)
         self.table.setColumnCount(4)
         self.table.setHorizontalHeaderLabels(
@@ -698,7 +700,7 @@ class WorkshopDialog(Dialog):
         self.import_button.clicked.connect(self._request_import)
         self.update_button.clicked.connect(self._request_update)
         self.update_all_button.clicked.connect(lambda: self._start_updates(self.entries))
-        theme.changed.connect(self._refresh_theme)
+        theme.changed.connect(self._refresh_update_indicators)
         self.reload_catalog(force_refresh=service is not None)
 
     def _configure_mode(self) -> None:
@@ -715,37 +717,9 @@ class WorkshopDialog(Dialog):
                 translate("社区方案含外置代码; 导入后会以本软件权限运行, 请仅导入可信来源.")
             )
             self.safety_label.setToolTip(EXTERNAL_CODE_SAFETY_NOTICE)
+            set_style_property(self.safety_label, "tone", "danger")
             self.ok_button.hide()
             self.cancel_button.setText(translate("关闭"))
-        self._refresh_theme()
-
-    def _refresh_theme(self) -> None:
-        if not self.metadata_only:
-            self.safety_label.setStyleSheet(f"color: {theme.color('danger').name()};")
-        border = theme.color("border").name()
-        header = theme.color("surface_alt").name()
-        surface = theme.color("surface")
-        accent = theme.accent()
-        selected = QColor.fromRgbF(
-            surface.redF() * 0.86 + accent.redF() * 0.14,
-            surface.greenF() * 0.86 + accent.greenF() * 0.14,
-            surface.blueF() * 0.86 + accent.blueF() * 0.14,
-        ).name()
-        text = theme.color("text").name()
-        self.table.setStyleSheet(f"""
-            QTableWidget {{ selection-background-color: {selected}; selection-color: {text}; }}
-            QHeaderView {{ background: transparent; border: 0; border-radius: 0; }}
-            QHeaderView::section {{
-                background: {header}; border: 0; border-bottom: 1px solid {border};
-                border-right: 1px solid {border};
-            }}
-            QHeaderView::section:first {{ border-top-left-radius: 9px; }}
-            QHeaderView::section:last {{ border-top-right-radius: 9px; border-right: 0; }}
-            QTableWidget::item:selected {{
-                background: {selected}; color: {text}; border: 0;
-                border-radius: 0; margin: 0;
-            }}
-        """)
         self._refresh_update_indicators()
 
     def reload_catalog(self, force_refresh: bool = False) -> None:

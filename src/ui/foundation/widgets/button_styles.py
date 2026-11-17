@@ -16,4 +16,4 @@ class LinkButton(Button):
         self._refresh_accent()
 
     def _refresh_accent(self):
-        self.setStyleSheet(f"QLabel:enabled {{ color: {theme.accent().name()}; }}")
+        self.setStyleSheet(f"QLabel#buttonText:enabled {{ color: {theme.accent().name()}; }}")

@@ -242,6 +242,7 @@ class ScheduleTimePicker(QPushButton):
 
     def _action_button(self, text, action):
         button = QToolButton(self._popover)
+        button.setObjectName("scheduleTimeAction")
         name = QCoreApplication.translate("QPlatformTheme", text)
         button.setAccessibleName(name)
         button.setToolTip(name)
@@ -267,9 +268,10 @@ class ScheduleTimePicker(QPushButton):
         self._popover.setStyleSheet(
             "Popover#scheduleTimePanel { border-radius: 6px;"
             f" background: {tokens['surface_alt']}; border: 1px solid {tokens['border_strong']}; }}"
-            "QToolButton { background: transparent; border: 1px solid transparent; border-radius: 5px; }"
-            f"QToolButton:hover {{ background: {tokens['control_hover']}; }}"
-            f"QToolButton:focus {{ border-color: {theme.accent().name()}; }}"
+            "QToolButton#scheduleTimeAction { background: transparent;"
+            " border: 1px solid transparent; border-radius: 5px; }"
+            f"QToolButton#scheduleTimeAction:hover {{ background: {tokens['control_hover']}; }}"
+            f"QToolButton#scheduleTimeAction:focus {{ border-color: {theme.accent().name()}; }}"
         )
         self._confirm_button.setIcon(icon("check"))
         self._cancel_button.setIcon(icon("x"))
