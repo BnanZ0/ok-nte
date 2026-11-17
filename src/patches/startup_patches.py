@@ -1,6 +1,5 @@
-import sys
-
 from ok.core.ui_config import resolve_ui_config
+from ok.util.process import parse_arguments_to_map
 
 from src.patches.i18n_patch import install_i18n_patch
 from src.patches.task_group_filter_patch import install_task_group_filter_patch
@@ -15,8 +14,6 @@ def install_startup_patches(config):
         if run_code_tab not in custom_tabs:
             custom_tabs.append(run_code_tab)
 
-    if resolve_ui_config(config) is not None and not {"-h", "--help", "--headless"}.intersection(
-        sys.argv[1:]
-    ):
+    if resolve_ui_config(config) is not None and not parse_arguments_to_map()["headless"]:
         install_task_group_filter_patch()
         install_theme_patch()

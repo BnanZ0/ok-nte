@@ -22,7 +22,7 @@ def install_theme_patch():
     from ok.ui.qt.kit.switch import Switch
     from ok.ui.qt.kit.theme import DARK_TOKENS, ThemeManager, contrast_ratio, theme
     from PySide6.QtCore import QPropertyAnimation, QRectF, Qt
-    from PySide6.QtGui import QColor, QPainter, QPen
+    from PySide6.QtGui import QColor, QPainter, QPalette, QPen
 
     from src.ui.icons import resource_icon
 
@@ -117,7 +117,16 @@ def install_theme_patch():
 
     ThemeManager.color = color
 
-    # The upstream primary-button QSS hardcodes white, so override only its text.
+    original_palette = ThemeManager.palette
+
+    def palette(self) -> QPalette:
+        result = original_palette(self)
+        result.setColor(QPalette.ColorRole.HighlightedText, self.color("on_accent"))
+        return result
+
+    ThemeManager.palette = palette
+
+    # Override the upstream foregrounds that are hardcoded to white.
     original_build_stylesheet = kit_qss.build_stylesheet
     original_button_icon = kit_buttons.kit_icon
 
@@ -135,6 +144,8 @@ def install_theme_patch():
         return stylesheet + (
             f'\nButton[variant="primary"]:enabled QLabel#buttonText {{ color: {on_accent}; }}'
             f'\nButton[variant="primary"]:enabled QLabel[role="kbd"] {{ color: {on_accent}; }}'
+            "\nQLineEdit, QAbstractSpinBox, QTextEdit, QPlainTextEdit "
+            f"{{ selection-color: {on_accent}; }}"
             f'\nQCheckBox::indicator:enabled:checked {{ image: url("{check_icon}"); }}'
             f"\nQRadioButton::indicator:enabled:checked {{ background: {on_accent}; }}"
         )

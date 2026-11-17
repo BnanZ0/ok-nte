@@ -4,6 +4,7 @@ import os
 import threading
 
 from ok.core.code_runner import CodeSession, wait_result
+from ok.core.events import communicate
 from ok.ui.qt.kit.buttons import Button
 from ok.ui.qt.kit.cards import Card
 from ok.ui.qt.kit.feedback import show_toast
@@ -12,7 +13,7 @@ from ok.ui.qt.kit.labels import Label
 from ok.ui.qt.tasks.PythonHighlighter import PythonHighlighter
 from ok.ui.qt.widget.CustomTab import CustomTab
 from ok.util.config import Config
-from PySide6.QtCore import QEvent, Qt, QTimer, Signal
+from PySide6.QtCore import QEvent, QSignalBlocker, Qt, QTimer, Signal
 from PySide6.QtGui import QGuiApplication, QTextCursor
 from PySide6.QtWidgets import QFileDialog, QFrame, QHBoxLayout, QPlainTextEdit, QVBoxLayout, QWidget
 
@@ -322,7 +323,10 @@ class RunCodeTab(CustomTab):
         self.output_ready.connect(self._append_output)
         self.run_finished.connect(self._on_run_finished)
         self._update_screenshot_selection()
-        QTimer.singleShot(0, self._refresh_task_selector)
+        refresh_tasks = self._refresh_task_selector
+        communicate.task_list_updated.connect(refresh_tasks)
+        self.destroyed.connect(lambda: communicate.task_list_updated.disconnect(refresh_tasks))
+        QTimer.singleShot(0, self, lambda: refresh_tasks(restore_saved=True))
 
     @staticmethod
     def _separator(parent):
@@ -407,20 +411,28 @@ class RunCodeTab(CustomTab):
             self.select_screenshots_button.setToolTip("选择截图作为任务画面回放")
             self.clear_screenshots_button.hide()
 
-    def _refresh_task_selector(self):
+    def _refresh_task_selector(self, *, restore_saved=False):
         if self.executor is None:
             return
 
-        tasks = self.executor.get_all_tasks()
-        target_task = self.config.get("target_task", "")
-        self.task_selector.blockSignals(True)
-        self.task_selector.clear()
-        self.task_selector.addItem("无任务", None)
-        for task in tasks:
-            self.task_selector.addItem(task.__class__.__name__, task)
-            if task.__class__.__name__ == target_task:
-                self.task_selector.setCurrentIndex(self.task_selector.count() - 1)
-        self.task_selector.blockSignals(False)
+        selected = self.task_selector.currentData()
+        selected_class = type(selected)
+        saved_name = self.config.get("target_task", "") if restore_saved else ""
+        with QSignalBlocker(self.task_selector):
+            self.task_selector.clear()
+            self.task_selector.addItem("无任务", None)
+            for task in self.executor.get_all_tasks():
+                task_class = type(task)
+                self.task_selector.addItem(task_class.__name__, task)
+                if selected is None:
+                    matches = task_class.__name__ == saved_name
+                else:
+                    # Reloads recreate the class as well as the instance.
+                    matches = (task_class.__module__, task_class.__qualname__) == (
+                        selected_class.__module__, selected_class.__qualname__
+                    )
+                if matches:
+                    self.task_selector.setCurrentIndex(self.task_selector.count() - 1)
 
     def _save_selected_task(self):
         task = self.task_selector.currentData()
@@ -483,6 +495,13 @@ class RunCodeTab(CustomTab):
         self._submit_code(code, task, capture, interaction)
 
     def _submit_code(self, code, task, capture=None, interaction=None):
+        if task is not None and not any(
+            current is task for current in self.executor.get_all_tasks()
+        ):
+            self._set_busy(False)
+            self.output_status.setText("无法启动")
+            show_toast(self, "所选任务已变更。请重新运行。", tone="danger")
+            return
         if self.session is None or self.session.executor is not self.executor:
             self.session = CodeSession(self.executor, owner="RunCodeTab")
         if task is None:
@@ -509,10 +528,11 @@ class RunCodeTab(CustomTab):
         job.future.add_done_callback(lambda _: self.run_finished.emit(job))
 
     def stop_run(self):
-        if self.current_job is not None:
+        job = self.current_job
+        if job is not None:
             self._stopping = True
-            self.current_job.cancel()
             self._set_busy(True)
+            job.cancel()
 
     def copy_output(self):
         QGuiApplication.clipboard().setText(self.output.toPlainText())
