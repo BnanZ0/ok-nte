@@ -13,6 +13,7 @@ from src.char.core.CharFactory import (
 )
 from src.char.custom.CustomCharManager import CustomCharManager
 from src.combat.BaseCombatTask import BaseCombatTask
+from src.combat.planner import CombatPlanner
 from src.tasks.NTEOneTimeTask import NTEOneTimeTask
 
 logger = Logger.get_logger(__name__)
@@ -158,6 +159,7 @@ class DebugCharTask(NTEOneTimeTask, BaseCombatTask):
 
         original_ocr = self.ocr
         original_chars = self.chars
+        original_planner = self.combat_planner
         original_sleep = self.sleep
 
         def locked_ocr(*args, **kwargs):
@@ -178,10 +180,13 @@ class DebugCharTask(NTEOneTimeTask, BaseCombatTask):
             if isinstance(test_char, CustomChar):
                 test_char.combo_str = self._combo_text
                 test_char._compile_combo()
+            self.combat_planner = CombatPlanner(self)
+            self.combat_planner.reset(self.chars)
             test_char.perform()
         finally:
             self.sleep = original_sleep
             self.chars = original_chars
+            self.combat_planner = original_planner
             self.ocr = original_ocr
 
     @staticmethod

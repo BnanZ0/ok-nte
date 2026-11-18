@@ -12,10 +12,14 @@ from ok.test.TaskTestCase import TaskTestCase
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QApplication
 
+from src.char.BaseChar import BaseChar
+from src.char.custom.CustomChar import CustomChar
 from src.char.custom.CustomCharDb import CustomCharDb
 from src.char.custom.CustomCharManager import CustomCharManager
+from src.combat.planner import CombatPlanner
 from src.config import config
 from src.tasks.DebugCharTask import DebugCharTask, TeamScanResult
+from src.tasks.NTEOneTimeTask import NTEOneTimeTask
 from src.ui.CharManagerTab import CharManagerTab
 from src.ui.TeamManagerTab import TeamManagerTab
 
@@ -67,6 +71,34 @@ class TestCustomChar(TaskTestCase):
         self.assertEqual(self.task._combo_character_id, "custom:test")
         self.assertEqual(self.task._combo_implementation_id, "combo:test")
         self.assertEqual(self.task._combo_text, "skill")
+
+    def test_combo_runs_in_its_own_planner_cycle(self):
+        task = self.task
+        original_char = BaseChar(task, index=0)
+        original_chars = [original_char]
+        original_planner = CombatPlanner(task)
+        original_planner.reset(original_chars)
+        original_context = original_char.combat_context
+
+        with (
+            patch.object(task, "chars", original_chars),
+            patch.object(task, "combat_planner", original_planner),
+            patch.object(task, "_combat_session", None),
+            patch.object(NTEOneTimeTask, "run"),
+            patch.object(CustomChar, "click_arc"),
+            patch.object(CustomChar, "skill_available", return_value=False),
+            patch.object(CustomChar, "ultimate_available", return_value=False),
+            patch.object(task, "refresh_cd"),
+            patch.object(task, "send_key") as send_key,
+        ):
+            task.test_combo("", "", "jump")
+            task.run()
+
+            self.assertEqual(task.result_error, "")
+            send_key.assert_called_once_with("space")
+            self.assertIs(task.chars, original_chars)
+            self.assertIs(task.combat_planner, original_planner)
+            self.assertIs(original_char.combat_context, original_context)
 
     def test_debug_character_lookup_before_config_is_loaded(self):
         task = object.__new__(DebugCharTask)

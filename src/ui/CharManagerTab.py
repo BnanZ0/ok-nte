@@ -1090,12 +1090,21 @@ class CharManagerTab(CustomTab):
         combo_id = self._resolve_combo_id(combo_input)
         is_code_impl = self.manager.is_registered_impl(combo_id)
         combo_source = self.combo_text.toPlainText()
+        combo_content = combo_source.strip()
 
-        if (
-            is_code_impl
-            and not self.manager.is_builtin_impl(combo_id)
-            and combo_source != self.manager.get_external_impl_source(combo_id)
-        ):
+        if is_code_impl:
+            has_unsaved_changes = (
+                not self.manager.is_builtin_impl(combo_id)
+                and combo_source != self.manager.get_external_impl_source(combo_id)
+            )
+        else:
+            if not combo_content:
+                return
+            saved_combo = self.manager.get_combo(combo_id)
+            saved_combo = saved_combo.replace("\r\n", "\n").replace("\r", "\n").strip()
+            has_unsaved_changes = combo_content != saved_combo
+
+        if has_unsaved_changes:
             InfoBar.warning(
                 title=self.tr("应用更改"),
                 content=self.tr("请先应用外置代码更改后再运行测试."),
@@ -1108,9 +1117,6 @@ class CharManagerTab(CustomTab):
             return
 
         if not is_code_impl:
-            combo_content = combo_source.strip()
-            if not combo_content:
-                return
             from src.char.custom.CustomChar import CustomChar
 
             is_valid, error = CustomChar.validate_combo_syntax(combo_content)
@@ -1139,11 +1145,7 @@ class CharManagerTab(CustomTab):
             return
         self._combo_test_pending = True
         self.combo_test_btn.setEnabled(False)
-        task.test_combo(
-            self.current_char_id,
-            self._resolve_combo_id(combo_input),
-            self.combo_text.toPlainText().strip(),
-        )
+        task.test_combo(self.current_char_id, combo_id, combo_content)
         og.app.start_controller.start(task)
 
     def on_save_combo(self):
