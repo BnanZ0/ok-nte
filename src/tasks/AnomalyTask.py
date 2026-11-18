@@ -328,7 +328,7 @@ class AnomalyTask(BaseStaminaTask, BaseCombatTask):
     def enter_anomaly_from_interac(self, idx, retry=False):
         self.log_info("寻路至交互点并触发交互")
         direction = "s" if retry else "w"
-        self.open_stamina_panel(direction=direction)
+        self.open_anomaly_entrance(direction=direction)
 
         # 不同操作 2: 选择对应序号的项目
         self.log_info(f"选择项目序号: {idx + 1}")

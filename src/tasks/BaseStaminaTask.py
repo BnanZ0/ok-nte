@@ -96,8 +96,9 @@ class BaseStaminaTask(NTEOneTimeTask, BaseNTETask):
     def find_stamina_icon(self):
         return self.find_one(Labels.stamina_icon, horizontal_variance=0.1)
 
-    def open_stamina_panel(self, direction="w") -> None:
+    def open_anomaly_entrance(self, direction="w") -> None:
         """Open the nearby challenge panel, raising if it cannot be confirmed."""
+
         def merged_action(interac):
             try:
                 self.send_key_down("lalt")

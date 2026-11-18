@@ -181,7 +181,7 @@ class AnomalyPilgrimage(BaseStaminaTask, BaseCombatTask):
         self.operate_click(x, y / self.height, after_sleep=0.5)
         self.click_traval_button()
         self.wait_in_team(time_out=300)
-        self.open_stamina_panel()
+        self.open_anomaly_entrance()
         self.wait_click_confirm(range=self.CHALLENGE_CONFIRM_BOX)
         self.wait_click_confirm(range=self.TEAM_CONFIRM_BOX)
         self.wait_in_team(time_out=300)

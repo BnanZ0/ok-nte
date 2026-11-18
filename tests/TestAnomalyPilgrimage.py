@@ -74,7 +74,7 @@ class TestAnomalyPilgrimage(unittest.TestCase):
         task.find_pilgrimage_target = Mock(return_value=SimpleNamespace(center=lambda: (10, 20)))
         task.click_traval_button = Mock()
         task.wait_in_team = Mock()
-        task.open_stamina_panel = Mock()
+        task.open_anomaly_entrance = Mock()
         task.wait_click_confirm = Mock()
         return task
 
@@ -86,7 +86,7 @@ class TestAnomalyPilgrimage(unittest.TestCase):
             ("find_pilgrimage_target", 0),
             ("click_traval_button", 0),
             ("wait_in_team", 0),
-            ("open_stamina_panel", 0),
+            ("open_anomaly_entrance", 0),
             ("wait_click_confirm", 0),
             ("wait_click_confirm", 1),
             ("wait_in_team", 1),
@@ -121,7 +121,7 @@ class TestAnomalyPilgrimage(unittest.TestCase):
 
     def test_entry_stops_after_four_failed_attempts(self):
         task = self._entry_task()
-        task.open_stamina_panel.side_effect = CannotFindException()
+        task.open_anomaly_entrance.side_effect = CannotFindException()
 
         self.assertFalse(task.do_run())
         self.assertEqual(task.ensure_main.call_count, 4)
@@ -131,7 +131,7 @@ class TestAnomalyPilgrimage(unittest.TestCase):
         for error in (TaskDisabledException(), RuntimeError("unexpected")):
             with self.subTest(error=type(error)):
                 task = self._entry_task()
-                task.open_stamina_panel.side_effect = error
+                task.open_anomaly_entrance.side_effect = error
 
                 with self.assertRaises(type(error)):
                     task.do_run()
@@ -220,9 +220,9 @@ class TestAnomalyPilgrimage(unittest.TestCase):
 
     def test_failed_boss_is_skipped_while_other_bosses_can_still_claim_rewards(self):
         task = FakePilgrimage(("A", "B", "A"))
-        task.fight_target_once.side_effect = (
-            [TeamSurvivalStatus.WIPED] * 7 + [TeamSurvivalStatus.NO_DEATHS]
-        )
+        task.fight_target_once.side_effect = [TeamSurvivalStatus.WIPED] * 7 + [
+            TeamSurvivalStatus.NO_DEATHS
+        ]
 
         self.assertFalse(task.do_run())
         self.assertEqual(task.enter_target_from_list.call_args_list, [call("A"), call("B")])
