@@ -1,7 +1,7 @@
 import re
 import time
 
-from ok import Box, TaskDisabledException
+from ok import Box, TaskDisabledException, WaitFailedException
 
 from src.Labels import Labels
 from src.tasks.BaseNTETask import BaseNTETask
@@ -38,14 +38,20 @@ class CinemaDateTask(NTEOneTimeTask, BaseNTETask):
 
     def do_run(self) -> bool:
         target = self.config.get(self.CINEMA_DATE_TARGET, "")
-        return self.run_cinema_date(target)
+        for retries_left in range(3, -1, -1):
+            try:
+                return self.run_cinema_date(target)
+            except WaitFailedException as error:
+                if retries_left == 0:
+                    self.log_error("影院约会准备失败, 重试已用尽", error)
+                    return False
+                self.log_warning(f"影院约会准备失败, 剩余 {retries_left} 次重试")
 
     def run_cinema_date(self, target=""):
         self.ensure_main(esc=True, time_out=60)
         self._tp_to_cinema()
         self._go_to_front_desk()
-        if not self._open_date_invite():
-            return False
+        self._open_date_invite()
         if not self._select_date(target):
             return False
         self.sleep(2)
@@ -112,8 +118,10 @@ class CinemaDateTask(NTEOneTimeTask, BaseNTETask):
         self.sleep(1.20)
         self.send_key_up("a")
         self.sleep(1.00)
-        self.wait_until(self.find_interac, time_out=20)
-        self.send_key_up("s")
+        try:
+            self.wait_until(self.find_interac, time_out=20, raise_if_not_found=True)
+        finally:
+            self.send_key_up("s")
 
     def _open_date_invite(self):
         box = self.box_of_screen(0.960, 0.031, 0.984, 0.073, hcenter=True)
@@ -127,13 +135,9 @@ class CinemaDateTask(NTEOneTimeTask, BaseNTETask):
             elif not in_panel():
                 self.operate_click(0.715, 0.543, interval=1)
 
-        if not self.wait_until(in_panel, pre_action=action, time_out=20):
-            return False
-
-        if not self.wait_until(self._find_selectable_target, time_out=20):
-            return False
+        self.wait_until(in_panel, pre_action=action, time_out=20, raise_if_not_found=True)
+        self.wait_until(self._find_selectable_target, time_out=20, raise_if_not_found=True)
         self.sleep(0.5)
-        return True
 
     def _select_date(self, target):
         target_box = None
