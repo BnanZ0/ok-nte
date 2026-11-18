@@ -37,6 +37,7 @@ class BaseStaminaTask(NTEOneTimeTask, BaseNTETask):
                     Labels.f1_activity,
                     template=template,
                     box=self.pos.panels.f1.entry_area.to_box(),
+                    mask_function=self.f1_sidebar_mask,
                 ):
                     break
                 invert = not invert

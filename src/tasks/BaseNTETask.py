@@ -6,6 +6,8 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, timedelta
 from typing import Any, Callable, List
 
+import numpy as np
+
 from ok import (
     BaseTask,
     Box,
@@ -1009,6 +1011,22 @@ class BaseNTETask(
 
         return "zh" in self.get_app_locale()
 
+    @staticmethod
+    def f1_sidebar_mask(template):
+        """Ignore the top-right corner of F1 sidebar icons while matching.
+
+        A red notification badge can be drawn on top of that corner when the entry
+        has something to claim. With TM_CCOEFF_NORMED the badge pulls the score
+        below the default threshold (measured 0.657 < 0.7 on a live 2560x1440
+        frame), so the icon is treated as missing and the whole entry flow fails.
+        Masking only that corner keeps the icon silhouette usable (the same frame
+        then scores 0.9495 at the same position).
+        """
+        mask = np.full(template.shape[:2], 255, dtype=np.uint8)
+        height, width = mask.shape
+        mask[: int(round(height * 0.40)), int(round(width * 0.55)) :] = 0
+        return mask
+
     def open_f1_domain(self):
         def action():
             self.openF1panel()
@@ -1020,7 +1038,10 @@ class BaseNTETask(
             while not timer.expired():
                 template = iu.binarize_bgr_by_brightness(feature, threshold=20, invert=invert)
                 if entry := self.find_one(
-                    Labels.f1_domain, template=template, box=self.pos.panels.f1.entry_area.to_box()
+                    Labels.f1_domain,
+                    template=template,
+                    box=self.pos.panels.f1.entry_area.to_box(),
+                    mask_function=self.f1_sidebar_mask,
                 ):
                     break
                 invert = not invert
