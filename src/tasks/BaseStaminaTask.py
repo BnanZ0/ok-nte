@@ -1,4 +1,5 @@
 import re
+import time
 from dataclasses import dataclass
 
 from src.Labels import Labels
@@ -91,6 +92,45 @@ class BaseStaminaTask(NTEOneTimeTask, BaseNTETask):
         self.info_set("used stamina", used_stamina)
         self.info_set("daily activity", daily_activity)
         return DailyActivity(used_stamina, daily_activity)
+
+    def find_stamina_icon(self):
+        return self.find_one(Labels.stamina_icon, horizontal_variance=0.1)
+
+    def open_stamina_panel(self, direction="w") -> None:
+        """Open the nearby challenge panel, raising if it cannot be confirmed."""
+        def merged_action(interac):
+            try:
+                self.send_key_down("lalt")
+                time.sleep(0.1)
+                self.click(interac, move=True)
+                time.sleep(0.1)
+            finally:
+                self.send_key_up("lalt")
+
+        def click_interac():
+            if interacs := self.find_interac():
+                interac = min(interacs, key=lambda x: x.y)
+                self.operate(lambda: merged_action(interac), block=True)
+                self.sleep(1)
+
+        if self.find_stamina_icon():
+            return
+
+        self.walk_until_interac(direction=direction, raise_if_not_found=True)
+        self.sleep(1)
+        self.wait_until(
+            lambda: not self.find_interac(),
+            post_action=click_interac,
+            time_out=10,
+            settle_time=0.5,
+            raise_if_not_found=True,
+        )
+        self.wait_until(
+            self.find_stamina_icon,
+            settle_time=0.5,
+            time_out=10,
+            raise_if_not_found=True,
+        )
 
     @classmethod
     def setup_daily_stamina_config(cls, instance: "BaseNTETask", *, reward_cost: int):

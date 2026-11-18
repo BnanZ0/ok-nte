@@ -1,6 +1,6 @@
 import re
-import time
 import unicodedata
+from collections.abc import Callable
 from datetime import date, datetime
 
 from ok import (
@@ -12,12 +12,11 @@ from ok import (
 )
 
 from src.combat.BaseCombatTask import BaseCombatTask, TeamSurvivalStatus
-from src.Labels import Labels
-from src.tasks.NTEOneTimeTask import NTEOneTimeTask
+from src.tasks.BaseStaminaTask import BaseStaminaTask
 from src.utils.game_templates import WEEKLYBOSS_ITEM
 
 
-class AnomalyPilgrimage(NTEOneTimeTask, BaseCombatTask):
+class AnomalyPilgrimage(BaseStaminaTask, BaseCombatTask):
     """Cycle weekly targets within the reward and stamina budgets."""
 
     TASK_NAME = "异象巡礼"
@@ -27,6 +26,7 @@ class AnomalyPilgrimage(NTEOneTimeTask, BaseCombatTask):
     WEEKDAYS = ("周一", "周二", "周三", "周四", "周五", "周六", "周日")
     WEEKLY_REWARD_LIMIT = 3
     STAMINA_COST = 60
+    MAX_ENTRY_ATTEMPTS = 4
     MAX_COMBAT_RETRIES = 3
     MAX_LIST_SCROLLS = 20
     SCROLL_STEP = 12
@@ -102,26 +102,26 @@ class AnomalyPilgrimage(NTEOneTimeTask, BaseCombatTask):
             self.info_set("失败目标", [])
             completed_count = 0
             failed_targets: list[str] = []
-            self.open_target_list()
-            remaining = self.read_remaining_attempts()
-            stamina = self.get_stamina()
-            if stamina < 0:
-                raise CannotFindException("无法识别巡礼可用体力")
-            self.info_set("本周剩余次数", remaining)
-            limit = min(remaining, stamina // self.STAMINA_COST)
-            self.info_set("计划挑战次数", limit)
-            self.info_set("消耗体力", 0)
-            if limit == 0:
-                self.log_info("巡礼剩余次数或体力不足, 停止任务")
-                return None
-            offset = 0 if offset is None else offset + self.WEEKLY_REWARD_LIMIT - remaining
-            queue = [targets[(offset + index) % len(targets)] for index in range(limit)]
-            while queue:
-                target = queue.pop(0)
-                self.info_set(self.CONF_TARGET, target)
-                if not self.enter_target(target):
-                    self.log_warning("未能进入巡礼关卡, 停止任务")
+            queue: list[str] | None = None
+            remaining = 0
+
+            def enter_target_full() -> None:
+                nonlocal queue, remaining
+                self.open_target_list()
+                if queue is None:
+                    remaining, queue = self.plan_target_queue(targets, offset)
+                if queue:
+                    target = queue[0]
+                    self.info_set(self.CONF_TARGET, target)
+                    self.enter_target_from_list(target)
+
+            while queue is None or queue:
+                if not self.retry_full_entry(enter_target_full):
                     return False
+                if not queue:
+                    self.log_info("巡礼剩余次数或体力不足, 停止任务")
+                    return None
+                target = queue.pop(0)
                 if not self.run_target_combat(target):
                     failed_targets.append(target)
                     self.info_set("失败目标", list(failed_targets))
@@ -135,11 +135,7 @@ class AnomalyPilgrimage(NTEOneTimeTask, BaseCombatTask):
                     self.info_set("完成次数", completed_count)
                     self.info_set("本周剩余次数", remaining - completed_count)
                     self.info_set("消耗体力", completed_count * self.STAMINA_COST)
-                if queue:
-                    if not self.return_to_target_list():
-                        self.log_warning("未能返回巡礼列表, 停止任务")
-                        return False
-                elif not self.exit_target():
+                if not self.exit_target():
                     return False
             if failed_targets:
                 self.log_warning("异象巡礼目标清单已处理, 部分目标挑战失败")
@@ -151,74 +147,44 @@ class AnomalyPilgrimage(NTEOneTimeTask, BaseCombatTask):
                 og.my_app.release_openvino_model("general")
 
     def open_target_list(self) -> None:
-        self.ensure_main()
+        self.ensure_main(check_exit=True)
         self.open_f1_domain()
         self.operate_click(*self.pos.panels.f1.domain.pilgrimage, after_sleep=1.5)
 
-    def enter_target(self, target: str) -> bool:
-        """Find the target in the open list, reopening it before each retry."""
+    def plan_target_queue(self, targets: list[str], offset: int | None) -> tuple[int, list[str]]:
+        remaining = self.read_remaining_attempts()
+        stamina = self.get_stamina()
+        if stamina < 0:
+            raise CannotFindException("无法识别巡礼可用体力")
+        self.info_set("本周剩余次数", remaining)
+        limit = min(remaining, stamina // self.STAMINA_COST)
+        self.info_set("计划挑战次数", limit)
+        self.info_set("消耗体力", 0)
+        start = 0 if offset is None else offset + self.WEEKLY_REWARD_LIMIT - remaining
+        return remaining, [targets[(start + index) % len(targets)] for index in range(limit)]
 
-        def action(count):
+    def retry_full_entry(self, enter: Callable[[], None]) -> bool:
+        for attempt in range(1, self.MAX_ENTRY_ATTEMPTS + 1):
             try:
-                if count > 1:
-                    self.open_target_list()
-                match = self.find_pilgrimage_target(target)
-                _, y = match.center()
-                x, _ = self.pos.panels.f1.domain.goto
-                self.operate_click(x, y / self.height, after_sleep=0.5)
-                return self.click_traval_button(raise_if_not_found=False)
-            except (CannotFindException, WaitFailedException):
-                self.log_warning(f"未能传送至巡礼目标, 重试导航: {target}")
-                return False
+                enter()
+                return True
+            except (CannotFindException, WaitFailedException) as error:
+                self.log_warning(f"巡礼进入流程失败 ({attempt}/{self.MAX_ENTRY_ATTEMPTS}): {error}")
+        self.log_warning("未能进入巡礼关卡, 停止任务")
+        return False
 
-        if not self.retry_on_action(action):
-            return False
-        if not self.wait_in_team(time_out=300):
-            return False
-        return self.enter_target_panel()
-
-    def enter_target_panel(self) -> bool:
-        """Open the interaction panel and confirm both steps before waiting for the arena."""
-
-        def merged_action(interac):
-            self.send_key_down("lalt")
-            time.sleep(0.1)
-            self.click(interac, move=True)
-            time.sleep(0.1)
-            self.send_key_up("lalt")
-
-        def click_interac():
-            if interacs := self.find_interac():
-                interac = min(interacs, key=lambda x: x.y)
-                self.operate(lambda: merged_action(interac), block=True)
-                self.sleep(1)
-
-        def action():
-            try:
-                if self.find_one(Labels.stamina_icon):
-                    return True
-                self.walk_until_interac(direction="w", raise_if_not_found=True)
-                self.sleep(1)
-                self.wait_until(
-                    lambda: not self.find_interac(),
-                    post_action=click_interac,
-                    time_out=10,
-                    settle_time=0.5,
-                )
-                return self.wait_until(
-                    lambda: self.find_one(Labels.stamina_icon), settle_time=0.5, time_out=10
-                )
-            except (CannotFindException, WaitFailedException):
-                self.log_warning("未能确认巡礼进入面板, 重试交互")
-                return False
-
-        if not self.retry_on_action(action, reset_action=self.ensure_main):
-            return False
-        if not self.wait_click_confirm(range=self.CHALLENGE_CONFIRM_BOX):
-            return False
-        if not self.wait_click_confirm(range=self.TEAM_CONFIRM_BOX):
-            return False
-        return bool(self.wait_in_team(time_out=300))
+    def enter_target_from_list(self, target: str) -> None:
+        """Travel to the selected target and confirm entry into the arena."""
+        match = self.find_pilgrimage_target(target)
+        _, y = match.center()
+        x, _ = self.pos.panels.f1.domain.goto
+        self.operate_click(x, y / self.height, after_sleep=0.5)
+        self.click_traval_button()
+        self.wait_in_team(time_out=300)
+        self.open_stamina_panel()
+        self.wait_click_confirm(range=self.CHALLENGE_CONFIRM_BOX)
+        self.wait_click_confirm(range=self.TEAM_CONFIRM_BOX)
+        self.wait_in_team(time_out=300)
 
     def run_target_combat(self, target: str) -> bool:
         """Retry team wipes in the arena with a fresh budget for each encounter."""
@@ -226,8 +192,7 @@ class AnomalyPilgrimage(NTEOneTimeTask, BaseCombatTask):
             self.info_set("重新挑战次数", retry)
             if retry:
                 self.log_info(f"重新挑战巡礼目标 {retry}/{self.MAX_COMBAT_RETRIES}: {target}")
-                if not self.retry_target(target):
-                    raise CannotFindException("未能确认巡礼重新挑战成功")
+                self.retry_target()
             status = self.fight_target_once()
             if status is not TeamSurvivalStatus.WIPED:
                 return True
@@ -260,8 +225,7 @@ class AnomalyPilgrimage(NTEOneTimeTask, BaseCombatTask):
             self.rotate_and_find(find=self.find_boss_claim, interrupt=self.find_interac, count=8)
         if not self.retry_on_action(action):
             return False
-        if not self.wait_click_confirm(range=self.REWARD_CLAIM_BOX):
-            return False
+        self.wait_click_confirm(range=self.REWARD_CLAIM_BOX)
         exit_box = self.box_of_screen(*self.REWARD_EXIT_BOX, hcenter=True)
         retry_box = self.box_of_screen(*self.REWARD_RETRY_BOX, hcenter=True)
         return bool(
@@ -272,11 +236,10 @@ class AnomalyPilgrimage(NTEOneTimeTask, BaseCombatTask):
             )
         )
 
-    def retry_target(self, target: str) -> bool:
+    def retry_target(self) -> None:
         """Restart a wiped team in the same arena, without leaving the encounter."""
-        if not self.wait_click_confirm(range=self.WIPE_RETRY_BOX, time_out=30):
-            return False
-        return bool(self.wait_in_team(time_out=300, settle_time=1))
+        self.wait_click_confirm(range=self.WIPE_RETRY_BOX, time_out=30)
+        self.wait_in_team(time_out=300, settle_time=1)
 
     def exit_target(self) -> bool:
         """Exit the encounter and recover the team at the nearest map teleport."""
@@ -287,18 +250,12 @@ class AnomalyPilgrimage(NTEOneTimeTask, BaseCombatTask):
             time_out=30,
             settle_time=0.5,
         )
-        if not button or not self.wait_click_confirm(range=button):
+        if not button:
             return False
-        if not self.wait_in_team(time_out=300, settle_time=1):
-            return False
+        self.wait_click_confirm(range=button)
+        self.wait_in_team(time_out=300, settle_time=1)
         self.click_nearest_map_teleport()
-        return bool(self.wait_in_team(time_out=300, settle_time=1))
-
-    def return_to_target_list(self) -> bool:
-        """Exit to the world before reopening the F1 pilgrimage list."""
-        if not self.exit_target():
-            return False
-        self.open_target_list()
+        self.wait_in_team(time_out=300, settle_time=1)
         return True
 
     def read_remaining_attempts(self) -> int:

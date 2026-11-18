@@ -58,11 +58,13 @@ class CinemaDateTask(NTEOneTimeTask, BaseNTETask):
 
         def post():
             def merged_action():
-                self.send_key_down("lalt")
-                time.sleep(0.1)
-                self.click(0.029, 0.053, move=True)
-                time.sleep(0.1)
-                self.send_key_up("lalt")
+                try:
+                    self.send_key_down("lalt")
+                    time.sleep(0.1)
+                    self.click(0.029, 0.053, move=True)
+                    time.sleep(0.1)
+                finally:
+                    self.send_key_up("lalt")
 
             self.run_with_interval(lambda: self.operate(merged_action, block=True), interval=2)
 

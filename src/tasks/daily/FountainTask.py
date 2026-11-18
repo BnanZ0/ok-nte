@@ -237,11 +237,13 @@ class FountainTask(NTEOneTimeTask, BaseNTETask):
             return False
 
         def merged_action(click):
-            self.send_key_down("lalt")
-            time.sleep(0.1)
-            self.click(click, move=True)
-            time.sleep(0.1)
-            self.send_key_up("lalt")
+            try:
+                self.send_key_down("lalt")
+                time.sleep(0.1)
+                self.click(click, move=True)
+                time.sleep(0.1)
+            finally:
+                self.send_key_up("lalt")
 
         def pre_action():
             if box := self.read_fountain_sign_count()[1]:

@@ -192,6 +192,7 @@ class TestAnomalyTask(unittest.TestCase):
                 )
                 task.enter_anomaly_full = Mock(return_value=True)
                 task.walk_until_interac = Mock()
+                task.find_one = Mock(return_value=None)
                 task.click_sub_idx = Mock()
                 task.wait_until.side_effect = [True] * failed_wait + [WaitFailedException()]
 

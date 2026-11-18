@@ -707,9 +707,23 @@ class BaseNTETask(
         self.sleep(0.5)
         return result
 
-    def wait_panel(self, feature, box=None, threshold=0.7, time_out=5):
+    def wait_panel(
+        self,
+        feature,
+        box=None,
+        threshold=0.7,
+        time_out=5,
+        horizontal_variance=0,
+        vertical_variance=0,
+    ):
         result = self.wait_until(
-            lambda: self.find_one(feature, box=box, threshold=threshold),
+            lambda: self.find_one(
+                feature,
+                box=box,
+                threshold=threshold,
+                horizontal_variance=horizontal_variance,
+                vertical_variance=vertical_variance,
+            ),
             time_out=time_out,
             settle_time=0.5,
         )
@@ -1012,8 +1026,6 @@ class BaseNTETask(
     def open_f1_domain(self):
         def action():
             self.openF1panel()
-
-            box = self.box_of_screen(0.785, 0.022, 0.814, 0.076, name="stamina_icon")
             feature = self.get_feature_by_name(Labels.f1_domain).mat
             timer = self.clock.timer(timeout=5)
             invert = False
@@ -1028,7 +1040,9 @@ class BaseNTETask(
                 return False
 
             self.operate_click(entry)
-            return self.wait_panel(Labels.stamina_icon, box=box)
+            return self.wait_panel(
+                Labels.stamina_icon, horizontal_variance=0.1, vertical_variance=0.025
+            )
 
         return self.retry_on_action(
             action=action, reset_action=self.ensure_main, raise_if_failed=True

@@ -1,7 +1,6 @@
 from ok import CannotFindException, TaskDisabledException, WaitFailedException
 
 from src.combat.BaseCombatTask import BaseCombatTask
-from src.Labels import Labels
 from src.tasks.BaseNTETask import BaseNTETask
 from src.tasks.BaseStaminaTask import BaseStaminaTask
 from src.utils.i18n_format import register_i18n_format
@@ -329,21 +328,7 @@ class AnomalyTask(BaseStaminaTask, BaseCombatTask):
     def enter_anomaly_from_interac(self, idx, retry=False):
         self.log_info("寻路至交互点并触发交互")
         direction = "s" if retry else "w"
-        self.walk_until_interac(direction=direction, raise_if_not_found=True)
-        self.wait_until(
-            lambda: not self.find_interac(),
-            post_action=lambda: self.send_interac(handle_claim=False),
-            time_out=10,
-            settle_time=0.5,
-            raise_if_not_found=True,
-        )
-
-        self.wait_until(
-            lambda: self.find_one(Labels.stamina_icon),
-            settle_time=0.5,
-            time_out=10,
-            raise_if_not_found=True,
-        )
+        self.open_stamina_panel(direction=direction)
 
         # 不同操作 2: 选择对应序号的项目
         self.log_info(f"选择项目序号: {idx + 1}")
@@ -353,7 +338,7 @@ class AnomalyTask(BaseStaminaTask, BaseCombatTask):
         # 共同操作 3
         self.log_info("进入副本并等待")
         self.wait_until(
-            lambda: not self.find_one(Labels.stamina_icon),
+            lambda: not self.find_stamina_icon(),
             pre_action=lambda: self.operate_click(0.8008, 0.9042),
             time_out=10,
             raise_if_not_found=True,
