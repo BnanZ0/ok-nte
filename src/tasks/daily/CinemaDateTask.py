@@ -143,8 +143,8 @@ class CinemaDateTask(NTEOneTimeTask, BaseNTETask):
 
     def _select_date(self, target):
         target_box = None
-        if target == "":
-            self.log_info("默认使用顶部可选目标")
+        if not target or not target.strip():
+            self.log_info("约会目标为空, 默认使用顶部可选目标")
             target_box = self._top_selectable_target()
         else:
             pages = 20
@@ -152,20 +152,28 @@ class CinemaDateTask(NTEOneTimeTask, BaseNTETask):
             # OCR 对角色名的识别可能截断或误读 (实测「明音凛」只读出「明音」,
             # 「娜娜莉」误读为「那娜莉」), 严格全名正则会匹配失败。
             # 改为容错匹配: 识别文本与目标名互相包含即视为命中。
-            target_text = target.strip()
+            target_text = re.sub(r"\s+", "", target)
 
             def name_matches(text):
-                if not text:
+                name = re.sub(r"\s+", "", text or "")
+                if not name:
                     return False
-                name = re.sub(r"\s+", "", text)
                 return name in target_text or target_text in name
+
+            def specificity(item):
+                """完全相等优先于部分包含, 避免短误读先于完整名被选中。"""
+                name = re.sub(r"\s+", "", getattr(item, "name", "") or "")
+                return 0 if name == target_text else 1
 
             for page in range(pages):
                 box = self.box_of_screen(0.772, 0.228, 0.914, 0.905)
                 all_names = self.ocr(
                     box=box, frame_processor=gf.isolate_text_to_black, log=True
                 )
-                matched = [b for b in all_names if name_matches(getattr(b, "name", ""))]
+                matched = sorted(
+                    [b for b in all_names if name_matches(getattr(b, "name", ""))],
+                    key=specificity,
+                )
                 if matched:
                     loc_y = matched[0].y + matched[0].height
                     boxes = self._find_selectable_target()
