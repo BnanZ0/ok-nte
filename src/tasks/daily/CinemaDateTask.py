@@ -148,25 +148,35 @@ class CinemaDateTask(NTEOneTimeTask, BaseNTETask):
             target_box = self._top_selectable_target()
         else:
             pages = 20
-            match = re.compile(target, re.IGNORECASE)
             snap_box = self.box_of_screen(0.7234, 0.5463, 0.7714, 0.8741)
+            # OCR 对角色名的识别可能截断或误读 (实测「明音凛」只读出「明音」,
+            # 「娜娜莉」误读为「那娜莉」), 严格全名正则会匹配失败。
+            # 改为容错匹配: 识别文本与目标名互相包含即视为命中。
+            target_text = target.strip()
+
+            def name_matches(text):
+                if not text:
+                    return False
+                name = re.sub(r"\s+", "", text)
+                return name in target_text or target_text in name
 
             for page in range(pages):
                 box = self.box_of_screen(0.772, 0.228, 0.914, 0.905)
-                target_boxes = self.ocr(
-                    box=box, frame_processor=gf.isolate_text_to_black, match=match, log=True
+                all_names = self.ocr(
+                    box=box, frame_processor=gf.isolate_text_to_black, log=True
                 )
-                if target_boxes:
-                    loc_y = target_boxes[0].y + target_boxes[0].height
+                matched = [b for b in all_names if name_matches(getattr(b, "name", ""))]
+                if matched:
+                    loc_y = matched[0].y + matched[0].height
                     boxes = self._find_selectable_target()
                     for box in boxes:
                         if loc_y > box.y and loc_y < box.y + box.height:
-                            target_box = target_boxes[0]
+                            target_box = matched[0]
                             break
                     if target_box:
                         self.log_info(f"找到目标 {target_box}")
                     else:
-                        self.log_warning(f"找到目标 {target_boxes[0]} 但不可用")
+                        self.log_warning(f"找到目标 {matched[0]} 但不可用")
                     break
                 if self.scroll_and_is_end(0.8391, 0.5333, -19, snap_box):
                     self.log_info(f"已滚动 {page + 1} 次, 判断达到末页")
@@ -175,11 +185,10 @@ class CinemaDateTask(NTEOneTimeTask, BaseNTETask):
                 self.log_info(f"已滚动 {page + 1} 次, 达到滚动上限")
 
             if not target_box:
-                self.log_info("尝试使用顶部可选目标")
-                for _ in range(page):
-                    target_box = self._top_selectable_target(mark_as_fallback=True)
-                    if target_box or self.scroll_and_is_end(0.8391, 0.5333, 19, snap_box):
-                        break
+                # 约会对象必须精确匹配: 找不到目标时不能退回"顶部可选目标",
+                # 否则会约错人并消耗当日约会次数。
+                self.log_warning(f"未找到目标角色 {target}, 不约其他人")
+                return False
 
         if not target_box:
             self.log_info("未找到任何可选目标，结束任务")
