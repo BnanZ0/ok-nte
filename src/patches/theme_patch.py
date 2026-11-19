@@ -149,8 +149,8 @@ def install_theme_patch():
         on_accent = manager.color("on_accent").name()
         check_icon = icon_file("check", on_accent, 2.6)
         return stylesheet + (
-            f'\nButton[variant="primary"]:enabled QLabel#buttonText {{ color: {on_accent}; }}'
-            f'\nButton[variant="primary"]:enabled QLabel[role="kbd"] {{ color: {on_accent}; }}'
+            f'\nButton[variant="primary"] QLabel#buttonText:enabled {{ color: {on_accent}; }}'
+            f'\nButton[variant="primary"] QLabel[role="kbd"]:enabled {{ color: {on_accent}; }}'
             "\nQLineEdit, QAbstractSpinBox, QTextEdit, QPlainTextEdit "
             f"{{ selection-color: {on_accent}; }}"
             f'\nQCheckBox::indicator:enabled:checked {{ image: url("{check_icon}"); }}'

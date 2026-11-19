@@ -280,6 +280,28 @@ class DialogBehaviorTest(unittest.TestCase):
         self.assertEqual(dialog.get_name(), "valid")
         self.assertFalse(dialog.isVisible())
 
+    def test_name_validation_message_fits_below_the_field(self):
+        dialog = NameInputDialog(
+            "available",
+            parent=self.parent,
+            name_validator=lambda value: value != "reserved",
+            error_message="That name is already in use.",
+        )
+        dialog.open()
+        self.app.processEvents()
+        initial_height = dialog.panel.height()
+
+        dialog.name_edit.setText("reserved")
+        self.app.processEvents()
+        self.assertTrue(dialog.name_error_label.isVisible())
+        self.assertGreater(dialog.name_error_label.y(), dialog.name_edit.geometry().bottom())
+        self.assertGreater(dialog.ok_button.y(), dialog.name_error_label.geometry().bottom())
+
+        dialog.name_edit.setText("available")
+        self.app.processEvents()
+        self.assertFalse(dialog.name_error_label.isVisible())
+        self.assertEqual(dialog.panel.height(), initial_height)
+
     def _run_worker_confirmation(self, owner, create_dialog):
         result = []
         dispatcher = dialogs._DialogDispatcher(self.app)

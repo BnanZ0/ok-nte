@@ -636,15 +636,37 @@ class TestWorkshop(unittest.TestCase):
     def test_import_dialog_rejects_existing_external_directory(self):
         parent = QWidget()
         parent.resize(800, 600)
+        parent.show()
+        existing = "existing-team-package-with-a-long-directory-name-1.0.0"
         dialog = PackageImportDialog(
             make_package(),
-            "existing.zip",
+            f"{existing}.zip",
             parent,
-            directory_exists=lambda directory: directory == "existing",
+            directory_exists=lambda directory: directory == existing,
         )
+        dialog.open()
+        self.qt_app.processEvents()
 
         self.assertFalse(dialog.ok_button.isEnabled())
-        self.assertIn("existing", dialog.error_label.text())
+        self.assertIn(existing, dialog.error_label.text())
+
+        dialog.directory_edit.setText("available")
+        self.qt_app.processEvents()
+        self.assertTrue(dialog.ok_button.isEnabled())
+        self.assertFalse(dialog.error_label.isVisible())
+        valid_height = dialog.panel.height()
+
+        dialog.directory_edit.setText(existing)
+        self.qt_app.processEvents()
+        self.assertFalse(dialog.ok_button.isEnabled())
+        self.assertTrue(dialog.error_label.isVisible())
+        self.assertGreater(dialog.panel.height(), valid_height)
+        self.assertGreater(dialog.error_label.y(), dialog.directory_edit.geometry().bottom())
+        self.assertGreater(dialog.ok_button.y(), dialog.error_label.geometry().bottom())
+        self.assertGreaterEqual(
+            dialog.error_label.height(),
+            dialog.error_label.heightForWidth(dialog.error_label.width()),
+        )
 
     def test_workshop_filter_header_stays_anchored_during_collapse(self):
         parent = QWidget()

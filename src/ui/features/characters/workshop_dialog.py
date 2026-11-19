@@ -43,7 +43,7 @@ from src.char.workshop.service import (
 )
 from src.ui.features.characters.safety_dialog import EXTERNAL_CODE_SAFETY_NOTICE
 from src.ui.features.characters.workshop_table import WorkshopTable
-from src.ui.foundation.dialogs import exec_owned_dialog
+from src.ui.foundation.dialogs import FormDialog, exec_owned_dialog
 from src.ui.foundation.i18n import is_chinese, translate
 from src.ui.foundation.info_bar import show_bar
 from src.ui.foundation.widgets.button_styles import LinkButton
@@ -383,7 +383,7 @@ class PackageMetadataDialog(Dialog):
         )
 
 
-class PackageImportDialog(Dialog):
+class PackageImportDialog(FormDialog):
     def __init__(
         self,
         package: TeamPackage,

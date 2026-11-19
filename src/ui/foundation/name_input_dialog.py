@@ -1,13 +1,14 @@
 from collections.abc import Callable
 
-from ok.ui.qt.kit import Dialog, Label
+from ok.ui.qt.kit import Label
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QLineEdit
 
+from src.ui.foundation.dialogs import FormDialog
 from src.ui.foundation.i18n import translate
 
 
-class NameInputDialog(Dialog):
+class NameInputDialog(FormDialog):
     """Name editor with inline business validation."""
 
     def __init__(
@@ -33,7 +34,9 @@ class NameInputDialog(Dialog):
         self.name_edit.textChanged.connect(self._validate_name)
         self.body.addWidget(self.name_edit)
 
-        self.name_error_label = Label(translate(error_message), "caption", self.panel)
+        self.name_error_label = Label(
+            translate(error_message), "caption", self.panel, word_wrap=True
+        )
         self.name_error_label.setProperty("tone", "danger")
         self.name_error_label.setVisible(False)
         self.body.addWidget(self.name_error_label)

@@ -9,7 +9,7 @@ import shiboken6
 from ok import Logger, og
 from ok.ui.qt.kit import Dialog
 from ok.ui.qt.kit.theme import set_style_property
-from PySide6.QtCore import QEventLoop, QObject, Qt, QThread, QTimer, Signal, Slot
+from PySide6.QtCore import QEvent, QEventLoop, QObject, Qt, QThread, QTimer, Signal, Slot
 from PySide6.QtWidgets import QApplication, QHBoxLayout, QSizePolicy, QWidget
 
 from src.events import ConfirmationRequested, communicate
@@ -17,6 +17,19 @@ from src.utils import clock
 
 logger = Logger.get_logger(__name__)
 _SHOW_DIALOG_FAILED = "show dialog failed"
+
+
+class FormDialog(Dialog):
+    """Keep the panel fitted when inline feedback changes the form layout."""
+
+    def __init__(self, parent: QWidget, title: str, *, width: int):
+        super().__init__(parent, title, width=width)
+        self.panel.installEventFilter(self)
+
+    def eventFilter(self, watched, event) -> bool:
+        if event.type() == QEvent.Type.LayoutRequest and watched is self.panel and self.isVisible():
+            self._fit()
+        return super().eventFilter(watched, event)
 
 
 def _valid(widget) -> bool:
