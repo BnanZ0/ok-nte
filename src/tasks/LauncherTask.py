@@ -321,32 +321,29 @@ class LauncherTask(BaseNTETask):
                 exe_name,
                 require_title=exe_name == LAUNCHER_EXE,
             )
-            if proc:
-                if hwnd:
-                    self._restore_window_if_minimized(hwnd, exe_name)
-                    size = self._get_window_size(hwnd)
-                    if not self._is_usable_window_size(size):
-                        elapsed = int(self.clock.now() - start)
-                        self.log_info(
-                            f"Window for {exe_label} exists but is too small; "
-                            f"hwnd={hwnd}, size={size[0]}x{size[1]}, elapsed={elapsed}s",
-                        )
+            if proc and hwnd:
+                self._restore_window_if_minimized(hwnd, exe_name)
+                size = self._get_window_size(hwnd)
+                if not self._is_usable_window_size(size):
+                    elapsed = int(self.clock.now() - start)
+                    self.log_info(
+                        f"Window for {exe_label} exists but is too small; "
+                        f"hwnd={hwnd}, size={size[0]}x{size[1]}, elapsed={elapsed}s",
+                    )
+                    self._sleep_for_window_poll(1)
+                    continue
+
+                if settle_window:
+                    if not self._wait_for_window_size_to_settle(hwnd, exe_label, start, time_out):
                         self._sleep_for_window_poll(1)
                         continue
+                    size = self._get_window_size(hwnd)
 
-                    if settle_window:
-                        if not self._wait_for_window_size_to_settle(
-                            hwnd, exe_label, start, time_out
-                        ):
-                            self._sleep_for_window_poll(1)
-                            continue
-                        size = self._get_window_size(hwnd)
-
-                    self.log_info(
-                        f"Found process and window {exe_label}: "
-                        f"{self._format_process(proc)}, hwnd={hwnd}, size={size[0]}x{size[1]}",
-                    )
-                    return proc
+                self.log_info(
+                    f"Found process and window {exe_label}: "
+                    f"{self._format_process(proc)}, hwnd={hwnd}, size={size[0]}x{size[1]}",
+                )
+                return proc
 
             elapsed = int(self.clock.now() - start)
             if proc:

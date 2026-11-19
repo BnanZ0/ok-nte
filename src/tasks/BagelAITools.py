@@ -421,7 +421,7 @@ class BagelAITools(NTEOneTimeTask, BaseNTETask):
         # 经典颜文字
         "qaq", "orz", "otz", "owo", "qwq", "tat",
     }
-    _RE_ALBUM_PREFER = re.compile(r"(\d+)[/|]\d+")
+    _RE_ALBUM_PREFER = re.compile(r"(?<!\d)(\d++)[/|]\d++")
     _RE_ALBUM_BACKUP = re.compile(r"(?:历史(?:记录)?|歴史(?:記錄)?|履歴|기록|Verlauf|История|Histor\w*)[\s\-_]?(\d{1,2})")
     _RE_ALBUM_LAST_RESORT = re.compile(r"(\d{1,2})")
     # ruff: enable[E501]

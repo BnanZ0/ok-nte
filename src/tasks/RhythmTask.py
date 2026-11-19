@@ -161,13 +161,8 @@ class RhythmTask(NTEOneTimeTask, BaseNTETask):
     # =========================================================================
 
     def _is_finished(self) -> bool:
-        """检测是否出现结算界面（OCR 识别"演奏结果"）"""
+        """检测结算界面的关闭按钮。"""
         box = self.box_of_screen(0.9383, 0.0576, 0.9621, 0.0986)
-        # yellow_box = self.box_of_screen(0.2211, 0.6625, 0.3156, 0.6965, name="finish_yellow")
-        # red_box = self.box_of_screen(0.4555, 0.6625, 0.5445, 0.6965, name="finish_red")
-        # yellow_pct = self.calculate_color_percentage(finish_yellow_color, yellow_box)
-        # red_pct = self.calculate_color_percentage(finish_red_color, red_box)
-        # self.log_debug(f"_is_finished: yellow_pct {yellow_pct} red_pct {red_pct}")
         return self.find_one(Labels.close_button, box=box)
 
     def _handle_finish(self):

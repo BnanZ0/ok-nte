@@ -62,7 +62,7 @@ class TestLauncherTask(unittest.TestCase):
             "src.tasks.LauncherTask.psutil.process_iter",
             return_value=[Mock(info=proc)],
         ):
-            self.assertEqual((proc, 123), task._find_process_window(LAUNCHER_EXE))
+            self.assertEqual(task._find_process_window(LAUNCHER_EXE), (proc, 123))
 
         task._find_window_for_process.assert_called_once_with(
             proc,

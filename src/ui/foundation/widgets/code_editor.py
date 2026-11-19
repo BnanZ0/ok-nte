@@ -65,13 +65,18 @@ class CodeEditor(QPlainTextEdit):
         current = self.textCursor().blockNumber()
         while block.isValid() and top <= event.rect().bottom():
             if block.isVisible() and bottom >= event.rect().top():
-                color = "danger" if number + 1 == self.error_line_number else (
-                    "text_secondary" if number == current else "text_disabled"
-                )
+                if number + 1 == self.error_line_number:
+                    color = "danger"
+                else:
+                    color = "text_secondary" if number == current else "text_disabled"
                 painter.setPen(theme.color(color))
                 painter.drawText(
-                    0, int(top), self.line_number_area.width() - 12,
-                    self.fontMetrics().height(), Qt.AlignmentFlag.AlignRight, str(number + 1),
+                    0,
+                    int(top),
+                    self.line_number_area.width() - 12,
+                    self.fontMetrics().height(),
+                    Qt.AlignmentFlag.AlignRight,
+                    str(number + 1),
                 )
             block = block.next()
             top = bottom

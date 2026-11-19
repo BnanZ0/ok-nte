@@ -177,11 +177,12 @@ class MouseBlockingOperateTest(MouseHookTestSupport, unittest.TestCase):
 
     def test_action_exception_unblocks_mouse(self):
         interaction, api = self.make_interaction()
+        failing_action = Mock(side_effect=ValueError("action failed"))
         with (
             patch("src.interaction.NTEInteraction.GetCursorPos", return_value=(20, 30)),
             self.assertRaisesRegex(ValueError, "action failed"),
         ):
-            interaction.operate(Mock(side_effect=ValueError("action failed")), block=True)
+            interaction.operate(failing_action, block=True)
         self.assertIsNone(api.callback)
 
     def test_hook_startup_failure_skips_action_and_allows_retry(self):

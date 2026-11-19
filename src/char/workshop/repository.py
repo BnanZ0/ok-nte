@@ -10,7 +10,7 @@ import requests
 from ok import get_path_relative_to_exe
 
 from src.char.workshop.archive import MAX_ARCHIVE_BYTES
-from src.char.workshop.models import CatalogEntry, WorkshopFormatError, parse_catalog
+from src.char.workshop.models import CatalogEntry, parse_catalog
 
 MAX_CATALOG_BYTES = 5 * 1024 * 1024
 CATALOG_CACHE_TTL = timedelta(hours=24)
@@ -65,7 +65,6 @@ class WorkshopRepository:
             except (
                 requests.RequestException,
                 ValueError,
-                WorkshopFormatError,
                 WorkshopRepositoryError,
             ) as error:
                 errors.append(f"{source.name}: {error}")
@@ -128,7 +127,7 @@ class WorkshopRepository:
             if self._utc_now() - fetched_at.astimezone(UTC) >= CATALOG_CACHE_TTL:
                 return None
             return parse_catalog(item["catalog"])
-        except (OSError, KeyError, TypeError, ValueError, WorkshopFormatError):
+        except (OSError, KeyError, TypeError, ValueError):
             return None
 
     def _save_cached_catalog(self, source: IndexSource, catalog: object) -> None:

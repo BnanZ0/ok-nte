@@ -5,6 +5,10 @@ from src.Labels import Labels
 from src.tasks.NTEOneTimeTask import NTEOneTimeTask
 
 
+class _MammonRecordFound(Exception):
+    """Stop the challenge confirmation when OCR finds an existing record."""
+
+
 class FurnitureTask(NTEOneTimeTask, BaseCombatTask):
     CONF_MAMMON = "挑战玛门"
 
@@ -230,9 +234,7 @@ class FurnitureTask(NTEOneTimeTask, BaseCombatTask):
     def click_furniture(self, furniture):
         # 滚动至顶部
         self.operate(
-            lambda: self.scroll(
-                0.8566, 0.4701, 40
-            ),
+            lambda: self.scroll(0.8566, 0.4701, 40),
             block=True,
         )
 
@@ -276,12 +278,10 @@ class FurnitureTask(NTEOneTimeTask, BaseCombatTask):
                 return True
 
     def claim_mammon(self):
-        exc_msg = "mammon has record"
-
         def check_record():
             mammon_record = self.ocr(0.634, 0.609, 0.762, 0.674, name="mammon_record")
             if self.parse_ocr_number(mammon_record) > 0:
-                raise Exception(exc_msg)
+                raise _MammonRecordFound("mammon has record")
 
         def action():
             self.walk_to_treasure()
@@ -300,11 +300,8 @@ class FurnitureTask(NTEOneTimeTask, BaseCombatTask):
                 raise_if_not_found=False,
                 on_found=check_record,
             )
-        except Exception as e:
-            if str(e) == exc_msg:
-                ret = True
-            else:
-                raise
+        except _MammonRecordFound:
+            ret = True
 
         if run_mammon:
             if self.walk_until_combat(run=True):

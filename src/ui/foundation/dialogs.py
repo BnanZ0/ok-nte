@@ -16,6 +16,7 @@ from src.events import ConfirmationRequested, communicate
 from src.utils import clock
 
 logger = Logger.get_logger(__name__)
+_SHOW_DIALOG_FAILED = "show dialog failed"
 
 
 def _valid(widget) -> bool:
@@ -135,7 +136,7 @@ def _wait_for_dialog(dialog: Dialog, owner: QWidget) -> bool:
         if not lifetime.done:
             loop.exec()
     except Exception as error:
-        logger.error("show dialog failed", error)
+        logger.error(_SHOW_DIALOG_FAILED, error)
         lifetime.finish(False)
     finally:
         lifetime.disconnect()
@@ -291,7 +292,7 @@ class _DialogDispatcher(QObject):
             _fill_dialog_footer(dialog)
             dialog.open()
         except Exception as error:
-            logger.error("show dialog failed", error)
+            logger.error(_SHOW_DIALOG_FAILED, error)
             self._finish(request)
             if _valid(dialog):
                 dialog.deleteLater()
@@ -327,24 +328,24 @@ def show_dialog_and_wait(
     app = QApplication.instance()
     if not _valid(app) or app.closingDown() or not _valid(parent):
         return False
-    options = dict(
-        title=title,
-        content=content,
-        parent=parent,
-        copyable=copyable,
-        rich_text=rich_text,
-        open_external_links=open_external_links,
-        hide_cancel=hide_cancel,
-        close_delay_seconds=close_delay_seconds,
-        width=width,
-        message_role=message_role,
-    )
+    options = {
+        "title": title,
+        "content": content,
+        "parent": parent,
+        "copyable": copyable,
+        "rich_text": rich_text,
+        "open_external_links": open_external_links,
+        "hide_cancel": hide_cancel,
+        "close_delay_seconds": close_delay_seconds,
+        "width": width,
+        "message_role": message_role,
+    }
     if QThread.currentThread() == app.thread():
         try:
             with exec_owned_dialog(_create_dialog(**options), owner=parent) as accepted:
                 return accepted
         except Exception as error:
-            logger.error("show dialog failed", error)
+            logger.error(_SHOW_DIALOG_FAILED, error)
             return False
     request = _DialogRequest(options)
     dispatcher = _get_dialog_dispatcher(app)

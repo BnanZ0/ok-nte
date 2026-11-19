@@ -148,10 +148,6 @@ class VolleyballTask(NTEOneTimeTask, RecordTask):
                 if self.send_key(key, interval=0.5):
                     self._play_count += 1
                     return ("j" if switch_key else "k"), not switch_key
-            case (self.MODE_SUP, _):
-                pass
-            case (self.MODE_WC, _):
-                pass
         return key, switch_key
 
     def handle_match_end(self):
@@ -172,8 +168,6 @@ class VolleyballTask(NTEOneTimeTask, RecordTask):
                         )
                 if box:
                     self.operate_click(box, after_sleep=0.5)
-            case self.MODE_SUP:
-                pass
             case self.MODE_WC:
                 if box := self.find_one(Labels.volleyball_wc_next):
                     self._wc_next = True

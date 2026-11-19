@@ -32,11 +32,9 @@ def _build_char_instance(
     from src.char.custom.CustomChar import CustomChar
 
     char_info = manager.get_character_info_by_id(char_id)
-    impl_id = (
-        impl_id_override
-        if impl_id_override is not None
-        else (char_info["impl_id"] if char_info else "")
-    )
+    impl_id = impl_id_override
+    if impl_id is None:
+        impl_id = char_info["impl_id"] if char_info else ""
     char_name = char_info["char_name"] if char_info else manager.get_impl_name(impl_id)
 
     resolved = False
@@ -77,9 +75,7 @@ def get_char_by_id(
     )
 
 
-def get_char_by_impl_id(
-    task: "BaseCombatTask", index: int, impl_id: str, confidence=1
-):
+def get_char_by_impl_id(task: "BaseCombatTask", index: int, impl_id: str, confidence=1):
     """Create a character implementation for a preset slot without a character record."""
     return get_char_by_id(task, index, "", confidence=confidence, impl_id=impl_id)
 

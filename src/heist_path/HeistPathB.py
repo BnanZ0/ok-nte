@@ -17,8 +17,6 @@ class HeistPathB(HeistPathA):
             self.log_round_info("配置避战角色浔，使用浔避战（路线B）")
             self.goto_lg1_skip_Hotori()
         self.wait_team_ui_settle()
-        # if not self.check_current_floor_str("办公"):
-        #     self.check_current_floor(1)
         self.switch_to_runner(check_switched=True)
         self.lg1_wp1_safer()
         self.lg1_wp2()
@@ -33,9 +31,7 @@ class HeistPathB(HeistPathA):
             self.lg1_wp4()
             self.lg1_wp5_avoid_combat_02()
         self.wait_team_ui_settle()
-        # if not self.check_current_floor_str("藏品"):
-        #     self.check_current_floor(2)
-        self.lg2_wp1_to_exit1()  # self.lg2_wp1_to_exit1_safer(False)
+        self.lg2_wp1_to_exit1()
         self.lg2_wp1_remains()
         self.lg2_wp2_to_exit2_safer()
         self.lg2_wp3_to_layzer_room()
@@ -587,12 +583,6 @@ class HeistPathB(HeistPathA):
         self.send_key_down("w")
         self.sleep(0.75)  # 4.03
         self.send_key_up("w")
-        # self.switch_to_runner()
-        # self.sleep(0.11)
-        # self.send_key_down("s")
-        # self.sleep(2.75)
-        # self.send_key_up("s")
-        # self.switch_to_runner()
         self.sleep(0.11)
         self.send_key_down("d")
         self.sleep(1.51)

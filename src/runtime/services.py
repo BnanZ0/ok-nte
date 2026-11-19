@@ -110,9 +110,8 @@ class RuntimeServices:
             return detector.detect(image, force=force, **options)
 
     def release_openvino_model(self, model) -> None:
-        with self._openvino_model_locks[model]:
-            with self._openvino_lock:
-                future = self._openvino_futures.pop(model, None)
+        with self._openvino_model_locks[model], self._openvino_lock:
+            future = self._openvino_futures.pop(model, None)
         if future is not None and not future.cancel() and future.exception() is None:
             # A cancelled native request can still be finishing on its worker.
             threading.Thread(

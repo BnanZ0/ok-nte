@@ -79,3 +79,4 @@ site/
 mid_lib/*
 !mid_lib/public
 .brooks-lint-history.json
+.sonarlint/

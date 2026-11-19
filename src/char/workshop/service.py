@@ -21,6 +21,8 @@ from src.char.workshop.installations import (
 )
 from src.char.workshop.models import CatalogEntry, PackageSlot, TeamPackage
 
+_MISSING_SOURCE_MESSAGE = "Installed source was not found"
+
 
 class WorkshopInstallErrorCode(StrEnum):
     INVALID_EXTERNAL_DIRECTORY = "invalid_external_directory"
@@ -187,7 +189,7 @@ class WorkshopPackageService:
                 ):
                     self.get_installations()
                     raise WorkshopInstallError(
-                        "Installed source was not found",
+                        _MISSING_SOURCE_MESSAGE,
                         WorkshopInstallErrorCode.INSTALLATION_MISSING,
                     )
                 try:
@@ -195,7 +197,7 @@ class WorkshopPackageService:
                 except (FileNotFoundError, NotADirectoryError) as error:
                     self.get_installations()
                     raise WorkshopInstallError(
-                        "Installed source was not found",
+                        _MISSING_SOURCE_MESSAGE,
                         WorkshopInstallErrorCode.INSTALLATION_MISSING,
                     ) from error
                 replacements[path] = contents.sources[remote]
@@ -206,7 +208,7 @@ class WorkshopPackageService:
             if not self._installation_exists(installation):
                 self.get_installations()
                 raise WorkshopInstallError(
-                    "Installed source was not found",
+                    _MISSING_SOURCE_MESSAGE,
                     WorkshopInstallErrorCode.INSTALLATION_MISSING,
                 )
             try:

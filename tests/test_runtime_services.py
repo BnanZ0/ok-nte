@@ -188,8 +188,9 @@ class OpenVINOServiceLifecycleTests(unittest.TestCase):
                     ) as create_detector,
                 ):
                     services.start()
+                    future = services._get_openvino_future(pending_model)
                     with self.assertRaises(CancelledError):
-                        services._get_openvino_future(pending_model).result(timeout=3)
+                        future.result(timeout=3)
                     if pending_model == "target":
                         with self.assertRaises(CancelledError):
                             services.openvino_detect(None, model="general")

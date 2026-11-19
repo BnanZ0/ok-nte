@@ -20,7 +20,7 @@ class WorkshopFormatError(ValueError):
 def parse_version(value: str) -> tuple[int, int, int]:
     """Validate a canonical major.minor.patch version and return its numeric order."""
     if len(value) > MAX_PACKAGE_VERSION_LENGTH or not re.fullmatch(
-        r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)", value
+        r"(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)", value, flags=re.ASCII
     ):
         raise WorkshopFormatError("version must use major.minor.patch, for example 1.0.0")
     major, minor, patch = value.split(".")

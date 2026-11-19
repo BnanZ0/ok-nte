@@ -998,11 +998,8 @@ class BaseCombatTask(CharElementUIMixin, CombatCheck):
 
     def check_combat(self):
         """检查当前是否处于战斗状态, 如果不是则抛出异常。"""
-        if self._in_combat:
-            if not self.in_combat():
-                # if self.debug:
-                #     self.screenshot('not_in_combat_calling_check_combat')
-                self.raise_not_in_combat("combat check not in combat")
+        if self._in_combat and not self.in_combat():
+            self.raise_not_in_combat("combat check not in combat")
 
     def in_combat(self):
         with self.skip_sleep_checks() as skip:
@@ -1261,9 +1258,6 @@ class BaseCombatTask(CharElementUIMixin, CombatCheck):
 
         feature = self.get_feature_by_name(Labels.ult_ready).mat
         mask = mask_function(feature)
-        # image = target_box.scale(1.1).crop_frame(self.frame)
-
-        # iu.show_images([feature, image], ["feature", "image"])
         search_area = gf.ultimate_ready_filter(target_box.crop_frame(self.frame))
         ret = find_best_overlap(feature, search_area, mask, target_box)
         conf = ret.confidence if ret else -1

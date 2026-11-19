@@ -123,10 +123,11 @@ class TestMidiPitchMapping(unittest.TestCase):
             for index in range(30)
         )
 
+        playable_pitches = frozenset({60, 64, 67, 72})
         with self.assertRaises(PitchRemapCancelled):
             remap_note_pitches(
                 notes,
-                frozenset({60, 64, 67, 72}),
+                playable_pitches,
                 should_cancel=lambda: True,
             )
 

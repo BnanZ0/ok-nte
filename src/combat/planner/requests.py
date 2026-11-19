@@ -37,7 +37,7 @@ class _RequestLifetime:
 
     parent: _WindowRequest | None = field(default=None, repr=False)
 
-    def expired(self, now: float) -> bool:
+    def expired(self) -> bool:
         if self.handle.is_expired or (self.parent is not None and self.parent.handle.is_closed):
             return True
         if self.until is None or self.until is NEVER_EXPIRES:

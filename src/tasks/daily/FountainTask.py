@@ -25,7 +25,7 @@ class FountainTask(NTEOneTimeTask, BaseNTETask):
     SIGN_SKIP_TIMEOUT = 20
     TASK_TIMEOUT = 180
     TASK_RETRY_COUNT = 1
-    FOUNTAIN_SIGN_COUNT_RE = re.compile(r"(\d+)/(\d+)")
+    FOUNTAIN_SIGN_COUNT_RE = re.compile(r"(?<!\d)(\d++)/(\d++)")
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

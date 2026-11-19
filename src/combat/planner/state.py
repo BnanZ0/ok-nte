@@ -5,8 +5,6 @@ from typing import TYPE_CHECKING, Callable, Iterable
 
 from ok import Logger
 
-from src.utils import clock
-
 from .requests import (
     _Request,
     _RouteRequest,
@@ -78,16 +76,15 @@ class CombatState:
             self._pruning = False
 
     def _prune_requests(self) -> bool:
-        now = clock.now()
         # Parent lifetimes are committed before checking their children.
         for request in self.active_requests:
-            if isinstance(request, _WindowRequest) and request.expired(now):
+            if isinstance(request, _WindowRequest) and request.expired():
                 request.finish(RequestStatus.EXPIRED)
                 request.close()
-        changed = self.expire_locked_route(now)
+        changed = self.expire_locked_route()
         active_requests = []
         for request in self.active_requests:
-            if request.expired(now):
+            if request.expired():
                 request.finish(RequestStatus.EXPIRED)
                 request.close()
                 changed = True
@@ -96,7 +93,7 @@ class CombatState:
         self.active_requests = active_requests
         lifecycle_requests = []
         for request in self.lifecycle_requests:
-            if request.expired(now):
+            if request.expired():
                 request.finish(RequestStatus.EXPIRED)
                 request.close()
                 changed = True
@@ -105,7 +102,7 @@ class CombatState:
         self.lifecycle_requests = lifecycle_requests
         pending_routes = []
         for request in self.pending_routes:
-            if request.expired(now):
+            if request.expired():
                 request.finish(RequestStatus.EXPIRED)
                 request.close()
                 changed = True
@@ -114,12 +111,10 @@ class CombatState:
         self.pending_routes = pending_routes
         return changed
 
-    def expire_locked_route(self, now: float | None = None) -> bool:
+    def expire_locked_route(self) -> bool:
         """仅检查当前 route 的过期条件, 返回是否已按过期规则结束。"""
 
-        if now is None:
-            now = clock.now()
-        if self.locked_route is not None and self.locked_route.expired(now):
+        if self.locked_route is not None and self.locked_route.expired():
             request = self.locked_route
             self.locked_route = None
             step = request.current_step()

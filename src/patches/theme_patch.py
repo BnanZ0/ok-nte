@@ -140,12 +140,11 @@ def install_theme_patch():
     kit_buttons.kit_icon = button_icon
 
     def build_stylesheet(manager) -> str:
-        # Let Qt draw radio buttons while retaining the shared checkbox rules.
+        # Remove radio-only rules at line starts and radio selectors after commas.
         stylesheet = re.sub(
-            r"^QRadioButton\b[^,{}]*\{[^{}]*\}\n?|,\s*QRadioButton\b[\w:-]*",
+            r"(?<![^\n])QRadioButton\b[^,{}]*\{[^{}]*\}\n?|,\s*QRadioButton\b[\w:-]*",
             "",
             original_build_stylesheet(manager),
-            flags=re.MULTILINE,
         )
         on_accent = manager.color("on_accent").name()
         check_icon = icon_file("check", on_accent, 2.6)

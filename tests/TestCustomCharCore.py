@@ -675,7 +675,7 @@ class TestCustomCharCore(unittest.TestCase):
             char_id=char_id,
             impl_id=combo_id,
         )
-        self.assertTrue(len(char.parsed_combo) > 0)
+        self.assertGreater(len(char.parsed_combo), 0)
 
         # 1. 無括號無參數的指令: skill
         self.assertEqual(char.parsed_combo[0][0], "skill")

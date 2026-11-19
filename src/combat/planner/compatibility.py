@@ -128,6 +128,9 @@ def native_action[**P](
         arguments = parameters.bind(*args, **call_kwargs)
         return lambda context: method(*arguments.args, **arguments.kwargs)
 
+    if priority_ready is None:
+        priority_ready = (lambda _: availability()) if availability is not None else None
+
     return _BoundAction(
         name=name,
         tags=tags,
@@ -136,13 +139,7 @@ def native_action[**P](
         can_execute=lambda context: (
             (availability is None or availability()) and (condition is None or condition(context))
         ),
-        priority_ready=(
-            priority_ready
-            if priority_ready is not None
-            else (lambda _: availability())
-            if availability is not None
-            else None
-        ),
+        priority_ready=priority_ready,
         execute=bind(),
         bind=bind,
         _legacy_method=method,

@@ -209,7 +209,10 @@ class TestCharImplDb(unittest.TestCase):
                     self.assertIn("hero.py", message)
                     self.assertIn("config.json", message)
                     for private_part in (
-                        "private-server", "private-share", "private-account", "Private User"
+                        "private-server",
+                        "private-share",
+                        "private-account",
+                        "Private User",
                     ):
                         self.assertNotIn(private_part, message)
                         self.assertNotIn(private_part, logger.warning.call_args.args[0])
@@ -260,7 +263,7 @@ class TestCharImplDb(unittest.TestCase):
             database.get_team_presets()[0]["slots"][0], {"char_id": "", "impl_id": combo_id}
         )
         self.assertEqual(database.apply_team_preset(preset["id"]), [])
-        self.assertTrue(database.apply_team_preset(preset["id"], fixed=True) is not None)
+        self.assertIsNotNone(database.apply_team_preset(preset["id"], fixed=True))
         self.assertEqual(database.get_fixed_team()["slots"][0]["impl_id"], combo_id)
 
         CustomCharDb.reset_instance()

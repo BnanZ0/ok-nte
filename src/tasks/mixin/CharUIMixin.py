@@ -164,15 +164,12 @@ class CharUIMixin(BaseTask):
         return self._get_current_char_detection(frame=frame, char_count=char_count).scores
 
     def get_current_char_index(self, char_count=None):
-        # frame = self.frame
         detection = self._get_current_char_detection(char_count=char_count)
         if detection.accepted:
             self.log_debug(
                 f"current_char found at {detection.index} "
                 f"with score {detection.score:.4f} ({detection.reason})"
             )
-            # if detection.score > 0.5:
-            #     self.screenshot("low_conf", frame)
             return detection.index
 
         self.log_debug(
@@ -208,7 +205,6 @@ class CharUIMixin(BaseTask):
         return results
 
     def _update_char_ui_offset(self):
-        # now = self.clock.now()
         arr = self._multi_stage_char_match()
         results = [
             c.x < self._get_char_text_box(idx).x for idx, c in enumerate(arr) if c is not None

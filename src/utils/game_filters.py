@@ -37,8 +37,6 @@ def isolate_text_to_black(cv_image):
 
 def isolate_lv_to_white(cv_image):
     cv_image = iu.restore_world_brightness(cv_image)
-    # mask_white = iu.create_color_mask(cv_image, lv_white_color, to_bgr=False)
-    # mask_red = iu.create_color_mask(cv_image, lv_red_color, to_bgr=False)
     mask_gray = iu.filter_by_hsv(cv_image, lv_gray_hsv, return_mask=True)
     mask_white = iu.filter_by_hsv(cv_image, lv_white_hsv, return_mask=True)
     mask_red = iu.filter_by_hsv(cv_image, lv_red_hsv, return_mask=True)

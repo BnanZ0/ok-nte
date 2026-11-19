@@ -82,7 +82,8 @@ class DartTask(NTEOneTimeTask, BaseNTETask):
         )
         current = self.parse_ocr_number(ticket)
         if current <= 0:
-            return
+            return False
         if self.ticket == current:
             return True
         self.ticket = current
+        return False

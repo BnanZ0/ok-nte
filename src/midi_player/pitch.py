@@ -149,22 +149,13 @@ def choose_best_transpose(
     max_playable = max(c[1] for c in candidates)
     threshold = max_playable - (total_notes * tolerance_ratio)
 
-    best_transpose = 0
-    best_score = None
+    def score(candidate):
+        transpose, playable_count, distance = candidate
+        if playable_count >= threshold:
+            return (1, -abs(transpose), playable_count, -distance)
+        return (0, playable_count, -abs(transpose), -distance)
 
-    for transpose, playable_count, distance in candidates:
-        is_top_tier = playable_count >= threshold
-
-        if is_top_tier:
-            score = (1, -abs(transpose), playable_count, -distance)
-        else:
-            score = (0, playable_count, -abs(transpose), -distance)
-
-        if best_score is None or score > best_score:
-            best_score = score
-            best_transpose = transpose
-
-    return best_transpose
+    return max(candidates, key=score)[0]
 
 
 def _time_groups(

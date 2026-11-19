@@ -39,7 +39,7 @@ class GiftTask(NTEOneTimeTask, BaseNTETask):
     MAX_SIDEBAR_PAGES = GIFT_LAYOUT.max_sidebar_pages
     SEND_BUTTON = GIFT_LAYOUT.send_button
     COUNTER_BOX = GIFT_LAYOUT.counter_box
-    COUNTER_RE = re.compile(r"(\d+)\s*/\s*3")
+    COUNTER_RE = re.compile(r"(?<!\d)(\d++)\s*+/\s*+3")
     MODE_CAPTURE = "capture"
     MODE_RUN = "run"
 
@@ -366,12 +366,14 @@ class GiftTask(NTEOneTimeTask, BaseNTETask):
         self.operate_click(gift_box)
         self.sleep(0.3)
         self.operate_click(*self.SEND_BUTTON)
+
+        def has_sent_gift():
+            remaining = self._read_character_gift_remaining()
+            return remaining is not None and remaining < previous_count
+
         return bool(
             self.wait_until(
-                lambda: (
-                    (remaining := self._read_character_gift_remaining()) is not None
-                    and remaining < previous_count
-                ),
+                has_sent_gift,
                 time_out=4,
                 raise_if_not_found=False,
                 settle_time=0.2,

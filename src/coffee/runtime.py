@@ -133,10 +133,9 @@ class CoffeeRuntime:
     )
     TYCOON_ASCII_MARKERS = ("CITYTYCOON", "CTYTYCOON", "TYCOON")
     # 可能性的回溯通过 possessive (``++`` / ``?+``) 量词消除, 由 Python 3.11+ 支持.
-    # 保留 ``[0-9]`` 而非 ``\d`` 以避免 ``\d`` 匹配全角/Unicode 十进制数字时
-    # ``float()`` 抛出 ValueError. ``\s?+`` 在保持 0/1 个空格的同时阻止回溯,
-    # 使 SonarCloud python:S5852 不再判定为 polynomial backtracking 风险.
-    PRICE_RE = re.compile(r"([0-9]++(?:\.[0-9]++)?+)\s?+/\s?+h", re.IGNORECASE)
+    # 价格只接受 ASCII 数字, 分隔符仍接受 Unicode 空白.
+    # 数字前的断言避免从同一串数字的内部反复尝试匹配.
+    PRICE_RE = re.compile(r"(?a:(?<!\d)(\d++(?:\.\d++)?+))\s?+/\s?+h", re.IGNORECASE)
 
     def __init__(self, task):
         self.task = task
@@ -679,7 +678,7 @@ class CoffeeRuntime:
             dy = abs(self._center_y(box) - price_center_y)
             if dy < 180:
                 candidates.append((dy, text))
-        return sorted(candidates)[0][1] if candidates else ""
+        return min(candidates)[1] if candidates else ""
 
     def _nearest_name(self, price_box, boxes):
         price_center_x = self._center_x(price_box)
@@ -693,7 +692,7 @@ class CoffeeRuntime:
             dy = self._center_y(box) - price_center_y
             if dx < 180 and 0 < dy < 120:
                 candidates.append((dy, dx, text))
-        return sorted(candidates)[0][2] if candidates else ""
+        return min(candidates)[2] if candidates else ""
 
     def _matching_option(self, options, identity):
         for option in options:
@@ -712,7 +711,7 @@ class CoffeeRuntime:
         candidates = [slot for slot in slots if slot.target is not None]
         if not candidates:
             return None
-        return sorted(candidates, key=lambda slot: self._center_x(slot.target))[-1]
+        return max(reversed(candidates), key=lambda slot: self._center_x(slot.target))
 
     def _product_switch_plan(self, slots, options, trend_category, target_count=None):
         current_options = self._current_product_options(slots, options)
@@ -746,7 +745,7 @@ class CoffeeRuntime:
         used_current = set()
         selected_count = len(current_options)
         for option in replacements:
-            if not self._replacement_option_is_stable(option, options, current_options):
+            if not self._replacement_option_is_stable(option, current_options):
                 self.actions.append(f"product_replacement_unstable:{option.identity}")
                 continue
             replacement_price = int(option.price_value)
@@ -770,7 +769,7 @@ class CoffeeRuntime:
             switches.append((current, option))
         return switches
 
-    def _replacement_option_is_stable(self, option, options, current_options):
+    def _replacement_option_is_stable(self, option, current_options):
         key = self._identity_key(option.identity)
         if not key:
             return False
@@ -888,7 +887,7 @@ class CoffeeRuntime:
             if self._same_price_current_conflict(option, conflict_options):
                 self.actions.append(f"product_fill_same_price_conflict:{option.identity}")
                 continue
-            if not self._replacement_option_is_stable(option, options, current_options):
+            if not self._replacement_option_is_stable(option, current_options):
                 self.actions.append(f"product_replacement_unstable:{option.identity}")
                 continue
             candidates.append(option)
@@ -1059,7 +1058,7 @@ class CoffeeRuntime:
         candidates = []
         crop_height = bottom - top
         for index in range(1, count):
-            x, y, box_width, box_height, area = stats[index]
+            _, _, box_width, box_height, area = stats[index]
             if not (100 <= area <= 2500 and 10 <= box_width <= 90 and 10 <= box_height <= 90):
                 continue
             center_x = float(centroids[index][0]) + left
@@ -1071,7 +1070,7 @@ class CoffeeRuntime:
                 candidates.append(slot)
         if not candidates:
             return None
-        return sorted(candidates, key=lambda item: (-item.confidence, item.x))[0]
+        return min(candidates, key=lambda item: (-item.confidence, item.x))
 
     def _empty_slot_box_from_red_marker(self, frame, marker_x, marker_y):
         import cv2
@@ -1335,7 +1334,7 @@ class CoffeeRuntime:
 
     def _safe_product_option_boxes(self, options=None):
         boxes = []
-        for option in list(options or []):
+        for option in options or ():
             box = getattr(option, "target", None)
             width = int(getattr(box, "width", 0) or 0)
             height = int(getattr(box, "height", 0) or 0)
@@ -1549,7 +1548,7 @@ class CoffeeRuntime:
             candidates.append((not exact, not short, len(normalized), -self._center_y(box), box))
         if not candidates:
             return None
-        return sorted(candidates)[0][-1]
+        return min(candidates)[-1]
 
     def ocr_region(self, region):
         try:

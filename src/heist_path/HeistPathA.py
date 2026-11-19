@@ -826,12 +826,6 @@ class HeistPathA(HeistPath):
         self.send_key_down("w")
         self.sleep(0.75)  # 4.03
         self.send_key_up("w")
-        # self.switch_to_runner()
-        # self.sleep(0.11)
-        # self.send_key_down("s")
-        # self.sleep(2.75)
-        # self.send_key_up("s")
-        # self.switch_to_runner()
         self.sleep(0.11)
         self.send_key_down("d")
         self.sleep(1.41)

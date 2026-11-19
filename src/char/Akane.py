@@ -48,10 +48,9 @@ class Akane(BaseChar):
         return plan
 
     def perform_entry(self):
-        if not self.in_ult():
-            if self.click_ultimate():
-                self.in_ult_start = self.clock.now()
-                self.cast_skill()
+        if not self.in_ult() and self.click_ultimate():
+            self.in_ult_start = self.clock.now()
+            self.cast_skill()
         if self.in_ult():
             self.perform_ult_combo()
         else:

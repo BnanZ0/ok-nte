@@ -812,8 +812,9 @@ class TestCombatPlanner(_PlannerTestCase):
             self.assertIsNone(windows[0].request_route([]))
             with self.assertRaisesRegex(RuntimeError, "expired window"):
                 windows[0].request_route(a.click_skill)
+            reservation = Planner.Reserve.action(a, slot=ActionSlot.SKILL)
             with self.assertRaisesRegex(RuntimeError, "expired window"):
-                windows[0].reserve_actions([Planner.Reserve.action(a, slot=ActionSlot.SKILL)])
+                windows[0].reserve_actions([reservation])
         self.assertTrue(live.is_pending)
         self.assertIs(planner.state.locked_route.handle, live)
 
@@ -3015,9 +3016,7 @@ class TestCombatPlanner(_PlannerTestCase):
         teammate = FakeChar(1, "teammate", tags={ActionTag.SKILL_ACTION})
         idle = FakeChar(2, "idle", can_execute=lambda: False)
         planner = self._planner([requester, teammate, idle])
-        handle = self._publish_method_route(
-            planner, requester, teammate, return_to_source=True
-        )
+        handle = self._publish_method_route(planner, requester, teammate, return_to_source=True)
         planner.perform_current_char(teammate)
 
         planner.perform_current_char(idle)
@@ -3042,10 +3041,12 @@ class TestCombatPlanner(_PlannerTestCase):
                     steps.append(FollowupStep.for_switch(requester, wait_for_turn=False))
                 else:
                     requester.skill_ready = False
-                    steps.extend([
-                        FollowupStep.for_switch(requester, wait_for_turn=False),
-                        Planner.Route.optional(requester.click_skill),
-                    ])
+                    steps.extend(
+                        [
+                            FollowupStep.for_switch(requester, wait_for_turn=False),
+                            Planner.Route.optional(requester.click_skill),
+                        ]
+                    )
                 handle = self._publish_method_route(
                     planner, requester, steps, return_to_source=True
                 )
@@ -3414,7 +3415,7 @@ class TestCombatPlanner(_PlannerTestCase):
 
         planner.perform_current_char(zero)
 
-        self.assertEqual(planner.state.locked_route, None)
+        self.assertIsNone(planner.state.locked_route)
         self.assertTrue(context.is_slot_available(nanally, ActionSlot.SKILL))
 
     def test_reservation_can_release_when_route_is_expired(self):

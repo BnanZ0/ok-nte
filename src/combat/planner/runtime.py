@@ -110,11 +110,13 @@ class _PlannerRuntime:
         window: _WindowRequest | None = None,
         cache: dict[int, _PlanSnapshot] | None = None,
     ) -> Iterator[_Frame]:
-        previous = self._active_frame
+        if cache is None:
+            previous = self._active_frame
+            cache = previous.cache if previous is not None else {}
         frame = _Frame(
             owner,
             phase,
-            cache=cache if cache is not None else (previous.cache if previous else {}),
+            cache=cache,
             session=session,
             window=window,
         )
@@ -212,9 +214,11 @@ class _PlannerRuntime:
         def invoke():
             self._validate_context(context)
             outer = self._active_frame is None
-            with _cleanup_with(self._settle if outer else lambda: None):
-                with self._frame(context.current_char, "callback"):
-                    return callback()
+            with (
+                _cleanup_with(self._settle if outer else lambda: None),
+                self._frame(context.current_char, "callback"),
+            ):
+                return callback()
 
         return invoke
 
@@ -267,7 +271,7 @@ class _PlannerRuntime:
                 self._prune_expired_requests()
                 while self._commands:
                     request = self._commands.popleft()
-                    if request.expired(self.task.clock.now()):
+                    if request.expired():
                         request.finish(RequestStatus.EXPIRED)
                         request.close()
                     elif isinstance(request, _RouteRequest) and self._entry_depth:
@@ -304,7 +308,7 @@ class _PlannerRuntime:
             raise RuntimeError("window belongs to an inactive planner cycle")
         context = self.context_for(window._source)
         request = window._request
-        if request.handle.is_closed or request.expired(self.task.clock.now()):
+        if request.handle.is_closed or request.expired():
             raise RuntimeError("cannot add requests to an expired window")
         return context
 

@@ -357,10 +357,9 @@ class TestWorkshop(unittest.TestCase):
     def test_installation_record_rejects_unsafe_mapping_and_preserves_invalid_json(self):
         path = self.service.installation_store.path
         path.write_text("invalid json", encoding="utf-8")
+        contents = ArchiveContents(make_package(), {"sample.py": SOURCE})
         with self.assertRaises(WorkshopInstallError) as caught:
-            self.service.install_contents(
-                ArchiveContents(make_package(), {"sample.py": SOURCE}), "Local", "original"
-            )
+            self.service.install_contents(contents, "Local", "original")
         self.assertEqual(caught.exception.code, WorkshopInstallErrorCode.INVALID_INSTALLATIONS)
         self.assertEqual(path.read_text(encoding="utf-8"), "invalid json")
         self.assertFalse((self.external_dir / "original").exists())
@@ -1269,8 +1268,9 @@ class TestWorkshopModels(unittest.TestCase):
         for version in ("0.0.0", "1.9.0", "1.10.0"):
             data = {**make_package().to_dict(), "version": version}
             self.assertEqual(TeamPackage.from_dict(data).version, version)
+        invalid_version = {**make_package().to_dict(), "version": "1.0"}
         with self.assertRaises(WorkshopFormatError):
-            TeamPackage.from_dict({**make_package().to_dict(), "version": "1.0"})
+            TeamPackage.from_dict(invalid_version)
 
     def test_catalog_groups_by_author_and_name_not_members_or_commit_time(self):
         old = CatalogEntry(
@@ -1313,8 +1313,9 @@ class TestWorkshopArchive(unittest.TestCase):
         with zipfile.ZipFile(invalid, "w") as archive:
             archive.writestr("team.json", json.dumps(make_package().to_dict()))
             archive.writestr("folder/sample.py", SOURCE)
+        invalid_bytes = invalid.getvalue()
         with self.assertRaises(WorkshopFormatError):
-            load_archive(invalid.getvalue())
+            load_archive(invalid_bytes)
 
     def test_archive_rejects_directory_entries_and_symbolic_links(self):
         archive_path = self.temp_dir / "invalid.zip"

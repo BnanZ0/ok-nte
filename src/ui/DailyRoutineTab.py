@@ -470,7 +470,11 @@ class DailyRoutineTab(CustomTab):
             task is not None
             and task.enabled
             and task.running
-            and (not self._info_closed if selected_id is None else selected_id == task.current_task_key)
+            and (
+                not self._info_closed
+                if selected_id is None
+                else selected_id == task.current_task_key
+            )
         )
         with QSignalBlocker(self.tabs):
             self.tabs.set_current("info" if show_info else "settings")
@@ -529,6 +533,9 @@ class DailyRoutineTab(CustomTab):
         description = getattr(selected, "description", "")
         self.detail_description.setText(self.tr(description) if description else "")
         self.detail_description.setVisible(bool(description))
+        self._show_detail_page(routine_selected, info, has_info)
+
+    def _show_detail_page(self, routine_selected, info, has_info):
         self.tabs.item("info").setVisible(has_info)
         if not has_info and self.tabs.current_key() == "info":
             with QSignalBlocker(self.tabs):
@@ -727,6 +734,11 @@ class DailyRoutineTab(CustomTab):
             if self.routine_form is not None:
                 self.routine_form.update_config()
         self._was_active = active
+        self._refresh_controls(task, active, running, paused)
+        self._refresh_row_statuses(task)
+        self._show_detail()
+
+    def _refresh_controls(self, task, active, running, paused):
         items = self._visible_items()
         complete = bool(
             task is not None
@@ -745,16 +757,17 @@ class DailyRoutineTab(CustomTab):
         )
         self.stop_button.setVisible(active)
         self.pause_button.setVisible(running and not paused)
-        state = (
-            self.tr("Paused")
-            if paused
-            else self.tr("Running")
-            if running
-            else self.tr("Queued")
-            if active
-            else ""
-        )
+        if paused:
+            state = self.tr("Paused")
+        elif running:
+            state = self.tr("Running")
+        elif active:
+            state = self.tr("Queued")
+        else:
+            state = ""
         self.status_label.setText(state)
+
+    def _refresh_row_statuses(self, task):
         self._last_statuses = getattr(task, "task_status", None)
         # The executor replaces this map only when it actually starts a new
         # routine. While queued, do not display the previous run's results.
@@ -782,7 +795,6 @@ class DailyRoutineTab(CustomTab):
             row.status_label.setVisible(bool(text))
             if text:
                 self._row_status_text[task_id] = text
-        self._show_detail()
 
     def _fill_info(self, info):
         self.info_table.setRowCount(len(info))

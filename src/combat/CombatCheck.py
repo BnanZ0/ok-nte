@@ -440,10 +440,6 @@ class CombatCheck(BaseNTETask):
                 self.find_lv_future = None
 
         self.find_lv_future.add_done_callback(callback)
-        # latency = self._find_lv_latency if ret is not None else -1
-        # logger.debug(
-        #     f"find_lv: sync False, result {ret}, cost {latency:.3f}s"
-        # )
         return ret
 
     def async_combat_detect(self, target=True, lv=True, exhaustive=False, force=False):

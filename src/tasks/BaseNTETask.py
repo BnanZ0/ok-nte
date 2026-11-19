@@ -33,7 +33,7 @@ from src.utils import vision_utils as vu
 from src.utils.log_gate import LogGateMixin
 
 logger = Logger.get_logger(__name__)
-stamina_re = re.compile(r"(\d+)/(\d+)")
+stamina_re = re.compile(r"(?<!\d)(\d++)/(\d++)")
 MSG_MAIN_DETECTION_FAILED = (
     "主界面检测失败。建议操作: \n"
     "1. 关闭显卡滤镜与锐化功能；\n"
@@ -380,7 +380,6 @@ class BaseNTETask(
     def check_mini_map_arrow(self) -> list[dict]:
         frame = self.frame
         box = self.box_of_screen(0.0691, 0.1083, 0.0949, 0.1493, name="in_world")
-        # now = self.clock.now()
         res, _ = self.find_rotated_template(
             Labels.mini_map_arrow,
             box=box,
@@ -769,13 +768,13 @@ class BaseNTETask(
         return self.find_one(Labels.monthly_card)
 
     def check_monthly_card(self):
-        if self.next_monthly_card_start is not None:
-            if (
-                0 < (datetime.now(UTC) - self.next_monthly_card_start).total_seconds() < 120
-                and not self.is_in_team()
-                and self.find_monthly_card()
-            ):
-                return True
+        if (
+            self.next_monthly_card_start is not None
+            and 0 < (datetime.now(UTC) - self.next_monthly_card_start).total_seconds() < 120
+            and not self.is_in_team()
+            and self.find_monthly_card()
+        ):
+            return True
         return False
 
     def handle_monthly_card(self, log=True):
@@ -847,18 +846,12 @@ class BaseNTETask(
                 return True
 
     def find_treasure(self):
-        # now = self.clock.now()
-        result = self.find_one(
+        return self.find_one(
             Labels.treasure,
             box=self.pos.screen.main_viewport.to_box(),
             threshold=0.7,
             use_gray_scale=True,
         )
-        # if result:
-        #     self.log_info(
-        #         f"find_treasure conf {result.confidence}, cost {self.clock.now() - now}s"
-        #     )
-        return result
 
     def walk_to_treasure(self):
         if self.walk_to_box(

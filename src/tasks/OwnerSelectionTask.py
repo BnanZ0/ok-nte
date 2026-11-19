@@ -105,11 +105,10 @@ class OwnerSelectionTask(NTEOneTimeTask, RecordTask):
             super().show_notification()
 
     def do_run(self):
-        if self.config.get(self.CONF_ROB):
-            if not self.confirm_mouse_control_warning(
-                mode=self.tr(self.CONF_ROB), close_delay_seconds=2
-            ):
-                return
+        if self.config.get(self.CONF_ROB) and not self.confirm_mouse_control_warning(
+            mode=self.tr(self.CONF_ROB), close_delay_seconds=2
+        ):
+            return
         self.start_rounds()
 
         self.wait_until(

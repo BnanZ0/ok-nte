@@ -134,9 +134,8 @@ class CombatPlanner(_PlannerRuntime):
         """让角色发布随队伍生命周期生效的长期 planner 策略。"""
 
         for char in self.state.chars:
-            with _cleanup_with(self._settle):
-                with self._frame(char, "policy"):
-                    char.combat_policies()
+            with _cleanup_with(self._settle), self._frame(char, "policy"):
+                char.combat_policies()
 
     def _resolve_route_method(self, char: "BaseChar", method) -> _Action | None:
         frame = self._active_frame
@@ -413,10 +412,12 @@ class CombatPlanner(_PlannerRuntime):
         with _cleanup_with(self._settle):
             self._entry_depth += 1
             try:
-                with self._frame(session.char, "entry", session=session):
-                    with _cleanup_with(self._settle):
-                        self._actions_for(session.char)
-                        yield
+                with (
+                    self._frame(session.char, "entry", session=session),
+                    _cleanup_with(self._settle),
+                ):
+                    self._actions_for(session.char)
+                    yield
             finally:
                 self._entry_depth -= 1
 

@@ -58,14 +58,11 @@ class CoffeeTask(NTEOneTimeTask, BaseNTETask):
                 self.CONF_PRICE_TABLE: "价格表识别(disabled 跳过商品优化以避免未识别价格的替换)",
             }
         )
-        options = [self.MODE_CLAIM_AND_RESTOCK]
-        # if self.is_chinese():
-        #     options.append(self.MODE_AUTO)
         self.config_type.update(
             {
                 self.CONF_MODE: {
                     "type": "drop_down",
-                    "options": options,
+                    "options": [self.MODE_CLAIM_AND_RESTOCK],
                     "sub_configs": {
                         self.MODE_AUTO: [
                             self.CONF_COLLECT_INCOME,

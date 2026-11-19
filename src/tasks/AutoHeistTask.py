@@ -538,17 +538,19 @@ class AutoHeistTask(NTEOneTimeTask, BaseCombatTask):
 
     # 离开粉爪副本
     def exit_heist(self):
-        if not self.wait_until(
-            self.has_extract_panel,
-            pre_action=lambda: self.send_key("f", interval=1),
+        if (
+            not self.wait_until(
+                self.has_extract_panel,
+                pre_action=lambda: self.send_key("f", interval=1),
+            )
+            and self.is_in_team()
         ):
-            if self.is_in_team():
-                if self.in_heist():
-                    self.log_round_info("未发现撤离面板且在粉爪副本中，离开副本")
-                    self.abort_heist()
-                else:
-                    self.log_round_info("当前已在队伍界面且不在粉爪副本中，跳过离开副本")
-                return False
+            if self.in_heist():
+                self.log_round_info("未发现撤离面板且在粉爪副本中，离开副本")
+                self.abort_heist()
+            else:
+                self.log_round_info("当前已在队伍界面且不在粉爪副本中，跳过离开副本")
+            return False
 
         self.sleep(1)
         rewards = self.get_heist_rewards()

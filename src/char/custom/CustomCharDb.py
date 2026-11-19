@@ -277,7 +277,7 @@ class CustomCharDb:
                     modified = True
             char_data["feature_ids"] = valid_feature_ids
 
-        for feature_id in list(db["features"].keys()):
+        for feature_id in list(db["features"]):
             path = os.path.join(self.features_dir, f"{feature_id}.png")
             if not os.path.exists(path):
                 del db["features"][feature_id]

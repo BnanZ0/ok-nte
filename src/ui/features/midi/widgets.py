@@ -200,11 +200,10 @@ class SongLibraryTree(QTreeWidget):
             if self.isRightToLeft()
             else rect.right() + 1 - (self.indentation() + size) // 2
         )
-        arrow = (
-            "chevron-down"
-            if self.isExpanded(index)
-            else ("chevron-left" if self.isRightToLeft() else "chevron-right")
-        )
+        if self.isExpanded(index):
+            arrow = "chevron-down"
+        else:
+            arrow = "chevron-left" if self.isRightToLeft() else "chevron-right"
         glyph = QRect(x, rect.center().y() - size // 2, size, size)
         icon(arrow, "text_secondary").paint(painter, glyph)
 
