@@ -12,6 +12,7 @@ from src.utils import image_utils as iu
 
 class CinemaDateTask(NTEOneTimeTask, BaseNTETask):
     CINEMA_DATE_TARGET = "约会目标"
+    CONF_TARGET_FALLBACK = "允许约会目标兜底"
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -23,6 +24,13 @@ class CinemaDateTask(NTEOneTimeTask, BaseNTETask):
         self.default_config.update(
             {
                 self.CINEMA_DATE_TARGET: "",
+                self.CONF_TARGET_FALLBACK: False,
+            }
+        )
+        self.config_description.update(
+            {
+                self.CINEMA_DATE_TARGET: "支持正则表达式匹配目标名称, 留空时选择顶部可选目标",
+                self.CONF_TARGET_FALLBACK: "指定目标找不到或不可用时, 尝试选择顶部可选目标",
             }
         )
 
@@ -174,7 +182,7 @@ class CinemaDateTask(NTEOneTimeTask, BaseNTETask):
             else:
                 self.log_info(f"已滚动 {page + 1} 次, 达到滚动上限")
 
-            if not target_box:
+            if not target_box and self.config.get(self.CONF_TARGET_FALLBACK, True):
                 self.log_info("尝试使用顶部可选目标")
                 for _ in range(page):
                     target_box = self._top_selectable_target(mark_as_fallback=True)

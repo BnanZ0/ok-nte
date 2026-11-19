@@ -1832,3 +1832,12 @@ msgstr "Selected notes"
 
 msgid "体力本"
 msgstr "Stamina"
+
+msgid "允许约会目标兜底"
+msgstr "Allow date target fallback"
+
+msgid "支持正则表达式匹配目标名称, 留空时选择顶部可选目标"
+msgstr "Supports regex target matching; blank selects the top available target."
+
+msgid "指定目标找不到或不可用时, 尝试选择顶部可选目标"
+msgstr "If the specified target is missing or unavailable, try the top available target."
