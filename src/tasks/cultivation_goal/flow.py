@@ -3,16 +3,20 @@
 from __future__ import annotations
 
 import re
+import unicodedata
 from dataclasses import replace
 
 import cv2
 
+from src.Labels import Labels
 from src.tasks.cultivation_goal.core import (
+    RATIO_RE,
     Action,
     LootLedger,
     MaterialRow,
     PlanConfig,
     PlanState,
+    Ratio,
     decide,
     diff_ownage,
     effective_stamina,
@@ -20,6 +24,7 @@ from src.tasks.cultivation_goal.core import (
     parse_ratios,
     plan_burst,
     parse_weekly_remaining,
+    repair_swallowed_slash,
     row_gap,
 )
 from src.tasks.cultivation_goal.positions import HUNTER_BOSS_NAMES, POS, TARGET_ROWS
@@ -97,7 +102,12 @@ class CultivationGoalMixin:
             loot = []
             partial = False
             for match in matches:
-                count = self._cg_read_reward_count(match.count_box)
+                # 副本结算页数量印在卡片下沿外, 野外清单在卡内右下: 各自优先, 读不出再换另一个框。
+                below = getattr(match, "count_box_below", None)
+                if tag == "副本" and below:
+                    count = self._cg_read_reward_count(below, match.count_box)
+                else:
+                    count = self._cg_read_reward_count(match.count_box)
                 if count is None or count <= 0:
                     self._cg_note("warning", f"奖励卡 {match.dungeon} 数量读不出, 该格跳过")
                     partial = True
@@ -135,27 +145,35 @@ class CultivationGoalMixin:
             self._cg_note("warning", f"奖励清单识别失败: {error}")
             return []
 
-    def _cg_read_reward_count(self, box_ratio: tuple[float, float, float, float]) -> int | None:
-        """读奖励卡右下角数量; 只接受唯一一个数字段, 多组数字视为读不出。"""
-        try:
-            box = self.box_of_screen(*box_ratio, name="cg_reward_count", hcenter=True)
-            results = self.ocr(box=box, match=None) or []
-            import re as _re
-            for result in results:
-                text = (result.name or "").strip()
-                if not text:
-                    continue
-                # "×4"这类取 4; "4张5个"把两组数字拼起来就是错账, 宁可重读也不入账。
-                groups = _re.findall(r"\d+", text)
-                if len(groups) > 1:
-                    self._cg_note("warning", f"奖励数量出现多组数字({text}), 视为读不出")
-                    return None
-                if groups:
-                    count = int(groups[0])
-                    if count > 0:
-                        return count
-        except Exception as error:
-            self._cg_note("warning", f"奖励数量 OCR 失败: {error}")
+    def _cg_read_reward_count(self, box_ratio: tuple[float, float, float, float],
+                              alt_box_ratio: tuple[float, float, float, float] | None = None
+                              ) -> int | None:
+        """读奖励卡右下角数量; 只接受唯一一个数字段, 多组数字视为读不出。
+
+        主框读不出(空/多组数字)时换备选框再试一次, 两框都失败才判读不出。
+        """
+        for candidate in (box_ratio, alt_box_ratio):
+            if not candidate:
+                continue
+            try:
+                box = self.box_of_screen(*candidate, name="cg_reward_count", hcenter=True)
+                results = self.ocr(box=box, match=None) or []
+                import re as _re
+                for result in results:
+                    text = (result.name or "").strip()
+                    if not text:
+                        continue
+                    # "×4"这类取 4; "4张5个"把两组数字拼起来就是错账, 宁可重读也不入账。
+                    groups = _re.findall(r"\d+", text)
+                    if len(groups) > 1:
+                        self._cg_note("warning", f"奖励数量出现多组数字({text}), 换框重读")
+                        break
+                    if groups:
+                        count = int(groups[0])
+                        if count > 0:
+                            return count
+            except Exception as error:
+                self._cg_note("warning", f"奖励数量 OCR 失败: {error}")
         return None
 
     def _cg_arm_reward_capture(self, limit=6):
@@ -416,6 +434,9 @@ class CultivationGoalMixin:
                     self._cg_stop(report, decision.reason, rounds, weekly_done, material_done, console_done)
                     return True if rounds else None
 
+                # 本轮是否真的打了一局: 没出发的行(如周本次数已用完)不能连累账本。
+                attempted = True
+
                 if decision.action is Action.WEEKLY:
                     # 巡礼一次可能同时补两行, 所以待核产出的行按 landing 取, 不只看当前行。
                     self._cg_last_action_labels = [
@@ -451,7 +472,16 @@ class CultivationGoalMixin:
                     self._cg_burst_next = (burst, per_claim)
                     # 一局一次确认: 额度按本轮计划局数放宽, 用完的由主循环回页复核。
                     self._cg_reset_scan_quota(max(6, int(burst) + 2))
-                    ok = self._cg_run_material(decision.row, budget)
+                    if decision.row.landing == "weekly" and weekly_first and remaining <= 0:
+                        # 面板读到周本次数=0: 巡礼必然空手而归, 还会误报「领奖未确认」把账本作废。
+                        self._cg_note(
+                            "warning",
+                            f"{decision.row.label} 依赖异象巡礼, 周本次数已用完, 本轮跳过该行",
+                        )
+                        ok = False
+                        attempted = False
+                    else:
+                        ok = self._cg_run_material(decision.row, budget)
                     report.emit(
                         "action",
                         round=rounds + 1,
@@ -475,7 +505,8 @@ class CultivationGoalMixin:
                             "warning",
                             f"{decision.row.label} 本局未完成, 本次跳过该行继续其它行",
                         )
-                        self._cg_capture("material_failed")
+                        if attempted:
+                            self._cg_capture("material_failed")
                 elif decision.action is Action.CONSOLE:
                     console_done = 1
                     result = self._cg_run_console(effective_stamina(stamina, round_cfg.daily_target))
@@ -505,7 +536,10 @@ class CultivationGoalMixin:
                             last_label = None
                         loot = self._cg_read_loot(last_label)
                         flags = list(getattr(self, "_cg_scan_flags", None) or ())
-                        if not ok:
+                        if not ok and not attempted:
+                            # 预检就没出发(周本次数已用完): 体力没动、掉落没发生, 账本照旧。
+                            self._cg_note("info", "本行未出发, 账本与体力保持不变")
+                        elif not ok:
                             # 领奖未确认: 体力是否被扣未知, 本轮账本整体作废, 回页复核两项。
                             self._cg_reward_loot = []
                             self._cg_loot_partial = False
@@ -571,6 +605,9 @@ class CultivationGoalMixin:
             self.__dict__.pop("wait_click_confirm", None)
     def _cg_stop(self, report, reason, rounds, weekly_done, material_done, console_done):
         self.__dict__.pop("wait_click_confirm", None)
+        # 所有停止路径统一留现场图: 体力不够/材料行全失败/读取失败/空幕交回都经过这里,
+        # 复盘时靠这张图判断是页面没打开、坐标错位还是材料真的刷满了。
+        self._cg_capture("stop")
         report.emit(
             "stop",
             reason=reason,
@@ -667,22 +704,32 @@ class CultivationGoalMixin:
                 y1 = center_y - POS.ratio_half_height
                 y2 = center_y + POS.ratio_half_height
                 box = self.box_of_screen(x1, y1, x2, y2, name=f"cg_{tab}_{row_index}", hcenter=True)
-                text = self._cg_read_line(box)
+                slot_text, slot_ratios = self._cg_read_row_ratios(tab, row_index)
+                slot_mode = bool(slot_text) or slot_ratios is not None
+                if slot_mode:
+                    # 分框读数接管: 单槽解析, 斜杠误读不会再跨槽拼接成假比例。
+                    text = slot_text
+                    ratios = slot_ratios
+                else:
+                    text = self._cg_read_line(box)
+                    ratios = self._cg_usable_ratios(text)
                 self._cg_note(
                     "info", f"{tab} 第 {row_index + 1} 行 (y {y1:.3f}-{y2:.3f}): {text or '<空>'}"
                 )
                 label = f"{tab}-第{row_index + 1}行"
-                ratios = self._cg_usable_ratios(text)
-                if ratios is None and parse_ratios(text):
-                    # 单串猜出来的比例(如 3150→3/50)切法不唯一, 先重试一轮再放弃。
-                    self._cg_note("warning", f"{label} 比例由单串猜出({text}), 重试识别")
-                if ratios is None:
-                    retry = self._cg_read_retry(box)
-                    retry_ratios = self._cg_usable_ratios(retry)
-                    if retry_ratios is not None:
-                        self._cg_note("info", f"{tab} 第 {row_index + 1} 行 重试成功: {retry}")
-                        text = retry
-                        ratios = retry_ratios
+                if not slot_mode:
+                    # 只有整行模式才做单串猜出重试与分级重试; 分框模式在槽内已重试,
+                    # 且槽残缺时不能拿整行拼接串回填, 否则 8140/13 这类假比例又回来了。
+                    if ratios is None and parse_ratios(text):
+                        # 单串猜出来的比例(如 3150→3/50)切法不唯一, 先重试一轮再放弃。
+                        self._cg_note("warning", f"{label} 比例由单串猜出({text}), 重试识别")
+                    if ratios is None:
+                        retry = self._cg_read_retry(box)
+                        retry_ratios = self._cg_usable_ratios(retry)
+                        if retry_ratios is not None:
+                            self._cg_note("info", f"{tab} 第 {row_index + 1} 行 重试成功: {retry}")
+                            text = retry
+                            ratios = retry_ratios
                 texts[f"{tab}-第{row_index + 1}行"] = text
                 if ratios is None:
                     # 读不出时沿用上一轮值, 避免一次识别抖动就收摊; 槽位对不上会在下方统一作废。
@@ -742,6 +789,8 @@ class CultivationGoalMixin:
             label = f"{tab}-第{row_index + 1}行"
             if not dungeon:
                 self._cg_note("warning", f"{label} 材料图标未识别, 该行缺口无法规划")
+                # 图标识别失败单独留图: 区分是这一行图标变了/页面错位, 还是整页没加载。
+                self._cg_capture(f"row_icon_unknown_{tab}_{row_index + 1}")
                 return None
             # 缺口档位须是连续高档区间；不连续说明漏识别, 本行标记未读, 不写槽位与副本。
             plan = infer_missing(match.tier for match in matches)
@@ -851,15 +900,9 @@ class CultivationGoalMixin:
         onnxocr 检测算子 ValueError 带崩任务）。
         """
         gray3 = lambda img: cv2.cvtColor(cv2.cvtColor(img, cv2.COLOR_BGR2GRAY), cv2.COLOR_GRAY2BGR)
-        binarize = lambda img: cv2.cvtColor(
-            cv2.threshold(
-                cv2.cvtColor(img, cv2.COLOR_BGR2GRAY), 200, 255, cv2.THRESH_BINARY
-            )[1],
-            cv2.COLOR_GRAY2BGR,
-        )
         for delay, processor, threshold in (
             (0.6, None, 0),
-            (0.2, binarize, 0),
+            (0.2, self._cg_binarize_frame, 0),
             (0.2, gray3, 0.3),
         ):
             self.sleep(delay)
@@ -867,6 +910,111 @@ class CultivationGoalMixin:
             if parse_ratios(text):
                 return text
         return ""
+
+    @staticmethod
+    def _cg_binarize_frame(img):
+        """二值化 200：斜杠被 OCR 认成 `1` 时还原字形。"""
+        return cv2.cvtColor(
+            cv2.threshold(
+                cv2.cvtColor(img, cv2.COLOR_BGR2GRAY), 200, 255, cv2.THRESH_BINARY
+            )[1],
+            cv2.COLOR_GRAY2BGR,
+        )
+
+    def _cg_split_icon_slots(self, frame, tab, row_index):
+        """亮度投影切出本行材料图标的 x 段(比例坐标)，失效返回空列表。
+
+        图标卡片在深色背景上是亮块，列投影即可分开；空槽位整列全暗。
+        """
+        try:
+            if frame is None or getattr(frame, "size", 0) == 0 or frame.ndim < 2:
+                return []
+            height, width = frame.shape[:2]
+            center_y = POS.ratio_row_y[tab][row_index] - POS.icon_row_offset
+            y1 = int(height * (center_y - POS.icon_half_height))
+            y2 = int(height * (center_y + POS.icon_half_height))
+            x1 = int(width * 0.28)
+            x2 = int(width * 0.88)
+            strip = cv2.cvtColor(frame[y1:y2, x1:x2, :3], cv2.COLOR_BGR2GRAY)
+            proj = (strip > 50).sum(axis=0)
+            lit = max(1, y2 - y1)
+            segs = []
+            start = None
+            for i, v in enumerate(proj):
+                on = v > lit * 0.3
+                if on and start is None:
+                    start = i
+                elif not on and start is not None:
+                    segs.append((start, i))
+                    start = None
+            if start is not None:
+                segs.append((start, len(proj)))
+            # 过滤窄噪声并转比例坐标; 一行最多 3 个材料, 切出更多说明投影被污染。
+            slots = []
+            for sx1, sx2 in segs:
+                if sx2 - sx1 < width * 0.015:
+                    continue
+                slots.append(((x1 + sx1) / width, (x1 + sx2) / width))
+            return slots if 1 <= len(slots) <= 3 else []
+        except Exception:
+            return []
+
+    @staticmethod
+    def _cg_parse_slot(text):
+        """单槽解析：正常 xx/xx 直接收；纯数字单串走斜杠吞字修复；其余 None。"""
+        normalized = unicodedata.normalize("NFKC", (text or "").strip())
+        if not normalized:
+            return None
+        matches = RATIO_RE.findall(normalized)
+        if len(matches) == 1:
+            left, right = matches[0]
+            return Ratio(int(left), int(right))
+        if len(matches) > 1:
+            return None  # 单槽出现多个比例说明切槽串了, 判残缺不猜
+        return (repair_swallowed_slash(normalized) or (None,))[0]
+
+    def _cg_read_row_ratios(self, tab, row_index):
+        """按图标槽位分框读比例，防 OCR 把 `/` 读成 `1` 后跨槽拼接。
+
+        整行连读时 `8/40 4/13` 的斜杠被认成 1 会拼出 `8140/13`，把缺料判成满。
+        分框后单槽串错只污染一格：纯数字单串交给 repair_swallowed_slash，
+        失败槽二值化重试一次；任何槽解析不出则整行返回 None，绝不把缺当满。
+        返回 (槽文本, ratios)；切槽失效返回 ("", None) 由调用方退回整行读数。
+        """
+        frame = getattr(self, "frame", None)
+        slots = self._cg_split_icon_slots(frame, tab, row_index)
+        if not slots:
+            return "", None
+        texts = []
+        ratios = []
+        cy = POS.ratio_row_y[tab][row_index]
+        ny1, ny2 = cy - POS.ratio_half_height, cy + POS.ratio_half_height
+        for i, (sx1, sx2) in enumerate(slots):
+            # 数字比图标窄但可能溢出边缘, 以槽中心 ±0.028 取框, 相邻槽间距 0.09 不会串。
+            cx = (sx1 + sx2) / 2
+            box = self.box_of_screen(
+                cx - 0.028, ny1, cx + 0.028, ny2,
+                name=f"cg_slot_{tab}_{row_index}_{i}", hcenter=True,
+            )
+            text = self._cg_read_line(box)
+            ratio = self._cg_parse_slot(text)
+            if ratio is None or ratio.guessed:
+                # 斜杠被读成 1 的槽: 二值化重试一次, 还原不出就整行判残缺。
+                retry = self._cg_read_line(box, frame_processor=self._cg_binarize_frame)
+                retry_ratio = self._cg_parse_slot(retry)
+                if retry_ratio is not None and not retry_ratio.guessed:
+                    text, ratio = retry, retry_ratio
+                else:
+                    ratio = None
+            texts.append(text or "<空>")
+            ratios.append(ratio)
+        joined = " | ".join(texts)
+        if any(r is None for r in ratios):
+            self._cg_note(
+                "warning", f"{tab} 第 {row_index + 1} 行 槽读数残缺({joined}), 判读不出防误判满"
+            )
+            return joined, None
+        return joined, tuple(ratios)
 
     def _cg_ensure_guide(self):
         """导航到养成指南材料页。"""
@@ -1191,6 +1339,39 @@ class CultivationGoalMixin:
         except Exception as error:
             self._cg_note("warning", f"结算确认检查失败: {error}")
             return False
+
+    def do_combat_and_claim(self, double: bool):
+        """副本打完走到宝箱领奖。
+
+        上游版按 F 后只找一帧领奖按钮, 实测连续三帧扑空就判「领奖未确认」把整轮作废;
+        这里改成: 先看按钮是否已开(避免 F 把界面切关), 没开再交互, 交互后给界面留 2.5 秒。
+        搜索带同时向上放宽: 领奖按钮是世界锚定的, 站得越近画面上越靠上。
+        """
+        self.log_info("开始执行战斗流程")
+        self.walk_until_combat(run=True, delay=1)
+        self.combat_once()
+        self.log_info("战斗结束，正在前往领取奖励")
+        area = self.box_of_screen(0.2645, 0.560, 0.7352, 0.700, name="cg_reward_area_wide")
+
+        def find_claim():
+            return self.find_feature(Labels.claim_icon, box=area)
+
+        def action():
+            claims = self.wait_until(find_claim, time_out=0.8, raise_if_not_found=False)
+            if claims:
+                return claims
+            self.walk_to_treasure()
+            self.send_interac(handle_claim=False)
+            return self.wait_until(find_claim, time_out=2.5, raise_if_not_found=False)
+
+        self.rotate_and_find_treasure()
+        claims = self.retry_on_action(action)
+        if not claims:
+            self._cg_note("warning", "走到宝箱前但没找到领奖按钮")
+            return False
+        target = max(claims, key=lambda x: x.x) if double else min(claims, key=lambda x: x.x)
+        self.operate_click(target.copy(x_offset=target.width * 3))
+        return True
 
     def _cg_fight_once(self, row, mode="dungeon", stamina=None, burst=1, per_claim=None):
         """副本走「退出」，野外 BOSS 走「走到跟前打完捡宝箱」；支持连打与单/双倍。"""

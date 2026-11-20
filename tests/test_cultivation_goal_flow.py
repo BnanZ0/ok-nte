@@ -42,6 +42,87 @@ class FakeBox:
     def center(self):
         return self.x + self.width / 2, self.y + self.height / 2
 
+    def copy(self, x_offset=0):
+        return FakeBox(self.name, self.x + x_offset, self.y, self.width, self.height)
+
+
+class ClaimWaitTests(unittest.TestCase):
+    """11-20 实机: 按完 F 领奖界面晚一帧弹出, 单帧检测连续三次扑空 -> 误判「领奖未确认」。"""
+
+    class _Stub(CultivationGoalMixin):
+        def __init__(self, hits_at, opened_before=False):
+            self.hits_at = hits_at
+            self.opened_before = opened_before
+            self.finds = 0
+            self.finds_after_interact = 0
+            self.interacts = 0
+            self.clicks = []
+            self.notes = []
+
+        def log_info(self, *a, **k):
+            pass
+
+        def walk_until_combat(self, *a, **k):
+            pass
+
+        def combat_once(self, *a, **k):
+            pass
+
+        def rotate_and_find_treasure(self):
+            pass
+
+        def walk_to_treasure(self):
+            pass
+
+        def send_interac(self, **k):
+            self.interacts += 1
+            self.finds_after_interact = 0
+
+        def box_of_screen(self, *a, **k):
+            return SimpleNamespace(name=k.get("name"))
+
+        def find_feature(self, label, box=None):
+            self.finds += 1
+            if not self.interacts:
+                return [FakeBox("claim")] if self.opened_before else []
+            self.finds_after_interact += 1
+            return [FakeBox("claim")] if self.finds_after_interact >= self.hits_at else []
+
+        def wait_until(self, condition, *a, **k):
+            for _ in range(8):
+                result = condition()
+                if result:
+                    return result
+            return None
+
+        def retry_on_action(self, action, **k):
+            return action()
+
+        def operate_click(self, *a, **k):
+            self.clicks.append(a)
+
+        def _cg_note(self, kind, message):
+            self.notes.append(message)
+
+    def test_claim_button_found_after_waiting_frames(self):
+        """按钮第 3 帧才出现也要等到, 不能直接判领奖未确认。"""
+        task = self._Stub(hits_at=3)
+        self.assertTrue(task.do_combat_and_claim(False))
+        self.assertEqual(task.interacts, 1)
+        self.assertEqual(len(task.clicks), 1)
+
+    def test_claim_existing_button_skips_interact(self):
+        """按钮已经在(上次交互已打开界面)就不该再按 F, 免得把界面切换关闭。"""
+        task = self._Stub(hits_at=1, opened_before=True)
+        self.assertTrue(task.do_combat_and_claim(False))
+        self.assertEqual(task.interacts, 0)
+
+    def test_claim_missing_button_fails_cleanly(self):
+        task = self._Stub(hits_at=10 ** 6)
+        self.assertFalse(task.do_combat_and_claim(False))
+        self.assertEqual(task.clicks, [])
+        self.assertTrue(any("没找到领奖按钮" in m for m in task.notes))
+
 
 class FakeTask(CultivationGoalMixin):
     TASK_CONSOLE = "空幕"
@@ -526,6 +607,20 @@ class FlowSimulationTests(unittest.TestCase):
         # 没跑完就不再碰周本, 免得反复卡在同一个传送按钮上
         self.assertEqual(task.weekly_runs, 1)
 
+    def test_weekly_row_skipped_when_panel_says_zero(self):
+        """面板读到周本 0 次时, 巡礼行直接跳过, 不能跑空还误报「领奖未确认」作废账本。"""
+        task = self.make(
+            weekly_text="0/3",
+            weekly_first=True,
+            stamina=[300, 0],
+            texts=[{**DEFAULT_TEXTS, "异能-第2行": "0/2"}, dict(DEFAULT_TEXTS)],
+        )
+        task.run_cultivation_goal()
+
+        self.assertEqual(task.weekly_runs, 0)
+        self.assertTrue(any("周本次数已用完" in m for _, m in task.logs), task.logs)
+        self.assertFalse(any("领奖未确认" in m for _, m in task.logs), task.logs)
+
     def test_weekly_unconfirmed_claims_void_ledger(self):
         """周本有领取没看到结算确认: 已确认次数照记扣, 但账本作废回养成指南复核。
 
@@ -673,6 +768,119 @@ class FlowSimulationTests(unittest.TestCase):
         self.assertIn("cg_row_empty_弧盘_2", task.captures)
         self.assertIn("cg_row_empty_异能_1", task.captures)
         self.assertIn("cg_row_empty_异能_2", task.captures)
+
+    def test_all_rows_failed_stop_captures_scene(self):
+        """所有材料行本次均失败而 STOP 时必须留现场图(复现异能第2行失败那轮)。"""
+        task = self.make(stamina=[300, 300, 300, 300, 39], weekly_first=False)
+        task._cg_run_material = lambda row, stamina=None: False
+        task.run_cultivation_goal()
+
+        self.assertIn("cg_stop", task.captures)
+        stop = read_records(self.report_path)[-1]
+        self.assertIn("均已失败", stop["reason"])
+
+    def test_unknown_row_icon_captures_scene(self):
+        """材料图标认不出时留行级现场图, 便于分辨是哪行图标变了还是整页没加载。"""
+        import numpy as np
+        import src.tasks.cultivation_goal.guide_icons as guide_icons
+
+        task = self.make()
+        task.frame = np.zeros((1080, 1920, 3), np.uint8)
+        original = guide_icons.identify_row
+        guide_icons.identify_row = lambda strip, height=1080: []
+        try:
+            dungeon = CultivationGoalMixin._cg_identify_row(task, "异能", 1)
+        finally:
+            guide_icons.identify_row = original
+
+        self.assertIsNone(dungeon)
+        self.assertIn("cg_row_icon_unknown_异能_2", task.captures)
+
+    def _make_icon_frame(self):
+        """合成材料行画面: 黑底 + 3 个白块图标, 投影可切出 3 槽。"""
+        import numpy as np
+
+        frame = np.zeros((300, 1000, 3), np.uint8)
+        for x1, x2 in ((300, 340), (450, 490), (600, 640)):
+            frame[140:190, x1:x2] = 255
+        return frame
+
+    def test_slot_reading_reads_each_icon_separately(self):
+        """分框逐槽读比例: 斜杠误读只污染单槽, 不再跨槽拼出 8140/13 假比例。"""
+        slot_texts = {"cg_slot_异能_0_0": "12/8", "cg_slot_异能_0_1": "8/40", "cg_slot_异能_0_2": "4/13"}
+        task = self.make()
+        task.frame = self._make_icon_frame()
+        original_ocr = task.ocr
+
+        def fake_ocr(box=None, match=None, **kw):
+            name = getattr(box, "name", "")
+            if name in slot_texts and kw.get("frame_processor") is None:
+                return [FakeBox(slot_texts[name])]
+            return original_ocr(box=box, match=match, **kw)
+
+        task.ocr = fake_ocr
+        text, ratios = task._cg_read_row_ratios("异能", 0)
+
+        self.assertEqual([(r.owned, r.required) for r in ratios], [(12, 8), (8, 40), (4, 13)])
+        self.assertTrue(all(not r.guessed for r in ratios))
+        self.assertIn("8/40", text)
+
+    def test_swallowed_slash_slot_repairs_via_binarize_retry(self):
+        """槽内 `8/40` 被读成 `8140`: 单串修复先标 guessed, 二值化重试还原斜杠。"""
+        task = self.make()
+        task.frame = self._make_icon_frame()
+        original_ocr = task.ocr
+        calls = []
+
+        def fake_ocr(box=None, match=None, **kw):
+            name = getattr(box, "name", "")
+            if name == "cg_slot_异能_0_0":
+                if kw.get("frame_processor") is None:
+                    calls.append("raw")
+                    return [FakeBox("8140")]
+                calls.append("binarize")
+                return [FakeBox("8/40")]
+            if name == "cg_slot_异能_0_1":
+                return [FakeBox("0/10")]
+            if name == "cg_slot_异能_0_2":
+                return [FakeBox("4/13")]
+            return original_ocr(box=box, match=match, **kw)
+
+        task.ocr = fake_ocr
+        _, ratios = task._cg_read_row_ratios("异能", 0)
+
+        self.assertEqual(calls, ["raw", "binarize"])
+        self.assertEqual([(r.owned, r.required) for r in ratios], [(8, 40), (0, 10), (4, 13)])
+
+    def test_unreadable_slot_marks_row_not_full(self):
+        """任一槽解析不出(如斜杠和数字都丢只剩 `/13`): 整行判读不出, 绝不把缺当满。"""
+        task = self.make()
+        task.frame = self._make_icon_frame()
+        original_ocr = task.ocr
+
+        def fake_ocr(box=None, match=None, **kw):
+            name = getattr(box, "name", "")
+            if name == "cg_slot_异能_0_0":
+                return [FakeBox("12/8")]
+            if name == "cg_slot_异能_0_1":
+                return [FakeBox("/13")]
+            if name == "cg_slot_异能_0_2":
+                return [FakeBox("4/13")]
+            return original_ocr(box=box, match=match, **kw)
+
+        task.ocr = fake_ocr
+        text, ratios = task._cg_read_row_ratios("异能", 0)
+
+        self.assertIsNone(ratios, "槽残缺时整行必须判 None, 不能拿部分值当满")
+        self.assertIn("/13", text)
+
+    def test_slot_reading_falls_back_without_valid_frame(self):
+        """frame 无 shape(旧调用方/测试桩)时切槽失效, 退回整行读数。"""
+        from types import SimpleNamespace
+
+        task = self.make()
+        task.frame = SimpleNamespace(size=1)
+        self.assertEqual(task._cg_read_row_ratios("异能", 0), ("", None))
 
     def test_hunter_landing_runs_wild_combat(self):
         """异象追猎落点走野外打法, 不能等副本的「退出」按钮。"""
@@ -1307,6 +1515,22 @@ class RewardCaptureTests(unittest.TestCase):
         self.assertEqual(CultivationGoalMixin._cg_read_reward_count(task, (0.5, 0.5, 0.9, 0.9)), 4)
         task.ocr = lambda box=None, match=None, **kw: [SimpleNamespace(name="24")]
         self.assertEqual(CultivationGoalMixin._cg_read_reward_count(task, (0.5, 0.5, 0.9, 0.9)), 24)
+
+    def test_reward_count_falls_back_to_alt_box(self):
+        """数量主框读不出时换备选框再读, 两框都失败才判读不出。"""
+        task = self.make()
+        calls = []
+
+        def ocr(box=None, match=None, **kw):
+            calls.append(box)
+            return [] if len(calls) == 1 else [SimpleNamespace(name="×7")]
+
+        task.ocr = ocr
+        count = CultivationGoalMixin._cg_read_reward_count(
+            task, (0.5, 0.5, 0.9, 0.9), (0.4, 0.6, 0.6, 0.65)
+        )
+        self.assertEqual(count, 7)
+        self.assertEqual(len(calls), 2)
 
     def test_unmatched_cards_mark_round_incomplete(self):
         """投影切出 3 张卡只认出 1 张: 缺的那张不能按零入账, 整轮按残缺处理。"""

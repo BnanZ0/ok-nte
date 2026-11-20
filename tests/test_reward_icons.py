@@ -64,6 +64,42 @@ class RewardIconTests(unittest.TestCase):
                 self.assertLess(x2, 0.48)
                 self.assertGreater(x2, 0.44)
 
+    def test_strip_passes_projected_card_y_to_identify_card(self):
+        """Major #20: identify_strip_detailed 必须把投影切出的真实卡 y 传给
+        identify_card, 数量框才不会用固定 CARD_Y 而落到卡片外。"""
+        import src.tasks.cultivation_goal.reward_icons as reward_icons_module
+
+        recognizer = RewardRecognizer(1080)
+        frame = _load(_DUNGEON)
+        height = frame.shape[0]
+        boxes = recognizer._detect_cards(frame)
+        self.assertTrue(boxes, "样本应能投影切出卡")
+
+        captured: list = []
+
+        def spy(card, x1, x2, center_x, card_y=None):
+            captured.append(card_y)
+            return None
+
+        original = recognizer.identify_card
+        recognizer.identify_card = spy
+        try:
+            recognizer.identify_strip_detailed(frame)
+        finally:
+            recognizer.identify_card = original
+
+        self.assertTrue(captured, "应逐卡调用 identify_card")
+        fixed = reward_icons_module.CARD_Y
+        for card_y in captured:
+            self.assertIsNotNone(card_y, "必须传真实卡边界, 不能让它回退固定 CARD_Y")
+            top, bottom = card_y
+            self.assertLess(top, bottom)
+            # 真实投影边界与固定 CARD_Y 不同 —— 这正是修复前数量框错位的根源。
+            self.assertNotAlmostEqual(top, fixed[0], places=2)
+            self.assertNotAlmostEqual(bottom, fixed[1], places=2)
+            # 且必须是像素/高度换算来的比例, 落在 0~1。
+            self.assertTrue(0.0 < top < bottom < 1.0)
+
     def test_dungeon_reward_recognizes_three_tiers_by_body_color(self):
         # 副本结算的紫/蓝/绿三档图标几乎一样，SIFT 命中同一 key，档位靠图标本体判色。
         # key 必须跟随最终判色档位（kind_dungeon_tier），否则掉落会入账到低档槽位。

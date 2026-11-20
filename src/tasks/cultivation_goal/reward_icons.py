@@ -44,6 +44,8 @@ class RewardMatch:
     inliers: int
     x: int
     count_box: tuple[float, float, float, float]
+    # 副本结算页的数量印在卡片下沿之外, 单靠 count_box 会读空。
+    count_box_below: tuple[float, float, float, float] | None = None
 
     def as_dict(self) -> dict:
         return {
@@ -160,16 +162,22 @@ class RewardRecognizer:
                 self._templates.append((key, kp, desc))
 
     def identify_card(self, card: np.ndarray, x1: float, x2: float,
-                      center_x: int) -> RewardMatch | None:
-        """认一张材料卡; 认不出或分数不够就返回 None, 绝不猜。"""
-        return self._match_card(card, x1, x2, center_x, self._templates)
+                      center_x: int,
+                      card_y: tuple[float, float] | None = None) -> RewardMatch | None:
+        """认一张材料卡; 认不出或分数不够就返回 None, 绝不猜。
+
+        card_y 是投影切卡得到的真实 (上, 下) 比例边界, 数量框必须跟着它走;
+        不传时回退固定 CARD_Y, 兼容直接调用与货币卡。
+        """
+        return self._match_card(card, x1, x2, center_x, self._templates, card_y)
 
     def _identify_currency(self, card: np.ndarray) -> RewardMatch | None:
         """只在材料模板全没命中后兜底认货币卡, 保证材料永远优先。"""
         return self._match_card(card, 0.0, 0.0, 0, self._currency_templates)
 
     def _match_card(self, card: np.ndarray, x1: float, x2: float, center_x: int,
-                    templates: list) -> RewardMatch | None:
+                    templates: list,
+                    card_y: tuple[float, float] | None = None) -> RewardMatch | None:
         gray = _gray(card)
         if gray is None or gray.shape[0] < 20 or gray.shape[1] < 20:
             return None
@@ -212,6 +220,9 @@ class RewardRecognizer:
             # 判色档位与模板档位不一致时, key 同步换成判色档位, 避免掉落入账记到低档槽位。
             if tier != entry.get("tier", ""):
                 key = f"{kind}_{entry.get('dungeon', key)}_{tier}"
+        # 数量框的 y 必须来自投影切出的真实卡边界: 固定 CARD_Y 与投影 y 错位时,
+        # 数量 OCR 会读到卡片外, 导致「数量读不出 → 整轮账本作废回页复核」。
+        top, bottom = card_y if card_y is not None else CARD_Y
         return RewardMatch(
             key=key,
             kind=kind,
@@ -220,8 +231,11 @@ class RewardRecognizer:
             inliers=inliers,
             x=int(center_x),
             count_box=(x2 - (x2 - x1) * 0.42,
-                       CARD_Y[0] + (CARD_Y[1] - CARD_Y[0]) * 0.58,
-                       x2, CARD_Y[1] - 0.005),
+                       top + (bottom - top) * 0.58,
+                       x2, bottom - (bottom - top) * 0.05),
+            # 副本结算页: 卡下沿下方 0~30% 卡高的窄条, 数量就印在这里。
+            count_box_below=(x1, bottom,
+                             x2, min(1.0, bottom + (bottom - top) * 0.3)),
         )
 
     @staticmethod
@@ -293,7 +307,9 @@ class RewardRecognizer:
         currencies = 0
         for px1, px2, py1, py2 in boxes:
             card = frame[py1:py2, px1:px2]
-            found = self.identify_card(card, px1 / width, px2 / width, (px1 + px2) // 2)
+            # 数量框必须跟随投影切出的真实卡边界, 不能用固定 CARD_Y (Major #20)。
+            found = self.identify_card(card, px1 / width, px2 / width, (px1 + px2) // 2,
+                                       card_y=(py1 / height, py2 / height))
             if found is None:
                 # 材料模板没命中再试货币; 材料永远优先, 防止货币模板抢材料卡。
                 if self._identify_currency(card) is not None:
