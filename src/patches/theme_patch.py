@@ -1,4 +1,4 @@
-"""Project overrides for the ok-script dark palette."""
+"""Project overrides for the ok-script theme and widgets."""
 
 import re
 
@@ -23,12 +23,18 @@ def install_theme_patch():
     from ok.ui.qt.kit.icons import icon_file
     from ok.ui.qt.kit.switch import Switch
     from ok.ui.qt.kit.theme import DARK_TOKENS, ThemeManager, contrast_ratio, theme
+    from ok.ui.qt.tasks import tasks_page
     from PySide6.QtCore import QPropertyAnimation, QRectF, Qt
     from PySide6.QtGui import QColor, QPainter, QPalette, QPen
 
+    from src.ui.foundation.widgets.table import ThemedTable
     from src.ui.icons import resource_icon
 
     DARK_TOKENS.update(DARK_TOKEN_OVERRIDES)
+
+    # TaskDetail installs its own grid delegate after constructing the table.
+    tasks_page.QTableWidget = ThemedTable
+    tasks_page._InnerGridDelegate = ThemedTable.itemDelegate
 
     def paint_switch(self, _event) -> None:
         painter = QPainter(self)

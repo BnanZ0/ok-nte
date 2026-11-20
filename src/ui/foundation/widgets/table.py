@@ -1,4 +1,4 @@
-"""Themed catalog table for the community workshop."""
+"""Shared table styling for the project and ok-script task pages."""
 
 from ok.ui.qt.kit import theme
 from PySide6.QtCore import QEvent, QPointF, QRectF, QSignalBlocker, Qt
@@ -18,11 +18,11 @@ FRAME_RADIUS = 10
 INNER_RADIUS = FRAME_RADIUS - FRAME_WIDTH
 
 
-class WorkshopTable(QTableWidget):
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.hovered_row = -1
-        self._scrollbar_overlay = WorkshopScrollBar(self)
+class ThemedTable(QTableWidget):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._hovered_row = -1
+        self._scrollbar_overlay = _TableScrollBar(self)
         self._scrollbar_overlay.hide()
         self.setMouseTracking(True)
         self.setShowGrid(False)
@@ -31,19 +31,21 @@ class WorkshopTable(QTableWidget):
         scroll = self.verticalScrollBar()
         scroll.valueChanged.connect(self._scrollbar_overlay.setValue)
         self._scrollbar_overlay.valueChanged.connect(scroll.setValue)
-        self.setHorizontalHeader(WorkshopHeader(self))
+        self.setHorizontalHeader(_TableHeader(self))
         theme.changed.connect(self._apply_theme)
         self._apply_theme()
-        self.setItemDelegate(WorkshopItemDelegate(self))
+        self.setItemDelegate(_TableItemDelegate(self))
 
     def _apply_theme(self):
         surface = theme.color("surface").name()
         border = theme.color("border").name()
         text = theme.color("text").name()
+        # The delegate draws the selection inside the rounded frame.
         self.setStyleSheet(f"""
             QTableWidget {{
                 background: {surface}; color: {text}; border: {FRAME_WIDTH}px solid {border};
                 border-radius: {FRAME_RADIUS}px; outline: 0;
+                selection-background-color: transparent;
             }}
             QTableWidget::item {{ padding: 0 12px; }}
         """)
@@ -80,12 +82,12 @@ class WorkshopTable(QTableWidget):
             self._set_hovered_row(self.rowAt(viewport.mapFromGlobal(QCursor.pos()).y()))
 
     def _set_hovered_row(self, row):
-        if self.hovered_row != row:
-            self.hovered_row = row
+        if self._hovered_row != row:
+            self._hovered_row = row
             self.viewport().update()
 
 
-class WorkshopScrollBar(QScrollBar):
+class _TableScrollBar(QScrollBar):
     """Use Qt's scroll controls with a compact thumb and a track on hover."""
 
     def __init__(self, parent=None):
@@ -151,7 +153,7 @@ class WorkshopScrollBar(QScrollBar):
         painter.drawRoundedRect(slider, slider.width() / 2, slider.width() / 2)
 
 
-class WorkshopItemDelegate(QStyledItemDelegate):
+class _TableItemDelegate(QStyledItemDelegate):
     def paint(self, painter, option, index):
         option = QStyleOptionViewItem(option)
         self.initStyleOption(option, index)
@@ -180,7 +182,7 @@ class WorkshopItemDelegate(QStyledItemDelegate):
             )
             option.state &= ~(QStyle.StateFlag.State_Selected | QStyle.StateFlag.State_HasFocus)
             option.backgroundBrush = QBrush(selected)
-        elif index.row() == self.parent().hovered_row:
+        elif index.row() == self.parent()._hovered_row:
             hover = theme.color("control" if theme.is_dark() else "control_hover")
             option.backgroundBrush = QBrush(hover)
         option.widget.style().drawControl(
@@ -195,8 +197,8 @@ class WorkshopItemDelegate(QStyledItemDelegate):
         painter.restore()
 
 
-class WorkshopHeader(QHeaderView):
-    """Keep the workshop's joined header cells and rounded outer top corners."""
+class _TableHeader(QHeaderView):
+    """Paint joined header cells with rounded outer top corners."""
 
     def __init__(self, parent=None):
         super().__init__(Qt.Orientation.Horizontal, parent)

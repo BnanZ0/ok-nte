@@ -52,13 +52,13 @@ from src.char.workshop.service import (
     WorkshopPackageService,
 )
 from src.ui.features.characters.safety_dialog import EXTERNAL_CODE_SAFETY_NOTICE
-from src.ui.features.characters.workshop_table import WorkshopTable
 from src.ui.foundation.dialogs import FormDialog, exec_owned_dialog
 from src.ui.foundation.i18n import is_chinese, translate
 from src.ui.foundation.info_bar import show_bar
 from src.ui.foundation.widgets.button_styles import LinkButton
 from src.ui.foundation.widgets.cards import SectionCard
 from src.ui.foundation.widgets.search import SearchableComboBox
+from src.ui.foundation.widgets.table import ThemedTable
 from src.ui.icons import resource_icon
 
 
@@ -613,7 +613,7 @@ class WorkshopDialog(Dialog):
         split_layout.setSpacing(12)
 
         # Left: compact table with user-resizable columns
-        self.table = WorkshopTable(self.panel)
+        self.table = ThemedTable(self.panel)
         self.table.setMinimumHeight(260)
         self.table.setColumnCount(4)
         self.table.setHorizontalHeaderLabels(

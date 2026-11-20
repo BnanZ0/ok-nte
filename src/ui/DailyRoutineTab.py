@@ -29,7 +29,6 @@ from PySide6.QtWidgets import (
     QScrollArea,
     QSizePolicy,
     QStackedWidget,
-    QTableWidget,
     QTableWidgetItem,
     QVBoxLayout,
     QWidget,
@@ -38,6 +37,7 @@ from PySide6.QtWidgets import (
 from src.tasks.daily.DailyRoutineTask import DailyRoutineTask, selection_is_complete
 from src.ui.foundation.widgets.page_tabs import PageTabStrip
 from src.ui.foundation.widgets.separator import Separator
+from src.ui.foundation.widgets.table import ThemedTable
 from src.ui.foundation.widgets.task_actions import add_task_actions
 
 
@@ -300,7 +300,7 @@ class DailyRoutineTab(CustomTab):
         self.routine_scroll = self._scroll_area()
         self.pages.addWidget(self.task_scroll)
         self.pages.addWidget(self.routine_scroll)
-        self.info_table = QTableWidget(0, 2)
+        self.info_table = ThemedTable(0, 2)
         self.info_table.setHorizontalHeaderLabels(
             [QCoreApplication.translate("TaskTab", text) for text in ("Info", "Value")]
         )

@@ -12,7 +12,7 @@ from PySide6.QtWidgets import (
 )
 
 from src.ui.features.characters.editor_widgets import CharacterTitleLabel, ComboEditorFrame
-from src.ui.features.characters.workshop_table import WorkshopScrollBar, WorkshopTable
+from src.ui.foundation.widgets.table import ThemedTable, _TableScrollBar
 from tests.support.ok_runtime import isolate_qt_widgets
 from tests.support.qt_events import click_at
 
@@ -73,7 +73,7 @@ class TestCharacterEditorWidgets(unittest.TestCase):
                 self.assertEqual(self.pixel(frame, 200, 0), QColor(theme.accent().name()))
 
     def test_workshop_selection_and_header_keep_their_original_colors(self):
-        table = WorkshopTable(self.root)
+        table = ThemedTable(self.root)
         table.resize(450, 200)
         table.setRowCount(2)
         table.setColumnCount(2)
@@ -104,7 +104,7 @@ class TestCharacterEditorWidgets(unittest.TestCase):
                 )
 
     def test_workshop_hover_highlights_both_cells_without_selecting_the_row(self):
-        table = WorkshopTable(self.root)
+        table = ThemedTable(self.root)
         table.resize(450, 200)
         table.setRowCount(2)
         table.setColumnCount(2)
@@ -137,7 +137,7 @@ class TestCharacterEditorWidgets(unittest.TestCase):
                 )
 
     def test_workshop_right_frame_stays_in_place_during_column_drag(self):
-        table = WorkshopTable(self.root)
+        table = ThemedTable(self.root)
         table.resize(450, 200)
         table.setColumnCount(3)
         table.setHorizontalHeaderLabels(["Name", "Category", "V"])
@@ -182,7 +182,7 @@ class TestCharacterEditorWidgets(unittest.TestCase):
         self.assertGreater(header.length(), viewport.width())
 
     def test_workshop_bottom_corners_clip_hover_and_selection(self):
-        table = WorkshopTable(self.root)
+        table = ThemedTable(self.root)
         table.resize(450, 200)
         table.setColumnCount(2)
         table.setRowCount(20)
@@ -232,7 +232,7 @@ class TestCharacterEditorWidgets(unittest.TestCase):
                     self.assertNotEqual(highlighted[2], idle[2])
 
     def test_workshop_scrollbar_reveals_its_track_and_keeps_native_arrow_actions(self):
-        table = WorkshopTable(self.root)
+        table = ThemedTable(self.root)
         table.resize(450, 200)
         table.setColumnCount(1)
         table.horizontalHeader().setStretchLastSection(True)
@@ -240,7 +240,7 @@ class TestCharacterEditorWidgets(unittest.TestCase):
         table.setRowCount(30)
         self.root.show()
         self.qt_app.processEvents()
-        bar = table.findChild(WorkshopScrollBar)
+        bar = table.findChild(_TableScrollBar)
         self.assertTrue(bar.isVisible())
         viewport = table.viewport().geometry()
         self.assertEqual(bar.y(), viewport.y())
