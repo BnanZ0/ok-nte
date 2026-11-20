@@ -10,6 +10,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from ok import og
 from ok.ui.qt.Communicate import communicate
+from ok.ui.qt.kit import Table
 from ok.util.config import Config
 from PySide6.QtCore import QCoreApplication, QEvent, QPoint, QPointF, Qt
 from PySide6.QtGui import QMouseEvent
@@ -126,8 +127,12 @@ class TestDailyRoutineUI(unittest.TestCase):
 
     def _release_drag(self, handle, press, destination):
         self._mouse(
-            handle, QEvent.Type.MouseButtonRelease, press, destination,
-            Qt.MouseButton.LeftButton, Qt.MouseButton.NoButton,
+            handle,
+            QEvent.Type.MouseButtonRelease,
+            press,
+            destination,
+            Qt.MouseButton.LeftButton,
+            Qt.MouseButton.NoButton,
         )
 
     def test_edit_and_reset_daily_settings_never_changes_normal_task_config(self):
@@ -314,6 +319,7 @@ class TestDailyRoutineUI(unittest.TestCase):
         self.page._refresh_state()
         self.assertEqual(self.page.tabs.current_key(), "settings")
         self.page.tabs.item("info").click()
+        self.assertIsInstance(self.page.info_table, Table)
         self.assertEqual(self.page.info_table.rowCount(), 1)
         self.assertEqual(self.page.info_table.item(0, 0).text(), "daily_claim")
         self.assertEqual(self.page.info_table.item(0, 1).text(), "Running")
