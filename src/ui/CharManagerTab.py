@@ -678,9 +678,6 @@ class CharManagerTab(CustomTab):
             copy_dialog.panel.setMinimumWidth(440)
             copy_dialog.body.setSpacing(10)
 
-            copy_dialog_title = Label(self.tr_copy_dialog_title, "subtitle", parent=copy_dialog)
-            copy_dialog.body.addWidget(copy_dialog_title)
-
             copy_hint = Label(self.tr_copy_dialog_hint, "caption", parent=copy_dialog)
             copy_hint.setWordWrap(True)
             copy_dialog.body.addWidget(copy_hint)

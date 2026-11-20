@@ -163,7 +163,6 @@ class AddCharacterDialog(NameInputDialog):
         super().__init__(
             title="新增角色",
             placeholder="角色名称",
-            title_alignment=Qt.AlignmentFlag.AlignCenter,
             name_validator=lambda name: all(
                 char_data["char_name"] != name
                 for char_data in manager.get_all_characters().values()
