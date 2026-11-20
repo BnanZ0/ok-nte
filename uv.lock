@@ -9,6 +9,7 @@ supported-markers = [
 ]
 
 [manifest]
+overrides = [{ package = { name = "ok-script" }, dependencies = [{ name = "pyappify", specifier = "==1.0.13" }] }]
 excludes = [{ package = { name = "ok-script" }, dependencies = ["mcp"] }]
 
 [[package]]
@@ -134,21 +135,6 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/60/8b/32f9823da46cde7df2087faa08cd98d01b908f8dcab982cdba9c84e85355/decorator-5.3.1.tar.gz", hash = "sha256:4cbcdd55a6efadb9dbea26b858f4fb3264567b52d69ca0d25b721b553f60ea82", size = 58084, upload-time = "2026-05-18T06:03:28.057Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/05/7f/798705f5296a58ca505d600456748d1be48078eac8a7050d8a98bc9edb89/decorator-5.3.1-py3-none-any.whl", hash = "sha256:f47fe6fdbd2edd623ecfe36875d37aba411624e2670dd395dddae1358689bb3c", size = 10365, upload-time = "2026-05-18T06:03:26.517Z" },
-]
-
-[[package]]
-name = "dulwich"
-version = "1.2.21"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "urllib3" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/01/d1/01adf1db003374db4c2a70f7bae757ddfc39a33d9fb5ab765522b4d339e6/dulwich-1.2.21.tar.gz", hash = "sha256:5d3939f64883e6799614cab708ef4ee9ef415dd6dcad47527cdbb0eea43bf3a2", size = 1451069, upload-time = "2026-11-05T02:26:59.899Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/eb/4e/bc692f443e5f38ffa960e7412cd76f96084686dac3c5101bf6bc24c48597/dulwich-1.2.21-cp312-cp312-win32.whl", hash = "sha256:3206426faf4cb2474458f2dacf5c1b597a076831f2e7afa2a350df5fff2cce1a", size = 1173883, upload-time = "2026-11-05T02:25:38.006Z" },
-    { url = "https://files.pythonhosted.org/packages/80/67/42d9eca568488e960c9726c27355536e8e239b780e937f6b84896729cb69/dulwich-1.2.21-cp312-cp312-win_amd64.whl", hash = "sha256:b3d30d40384cee2e8aa3722f87cef2f3d71717a0b45ac88eba457d62acf65dda", size = 1128317, upload-time = "2026-11-05T02:25:39.986Z" },
-    { url = "https://files.pythonhosted.org/packages/a2/cc/a55ab15df42fb6d7ea74f9e6cfd0b4b665ba3b26f67322b9ffa09fb8d2aa/dulwich-1.2.21-cp312-cp312-win_arm64.whl", hash = "sha256:4747b1f94dbbf06e90d49247199db458bd9fefc588a4368669cb551ba4b6439f", size = 1123847, upload-time = "2026-11-05T02:25:41.613Z" },
-    { url = "https://files.pythonhosted.org/packages/6d/0e/e44bc7c8619596af498738917bb21f8511d0f928f32cae0c4a2ba01fdebd/dulwich-1.2.21-py3-none-any.whl", hash = "sha256:31a522b9611e8032a43b8fb6941469c24e65ff4f14e0427986c58e90c22e154f", size = 762744, upload-time = "2026-11-05T02:26:58.412Z" },
 ]
 
 [[package]]
@@ -494,7 +480,7 @@ source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "mouse" },
     { name = "psutil" },
-    { name = "pyappify", extra = ["standalone"] },
+    { name = "pyappify" },
     { name = "pycaw" },
     { name = "pydirectinput" },
     { name = "pynput" },
@@ -667,16 +653,11 @@ wheels = [
 
 [[package]]
 name = "pyappify"
-version = "1.0.20"
+version = "1.0.13"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/e7/0b/d4d32e620ec9ddd79fd1d5225af345f6453136b0c66332453266ba640c7a/pyappify-1.0.20.tar.gz", hash = "sha256:351dfcfbc92f9e09e6cfee434cb554cebd4ae047a0d97ec1b2a7e433f6f18b87", size = 64334, upload-time = "2026-11-12T06:30:11.788Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/a1/df/a93ed9c7a61e62f4be33a016a16f61b7af9b584cc7707297a3c32482fe1c/pyappify-1.0.13.tar.gz", hash = "sha256:6cf27666e63f090d591680a5d73cbd090047359ea0af817e46d36b76924b0603", size = 9305, upload-time = "2026-08-17T05:18:10.446Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/87/b1/3117ccc625b08e1fa22556dfa1b496bc5a5be311a5937392f068b1babd70/pyappify-1.0.20-py3-none-any.whl", hash = "sha256:2550d4cca836a717e263beb6d6415505935faeab349602c4efa5e952b4f2dbdf", size = 70889, upload-time = "2026-11-12T06:30:10.309Z" },
-]
-
-[package.optional-dependencies]
-standalone = [
-    { name = "dulwich" },
+    { url = "https://files.pythonhosted.org/packages/49/9d/0354fd829ca45d9747bf829837ca058ffff5cf546e34e393e612ccbc67f4/pyappify-1.0.13-py3-none-any.whl", hash = "sha256:bd10bdefd71fd774a299a52fa42a1e64280b9979fe22c181c3ef6f2094890654", size = 9920, upload-time = "2026-08-17T05:18:09.44Z" },
 ]
 
 [[package]]

@@ -14,8 +14,6 @@ comtypes==1.5.0 ; sys_platform == 'win32'
     #   pycaw
 decorator==5.3.1 ; sys_platform == 'win32'
     # via librosa
-dulwich==1.2.21 ; sys_platform == 'win32'
-    # via pyappify
 evdev==1.9.3 ; sys_platform == 'win32' and 'linux' in sys_platform
     # via pynput
 idna==3.18 ; sys_platform == 'win32'
@@ -96,7 +94,7 @@ psutil==7.2.2 ; sys_platform == 'win32'
     #   ok-nte
     #   ok-script
     #   pycaw
-pyappify==1.0.20 ; sys_platform == 'win32'
+pyappify==1.0.13 ; sys_platform == 'win32'
     # via ok-script
 pycaw==20240210 ; sys_platform == 'win32'
     # via ok-script
@@ -153,6 +151,4 @@ typing-extensions==4.16.0 ; sys_platform == 'win32'
     #   ok-script
     #   soundfile
 urllib3==2.8.0 ; sys_platform == 'win32'
-    # via
-    #   dulwich
-    #   requests
+    # via requests

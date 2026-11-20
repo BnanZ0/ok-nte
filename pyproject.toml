@@ -48,6 +48,11 @@ environments = [
     "sys_platform == 'win32'"
 ]
 
+override-dependencies = [
+    { package = { name = "ok-script" },
+      dependencies = ["pyappify==1.0.13"] },
+]
+
 exclude-dependencies = [
     { package = { name = "ok-script" },
       dependencies = ["mcp"] },
