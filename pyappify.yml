@@ -2,6 +2,7 @@ name: "ok-nte"
 uac: true
 icon: "icons/icon.png"
 website: "https://ok-script.com/ok-nte"
+keep_releases: 30
 packaging: packaging
 
 mirrorchyan:
