@@ -28,7 +28,7 @@ class CharImplementation:
     external_folder_name: str = ""
 
     def display_name(self, locale_name: str = "") -> str:
-        char_name = self.cn_name if locale_name == "zh_CN" else self.en_name
+        char_name = self.cn_name if "zh" in locale_name else self.en_name
         return (
             f"{self.external_folder_name} - {char_name}" if self.external_folder_name else char_name
         )
