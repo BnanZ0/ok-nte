@@ -67,6 +67,17 @@ class LauncherTask(BaseNTETask):
         self.capture_config = DynamicConfig()
 
     def run(self):
+        super().run()
+        try:
+            self.do_run()
+        except FinishedException:
+            raise
+        except Exception as e:
+            self.log_error("LauncherTask Error", e, notify=True)
+            self.executor.pause()
+            raise
+
+    def do_run(self):
         self.scene.set_game_capture_ready(False)
         self.log_info("Launcher task started")
         dismiss_screensaver()
