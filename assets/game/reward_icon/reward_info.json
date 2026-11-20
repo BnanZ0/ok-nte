@@ -1,0 +1,206 @@
+[
+  {
+    "kind": "ability",
+    "name": "小心鸽子",
+    "tiers": {
+      "紫": "ability_小心鸽子_紫.png",
+      "蓝": "ability_小心鸽子_蓝.png",
+      "绿": "ability_小心鸽子_绿.png"
+    },
+    "material": "「橄榄枝」/白鸽的振翅/雏鸟的希冀"
+  },
+  {
+    "kind": "ability",
+    "name": "扑克茶会",
+    "tiers": {
+      "紫": "ability_扑克茶会_紫.png",
+      "蓝": "ability_扑克茶会_蓝.png",
+      "绿": "ability_扑克茶会_绿.png"
+    },
+    "material": "「白蔷薇」/尉官的谨慎/新兵的怯懦"
+  },
+  {
+    "kind": "ability",
+    "name": "惊喜派对",
+    "tiers": {
+      "紫": "ability_惊喜派对_紫.png",
+      "蓝": "ability_惊喜派对_蓝.png",
+      "绿": "ability_惊喜派对_绿.png"
+    },
+    "material": "「帽子」/已知的倦怠/初次的期许"
+  },
+  {
+    "kind": "ability",
+    "name": "心电感应",
+    "tiers": {
+      "紫": "ability_心电感应_紫.png",
+      "蓝": "ability_心电感应_蓝.png",
+      "绿": "ability_心电感应_绿.png"
+    },
+    "material": "「心跳夜」/信仰的共鸣"
+  },
+  {
+    "kind": "arc",
+    "name": "泡影罐头·苹果核",
+    "tiers": {
+      "紫": "arc_泡影罐头-苹果核_紫.png",
+      "蓝": "arc_泡影罐头-苹果核_蓝.png",
+      "绿": "arc_泡影罐头-苹果核_绿.png"
+    },
+    "material": "金色/银质/铁制苹果核"
+  },
+  {
+    "kind": "arc",
+    "name": "泡影罐头·螺旋乐",
+    "tiers": {
+      "紫": "arc_泡影罐头-螺旋乐_紫.png",
+      "蓝": "arc_泡影罐头-螺旋乐_蓝.png",
+      "绿": "arc_泡影罐头-螺旋乐_绿.png"
+    },
+    "material": "螺旋乐齐奏/小节/碎屑"
+  },
+  {
+    "kind": "arc",
+    "name": "泡影罐头·液态梦",
+    "tiers": {
+      "紫": "arc_泡影罐头-液态梦_紫.png",
+      "蓝": "arc_泡影罐头-液态梦_蓝.png",
+      "绿": "arc_泡影罐头-液态梦_绿.png"
+    },
+    "material": "罐装液态梦/旅行装/试用装"
+  },
+  {
+    "kind": "arc",
+    "name": "泡影罐头·冷甜点",
+    "tiers": {
+      "紫": "arc_泡影罐头-冷甜点_紫.png",
+      "蓝": "arc_泡影罐头-冷甜点_蓝.png",
+      "绿": "arc_泡影罐头-冷甜点_绿.png"
+    },
+    "material": "特制/原味/无味冷点心"
+  },
+  {
+    "kind": "arc",
+    "name": "泡影罐头·戏剧芯",
+    "tiers": {
+      "紫": "arc_泡影罐头-戏剧芯_紫.png",
+      "蓝": "arc_泡影罐头-戏剧芯_蓝.png",
+      "绿": "arc_泡影罐头-戏剧芯_绿.png"
+    },
+    "material": "（未抓到详情页, 待补）"
+  },
+  {
+    "kind": "ability",
+    "name": "越狱艺术",
+    "tiers": {
+      "紫": "ability_越狱艺术_紫.png",
+      "蓝": "ability_越狱艺术_蓝.png",
+      "绿": "ability_越狱艺术_绿.png"
+    },
+    "material": "（未抓到详情页, 待补）"
+  },
+  {
+    "kind": "weekly",
+    "name": "墨菲克斯",
+    "tiers": {
+      "材料": "weekly_墨菲克斯_材料.png"
+    },
+    "material": "好狗狗印章"
+  },
+  {
+    "kind": "weekly",
+    "name": "永不谢幕的阿拉克涅",
+    "tiers": {
+      "材料": "weekly_永不谢幕的阿拉克涅_材料.png"
+    },
+    "material": "名为炫耀的裙袂"
+  },
+  {
+    "kind": "weekly",
+    "name": "讨债人",
+    "tiers": {
+      "材料": "weekly_讨债人_材料.png"
+    },
+    "material": "记忆的永恒"
+  },
+  {
+    "kind": "weekly",
+    "name": "贵腐巢母",
+    "tiers": {
+      "材料": "weekly_贵腐巢母_材料.png"
+    },
+    "material": "空心花籽"
+  },
+  {
+    "kind": "boss",
+    "name": "音霸魔王",
+    "tiers": {
+      "材料": "boss_音霸魔王_材料.png"
+    },
+    "material": "水月拨"
+  },
+  {
+    "kind": "boss",
+    "name": "无首铁驭",
+    "tiers": {
+      "材料": "boss_无首铁驭_材料.png"
+    },
+    "material": "上膛骑士火花塞"
+  },
+  {
+    "kind": "boss",
+    "name": "塞润尼缇",
+    "tiers": {
+      "材料": "boss_塞润尼缇_材料.png"
+    },
+    "material": "倾诉花种"
+  },
+  {
+    "kind": "boss",
+    "name": "黑之书",
+    "tiers": {
+      "材料": "boss_黑之书_材料.png"
+    },
+    "material": "妄想彼端的一页"
+  },
+  {
+    "kind": "boss",
+    "name": "海囚",
+    "tiers": {
+      "材料": "boss_海囚_材料.png"
+    },
+    "material": "海之泪"
+  },
+  {
+    "kind": "boss",
+    "name": "囿巢鸟",
+    "tiers": {
+      "材料": "boss_囿巢鸟_材料.png"
+    },
+    "material": "护巢残片"
+  },
+  {
+    "kind": "boss",
+    "name": "斑蝶",
+    "tiers": {
+      "材料": "boss_斑蝶_材料.png"
+    },
+    "material": "斑斓的票根"
+  },
+  {
+    "kind": "currency",
+    "name": "银色卷轴",
+    "tiers": {
+      "材料": "currency_银色卷轴.png"
+    },
+    "material": ""
+  },
+  {
+    "kind": "currency",
+    "name": "金币",
+    "tiers": {
+      "材料": "currency_金币.png"
+    },
+    "material": ""
+  }
+]

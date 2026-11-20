@@ -39,7 +39,8 @@ msgstr "执行任务时开启以避免月卡中断"
 msgid "Ultimate Key"
 msgstr "极轨技快捷键"
 
-msgid "Your computer's local time when the monthly card will popup, hour in (1-24)"
+msgid ""
+"Your computer's local time when the monthly card will popup, hour in (1-24)"
 msgstr "月卡弹出时的电脑本地时间，小时 (1-24)"
 
 msgid "内置代码"
@@ -180,7 +181,9 @@ msgstr ""
 msgid "关联特征"
 msgstr ""
 
-msgid "此为 Python 脚本, 不可在此修改.\n请在对应的源文件中直接修改代码."
+msgid ""
+"此为 Python 脚本, 不可在此修改.\n"
+"请在对应的源文件中直接修改代码."
 msgstr ""
 
 msgid "没有找到匹配的指令。"
@@ -271,7 +274,9 @@ msgstr ""
 msgid "Counter Attack Threshold"
 msgstr "反击触发阈值"
 
-msgid "Counter attack sound recognition threshold (0.0-1.0, lower is more sensitive)"
+msgid ""
+"Counter attack sound recognition threshold (0.0-1.0, lower is more "
+"sensitive)"
 msgstr "反击声音识别阈值（0.0-1.0，越低越灵敏）"
 
 msgid "Dodge Threshold"
@@ -462,7 +467,7 @@ msgid "选择日常任务中的一咖舍处理方式"
 msgstr ""
 
 msgid "不执行"
-msgstr ""
+msgstr "不执行"
 
 msgid "抛竿失败时，补充默认鱼饵并出售鱼获后重试"
 msgstr ""
@@ -828,12 +833,11 @@ msgid "除了选择内建存在的 [{combo}] 外,您也可以自己输入名称�
 msgstr ""
 
 msgid ""
-"<b>外置代码用法:</b><br>"
-"在 [{data_manager}] 中点击 [{show_builtin}], 选中内置角色后点击 [{copy_external}] 创建可编辑副本。<br>"
-"回到此页, 选择 {external_code} 脚本, 修改 Python 代码后点击 [{apply}] 保存并绑定到当前角色。<br>"
-"也可在 [{data_manager}] 中点击 [{open_folder}] 手动编辑 .py 文件, 保存后点击 [{refresh}] 重新加载。"
-"每个文件须且仅须定义一个 BaseChar 子类。<br>"
-"外置代码会以本软件相同权限运行, 请仅使用可信来源。"
+"<b>外置代码用法:</b><br>在 [{data_manager}] 中点击 [{show_builtin}], 选中内置角色后点击 "
+"[{copy_external}] 创建可编辑副本。<br>回到此页, 选择 {external_code} 脚本, 修改 Python 代码后点击 "
+"[{apply}] 保存并绑定到当前角色。<br>也可在 [{data_manager}] 中点击 [{open_folder}] 手动编辑 .py "
+"文件, 保存后点击 [{refresh}] 重新加载。每个文件须且仅须定义一个 BaseChar 子类。<br>外置代码会以本软件相同权限运行, "
+"请仅使用可信来源。"
 msgstr ""
 
 msgid "九百九十九夜"
@@ -875,8 +879,13 @@ msgstr "后台输出设备"
 msgid "Open SoundVolumeCommandLine Download Page"
 msgstr "打开 SoundVolumeCommandLine 下载页面"
 
-msgid "Optionally route the game to a selected Windows output device while it is in the background. SoundVolumeCommandLine is not bundled; select your own downloaded copy."
-msgstr "当游戏处于后台时，可选择性地将游戏音频路由到选定的 Windows 输出设备。本软件未内置 SoundVolumeCommandLine，请选择您自己下载的版本。"
+msgid ""
+"Optionally route the game to a selected Windows output device while it is in"
+" the background. SoundVolumeCommandLine is not bundled; select your own "
+"downloaded copy."
+msgstr ""
+"当游戏处于后台时，可选择性地将游戏音频路由到选定的 Windows 输出设备。本软件未内置 "
+"SoundVolumeCommandLine，请选择您自己下载的版本。"
 
 msgid "Switch game audio output when the game window leaves the foreground"
 msgstr "当游戏窗口离开前台时，切换游戏音频输出"
@@ -890,7 +899,8 @@ msgstr "游戏处于后台时使用的输出设备"
 msgid "Open the official NirSoft SoundVolumeCommandLine page"
 msgstr "打开 NirSoft SoundVolumeCommandLine 官方页面"
 
-msgid "SoundVolumeCommandLine (svcl.exe);;Executable Files (*.exe);;All Files (*)"
+msgid ""
+"SoundVolumeCommandLine (svcl.exe);;Executable Files (*.exe);;All Files (*)"
 msgstr "SoundVolumeCommandLine (svcl.exe);;可执行文件 (*.exe);;所有文件 (*)"
 
 msgid "Select svcl.exe"
@@ -955,10 +965,7 @@ msgstr ""
 msgid "停止"
 msgstr ""
 
-msgid "在游戏赠礼页点击{}"
-msgstr ""
-
-msgid "点击礼物卡片可设定优先级，再次点击取消"
+msgid "在游戏赠礼页点击{}。点击礼物卡片可设定优先级，再次点击取消。"
 msgstr ""
 
 msgid "赠礼状态"
@@ -1167,76 +1174,92 @@ msgid "自动闯关"
 msgstr ""
 
 msgid "{} 个空槽位"
-msgstr ""
+msgstr "{} 个空槽位"
 
 msgid "固定"
-msgstr ""
+msgstr "固定"
 
 msgid "已从列表移除"
-msgstr ""
+msgstr "已从列表移除"
 
 msgid "已删除"
 msgstr ""
 
 msgid "已填入"
-msgstr ""
+msgstr "已填入"
 
 msgid "已应用"
-msgstr ""
+msgstr "已应用"
 
 msgid "已更新 {} 位角色的出招表"
-msgstr ""
+msgstr "已更新 {} 位角色的出招表"
 
 msgid "应用方案"
-msgstr ""
+msgstr "应用方案"
 
 msgid "扫描失败"
-msgstr ""
+msgstr "扫描失败"
 
 msgid "搜索方案"
-msgstr ""
+msgstr "搜索方案"
 
 msgid "新建方案"
-msgstr ""
+msgstr "新建方案"
 
 msgid "方案中不能重复选择角色"
-msgstr ""
+msgstr "方案中不能重复选择角色"
 
 msgid "方案列表"
-msgstr ""
+msgstr "方案列表"
 
 msgid "方案名称重复或内容无效"
-msgstr ""
+msgstr "方案名称重复或内容无效"
 
 msgid "无法保存"
-msgstr ""
+msgstr "无法保存"
 
 msgid "无法填入"
-msgstr ""
+msgstr "无法填入"
 
 msgid "没有可填入的角色"
-msgstr ""
+msgstr "没有可填入的角色"
 
 msgid "等待扫描..."
-msgstr ""
+msgstr "等待扫描..."
 
 msgid "输入或选择出招表"
-msgstr ""
+msgstr "输入或选择出招表"
 
 msgid "队伍方案"
-msgstr ""
+msgstr "队伍方案"
 
 msgid "队伍识别"
-msgstr ""
+msgstr "队伍识别"
 
 msgid "提示"
-msgstr ""
+msgstr "提示"
 
-msgid "<p><b style=\"color: #d83b01;\">注意：</b>此面板 <b style=\"color: #d83b01;\">不会</b> 在进入战斗或更换阵容时实时自动刷新或同步显示。<br>这是个用于向数据库关联或添加 [角色特征] 的工具面板。<br>点击 [{scan_team}] 后点击 [关联或添加] 特征, 自动战斗时就会识别对应的角色。<br>如果不想管理 [角色特征], 可以直接使用 [{fixed_team}] 功能。</p>"
+msgid ""
+"<p><b style=\"color: #d83b01;\">注意：</b>此面板 <b style=\"color: "
+"#d83b01;\">不会</b> 在进入战斗或更换阵容时实时自动刷新或同步显示。<br>这是个用于向数据库关联或添加 [角色特征] "
+"的工具面板。<br>点击 [{scan_team}] 后点击 [关联或添加] 特征, 自动战斗时就会识别对应的角色。<br>如果不想管理 [角色特征],"
+" 可以直接使用 [{fixed_team}] 功能。</p>"
 msgstr ""
+"<p><b style=\"color: #d83b01;\">注意：</b>此面板 <b style=\"color: "
+"#d83b01;\">不会</b> 在进入战斗或更换阵容时实时自动刷新或同步显示。<br>这是个用于向数据库关联或添加 [角色特征] "
+"的工具面板。<br>点击 [{scan_team}] 后点击 [关联或添加] 特征, 自动战斗时就会识别对应的角色。<br>如果不想管理 [角色特征],"
+" 可以直接使用 [{fixed_team}] 功能。</p>"
 
-msgid "<p>用于配置并保存常用的 4 人队伍阵容与出招表, 修改后立即生效。<br>方案中的 1~4 号位仅用于 [{fixed_preset}] 功能; 已绑定特征的角色放在哪个号位都可以, 不影响识别。<br>点击 [{apply_preset}] 可一键更新应用方案中各角色的出招表 (未选择出招表则保持原配置不变)。<br>开启 [{fixed_preset}] 后自动战斗将直接采用此阵容, 无需等待特征识别 (未录入特征的角色亦可直接战斗)。<br>点击 [{fill_scan}] 可将上方特征扫描识别出的队伍角色快速填入当前方案。</p>"
-msgstr "<p>用于配置并保存常用的 4 人队伍阵容与出招表, 修改后立即生效。<br>方案中的 1~4 号位仅用于[{fixed_preset}] 功能; 已绑定特征的角色放在哪个号位都可以, 不影响识别。<br>点击 [{apply_preset}] 可一键更新应用方案中各角色的出招表 (未选择出招表则保持原配置不变)。<br>开启 [{fixed_preset}] 后自动战斗将直接采用此阵容, 无需等待特征识别 (未录入特征的角色亦可直接战斗)。<br>点击 [{fill_scan}] 可将上方特征扫描识别出的队伍角色快速填入当前方案。</p>"
+msgid ""
+"<p>用于配置并保存常用的 4 人队伍阵容与出招表, 修改后立即生效。<br>方案中的 1~4 号位仅用于 [{fixed_preset}] 功能; "
+"已绑定特征的角色放在哪个号位都可以, 不影响识别。<br>点击 [{apply_preset}] 可一键更新应用方案中各角色的出招表 "
+"(未选择出招表则保持原配置不变)。<br>开启 [{fixed_preset}] 后自动战斗将直接采用此阵容, 无需等待特征识别 "
+"(未录入特征的角色亦可直接战斗)。<br>点击 [{fill_scan}] 可将上方特征扫描识别出的队伍角色快速填入当前方案。</p>"
+msgstr ""
+"<p>用于配置并保存常用的 4 人队伍阵容与出招表, 修改后立即生效。<br>方案中的 1~4 号位仅用于[{fixed_preset}] 功能; "
+"已绑定特征的角色放在哪个号位都可以, 不影响识别。<br>点击 [{apply_preset}] 可一键更新应用方案中各角色的出招表 "
+"(未选择出招表则保持原配置不变)。<br>开启 [{fixed_preset}] 后自动战斗将直接采用此阵容, 无需等待特征识别 "
+"(未录入特征的角色亦可直接战斗)。<br>点击 [{fill_scan}] 可将上方特征扫描识别出的队伍角色快速填入当前方案。</p>"
 
 #, python-brace-format
 msgid "OpenVINO 检测器 {model} 推理超时, 已自动停用。重启程序后将重新尝试启用。"
@@ -1245,59 +1268,61 @@ msgstr ""
 msgid "批量删除"
 msgstr ""
 
-msgid "当前未绑定任何{combo}.\n遇到此角色将默认使用基础通用脚本(BaseChar)."
+msgid ""
+"当前未绑定任何{combo}.\n"
+"遇到此角色将默认使用基础通用脚本(BaseChar)."
 msgstr ""
 
 msgid "显示内置"
-msgstr ""
+msgstr "显示内置"
 
 msgid "复制为外置"
-msgstr ""
+msgstr "复制为外置"
 
 msgid "复制成功"
-msgstr ""
+msgstr "复制成功"
 
 msgid "复制失败"
-msgstr ""
+msgstr "复制失败"
 
 msgid "已成功创建外置代码: {}"
-msgstr ""
+msgstr "已成功创建外置代码: {}"
 
 msgid "复制为外置代码"
-msgstr ""
+msgstr "复制为外置代码"
 
 msgid "目录"
-msgstr ""
+msgstr "目录"
 
 msgid "脚本文件名 (.py)"
-msgstr ""
+msgstr "脚本文件名 (.py)"
 
 msgid "将在 external_chars/ 目录下生成独立的 Python 脚本供您编辑与调试."
-msgstr ""
+msgstr "将在 external_chars/ 目录下生成独立的 Python 脚本供您编辑与调试."
 
 msgid "无法读取 Python 脚本."
-msgstr ""
+msgstr "无法读取 Python 脚本."
 
 msgid "外置代码应用失败"
-msgstr ""
+msgstr "外置代码应用失败"
 
 msgid "已应用外置代码: {}"
-msgstr ""
+msgstr "已应用外置代码: {}"
 
 msgid "角色"
-msgstr ""
+msgstr "角色"
 
 msgid "指令"
-msgstr ""
+msgstr "指令"
 
-msgid "请先应用更改后再运行测试."
-msgstr ""
+msgid "请先应用外置代码更改后再运行测试."
+msgstr "请先应用外置代码更改后再运行测试."
 
 msgid "角色工具任务未注册"
-msgstr ""
+msgstr "角色工具任务未注册"
 
 msgid "角色工具任务不可用"
-msgstr ""
+msgstr "角色工具任务不可用"
 
 msgid "询问AI"
 msgstr ""
@@ -1305,7 +1330,19 @@ msgstr ""
 msgid "AI提示模版已复制。请粘贴到AI聊天机器人中。"
 msgstr ""
 
-msgid "{SOURCE}\n\n我想实现: \n\n请修改上面完整的 {class_name} 角色自动化代码。\n\n只返回整个文件完整修改后的 Python 代码，不要返回补丁或解释。\n保持类名为 {class_name}。保留仍然需要的 import。\n\n在思考辅助方法、任务 API、状态、切人、冷却和战斗流程时, 请参考: \nBaseChar 角色基类: {BASE_CHAR_URL}\nCombat Planner 开发指南: {COMBAT_PLANNER_URL}"
+msgid ""
+"{SOURCE}\n"
+"\n"
+"我想实现: \n"
+"\n"
+"请修改上面完整的 {class_name} 角色自动化代码。\n"
+"\n"
+"只返回整个文件完整修改后的 Python 代码，不要返回补丁或解释。\n"
+"保持类名为 {class_name}。保留仍然需要的 import。\n"
+"\n"
+"在思考辅助方法、任务 API、状态、切人、冷却和战斗流程时, 请参考: \n"
+"BaseChar 角色基类: {BASE_CHAR_URL}\n"
+"Combat Planner 开发指南: {COMBAT_PLANNER_URL}"
 msgstr ""
 
 msgid "OK"
@@ -1315,133 +1352,133 @@ msgid "设置"
 msgstr ""
 
 msgid "上传"
-msgstr ""
+msgstr "上传"
 
 msgid "作者"
-msgstr ""
+msgstr "作者"
 
 msgid "全部作者"
-msgstr ""
+msgstr "全部作者"
 
 msgid "全部角色"
-msgstr ""
+msgstr "全部角色"
 
 msgid "内置"
-msgstr ""
+msgstr "内置"
 
 msgid "刷新"
-msgstr ""
+msgstr "刷新"
 
 msgid "加载失败: {}"
-msgstr ""
+msgstr "加载失败: {}"
 
 msgid "取消"
-msgstr ""
+msgstr "取消"
 
 msgid "外置"
-msgstr ""
+msgstr "外置"
 
 msgid "外置代码目录"
-msgstr ""
+msgstr "外置代码目录"
 
 msgid "外置代码目录名称无效"
-msgstr ""
+msgstr "外置代码目录名称无效"
 
 msgid "外置代码目录“{}”已存在, 请修改目录名称后重试。"
-msgstr ""
+msgstr "外置代码目录“{}”已存在, 请修改目录名称后重试。"
 
 msgid "大小"
-msgstr ""
+msgstr "大小"
 
 msgid "导入"
-msgstr ""
+msgstr "导入"
 
 msgid "导入完成"
-msgstr ""
+msgstr "导入完成"
 
 msgid "导出"
-msgstr ""
+msgstr "导出"
 
 msgid "导出完成"
-msgstr ""
+msgstr "导出完成"
 
 msgid "导出社区方案"
-msgstr ""
+msgstr "导出社区方案"
 
 msgid "导出队伍"
-msgstr ""
+msgstr "导出队伍"
 
 msgid "工坊"
-msgstr ""
+msgstr "工坊"
 
 msgid "工坊会显示来自公开仓库的 ZIP 方案."
-msgstr ""
+msgstr "工坊会显示来自公开仓库的 ZIP 方案."
 
 msgid "已创建方案: {}"
-msgstr ""
+msgstr "已创建方案: {}"
 
 msgid "已加载 {} 个方案"
-msgstr ""
+msgstr "已加载 {} 个方案"
 
 msgid "当前方案没有可导出的出招表."
-msgstr ""
+msgstr "当前方案没有可导出的出招表."
 
 msgid "成员"
-msgstr ""
+msgstr "成员"
 
 msgid "描述"
-msgstr ""
+msgstr "描述"
 
 msgid "搜索名称, 说明, 作者或角色"
-msgstr ""
+msgstr "搜索名称, 说明, 作者或角色"
 
 msgid "操作失败"
-msgstr ""
+msgstr "操作失败"
 
 msgid "方案说明"
-msgstr ""
+msgstr "方案说明"
 
 msgid "无法导出"
-msgstr ""
+msgstr "无法导出"
 
 msgid "更新时间"
-msgstr ""
+msgstr "更新时间"
 
 msgid "本地方案名称"
-msgstr ""
+msgstr "本地方案名称"
 
 msgid "正在加载工坊..."
-msgstr ""
+msgstr "正在加载工坊..."
 
 msgid "没有说明."
-msgstr ""
+msgstr "没有说明."
 
 msgid "版本"
-msgstr ""
+msgstr "版本"
 
 msgid "社区方案"
-msgstr ""
+msgstr "社区方案"
 
 msgid "社区方案含外置代码; 导入后会以本软件权限运行, 请仅导入可信来源."
-msgstr ""
+msgstr "社区方案含外置代码; 导入后会以本软件权限运行, 请仅导入可信来源."
 
 msgid "角色阵容"
-msgstr ""
+msgstr "角色阵容"
 
 msgid "调整筛选条件或稍后刷新工坊."
-msgstr ""
+msgstr "调整筛选条件或稍后刷新工坊."
 
 msgid "返回"
-msgstr ""
+msgstr "返回"
 
 msgid "选择一个方案"
-msgstr ""
+msgstr "选择一个方案"
 
 msgid "队伍配置"
-msgstr ""
+msgstr "队伍配置"
 
 msgid "不是该角色?"
-msgstr ""
+msgstr "不是该角色?"
 
 msgid "删除方案"
 msgstr ""
@@ -1471,19 +1508,19 @@ msgid "鼠标占用警告"
 msgstr ""
 
 msgid "数据备份"
-msgstr ""
+msgstr "数据备份"
 
 msgid "用户数据"
-msgstr ""
+msgstr "用户数据"
 
 msgid "ZIP 格式备份; 导入将覆盖当前数据"
-msgstr ""
+msgstr "ZIP 格式备份; 导入将覆盖当前数据"
 
 msgid "手动修改 Python 代码后, 需点击 [{refresh}] 生效"
-msgstr ""
+msgstr "手动修改 Python 代码后, 需点击 [{refresh}] 生效"
 
 msgid "编写指南"
-msgstr ""
+msgstr "编写指南"
 
 msgid "噗卡乐园 - 命中幸运星"
 msgstr ""
@@ -1536,52 +1573,52 @@ msgid "选择与游戏当前演奏界面一致的乐器"
 msgstr ""
 
 msgid "文件列表已变化, 无法自动更新, 请重新导入."
-msgstr ""
+msgstr "文件列表已变化, 无法自动更新, 请重新导入."
 
 msgid "本地源码已修改, 已跳过自动更新."
-msgstr ""
+msgstr "本地源码已修改, 已跳过自动更新."
 
 msgid "本地安装文件缺失, 请重新导入."
-msgstr ""
+msgstr "本地安装文件缺失, 请重新导入."
 
 msgid "无法读取工坊安装记录, 请检查 workshop_installs.json."
-msgstr ""
+msgstr "无法读取工坊安装记录, 请检查 workshop_installs.json."
 
 msgid "下载的方案与更新信息不一致, 请刷新工坊后重试."
-msgstr ""
+msgstr "下载的方案与更新信息不一致, 请刷新工坊后重试."
 
 msgid "一鍵更新"
 msgstr "一键更新"
 
 msgid "更新"
-msgstr ""
+msgstr "更新"
 
 msgid "更新到 {}"
-msgstr ""
+msgstr "更新到 {}"
 
 msgid "已是最新"
-msgstr ""
+msgstr "已是最新"
 
 msgid "正在更新出招表..."
-msgstr ""
+msgstr "正在更新出招表..."
 
 msgid "已更新 {} 份方案, {} 项失败"
-msgstr ""
+msgstr "已更新 {} 份方案, {} 项失败"
 
 msgid "更新失败"
-msgstr ""
+msgstr "更新失败"
 
 msgid "请等待当前导入或导出完成后再更新."
-msgstr ""
+msgstr "请等待当前导入或导出完成后再更新."
 
 msgid "加载失败"
-msgstr ""
+msgstr "加载失败"
 
 msgid "方案"
-msgstr ""
+msgstr "方案"
 
 msgid "重命名"
-msgstr ""
+msgstr "重命名"
 
 msgid ""
 "角色: {character}\n"
@@ -1590,202 +1627,239 @@ msgid ""
 "{error_type}: {detail}\n"
 "可能与接口或依赖不兼容, 请至工坊更新方案或将此信息反馈给方案作者."
 msgstr ""
-
+"角色: {character}\n"
+"出招表: {combo}\n"
+"出错位置: {location}\n"
+"{error_type}: {detail}\n"
+"可能与接口或依赖不兼容, 请至工坊更新方案或将此信息反馈给方案作者."
 
 msgid "找不到模块加载器"
-msgstr ""
+msgstr "找不到模块加载器"
 
 msgid "外置角色模块必须且只能定义一个 BaseChar 子类"
-msgstr ""
+msgstr "外置角色模块必须且只能定义一个 BaseChar 子类"
 
 msgid "角色实现标识重复: {impl_id}"
-msgstr ""
+msgstr "角色实现标识重复: {impl_id}"
 
 msgid "本次仅刷所选类型及其目标; 成功结束后才按循环模式更新下次目标。"
-msgstr ""
+msgstr "本次仅刷所选类型及其目标; 成功结束后才按循环模式更新下次目标。"
 
-msgid "每次日常仅刷当前目标, 本次不在多个目标间分配体力。\n停用: 下次仍刷当前目标。\n自动循环序号/目标: 成功结束后切到同类型的下一个序号或奖励目标, 末项后回到首项。\n自定义循环: 成功结束后按下方序列更新下次目标; 失败或跳过时不切换。"
+msgid ""
+"每次日常仅刷当前目标, 本次不在多个目标间分配体力。\n"
+"停用: 下次仍刷当前目标。\n"
+"自动循环序号/目标: 成功结束后切到同类型的下一个序号或奖励目标, 末项后回到首项。\n"
+"自定义循环: 成功结束后按下方序列更新下次目标; 失败或跳过时不切换。"
 msgstr ""
+"每次日常仅刷当前目标, 本次不在多个目标间分配体力。\n"
+"停用: 下次仍刷当前目标。\n"
+"自动循环序号/目标: 成功结束后切到同类型的下一个序号或奖励目标, 末项后回到首项。\n"
+"自定义循环: 成功结束后按下方序列更新下次目标; 失败或跳过时不切换。"
 
-msgid "按列表顺序轮换, 末项后回到首项; 每次日常只刷一个目标, 下次运行才刷下一个。\n数字是副本序号, 不是次数; 例如「异能升级材料: 1」表示该类型的第1项。\n首次仍刷上方当前目标; 若其不在序列中, 成功后将下次目标设为序列首项; 空序列不切换。"
+msgid ""
+"按列表顺序轮换, 末项后回到首项; 每次日常只刷一个目标, 下次运行才刷下一个。\n"
+"数字是副本序号, 不是次数; 例如「异能升级材料: 1」表示该类型的第1项。\n"
+"首次仍刷上方当前目标; 若其不在序列中, 成功后将下次目标设为序列首项; 空序列不切换。"
 msgstr ""
+"按列表顺序轮换, 末项后回到首项; 每次日常只刷一个目标, 下次运行才刷下一个。\n"
+"数字是副本序号, 不是次数; 例如「异能升级材料: 1」表示该类型的第1项。\n"
+"首次仍刷上方当前目标; 若其不在序列中, 成功后将下次目标设为序列首项; 空序列不切换。"
 
 #, python-brace-format
-msgid "按今日累计消耗计算, 扣除已消耗体力; 每份奖励{cost}体力, 剩余目标向上取整。\n今日已消耗180体力或活跃度达100时跳过; 体力不足时仅刷可领取的次数。"
+msgid ""
+"按今日累计消耗计算, 扣除已消耗体力; 每份奖励{cost}体力, 剩余目标向上取整。\n"
+"今日已消耗180体力或活跃度达100时跳过; 体力不足时仅刷可领取的次数。"
 msgstr ""
+"按今日累计消耗计算, 扣除已消耗体力; 每份奖励{cost}体力, 剩余目标向上取整。\n"
+"今日已消耗180体力或活跃度达100时跳过; 体力不足时仅刷可领取的次数。"
 
 msgid "筛选"
-msgstr ""
+msgstr "筛选"
 
 msgid "阵容关键词"
-msgstr ""
+msgstr "阵容关键词"
 
 msgid "输入关键词后按 Enter 添加"
-msgstr ""
+msgstr "输入关键词后按 Enter 添加"
 
 msgid "移除关键词 {}"
-msgstr ""
+msgstr "移除关键词 {}"
 
 msgid "展开筛选"
-msgstr ""
+msgstr "展开筛选"
 
 msgid "收起筛选"
-msgstr ""
+msgstr "收起筛选"
 
 msgid "清空筛选"
-msgstr ""
+msgstr "清空筛选"
 
 #, python-brace-format
-msgid "已安装: {installed}\n最新版本: {latest}"
+msgid ""
+"已安装: {installed}\n"
+"最新版本: {latest}"
 msgstr ""
+"已安装: {installed}\n"
+"最新版本: {latest}"
 
 #, python-brace-format
 msgid "显示 {} / {} 个方案"
-msgstr ""
+msgstr "显示 {} / {} 个方案"
 
 msgid "没有匹配的方案"
-msgstr ""
+msgstr "没有匹配的方案"
 
 msgid "Cancel"
 msgstr "取消"
 
 msgid "异象巡礼"
-msgstr ""
+msgstr "异象巡礼"
 
 msgid "按目标清单顺序进行异象巡礼"
-msgstr ""
+msgstr "按目标清单顺序进行异象巡礼"
 
 msgid "目标"
-msgstr ""
+msgstr "目标"
 
 msgid "轮换起始日期"
-msgstr ""
+msgstr "轮换起始日期"
 
 msgid "按清单顺序循环, 末项后回到首项; 重复选择表示重复挑战同一目标"
-msgstr ""
+msgstr "按清单顺序循环, 末项后回到首项; 重复选择表示重复挑战同一目标"
 
 msgid "可选, 格式 YYYY-MM-DD; 每满7天按清单推进3项, 本周已领取次数也计入进度。留空则每次从清单首项开始循环。"
-msgstr ""
+msgstr "可选, 格式 YYYY-MM-DD; 每满7天按清单推进3项, 本周已领取次数也计入进度。留空则每次从清单首项开始循环。"
 
 msgid "每周开始运行日"
-msgstr ""
+msgstr "每周开始运行日"
 
 msgid "仅在所选星期至周日运行, 本周更早的日期会跳过。"
-msgstr ""
+msgstr "仅在所选星期至周日运行, 本周更早的日期会跳过。"
 
 msgid "周一"
-msgstr ""
+msgstr "周一"
 
 msgid "周二"
-msgstr ""
+msgstr "周二"
 
 msgid "周三"
-msgstr ""
+msgstr "周三"
 
 msgid "周四"
-msgstr ""
+msgstr "周四"
 
 msgid "周五"
-msgstr ""
+msgstr "周五"
 
 msgid "周六"
-msgstr ""
+msgstr "周六"
 
 msgid "周日"
+msgstr "周日"
+
+msgid "消耗体力培养角色"
 msgstr ""
 
+msgid "按培养目标缺口自动消耗体力：周本 > 世界BOSS > 异能 > 弧盘"
+msgstr ""
+
+msgid "连打单次上限（局），只是保险丝，实际还会被缺口和体力截断。"
+msgstr ""
+
+msgid "开局读一次养成指南四行和体力，之后按每局掉落增量本地记账，不再每局回页重读；掉落读不出时自动回页复核，不凭空猜数。"
+msgstr ""
+
+msgid "领奖时抓拍现场截图，供排查识别偏差；默认关闭。"
+msgstr ""
+
+msgid "今日体力花到这个累计数就停；今日目标已达标或设为 0 时不受每日目标限制，按当前体力一直刷到材料齐全；材料齐全后仍会切空幕继续消耗剩余体力。"
+msgstr ""
+"今日体力花到这个累计数就停；今日目标已达标或设为 0 时不受每日目标限制，按当前体力一直刷到材料齐全。；材料齐全后仍会切空幕继续消耗剩余体力。"
+
+msgid "周本刷取开关：开=优先刷满本周异象巡礼（每周 3 次，每次 60 体力）再刷其它材料；关=直接刷其它材料，周本只在异能第 2 行缺料时才打。"
+msgstr ""
+"周本刷取开关：开=优先刷满本周异象巡礼（每周 3 次，每次 60 体力）再刷其它材料；关=直接刷其它材料，周本只在异能第 2 行缺料时才打。"
+
+msgid "每局领奖后在日志统计各材料本次掉落多少、已有多少、还差多少。"
+msgstr "每局领奖后在日志统计各材料本次掉落多少、已有多少、还差多少。"
+
+msgid "在游戏赠礼页点击{}"
+msgstr ""
+
+msgid "点击礼物卡片可设定优先级，再次点击取消"
+msgstr ""
+
+msgid "请先应用更改后再运行测试."
+msgstr ""
 
 msgid "Close"
 msgstr "关闭"
 
-
 msgid "Drag to reorder"
 msgstr "拖动排序"
-
 
 msgid "Failed"
 msgstr "失败"
 
-
 msgid "Include in this daily routine"
 msgstr "加入本次日常任务"
-
 
 msgid "Name"
 msgstr "名称"
 
-
 msgid "No tasks available."
 msgstr "当前无可用任务。"
-
 
 msgid "Pause"
 msgstr "暂停"
 
-
 msgid "Paused"
 msgstr "已暂停"
-
 
 msgid "Pending"
 msgstr "待执行"
 
-
 msgid "Queued"
 msgstr "排队中"
-
 
 msgid "Reset"
 msgstr "重置"
 
-
 msgid "Resume"
 msgstr "继续"
-
 
 msgid "Routine settings"
 msgstr "日常设置"
 
-
 msgid "Run info"
 msgstr "运行信息"
-
 
 msgid "Running"
 msgstr "运行中"
 
-
 msgid "Select a task to see its settings."
 msgstr "选择任务以查看其配置。"
-
 
 msgid "Skipped"
 msgstr "已跳过"
 
-
 msgid "Start"
 msgstr "开始"
-
 
 msgid "Stop"
 msgstr "停止"
 
-
 msgid "Succeeded"
 msgstr "成功"
-
 
 msgid "Task settings"
 msgstr "任务配置"
 
-
 msgid "Value"
 msgstr "数值"
 
-
 msgid "检测到该方案包含外置代码, 是否同时删除对应的代码文件?"
 msgstr ""
-
 
 msgid "角色列表"
 msgstr ""

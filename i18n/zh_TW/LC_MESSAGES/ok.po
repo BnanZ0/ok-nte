@@ -39,7 +39,8 @@ msgstr "執行任務時開啟以避免月卡中斷"
 msgid "Ultimate Key"
 msgstr "極軌技快速鍵"
 
-msgid "Your computer's local time when the monthly card will popup, hour in (1-24)"
+msgid ""
+"Your computer's local time when the monthly card will popup, hour in (1-24)"
 msgstr "月卡彈出時的電腦本地時間，小時 (1-24)"
 
 msgid "内置代码"
@@ -180,8 +181,12 @@ msgstr "未獲取到特徵"
 msgid "关联特征"
 msgstr "關聯特徵"
 
-msgid "此为 Python 脚本, 不可在此修改.\n请在对应的源文件中直接修改代码."
-msgstr "此為 Python 腳本, 不可在此修改.\n請在對應的源檔案中直接修改程式碼."
+msgid ""
+"此为 Python 脚本, 不可在此修改.\n"
+"请在对应的源文件中直接修改代码."
+msgstr ""
+"此為 Python 腳本, 不可在此修改.\n"
+"請在對應的源檔案中直接修改程式碼."
 
 msgid "没有找到匹配的指令。"
 msgstr "沒有找到匹配的指令。"
@@ -275,7 +280,9 @@ msgstr ""
 msgid "Counter Attack Threshold"
 msgstr "反擊觸發閾值"
 
-msgid "Counter attack sound recognition threshold (0.0-1.0, lower is more sensitive)"
+msgid ""
+"Counter attack sound recognition threshold (0.0-1.0, lower is more "
+"sensitive)"
 msgstr "反擊聲音識別閾值（0.0-1.0，越低越靈敏）"
 
 msgid "Dodge Threshold"
@@ -832,19 +839,17 @@ msgid "除了选择内建存在的 [{combo}] 外,您也可以自己输入名称�
 msgstr "除了選擇內建存在的 [{combo}] 外,您也可以自己輸入名稱來建立自己的 [文字型{combo}]。"
 
 msgid ""
-"<b>外置代码用法:</b><br>"
-"在 [{data_manager}] 中点击 [{show_builtin}], 选中内置角色后点击 [{copy_external}] 创建可编辑副本。<br>"
-"回到此页, 选择 {external_code} 脚本, 修改 Python 代码后点击 [{apply}] 保存并绑定到当前角色。<br>"
-"也可在 [{data_manager}] 中点击 [{open_folder}] 手动编辑 .py 文件, 保存后点击 [{refresh}] 重新加载。"
-"每个文件须且仅须定义一个 BaseChar 子类。<br>"
-"外置代码会以本软件相同权限运行, 请仅使用可信来源。"
+"<b>外置代码用法:</b><br>在 [{data_manager}] 中点击 [{show_builtin}], 选中内置角色后点击 "
+"[{copy_external}] 创建可编辑副本。<br>回到此页, 选择 {external_code} 脚本, 修改 Python 代码后点击 "
+"[{apply}] 保存并绑定到当前角色。<br>也可在 [{data_manager}] 中点击 [{open_folder}] 手动编辑 .py "
+"文件, 保存后点击 [{refresh}] 重新加载。每个文件须且仅须定义一个 BaseChar 子类。<br>外置代码会以本软件相同权限运行, "
+"请仅使用可信来源。"
 msgstr ""
-"<b>外置程式碼用法:</b><br>"
-"在 [{data_manager}] 中點擊 [{show_builtin}], 選取內建角色後點擊 [{copy_external}] 建立可編輯副本。<br>"
-"回到此頁, 選擇 {external_code} 指令碼, 修改 Python 程式碼後點擊 [{apply}] 儲存並綁定至目前角色。<br>"
-"也可在 [{data_manager}] 中點擊 [{open_folder}] 手動編輯 .py 檔案, 儲存後點擊 [{refresh}] 重新載入。"
-"每個檔案只能定義一個 BaseChar 子類別。<br>"
-"外置程式碼會以與本軟體相同的權限執行, 請僅使用可信來源。"
+"<b>外置程式碼用法:</b><br>在 [{data_manager}] 中點擊 [{show_builtin}], 選取內建角色後點擊 "
+"[{copy_external}] 建立可編輯副本。<br>回到此頁, 選擇 {external_code} 指令碼, 修改 Python 程式碼後點擊"
+" [{apply}] 儲存並綁定至目前角色。<br>也可在 [{data_manager}] 中點擊 [{open_folder}] 手動編輯 .py "
+"檔案, 儲存後點擊 [{refresh}] 重新載入。每個檔案只能定義一個 BaseChar 子類別。<br>外置程式碼會以與本軟體相同的權限執行, "
+"請僅使用可信來源。"
 
 msgid "九百九十九夜"
 msgstr "九百九十九夜"
@@ -885,8 +890,13 @@ msgstr "背景輸出裝置"
 msgid "Open SoundVolumeCommandLine Download Page"
 msgstr "開啟 SoundVolumeCommandLine 下載頁面"
 
-msgid "Optionally route the game to a selected Windows output device while it is in the background. SoundVolumeCommandLine is not bundled; select your own downloaded copy."
-msgstr "當遊戲處於背景時，可選擇性地將遊戲音訊路由到選定的 Windows 輸出裝置。本軟體未內置 SoundVolumeCommandLine，請選擇您自己下載的版本。"
+msgid ""
+"Optionally route the game to a selected Windows output device while it is in"
+" the background. SoundVolumeCommandLine is not bundled; select your own "
+"downloaded copy."
+msgstr ""
+"當遊戲處於背景時，可選擇性地將遊戲音訊路由到選定的 Windows 輸出裝置。本軟體未內置 "
+"SoundVolumeCommandLine，請選擇您自己下載的版本。"
 
 msgid "Switch game audio output when the game window leaves the foreground"
 msgstr "當遊戲視窗離開前景時，切換遊戲音訊輸出"
@@ -900,7 +910,8 @@ msgstr "遊戲處於背景時使用的輸出裝置"
 msgid "Open the official NirSoft SoundVolumeCommandLine page"
 msgstr "開啟 NirSoft SoundVolumeCommandLine 官方頁面"
 
-msgid "SoundVolumeCommandLine (svcl.exe);;Executable Files (*.exe);;All Files (*)"
+msgid ""
+"SoundVolumeCommandLine (svcl.exe);;Executable Files (*.exe);;All Files (*)"
 msgstr "SoundVolumeCommandLine (svcl.exe);;可執行檔 (*.exe);;所有檔案 (*)"
 
 msgid "Select svcl.exe"
@@ -975,11 +986,8 @@ msgstr "繼續贈禮"
 msgid "停止"
 msgstr "停止"
 
-msgid "在游戏赠礼页点击{}"
-msgstr "在遊戲贈禮頁點擊{}"
-
-msgid "点击礼物卡片可设定优先级，再次点击取消"
-msgstr "點擊禮物卡片可設定優先級，再次點擊取消"
+msgid "在游戏赠礼页点击{}。点击礼物卡片可设定优先级，再次点击取消。"
+msgstr "在遊戲贈禮頁點擊{}。點擊禮物卡片可設定優先級，再次點擊取消。"
 
 msgid "赠礼状态"
 msgstr "贈禮狀態"
@@ -1256,11 +1264,27 @@ msgstr "隊伍識別"
 msgid "提示"
 msgstr "提示"
 
-msgid "<p><b style=\"color: #d83b01;\">注意：</b>此面板 <b style=\"color: #d83b01;\">不会</b> 在进入战斗或更换阵容时实时自动刷新或同步显示。<br>这是个用于向数据库关联或添加 [角色特征] 的工具面板。<br>点击 [{scan_team}] 后点击 [关联或添加] 特征, 自动战斗时就会识别对应的角色。<br>如果不想管理 [角色特征], 可以直接使用 [{fixed_team}] 功能。</p>"
-msgstr "<p><b style=\"color: #d83b01;\">注意：</b>此面板 <b style=\"color: #d83b01;\">不會</b> 在進入戰鬥或更換陣容時即時自動刷新或同步顯示。<br>這是個用於向資料庫關聯或新增 [角色特徵] 的工具面板。<br>點擊 [{scan_team}] 後點擊 [關聯或新增] 特徵, 自動戰鬥時就會識別對應的角色。<br>如果不想管理 [角色特徵], 可以直接使用 [{fixed_team}] 功能。</p>"
+msgid ""
+"<p><b style=\"color: #d83b01;\">注意：</b>此面板 <b style=\"color: "
+"#d83b01;\">不会</b> 在进入战斗或更换阵容时实时自动刷新或同步显示。<br>这是个用于向数据库关联或添加 [角色特征] "
+"的工具面板。<br>点击 [{scan_team}] 后点击 [关联或添加] 特征, 自动战斗时就会识别对应的角色。<br>如果不想管理 [角色特征],"
+" 可以直接使用 [{fixed_team}] 功能。</p>"
+msgstr ""
+"<p><b style=\"color: #d83b01;\">注意：</b>此面板 <b style=\"color: "
+"#d83b01;\">不會</b> 在進入戰鬥或更換陣容時即時自動刷新或同步顯示。<br>這是個用於向資料庫關聯或新增 [角色特徵] "
+"的工具面板。<br>點擊 [{scan_team}] 後點擊 [關聯或新增] 特徵, 自動戰鬥時就會識別對應的角色。<br>如果不想管理 [角色特徵],"
+" 可以直接使用 [{fixed_team}] 功能。</p>"
 
-msgid "<p>用于配置并保存常用的 4 人队伍阵容与出招表, 修改后立即生效。<br>方案中的 1~4 号位仅用于 [{fixed_preset}] 功能; 已绑定特征的角色放在哪个号位都可以, 不影响识别。<br>点击 [{apply_preset}] 可一键更新应用方案中各角色的出招表 (未选择出招表则保持原配置不变)。<br>开启 [{fixed_preset}] 后自动战斗将直接采用此阵容, 无需等待特征识别 (未录入特征的角色亦可直接战斗)。<br>点击 [{fill_scan}] 可将上方特征扫描识别出的队伍角色快速填入当前方案。</p>"
-msgstr "<p>用於配置並儲存常用的 4 人隊伍陣容與出招表, 修改後立即生效。<br>方案中的 1~4 號位僅用於[{fixed_preset}]功能；已綁定特徵的角色放在哪個號位都可以，不影響識別。<br>點擊 [{apply_preset}] 可一鍵更新套用方案中各角色的出招表 (未選擇出招表則保持原配置不變)。<br>開啟 [{fixed_preset}] 後自動戰鬥將直接採用此陣容, 無需等待特徵識別 (未錄入特徵的角色亦可直接戰鬥)。<br>點擊 [{fill_scan}] 可將上方特徵掃描識別出的隊伍角色快速填入當前方案。</p>"
+msgid ""
+"<p>用于配置并保存常用的 4 人队伍阵容与出招表, 修改后立即生效。<br>方案中的 1~4 号位仅用于 [{fixed_preset}] 功能; "
+"已绑定特征的角色放在哪个号位都可以, 不影响识别。<br>点击 [{apply_preset}] 可一键更新应用方案中各角色的出招表 "
+"(未选择出招表则保持原配置不变)。<br>开启 [{fixed_preset}] 后自动战斗将直接采用此阵容, 无需等待特征识别 "
+"(未录入特征的角色亦可直接战斗)。<br>点击 [{fill_scan}] 可将上方特征扫描识别出的队伍角色快速填入当前方案。</p>"
+msgstr ""
+"<p>用於配置並儲存常用的 4 人隊伍陣容與出招表, 修改後立即生效。<br>方案中的 1~4 "
+"號位僅用於[{fixed_preset}]功能；已綁定特徵的角色放在哪個號位都可以，不影響識別。<br>點擊 [{apply_preset}] "
+"可一鍵更新套用方案中各角色的出招表 (未選擇出招表則保持原配置不變)。<br>開啟 [{fixed_preset}] 後自動戰鬥將直接採用此陣容, "
+"無需等待特徵識別 (未錄入特徵的角色亦可直接戰鬥)。<br>點擊 [{fill_scan}] 可將上方特徵掃描識別出的隊伍角色快速填入當前方案。</p>"
 
 #, python-brace-format
 msgid "OpenVINO 检测器 {model} 推理超时, 已自动停用。重启程序后将重新尝试启用。"
@@ -1269,8 +1293,12 @@ msgstr "OpenVINO 偵測器 {model} 推論逾時，已自動停用。重新啟動
 msgid "批量删除"
 msgstr "批量刪除"
 
-msgid "当前未绑定任何{combo}.\n遇到此角色将默认使用基础通用脚本(BaseChar)."
-msgstr "目前未綁定任何{combo}.\n遇到此角色將預設使用基礎通用腳本(BaseChar)."
+msgid ""
+"当前未绑定任何{combo}.\n"
+"遇到此角色将默认使用基础通用脚本(BaseChar)."
+msgstr ""
+"目前未綁定任何{combo}.\n"
+"遇到此角色將預設使用基礎通用腳本(BaseChar)."
 
 msgid "显示内置"
 msgstr "顯示內建"
@@ -1314,8 +1342,8 @@ msgstr "角色"
 msgid "指令"
 msgstr "指令"
 
-msgid "请先应用更改后再运行测试."
-msgstr "請先套用變更後再執行測試."
+msgid "请先应用外置代码更改后再运行测试."
+msgstr "請先套用外置代碼變更後再運行測試."
 
 msgid "角色工具任务未注册"
 msgstr "角色工具任務未註冊"
@@ -1329,8 +1357,32 @@ msgstr "詢問AI"
 msgid "AI提示模版已复制。请粘贴到AI聊天机器人中。"
 msgstr "AI提示範本已複製。請貼到AI聊天機器人中。"
 
-msgid "{SOURCE}\n\n我想实现: \n\n请修改上面完整的 {class_name} 角色自动化代码。\n\n只返回整个文件完整修改后的 Python 代码，不要返回补丁或解释。\n保持类名为 {class_name}。保留仍然需要的 import。\n\n在思考辅助方法、任务 API、状态、切人、冷却和战斗流程时, 请参考: \nBaseChar 角色基类: {BASE_CHAR_URL}\nCombat Planner 开发指南: {COMBAT_PLANNER_URL}"
-msgstr "{SOURCE}\n\n我想實現: \n\n請修改上面完整的 {class_name} 角色自動化程式碼。\n\n只返回整個檔案完整修改後的 Python 程式碼，不要返回補丁或解釋。\n保持類別名稱為 {class_name}。保留仍然需要的 import。\n\n在思考輔助方法、任務 API、狀態、切人、冷卻和戰鬥流程時, 請參考: \nBaseChar 角色基類: {BASE_CHAR_URL}\nCombat Planner 開發指南: {COMBAT_PLANNER_URL}"
+msgid ""
+"{SOURCE}\n"
+"\n"
+"我想实现: \n"
+"\n"
+"请修改上面完整的 {class_name} 角色自动化代码。\n"
+"\n"
+"只返回整个文件完整修改后的 Python 代码，不要返回补丁或解释。\n"
+"保持类名为 {class_name}。保留仍然需要的 import。\n"
+"\n"
+"在思考辅助方法、任务 API、状态、切人、冷却和战斗流程时, 请参考: \n"
+"BaseChar 角色基类: {BASE_CHAR_URL}\n"
+"Combat Planner 开发指南: {COMBAT_PLANNER_URL}"
+msgstr ""
+"{SOURCE}\n"
+"\n"
+"我想實現: \n"
+"\n"
+"請修改上面完整的 {class_name} 角色自動化程式碼。\n"
+"\n"
+"只返回整個檔案完整修改後的 Python 程式碼，不要返回補丁或解釋。\n"
+"保持類別名稱為 {class_name}。保留仍然需要的 import。\n"
+"\n"
+"在思考輔助方法、任務 API、狀態、切人、冷卻和戰鬥流程時, 請參考: \n"
+"BaseChar 角色基類: {BASE_CHAR_URL}\n"
+"Combat Planner 開發指南: {COMBAT_PLANNER_URL}"
 
 msgid "OK"
 msgstr "確認"
@@ -1634,15 +1686,33 @@ msgstr "角色實作識別碼重複: {impl_id}"
 msgid "本次仅刷所选类型及其目标; 成功结束后才按循环模式更新下次目标。"
 msgstr "本次僅刷所選類型及其目標; 成功結束後才按循環模式更新下次目標。"
 
-msgid "每次日常仅刷当前目标, 本次不在多个目标间分配体力。\n停用: 下次仍刷当前目标。\n自动循环序号/目标: 成功结束后切到同类型的下一个序号或奖励目标, 末项后回到首项。\n自定义循环: 成功结束后按下方序列更新下次目标; 失败或跳过时不切换。"
-msgstr "每次日常僅刷目前目標, 本次不在多個目標間分配體力。\n停用: 下次仍刷目前目標。\n自動循環序號/目標: 成功結束後切到同類型的下一個序號或獎勵目標, 末項後回到首項。\n自訂循環: 成功結束後按下方序列更新下次目標; 失敗或跳過時不切換。"
+msgid ""
+"每次日常仅刷当前目标, 本次不在多个目标间分配体力。\n"
+"停用: 下次仍刷当前目标。\n"
+"自动循环序号/目标: 成功结束后切到同类型的下一个序号或奖励目标, 末项后回到首项。\n"
+"自定义循环: 成功结束后按下方序列更新下次目标; 失败或跳过时不切换。"
+msgstr ""
+"每次日常僅刷目前目標, 本次不在多個目標間分配體力。\n"
+"停用: 下次仍刷目前目標。\n"
+"自動循環序號/目標: 成功結束後切到同類型的下一個序號或獎勵目標, 末項後回到首項。\n"
+"自訂循環: 成功結束後按下方序列更新下次目標; 失敗或跳過時不切換。"
 
-msgid "按列表顺序轮换, 末项后回到首项; 每次日常只刷一个目标, 下次运行才刷下一个。\n数字是副本序号, 不是次数; 例如「异能升级材料: 1」表示该类型的第1项。\n首次仍刷上方当前目标; 若其不在序列中, 成功后将下次目标设为序列首项; 空序列不切换。"
-msgstr "按清單順序輪換, 末項後回到首項; 每次日常只刷一個目標, 下次執行才刷下一個。\n數字是副本序號, 不是次數; 例如「異能升級材料: 1」表示該類型的第1項。\n首次仍刷上方目前目標; 若其不在序列中, 成功後將下次目標設為序列首項; 空序列不切換。"
+msgid ""
+"按列表顺序轮换, 末项后回到首项; 每次日常只刷一个目标, 下次运行才刷下一个。\n"
+"数字是副本序号, 不是次数; 例如「异能升级材料: 1」表示该类型的第1项。\n"
+"首次仍刷上方当前目标; 若其不在序列中, 成功后将下次目标设为序列首项; 空序列不切换。"
+msgstr ""
+"按清單順序輪換, 末項後回到首項; 每次日常只刷一個目標, 下次執行才刷下一個。\n"
+"數字是副本序號, 不是次數; 例如「異能升級材料: 1」表示該類型的第1項。\n"
+"首次仍刷上方目前目標; 若其不在序列中, 成功後將下次目標設為序列首項; 空序列不切換。"
 
 #, python-brace-format
-msgid "按今日累计消耗计算, 扣除已消耗体力; 每份奖励{cost}体力, 剩余目标向上取整。\n今日已消耗180体力或活跃度达100时跳过; 体力不足时仅刷可领取的次数。"
-msgstr "按今日累計消耗計算, 扣除已消耗體力; 每份獎勵{cost}體力, 剩餘目標向上取整。\n今日已消耗180體力或活躍度達100時跳過; 體力不足時僅刷可領取的次數。"
+msgid ""
+"按今日累计消耗计算, 扣除已消耗体力; 每份奖励{cost}体力, 剩余目标向上取整。\n"
+"今日已消耗180体力或活跃度达100时跳过; 体力不足时仅刷可领取的次数。"
+msgstr ""
+"按今日累計消耗計算, 扣除已消耗體力; 每份獎勵{cost}體力, 剩餘目標向上取整。\n"
+"今日已消耗180體力或活躍度達100時跳過; 體力不足時僅刷可領取的次數。"
 
 msgid "筛选"
 msgstr "篩選"
@@ -1666,8 +1736,12 @@ msgid "清空筛选"
 msgstr "清空篩選"
 
 #, python-brace-format
-msgid "已安装: {installed}\n最新版本: {latest}"
-msgstr "已安裝: {installed}\n最新版本: {latest}"
+msgid ""
+"已安装: {installed}\n"
+"最新版本: {latest}"
+msgstr ""
+"已安裝: {installed}\n"
+"最新版本: {latest}"
 
 #, python-brace-format
 msgid "显示 {} / {} 个方案"
@@ -1724,98 +1798,107 @@ msgstr "週六"
 msgid "周日"
 msgstr "週日"
 
+msgid "消耗体力培养角色"
+msgstr "消耗體力培養角色"
+
+msgid "按培养目标缺口自动消耗体力：周本 > 世界BOSS > 异能 > 弧盘"
+msgstr "依培養目標缺口自動消耗體力：週本 > 世界BOSS > 異能 > 弧盤"
+
+msgid "连打单次上限（局），只是保险丝，实际还会被缺口和体力截断。"
+msgstr "連打單次上限（局）。"
+
+msgid "开局读一次养成指南四行和体力，之后按每局掉落增量本地记账，不再每局回页重读；掉落读不出时自动回页复核，不凭空猜数。"
+msgstr "開局讀一次養成指南，之後按掉落增量記帳。"
+
+msgid "领奖时抓拍现场截图，供排查识别偏差；默认关闭。"
+msgstr "領獎時抓拍截圖供排查；預設關閉。"
+
+msgid "今日体力花到这个累计数就停；今日目标已达标或设为 0 时不受每日目标限制，按当前体力一直刷到材料齐全；材料齐全后仍会切空幕继续消耗剩余体力。"
+msgstr "今日體力累計到此就停；今日目標已達成或設為 0 時不受每日目標限制，按當前體力一直刷到材料齊全。；材料齊全後仍會切空幕繼續消耗剩餘體力。"
+
+msgid "周本刷取开关：开=优先刷满本周异象巡礼（每周 3 次，每次 60 体力）再刷其它材料；关=直接刷其它材料，周本只在异能第 2 行缺料时才打。"
+msgstr "週本開關：開=優先刷滿本週異象巡禮（每週 3 次、每次 60 體力）再刷其它材料；關=直接刷其它材料，週本只在異能第 2 行缺料時才打。"
+
+msgid "每局领奖后在日志统计各材料本次掉落多少、已有多少、还差多少。"
+msgstr "每局領獎後在日誌統計各材料本次掉落多少、已有多少、還差多少。"
+
+msgid "在游戏赠礼页点击{}"
+msgstr "在遊戲贈禮頁點擊{}"
+
+msgid "点击礼物卡片可设定优先级，再次点击取消"
+msgstr "點擊禮物卡片可設定優先級，再次點擊取消"
+
+msgid "请先应用更改后再运行测试."
+msgstr "請先套用變更後再執行測試."
 
 msgid "Close"
 msgstr "關閉"
 
-
 msgid "Drag to reorder"
 msgstr "拖曳排序"
-
 
 msgid "Failed"
 msgstr "失敗"
 
-
 msgid "Include in this daily routine"
 msgstr "加入本次日常任務"
-
 
 msgid "Name"
 msgstr "名稱"
 
-
 msgid "No tasks available."
 msgstr "目前沒有可用任務。"
-
 
 msgid "Pause"
 msgstr "暫停"
 
-
 msgid "Paused"
 msgstr "已暫停"
-
 
 msgid "Pending"
 msgstr "待執行"
 
-
 msgid "Queued"
 msgstr "排隊中"
-
 
 msgid "Reset"
 msgstr "重設"
 
-
 msgid "Resume"
 msgstr "繼續"
-
 
 msgid "Routine settings"
 msgstr "日常設定"
 
-
 msgid "Run info"
 msgstr "執行資訊"
-
 
 msgid "Running"
 msgstr "執行中"
 
-
 msgid "Select a task to see its settings."
 msgstr "選擇任務以查看其設定。"
-
 
 msgid "Skipped"
 msgstr "已略過"
 
-
 msgid "Start"
 msgstr "開始"
-
 
 msgid "Stop"
 msgstr "停止"
 
-
 msgid "Succeeded"
 msgstr "成功"
-
 
 msgid "Task settings"
 msgstr "任務設定"
 
-
 msgid "Value"
 msgstr "數值"
 
-
 msgid "检测到该方案包含外置代码, 是否同时删除对应的代码文件?"
 msgstr "偵測到此方案包含外置程式碼, 是否同時刪除對應的程式碼檔案?"
-
 
 msgid "角色列表"
 msgstr "角色列表"
