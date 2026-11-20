@@ -1,4 +1,5 @@
 import re
+from contextlib import contextmanager
 from dataclasses import dataclass
 from hashlib import sha256
 from importlib import import_module, invalidate_caches
@@ -126,6 +127,12 @@ class CharRegistry:
         self.ensure_scanned()
         with self._lock:
             return sorted(self._entries.values(), key=lambda entry: entry.impl_id)
+
+    @contextmanager
+    def edit_external_sources(self):
+        """Keep scans from loading partially edited external packages."""
+        with self._lock:
+            yield
 
     def rescan_external(self) -> None:
         """Rediscover external character modules without reloading built-ins."""

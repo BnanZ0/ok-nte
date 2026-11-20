@@ -378,17 +378,34 @@ class CustomCharDb:
             return True
 
     def delete_combo(self, combo_id: str):
-        combo_id = self._as_text(combo_id)
         with self._lock:
-            deleted = self._data["combos"].pop(combo_id, None) is not None
-            presets_changed = False
-            for preset in self._data["team_presets"]:
-                for slot in preset["slots"]:
-                    if slot["impl_id"] == combo_id:
-                        slot["impl_id"] = ""
-                        presets_changed = True
-            if deleted or presets_changed:
+            if self._remove_combos_and_preset_references({self._as_text(combo_id)}):
                 self._save_locked()
+
+    def _remove_combos_and_preset_references(self, impl_ids: set[str]) -> bool:
+        changed = False
+        for impl_id in impl_ids:
+            if self._data["combos"].pop(impl_id, None) is not None:
+                changed = True
+        for preset in self._data["team_presets"]:
+            for slot in preset["slots"]:
+                if slot["impl_id"] in impl_ids:
+                    slot["impl_id"] = ""
+                    changed = True
+        return changed
+
+    def delete_external_impl_references(self, impl_ids: set[str]) -> bool:
+        """Clear deleted external implementations and report changed character bindings."""
+        with self._lock:
+            changed = self._remove_combos_and_preset_references(impl_ids)
+            characters_changed = False
+            for record in self._data["characters"].values():
+                if record["impl_id"] in impl_ids:
+                    record["impl_id"] = ""
+                    characters_changed = True
+            if changed or characters_changed:
+                self._save_locked()
+            return characters_changed
 
     def has_custom_combo(self, combo_id: str) -> bool:
         with self._lock:

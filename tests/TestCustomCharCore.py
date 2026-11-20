@@ -4,6 +4,9 @@ import shutil
 import unittest
 import uuid
 import zipfile
+from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
+from threading import Event
 from unittest.mock import Mock, patch
 
 import numpy as np
@@ -93,6 +96,80 @@ class TestCustomCharCore(unittest.TestCase):
         self.assertTrue(manager.delete_external_impl(second_impl_id))
         self.assertFalse(os.path.exists(team_dir))
         self.assertTrue(os.path.isdir(self.external_chars_dir))
+
+    def test_bulk_delete_does_not_import_a_partially_deleted_team(self):
+        manager = CustomCharManager()
+        self.addCleanup(char_registry.rescan_external)
+        installed, error = manager.install_external_sources(
+            "test_team",
+            {
+                "first.py": "from src.char.BaseChar import BaseChar\nclass First(BaseChar): pass\n",
+                "second.py": "from .first import First\nclass Second(First): pass\n",
+            },
+        )
+        self.assertTrue(installed, error)
+        first_id = "external:test_team/first"
+        second_id = "external:test_team/second"
+        char_id = manager.create_character("external_user", second_id)
+        self.assertEqual(manager.get_character_impl_id_by_id(char_id), second_id)
+        other_preset = manager.create_team_preset("another team")
+        self.assertTrue(
+            manager.update_team_preset(other_preset["id"], slots=[{"impl_id": first_id}])
+        )
+
+        with patch("src.char.core.CharRegistry.logger.warning") as warning:
+            failed_ids = manager.delete_external_impls_and_references(
+                [first_id, second_id, first_id]
+            )
+
+        self.assertEqual(failed_ids, [])
+        warning.assert_not_called()
+        self.assertFalse(os.path.exists(os.path.join(self.external_chars_dir, "test_team")))
+        self.assertFalse(manager.is_registered_impl(first_id))
+        self.assertFalse(manager.is_registered_impl(second_id))
+        self.assertEqual(manager.get_character_impl_id_by_id(char_id), "")
+        self.assertEqual(manager.get_team_presets()[0]["slots"][0]["impl_id"], "")
+
+    def test_deletion_waits_for_source_save_and_leaves_source_deleted(self):
+        manager = CustomCharManager()
+        self.addCleanup(char_registry.rescan_external)
+        source = "from src.char.BaseChar import BaseChar\nclass Hero(BaseChar): pass\n"
+        installed, error = manager.install_external_sources(
+            "test_team", {"hero.py": source, "other.py": source.replace("Hero", "Other")}
+        )
+        self.assertTrue(installed, error)
+        impl_id = "external:test_team/hero"
+        source_path = Path(self.external_chars_dir) / "test_team" / "hero.py"
+        saving = Event()
+        release_save = Event()
+        deleting = Event()
+        write_text = Path.write_text
+
+        def pause_save(path, *args, **kwargs):
+            if path == source_path:
+                saving.set()
+                self.assertTrue(release_save.wait(timeout=5))
+            return write_text(path, *args, **kwargs)
+
+        def delete():
+            deleting.set()
+            return manager.delete_external_impls_and_references([impl_id])
+
+        with patch.object(Path, "write_text", pause_save), ThreadPoolExecutor(2) as pool:
+            save = pool.submit(manager.update_external_impl_source, impl_id, source + "# edit\n")
+            try:
+                self.assertTrue(saving.wait(timeout=5))
+                deletion = pool.submit(delete)
+                self.assertTrue(deleting.wait(timeout=5))
+                with self.assertRaises(TimeoutError):
+                    deletion.result(timeout=0.25)
+            finally:
+                release_save.set()
+            self.assertEqual(save.result(timeout=5), (True, ""))
+            self.assertEqual(deletion.result(timeout=5), [])
+
+        self.assertFalse(source_path.exists())
+        self.assertFalse(manager.is_registered_impl(impl_id))
 
     def test_import_removes_stale_external_character_files(self):
         manager = CustomCharManager()

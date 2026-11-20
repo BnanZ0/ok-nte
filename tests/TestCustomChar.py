@@ -446,7 +446,7 @@ class TestCustomChar(TaskTestCase):
         tab = TeamManagerTab(manager=self.manager)
         preset = self.manager.create_team_preset("external team")
         preset["slots"][0]["impl_id"] = "external:team/hero"
-        preset["slots"][1]["impl_id"] = "external:team/hero"
+        preset["slots"][1]["impl_id"] = "external:team/partner"
         tab.current_preset_id = preset["id"]
         dialog = MagicMock()
         dialog.exec.return_value = True
@@ -459,12 +459,16 @@ class TestCustomChar(TaskTestCase):
                 return_value=nullcontext(dialog.exec.return_value),
             ),
             patch.object(
-                self.manager, "delete_external_impl_and_references", return_value=True
+                self.manager, "delete_external_impls_and_references", return_value=[]
             ) as delete_external,
+            patch.object(
+                tab, "_start_background_call", side_effect=lambda run, done, **_: done(run())
+            ) as background_call,
         ):
             tab.on_delete_preset()
 
-        delete_external.assert_called_once_with("external:team/hero")
+        delete_external.assert_called_once_with(["external:team/hero", "external:team/partner"])
+        self.assertTrue(background_call.call_args.kwargs["finish_before_exit"])
         self.assertFalse(
             any(item["id"] == preset["id"] for item in self.manager.get_team_presets())
         )
@@ -484,7 +488,10 @@ class TestCustomChar(TaskTestCase):
                 "src.ui.TeamManagerTab.exec_owned_dialog",
                 return_value=nullcontext(dialog.exec.return_value),
             ),
-            patch.object(self.manager, "delete_external_impl_and_references") as delete_external,
+            patch.object(self.manager, "delete_external_impls_and_references") as delete_external,
+            patch.object(
+                tab, "_start_background_call", side_effect=lambda run, done, **_: done(run())
+            ),
         ):
             tab.on_delete_preset()
 

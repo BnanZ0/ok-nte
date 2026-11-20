@@ -17,7 +17,7 @@ import requests
 import shiboken6
 from ok.ui.qt.kit import Theme, theme
 from PySide6.QtCore import QEvent, QPoint, Qt, QTimer
-from PySide6.QtWidgets import QApplication, QToolButton, QWidget
+from PySide6.QtWidgets import QApplication, QDialog, QToolButton, QWidget
 
 from src.char.core.CharFactory import get_char_by_impl_id
 from src.char.core.CharRegistry import char_registry
@@ -1122,6 +1122,43 @@ class TestWorkshop(unittest.TestCase):
                     self.assertTrue(cancel_requested())
                 finally:
                     shiboken6.delete(parent)
+
+    def test_main_window_closes_after_protected_background_work_finishes(self):
+        started = threading.Event()
+        release = threading.Event()
+        completed = threading.Event()
+        close_results = []
+
+        class MainWindow(QWidget):
+            def closeEvent(self, event):
+                close_results.append(completed.is_set())
+                super().closeEvent(event)
+
+        def action():
+            started.set()
+            if release.wait(timeout=5):
+                completed.set()
+
+        window = MainWindow()
+        window.show()
+        worker = BackgroundCall(action, window, finish_before_exit=True)
+        release_timer = threading.Timer(0.25, release.set)
+        worker.start()
+        try:
+            self.assertTrue(started.wait(timeout=5))
+            dialog = QDialog(window)
+            dialog.show()
+            self.assertTrue(dialog.close())
+            self.assertFalse(completed.is_set())
+            worker.retire()
+            release_timer.start()
+            self.assertTrue(window.close())
+        finally:
+            release_timer.cancel()
+            release.set()
+
+        self.assertEqual(close_results, [True])
+        self.assertFalse(window.isVisible())
 
     def test_background_result_is_retired_when_owner_is_destroyed(self):
         started = threading.Event()

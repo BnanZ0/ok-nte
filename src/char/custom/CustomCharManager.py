@@ -376,43 +376,46 @@ class CustomCharManager:
         char_registry.rescan_external()
 
     def update_external_impl_source(self, impl_id: str, source_code: str) -> tuple[bool, str]:
-        source_path = self._external_impl_path(impl_id)
-        if source_path is None or not source_path.is_file():
-            return False, "External character source file was not found"
-
-        try:
-            compile(source_code, source_path.name, "exec")
-        except SyntaxError as error:
-            return False, f"{error.msg} (line {error.lineno})"
-
-        previous_source = self._read_impl_source(source_path, "external")
-        if not previous_source:
-            return False, "Could not read existing external character source"
-
-        try:
-            source_path.write_text(source_code, encoding="utf-8")
-        except OSError as error:
-            logger.error(f"Failed to write external character file: {source_path.name}", error)
-            return False, str(error)
-
         from src.char.core.CharRegistry import char_registry
 
-        char_registry.rescan_external()
-        entry = char_registry.get(impl_id)
-        if entry is not None and entry.source == "external":
-            return True, ""
+        with char_registry.edit_external_sources():
+            source_path = self._external_impl_path(impl_id)
+            if source_path is None or not source_path.is_file():
+                return False, "External character source file was not found"
 
-        try:
-            source_path.write_text(previous_source, encoding="utf-8")
-        except OSError as error:
-            logger.error(f"Failed to restore external character file: {source_path.name}", error)
-            return (
-                False,
-                "Updated source could not be loaded and the original could not be restored",
-            )
+            try:
+                compile(source_code, source_path.name, "exec")
+            except SyntaxError as error:
+                return False, f"{error.msg} (line {error.lineno})"
 
-        char_registry.rescan_external()
-        return False, "Updated external character source could not be loaded"
+            previous_source = self._read_impl_source(source_path, "external")
+            if not previous_source:
+                return False, "Could not read existing external character source"
+
+            try:
+                source_path.write_text(source_code, encoding="utf-8")
+            except OSError as error:
+                logger.error(f"Failed to write external character file: {source_path.name}", error)
+                return False, str(error)
+
+            char_registry.rescan_external()
+            entry = char_registry.get(impl_id)
+            if entry is not None and entry.source == "external":
+                return True, ""
+
+            try:
+                source_path.write_text(previous_source, encoding="utf-8")
+            except OSError as error:
+                logger.error(
+                    f"Failed to restore external character file: {source_path.name}", error
+                )
+                return (
+                    False,
+                    "Updated source could not be loaded and the original could not be restored",
+                )
+
+            char_registry.rescan_external()
+            return False, "Updated external character source could not be loaded"
 
     def copy_builtin_to_external(
         self, impl_id: str, directory: str, filename: str
@@ -470,35 +473,52 @@ class CustomCharManager:
 
     def delete_external_impl(self, impl_id: str) -> bool:
         """Delete an external character source file and its now-empty source folder."""
-        source_path = self._external_impl_path(impl_id)
-        if source_path is None or not source_path.is_file():
+        return not self._delete_external_sources([impl_id])
+
+    def _delete_external_source(self, impl_id: str) -> bool:
+        try:
+            source_path = self._external_impl_path(impl_id)
+            if source_path is None or not source_path.is_file():
+                return False
+            source_path.unlink()
+        except OSError as error:
+            logger.error("Failed to delete external character source", error)
             return False
 
+        source_folder = source_path.parent
         try:
-            source_path.unlink()
             external_root = Path(EXTERNAL_CHARS_DIR).resolve()
-            source_folder = source_path.parent
             if source_folder != external_root and not any(source_folder.glob("*.py")):
                 shutil.rmtree(source_folder)
         except OSError as error:
-            logger.error(f"Failed to delete external character source: {source_path.name}", error)
-            return False
+            logger.error(
+                f"Failed to clean up external character folder: {source_folder.name}", error
+            )
+        return True
 
+    def _delete_external_sources(self, impl_ids: list[str]) -> list[str]:
         from src.char.core.CharRegistry import char_registry
 
-        char_registry.rescan_external()
-        return True
+        with char_registry.edit_external_sources():
+            failed_ids = [
+                impl_id for impl_id in impl_ids if not self._delete_external_source(impl_id)
+            ]
+            if len(failed_ids) < len(impl_ids):
+                char_registry.rescan_external()
+        return failed_ids
 
     def delete_external_impl_and_references(self, impl_id: str) -> bool:
         """Delete external source code and clear persisted references to it."""
-        if self.is_builtin_impl(impl_id) or not self.delete_external_impl(impl_id):
-            return False
+        return not self.delete_external_impls_and_references([impl_id])
 
-        self.delete_combo(impl_id)
-        for char_id, char_data in self.get_all_characters().items():
-            if char_data.get("impl_id", "") == impl_id:
-                self.update_character(char_id, impl_id="")
-        return True
+    def delete_external_impls_and_references(self, impl_ids: list[str]) -> list[str]:
+        """Delete the sources before rescanning, then return the IDs that failed to delete."""
+        impl_ids = list(dict.fromkeys(impl_ids))
+        failed_ids = self._delete_external_sources(impl_ids)
+        deleted_ids = set(impl_ids).difference(failed_ids)
+        if deleted_ids and self._db.delete_external_impl_references(deleted_ids):
+            self._invalidate_feature_cache()
+        return failed_ids
 
     def is_custom_combo_exist(self, combo_id: str):
         """判断出招表是否存在"""

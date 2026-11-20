@@ -777,7 +777,7 @@ class TeamManagerTab(CustomTab):
             IndexSource("GitHub", **WORKSHOP_REPOSITORY["github"]),
             IndexSource("CNB", **WORKSHOP_REPOSITORY["cnb"]),
         )
-        self._workshop_workers: list[BackgroundCall] = []
+        self._background_workers: list[BackgroundCall] = []
         self.workshop_command_bar = ThemedToolBar(self.preset_command_card)
 
         self.import_package_action = QAction(
@@ -811,22 +811,22 @@ class TeamManagerTab(CustomTab):
         self.workshop_command_bar.addSeparator()
         self.workshop_command_bar.addAction(self.switch_to_preset_action)
 
-    def _start_workshop_call(self, action, succeeded) -> None:
+    def _start_background_call(self, action, succeeded, *, finish_before_exit=False) -> None:
         if self._disposed:
             return
-        worker = BackgroundCall(action, self)
-        self._workshop_workers.append(worker)
+        worker = BackgroundCall(action, self, finish_before_exit=finish_before_exit)
+        self._background_workers.append(worker)
 
         def finish(result):
-            if worker in self._workshop_workers:
-                self._workshop_workers.remove(worker)
+            if worker in self._background_workers:
+                self._background_workers.remove(worker)
             if not self._disposed:
                 succeeded(result)
             worker.deleteLater()
 
         def failed(error):
-            if worker in self._workshop_workers:
-                self._workshop_workers.remove(worker)
+            if worker in self._background_workers:
+                self._background_workers.remove(worker)
             if not self._disposed:
                 show_bar(
                     self.window(),
@@ -870,7 +870,7 @@ class TeamManagerTab(CustomTab):
             self._active_workshop_dialog = None
 
     def _ensure_workshop_update_idle(self) -> None:
-        if self._workshop_workers:
+        if self._background_workers:
             raise RuntimeError(self.tr("请等待当前导入或导出完成后再更新."))
 
     def _on_packages_updated(self) -> None:
@@ -882,13 +882,13 @@ class TeamManagerTab(CustomTab):
         path, _ = QFileDialog.getOpenFileName(self.window(), self.tr("导入数据"), "", "ZIP (*.zip)")
         if not path:
             return
-        self._start_workshop_call(
+        self._start_background_call(
             lambda: self.workshop_service.load_archive(Path(path)),
             lambda contents: self._show_import_preview(contents, Path(path).name),
         )
 
     def on_remote_package_requested(self, entry, source) -> None:
-        self._start_workshop_call(
+        self._start_background_call(
             lambda: self.workshop_service.load_archive(
                 self.workshop_repository.download_archive(source, entry)
             ),
@@ -906,7 +906,7 @@ class TeamManagerTab(CustomTab):
             if not accepted:
                 return
             preset_name, directory = dialog.installation()
-        self._start_workshop_call(
+        self._start_background_call(
             lambda: self.workshop_service.install_contents(contents, preset_name, directory),
             self._on_package_imported,
         )
@@ -968,7 +968,7 @@ class TeamManagerTab(CustomTab):
         if not path:
             return
         export_path = Path(path)
-        self._start_workshop_call(
+        self._start_background_call(
             lambda: self.workshop_service.export_preset(preset["id"], package, export_path),
             lambda _result: show_bar(self.window(), self.tr("导出完成"), export_path.name),
         )
@@ -1157,13 +1157,9 @@ class TeamManagerTab(CustomTab):
         if preset is None:
             return
 
-        external_impl_ids = list(
-            dict.fromkeys(
-                str(slot.get("impl_id", ""))
-                for slot in preset["slots"]
-                if str(slot.get("impl_id", "")).startswith("external:")
-            )
-        )
+        external_impl_ids = [
+            slot["impl_id"] for slot in preset["slots"] if slot["impl_id"].startswith("external:")
+        ]
         delete_external_code = False
         if external_impl_ids:
             dialog = Dialog(
@@ -1176,16 +1172,20 @@ class TeamManagerTab(CustomTab):
             with exec_owned_dialog(dialog, owner=self) as accepted:
                 delete_external_code = accepted
 
-        deleted_id = self.current_preset_id
-        if deleted_id and self.manager.delete_team_preset(deleted_id):
-            failed_impl_ids = []
+        preset_id = preset["id"]
+
+        def delete_preset() -> list[str] | None:
+            if not self.manager.delete_team_preset(preset_id):
+                return None
             if delete_external_code:
-                failed_impl_ids = [
-                    impl_id
-                    for impl_id in external_impl_ids
-                    if not self.manager.delete_external_impl_and_references(impl_id)
-                ]
-            self.current_preset_id = None
+                return self.manager.delete_external_impls_and_references(external_impl_ids)
+            return []
+
+        def on_deleted(failed_impl_ids: list[str] | None) -> None:
+            if failed_impl_ids is None:
+                return
+            if self.current_preset_id == preset_id:
+                self.current_preset_id = None
             self.reload_presets(refresh_options=True)
             if failed_impl_ids:
                 show_bar(
@@ -1198,6 +1198,8 @@ class TeamManagerTab(CustomTab):
                 )
             else:
                 show_bar(self.window(), self.tr("已删除"), self.tr_deleted_success)
+
+        self._start_background_call(delete_preset, on_deleted, finish_before_exit=True)
 
     def on_apply_preset(self) -> None:
         if not self.current_preset_id:
@@ -1317,11 +1319,11 @@ class TeamManagerTab(CustomTab):
         self._disposed = True
         self._scan_pending = False
         communicate.task.disconnect(self._on_framework_task_changed)
-        for worker in self._workshop_workers:
+        for worker in self._background_workers:
             worker.retire()
             worker.succeeded.disconnect()
             worker.failed.disconnect()
-        self._workshop_workers.clear()
+        self._background_workers.clear()
         for attribute in ("_scan_help", "_preset_help"):
             popover = getattr(self, attribute, None)
             if popover is not None:
