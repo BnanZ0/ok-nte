@@ -1,11 +1,39 @@
+import ctypes
 import threading
+import time
 from contextlib import suppress
 
 import win32gui
 from ok import og
+from ok.util.logger import Logger
 from win32api import GetCursorPos, SetCursorPos
 
 from src.utils import clock
+
+logger = Logger.get_logger(__name__)
+
+_user32 = ctypes.windll.user32
+_user32.SetCursorPos.restype = ctypes.c_int
+_user32.SetCursorPos.argtypes = (ctypes.c_int, ctypes.c_int)
+_user32.GetCursorPos.restype = ctypes.c_int
+
+
+def _win32_set_cursor_pos(position):
+    """Set the cursor through user32 directly.
+
+    pywin32's ``SetCursorPos`` wrapper can raise even when the underlying call
+    succeeds, so call the Win32 API directly and report the real result.
+    """
+    return bool(_user32.SetCursorPos(int(position[0]), int(position[1])))
+
+
+def _current_cursor_pos():
+    point = ctypes.c_int * 2
+    value = point()
+    if _user32.GetCursorPos(ctypes.byref(value)):
+        return (value[0], value[1])
+    return None
+
 
 _CURSOR_SYNC_INTERVAL = 0.02
 _CURSOR_SYNC_CENTER_RATIO = 0.015
@@ -14,6 +42,32 @@ _CURSOR_SYNC_INTERNAL_MOVE_GRACE_PERIOD = 0.1
 _CURSOR_SYNC_RESET_COOLDOWN = 0.15
 _CURSOR_SYNC_CONFIG_NAME = "防止 NTE 移动鼠标"
 _ENABLE_CURSOR_SYNC_KEY = "启用"
+_CURSOR_SET_RETRIES = 3
+_CURSOR_SET_TOLERANCE = 2
+
+
+def _set_cursor_pos(position):
+    """Move the cursor, retrying and verifying that it actually landed.
+
+    A click posted to the game only registers when the real cursor is over the
+    target; a rejected move silently downgrades it to a hover, so the move must
+    be verified rather than assumed.
+    """
+    target = (int(position[0]), int(position[1]))
+    for attempt in range(_CURSOR_SET_RETRIES):
+        with suppress(Exception):
+            # pywin32 wrapper may raise on success; the direct call is authoritative.
+            SetCursorPos(target)
+        if _win32_set_cursor_pos(target):
+            current = _current_cursor_pos()
+            if current is not None and (
+                abs(current[0] - target[0]) <= _CURSOR_SET_TOLERANCE
+                and abs(current[1] - target[1]) <= _CURSOR_SET_TOLERANCE
+            ):
+                return True
+        if attempt + 1 < _CURSOR_SET_RETRIES:
+            time.sleep(0.02)
+    return False
 
 
 class CursorSync:
@@ -47,16 +101,25 @@ class CursorSync:
         self._wake_event.set()
 
     def set_cursor_pos(self, position):
+        """Move the cursor and report whether a click can land on the target.
+
+        Returns True when the cursor is verified at ``position``. Moves used for
+        click targeting must succeed for the click to register, so a failure is
+        logged instead of being swallowed.
+        """
         with self._lock:
             is_in_center_zone = self._is_in_center_zone(position)
             if self._center is not None and not is_in_center_zone:
                 self._last_cursor_position = tuple(position)
             self._last_sample_was_outside = self._center is not None and not is_in_center_zone
             self._ignore_until = clock.now() + _CURSOR_SYNC_INTERNAL_MOVE_GRACE_PERIOD
-        SetCursorPos(position)
+        moved = _set_cursor_pos(position)
+        if not moved:
+            logger.warning(f"set_cursor_pos could not reach {position}")
         with self._lock:
             self._ignore_until = clock.now()
         self._wake_event.set()
+        return moved
 
     def mark_internal_move(self):
         with self._lock:

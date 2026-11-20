@@ -1,6 +1,7 @@
 import os
 import re
 import time
+from contextlib import suppress
 
 import psutil
 import win32con
@@ -362,6 +363,45 @@ class LauncherTask(BaseNTETask):
         proc, _ = self._find_process_window(exe_name)
         return proc
 
+    def _iter_candidate_processes(self):
+        """Return candidate process info dicts for game/launcher discovery.
+
+        Prefers window-based discovery: anti-cheat drivers may restrict the
+        process list reported to some callers (psutil then sees only a fraction
+        of the system), while desktop windows stay fully enumerable via
+        EnumWindows. Per-pid queries (psutil.Process(pid).name()) also keep
+        working under that restriction. psutil enumeration is kept as a
+        fallback so processes without any window are still found.
+        """
+        candidates = []
+        seen = set()
+
+        def collect(hwnd, _):
+            if not win32gui.IsWindow(hwnd):
+                return True
+            try:
+                _, pid = win32process.GetWindowThreadProcessId(hwnd)
+            except Exception:
+                return True
+            if not pid or pid in seen:
+                return True
+            seen.add(pid)
+            try:
+                proc = psutil.Process(pid)
+                candidates.append({"pid": pid, "name": proc.name(), "exe": proc.exe()})
+            except Exception:
+                pass
+            return True
+
+        with suppress(Exception):
+            win32gui.EnumWindows(collect, None)
+
+        with suppress(Exception):
+            for proc in psutil.process_iter(["pid", "name", "exe"]):
+                if proc.info.get("pid") not in seen:
+                    candidates.append(proc.info)
+        return candidates
+
     def _find_process_window(self, exe_name, require_title=False):
         exe_names = {name.lower() for name in _exe_name_list(exe_name)}
         if not exe_names:
@@ -373,9 +413,8 @@ class LauncherTask(BaseNTETask):
         )["windows"]
 
         first_process = None
-        for process in psutil.process_iter(["pid", "name", "exe"]):
+        for proc in self._iter_candidate_processes():
             try:
-                proc = process.info
                 name = (proc.get("name") or "").lower()
                 if name not in exe_names:
                     continue
