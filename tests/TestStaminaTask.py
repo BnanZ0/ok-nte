@@ -82,5 +82,6 @@ class TestStaminaTask(unittest.TestCase):
         with self.assertRaises(ValueError):
             task.resolve_stamina_target()
 
+        task.read_daily_activity.assert_called_once_with()
         self.assertTrue(task.sleep_check_skip.all)
         task.check_combat.assert_not_called()
