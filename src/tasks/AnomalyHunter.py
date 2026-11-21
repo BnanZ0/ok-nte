@@ -1,6 +1,5 @@
 import cv2
 import numpy as np
-from ok import TaskDisabledException
 
 from src.combat.BaseCombatTask import BaseCombatTask, TeamSurvivalStatus
 from src.Labels import Labels
@@ -9,10 +8,14 @@ from src.tasks.BaseStaminaTask import BaseStaminaTask
 from src.ui.icons import task_icon
 
 
+class _KeepRewardDungeonError(RuntimeError):
+    pass
+
+
 class AnomalyHunter(BaseStaminaTask, BaseCombatTask):
     # --- 配置项键名 ---
     CONF_HUNTER_TARGET = "追猎目标"
-    CONF_KEEP_REWARD_DUNGEON = "领奖失败保留副本"
+    CONF_KEEP_DUNGEON = "领奖失败时留在副本"
 
     # --- 追猎目标选项 ---
     TARGET_SOUND_KING = "音霸魔王"
@@ -60,10 +63,6 @@ class AnomalyHunter(BaseStaminaTask, BaseCombatTask):
         self.icon = task_icon("anomaly_hunt")
         self.group_name = "体力本"
         self.group_icon = task_icon("stam")
-        # 手动运行时才可能为 True, 表示允许在领奖失败时保留副本; 见 run()。
-        self._keep_reward_dungeon = False
-        # 领奖失败且已保留副本时置位, 由 run() 的收尾逻辑消费。
-        self.claim_failure_pending = False
         self.setup_config(self)
 
     @classmethod
@@ -71,15 +70,7 @@ class AnomalyHunter(BaseStaminaTask, BaseCombatTask):
         """初始化异象追猎配置。"""
         if daily:
             cls.setup_daily_stamina_config(instance, reward_cost=cls.TASK_COST)
-        else:
-            # 仅在手动运行时暴露: 日常任务链是无人值守场景, 保留副本会让后续任务
-            # 停摆, 因此该开关不进入日常配置。
-            instance.default_config[cls.CONF_KEEP_REWARD_DUNGEON] = False
-            instance.config_description[cls.CONF_KEEP_REWARD_DUNGEON] = (
-                "未能自动领取奖励时保留当前副本并通知手动领取, 而不是直接退出。"
-                "战斗超时或中断也会触发, 收到通知后请自行确认是否真有未领取的奖励。"
-                "仅在手动运行本任务时生效, 日常任务不受影响。"
-            )
+            
         instance.default_config.update(
             {
                 cls.CONF_HUNTER_TARGET: cls.TARGET_SOUND_KING,
@@ -96,26 +87,19 @@ class AnomalyHunter(BaseStaminaTask, BaseCombatTask):
         )
         if not daily:
             instance.add_claim_reward_count_config()
+            instance.default_config[cls.CONF_KEEP_DUNGEON] = False
+            instance.config_description[cls.CONF_KEEP_DUNGEON] = "领奖失败时停留在副本并通知"
 
     def run(self):
         super().run()
-        # 日常任务链直接调用 do_run(), 不经过这里, 因此该标志天然只覆盖手动运行。
-        self._keep_reward_dungeon = bool(
-            self.config.get(self.CONF_KEEP_REWARD_DUNGEON, False)
-        )
+        exit = True
         try:
             self.do_run()
-        except TaskDisabledException:
+        except _KeepRewardDungeonError:
+            exit = False
             raise
-        except Exception as e:
-            self.log_error("AnomalyHunter Error", e)
         finally:
-            keep_pending = self.claim_failure_pending
-            self.claim_failure_pending = False
-            self._keep_reward_dungeon = False
-            if keep_pending:
-                self.log_warning("已保留当前副本, 未执行退出副本操作, 请确认是否有未领奖励", notify=True)
-            else:
+            if exit:
                 self.exit_anomaly()
 
     def do_run(self) -> bool | None:
@@ -180,22 +164,12 @@ class AnomalyHunter(BaseStaminaTask, BaseCombatTask):
                     f"异象追猎连续失败 {consecutive_failures}/{self.MAX_CONSECUTIVE_FAILURES}"
                 )
 
-            if self.claim_failure_pending:
-                # 已保留副本等待手动领奖: 不再继续挑战, 也不做收尾传送。
-                ret = False
-                break
-
             self.exit_anomaly()
 
             if consecutive_failures >= self.MAX_CONSECUTIVE_FAILURES:
                 self.log_warning("连续失败已达上限，将传送最近的电话亭传送点", notify=True)
                 ret = False
                 break
-
-        if self.claim_failure_pending:
-            # 标记留给 run() 的收尾逻辑消费, 这里只跳过传送并提前返回。
-            self.log_warning("已跳过传送以保留当前位置, 请确认是否有未领奖励", notify=True)
-            return False
 
         self.log_info("异象追猎任务完成，尝试传送到最近的电话亭")
         self.sleep(0.5)
@@ -353,25 +327,23 @@ class AnomalyHunter(BaseStaminaTask, BaseCombatTask):
 
     def do_combat_and_claim(self):
         self.log_info("战斗前检查是否有上次未领取的BOSS宝箱")
-        # reward_possible 表示"这次可能存在未领取的奖励": 开局的遗留宝箱, 或本局
-        # 战斗未以团灭结束。它只用于决定领奖失败时是否可以保留副本, 不影响原有
-        # 的领奖尝试流程。
-        reward_possible = True
         if self.rotate_and_find_treasure():
             self.log_info("发现BOSS宝箱, 跳过战斗")
         else:
             self.log_info("未发现BOSS宝箱, 调用战斗模块")
             if self.walk_until_combat(run=True, delay=1):
-                # 仅排除团灭: 超时或中断同样会走到这里, 因此该值不证明 BOSS 已被击败。
-                status = self.combat_once(retarget_turn=False)
-                reward_possible = status != TeamSurvivalStatus.WIPED
+                if self.combat_once(retarget_turn=False) is TeamSurvivalStatus.WIPED:
+                    self.log_warning("检测到团灭")
+                    self.operate_click(0.5008, 0.7757)
+                    self.wait_in_team(time_out=60)
+                    return False
             else:
                 return False
 
         self.log_info("调用领取BOSS宝箱模块")
 
         if not self.walk_to_boss_treasure():
-            return self._handle_claim_failure(reward_possible)
+            return self._handle_claim_failure()
 
         self.log_info("正在领取交互中")
 
@@ -387,26 +359,9 @@ class AnomalyHunter(BaseStaminaTask, BaseCombatTask):
                 pre_action=lambda: self.operate_click(0.609, 0.659, after_sleep=2),
             ):
                 return True
-        return self._handle_claim_failure(reward_possible)
+        return self._handle_claim_failure()
 
-    def _handle_claim_failure(self, reward_possible):
-        """走不到宝箱或等不到领取按钮时的处理。
-
-        只有手动运行且开启"领奖失败保留副本"时才保留副本并通知; 默认与日常任务链
-        一律按普通失败处理, 保持原有的退出与传送行为。
-
-        ``reward_possible`` 表示"这次可能存在未领取的奖励", 包括开局就发现的遗留
-        宝箱, 以及本局战斗未以团灭结束。它**不证明 BOSS 已被击败**: 战斗超时或
-        中断时同样为 True。因此提示措辞不含"已完成"的断言, 用户收到通知后需自行
-        确认当前是否真的还有未领取的奖励。
-        """
-        if reward_possible and self._keep_reward_dungeon:
-            self.claim_failure_pending = True
-            self.log_warning(
-                "异象追猎未能自动领取奖励, 已保留当前副本, 请确认并手动领取",
-                notify=True,
-                screenshot=True,
-            )
-            return False
-        self.log_warning("未能领取BOSS宝箱奖励")
-        return False
+    def _handle_claim_failure(self):
+        if not self.config.get(self.CONF_KEEP_DUNGEON):
+            return
+        raise _KeepRewardDungeonError("领奖失败已留在当前副本, 请确认并手动领取")
