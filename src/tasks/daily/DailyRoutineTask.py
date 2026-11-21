@@ -462,12 +462,17 @@ class DailyRoutineTask(NTEOneTimeTask, BaseNTETask):
         日常链直接调用 task.do_run(), 不经过任务的 run() 收尾逻辑。若此时副本里
         还有没领的奖励, 继续跑下一个任务会通过 ensure_main(check_exit=True) 退出
         副本, 那一局就白打了。这里停下来, 把状态留给用户手动处理。
+
+        只在任务类型真正声明了该接口时才查询: 直接 hasattr/getattr 在测试替身上
+        会拿到自动生成的 Mock 属性, 从而误判为"有待领奖状态"并中止整条链。
         """
-        consume = getattr(task, "consume_claim_failure_pending", None)
-        if not callable(consume) or not consume():
+        if not hasattr(type(task), "consume_claim_failure_pending"):
             return False
-        self.log_warning(f"{task.name} 战斗已完成但奖励未领取, 已暂停后续日常任务", notify=True)
-        self._claim_pending_task = task.name
+        if not task.consume_claim_failure_pending():
+            return False
+        name = getattr(task, "name", None) or type(task).__name__
+        self.log_warning(f"{name} 战斗已完成但奖励未领取, 已暂停后续日常任务", notify=True)
+        self._claim_pending_task = name
         return True
 
     def _reset_task_status(self, items):
