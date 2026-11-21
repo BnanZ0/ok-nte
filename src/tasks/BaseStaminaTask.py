@@ -1,6 +1,5 @@
 import re
 import time
-from collections.abc import Callable
 from dataclasses import dataclass
 
 from src.Labels import Labels
@@ -62,7 +61,6 @@ class BaseStaminaTask(NTEOneTimeTask, BaseNTETask):
         daily_activity = None
         mission_box = self.box_of_screen(0.184, 0.652, 0.781, 0.710, name="mission", hcenter=True)
         activity_box = self.box_of_screen(0.184, 0.188, 0.256, 0.255, name="activity", hcenter=True)
-        mission_box.crop_frame
         activity = self.ocr(
             box=activity_box, match=activity_re, frame_processor=gf.isolate_dialog_to_black
         )
@@ -169,18 +167,6 @@ class BaseStaminaTask(NTEOneTimeTask, BaseNTETask):
         assert activity.used_stamina is not None
         return max(0, target - activity.used_stamina)
 
-    def _evaluate_daily_activity[T](self, evaluate: Callable[[DailyActivity], T]) -> T:
-        for attempt in range(1, 4):
-            activity = self.read_daily_activity()
-            try:
-                return evaluate(activity)
-            except ValueError:
-                if attempt == 3:
-                    raise
-
-    def check_activity(self) -> bool:
-        return self._evaluate_daily_activity(self.daily_activity_complete)
-
     def resolve_stamina_target(self) -> int | None:
         """Return the remaining daily target, or None for reward-count mode."""
         if self.CONF_STAMINA_TARGET not in self.config:
@@ -188,9 +174,15 @@ class BaseStaminaTask(NTEOneTimeTask, BaseNTETask):
         target = self.config.get(self.CONF_STAMINA_TARGET)
         must_use = 0
         if target > 0:
-            must_use = self._evaluate_daily_activity(
-                lambda activity: self.calculate_remaining_stamina(activity, target)
-            )
+            for attempt in range(1, 4):
+                activity = self.read_daily_activity()
+                try:
+                    must_use = self.calculate_remaining_stamina(activity, target)
+                except ValueError:
+                    if attempt == 3:
+                        raise
+                else:
+                    break
         self.info_set("must use stamina", must_use)
         if must_use == 0:
             self.log_info("体力消耗目标或每日活跃度已达标, 跳过每日体力任务")
