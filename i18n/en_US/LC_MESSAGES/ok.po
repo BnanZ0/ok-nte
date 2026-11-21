@@ -1841,3 +1841,9 @@ msgstr "Supports regex target matching; blank selects the top available target."
 
 msgid "指定目标找不到或不可用时, 尝试选择顶部可选目标"
 msgstr "If the specified target is missing or unavailable, try the top available target."
+
+msgid "领奖失败时留在副本"
+msgstr "Stay in dungeon on reward claim failure"
+
+msgid "领奖失败时停留在副本并通知"
+msgstr "Stay in the dungeon and notify if reward claiming fails."
