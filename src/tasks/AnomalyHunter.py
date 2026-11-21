@@ -165,7 +165,7 @@ class AnomalyHunter(BaseStaminaTask, BaseCombatTask):
 
             if getattr(self, "claim_failure_pending", False):
                 # 战斗已打完但奖励没领到: 保留副本等用户手动领取, 不再继续消耗体力。
-                self.claim_failure_pending = False
+                # 不要在这里清掉标记: 循环外还要靠它跳过收尾传送, 否则会把用户传走。
                 ret = False
                 break
 
