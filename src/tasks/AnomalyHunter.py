@@ -92,14 +92,14 @@ class AnomalyHunter(BaseStaminaTask, BaseCombatTask):
 
     def run(self):
         super().run()
-        exit = True
+        exit_anomaly = True
         try:
             self.do_run()
         except _KeepRewardDungeonError:
-            exit = False
+            exit_anomaly = False
             raise
         finally:
-            if exit:
+            if exit_anomaly:
                 self.exit_anomaly()
 
     def do_run(self) -> bool | None:
