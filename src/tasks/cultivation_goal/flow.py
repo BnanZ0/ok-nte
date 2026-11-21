@@ -1305,18 +1305,22 @@ class CultivationGoalMixin:
         return gap is None or gap >= 2
 
     def _cg_reward_settled(self, time_out=6) -> bool:
-        """领奖点击后要看到结算确认框(或已回到副本), 才算这一局真的到账。"""
+        """领奖点击后必须看到结算确认框, 才算这一局真的到账。
+
+        旧版把 `find_exit`(左上角 ESC 图标) 也当成功信号, 但该图标在主界面/副本内常驻,
+        判断恒为真 —— 没领到也会被记成已领, 账本虚记。这里只认结算页的确认按钮。
+        """
         burst = self.box_of_screen(*CG_BURST_CONFIRM_RANGE, hcenter=True)
         final = self.box_of_screen(*CG_FINAL_CONFIRM_RANGE, hcenter=True)
         try:
             found = self.wait_until(
-                lambda: self.find_confirm(box=burst)
-                or self.find_confirm(box=final)
-                or self.find_exit(),
+                lambda: self.find_confirm(box=burst) or self.find_confirm(box=final),
                 time_out=time_out,
                 settle_time=0.3,
                 raise_if_not_found=False,
             )
+            if not found:
+                self._cg_note("info", "结算确认框未出现, 本局不计入到账")
             return bool(found)
         except Exception as error:
             self._cg_note("warning", f"结算确认检查失败: {error}")

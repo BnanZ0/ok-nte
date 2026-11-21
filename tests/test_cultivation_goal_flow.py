@@ -166,6 +166,51 @@ class ClaimWaitTests(unittest.TestCase):
         self.assertEqual(len(task.clicks), 1)
 
 
+class RewardSettledTests(unittest.TestCase):
+    """结算判定不能把常驻的 ESC 图标当到账信号。
+
+    旧版 `find_exit() or ...` 恒真(左上角 ESC 在副本内一直存在), 没领到也会记成已领,
+    账本虚记一次领取并扣掉体力。这里锁死: 只有结算页确认按钮算数。
+    """
+
+    class _Stub:
+        _cg_reward_settled = CultivationGoalMixin._cg_reward_settled
+
+        def __init__(self, confirm_after=0):
+            self.frames = 0
+            self.confirm_after = confirm_after
+            self.notes = []
+
+        def box_of_screen(self, *a, **k):
+            return FakeBox("range")
+
+        def find_confirm(self, box=None):
+            self.frames += 1
+            return FakeBox("confirm") if self.frames > self.confirm_after else None
+
+        def find_exit(self):
+            return FakeBox("exit")
+
+        def wait_until(self, condition, *a, **k):
+            for _ in range(8):
+                result = condition()
+                if result:
+                    return result
+            return None
+
+        def _cg_note(self, kind, message):
+            self.notes.append(message)
+
+    def test_esc_icon_alone_is_not_a_settlement(self):
+        task = self._Stub(confirm_after=10 ** 6)
+        self.assertFalse(task._cg_reward_settled())
+        self.assertTrue(any("确认框未出现" in m for m in task.notes))
+
+    def test_confirm_button_counts_as_settlement(self):
+        task = self._Stub(confirm_after=2)
+        self.assertTrue(task._cg_reward_settled())
+
+
 class FakeTask(CultivationGoalMixin):
     TASK_CONSOLE = "空幕"
     CONF_TASK_TYPE = "任务类型"
