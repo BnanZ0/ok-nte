@@ -3,9 +3,12 @@ from contextlib import suppress
 
 import win32gui
 from ok import og
+from ok.util.logger import Logger
 from win32api import GetCursorPos, SetCursorPos
 
 from src.utils import clock
+
+logger = Logger.get_logger(__name__)
 
 _CURSOR_SYNC_INTERVAL = 0.02
 _CURSOR_SYNC_CENTER_RATIO = 0.015
@@ -53,7 +56,13 @@ class CursorSync:
                 self._last_cursor_position = tuple(position)
             self._last_sample_was_outside = self._center is not None and not is_in_center_zone
             self._ignore_until = clock.now() + _CURSOR_SYNC_INTERNAL_MOVE_GRACE_PERIOD
-        SetCursorPos(position)
+        # SetCursorPos 在光标被其它全屏程序或远端会话占用时会抛 pywintypes.error。
+        # 移动光标只是辅助: 点击本身通过 PostMessage 把坐标发给游戏窗口, 因此不能
+        # 因为挪不动鼠标就中断任务, 否则一次点击失败会连带禁掉整个任务队列。
+        try:
+            SetCursorPos(position)
+        except Exception as error:
+            logger.warning(f"set_cursor_pos refused at {position}: {error}")
         with self._lock:
             self._ignore_until = clock.now()
         self._wake_event.set()
