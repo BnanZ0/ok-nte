@@ -32,11 +32,20 @@ class TestAnomalyHunterClaimFallback(unittest.TestCase):
         self.assertTrue(hunter.log_warning.call_args.kwargs["notify"])
 
     def test_enabled_keeps_dungeon_for_leftover_treasure(self):
-        """开局就发现遗留宝箱也算有奖励可领, 领奖失败时应能保留副本。"""
-        hunter = self._make_hunter(keep_reward_dungeon=True)
+        """开局就发现遗留宝箱也算有奖励可领, 领奖失败时应能保留副本。
 
-        self.assertFalse(hunter._handle_claim_failure(reward_possible=True))
+        必须走真实的 do_combat_and_claim(), 否则把遗留宝箱分支改回 False 时
+        该用例仍然会通过, 失去回归价值。
+        """
+        hunter = self._make_hunter(keep_reward_dungeon=True)
+        hunter.rotate_and_find_treasure = Mock(return_value=True)
+        hunter.walk_to_boss_treasure = Mock(return_value=False)
+        hunter.walk_until_combat = Mock()
+        hunter.combat_once = Mock()
+
+        self.assertFalse(hunter.do_combat_and_claim())
         self.assertTrue(hunter.claim_failure_pending)
+        hunter.combat_once.assert_not_called()
 
     def test_wipe_never_keeps_dungeon(self):
         hunter = self._make_hunter(keep_reward_dungeon=True)
