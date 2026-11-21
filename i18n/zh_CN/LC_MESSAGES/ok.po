@@ -1810,3 +1810,9 @@ msgstr ""
 
 msgid "指定目标找不到或不可用时, 尝试选择顶部可选目标"
 msgstr ""
+
+msgid "领奖失败时留在副本"
+msgstr ""
+
+msgid "领奖失败时停留在副本并通知"
+msgstr ""

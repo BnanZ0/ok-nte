@@ -1584,3 +1584,9 @@ msgstr "Aceita regex no nome do alvo; vazio seleciona o primeiro alvo disponíve
 
 msgid "指定目标找不到或不可用时, 尝试选择顶部可选目标"
 msgstr "Se o alvo indicado não for encontrado ou estiver indisponível, tenta selecionar o primeiro alvo disponível."
+
+msgid "领奖失败时留在副本"
+msgstr "Ficar na masmorra se falhar ao coletar a recompensa"
+
+msgid "领奖失败时停留在副本并通知"
+msgstr "Se falhar ao coletar a recompensa, ficar na masmorra e notificar."

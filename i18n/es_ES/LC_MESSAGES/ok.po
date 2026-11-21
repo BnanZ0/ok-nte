@@ -1841,3 +1841,9 @@ msgstr "Admite expresiones regulares en el nombre; vacío selecciona el primer o
 
 msgid "指定目标找不到或不可用时, 尝试选择顶部可选目标"
 msgstr "Si no se encuentra el objetivo indicado o no está disponible, intenta seleccionar el primer objetivo disponible."
+
+msgid "领奖失败时留在副本"
+msgstr "Quedarse en la mazmorra si falla la recogida de recompensas"
+
+msgid "领奖失败时停留在副本并通知"
+msgstr "Si falla la recogida de recompensas, quedarse en la mazmorra y avisar."

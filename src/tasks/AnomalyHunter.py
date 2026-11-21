@@ -1,17 +1,21 @@
 import cv2
 import numpy as np
-from ok import TaskDisabledException
 
-from src.combat.BaseCombatTask import BaseCombatTask
+from src.combat.BaseCombatTask import BaseCombatTask, TeamSurvivalStatus
 from src.Labels import Labels
 from src.tasks.BaseNTETask import BaseNTETask
 from src.tasks.BaseStaminaTask import BaseStaminaTask
 from src.ui.icons import task_icon
 
 
+class _KeepRewardDungeonError(RuntimeError):
+    pass
+
+
 class AnomalyHunter(BaseStaminaTask, BaseCombatTask):
     # --- 配置项键名 ---
     CONF_HUNTER_TARGET = "追猎目标"
+    CONF_KEEP_DUNGEON = "领奖失败时留在副本"
 
     # --- 追猎目标选项 ---
     TARGET_SOUND_KING = "音霸魔王"
@@ -66,6 +70,7 @@ class AnomalyHunter(BaseStaminaTask, BaseCombatTask):
         """初始化异象追猎配置。"""
         if daily:
             cls.setup_daily_stamina_config(instance, reward_cost=cls.TASK_COST)
+            
         instance.default_config.update(
             {
                 cls.CONF_HUNTER_TARGET: cls.TARGET_SOUND_KING,
@@ -82,17 +87,20 @@ class AnomalyHunter(BaseStaminaTask, BaseCombatTask):
         )
         if not daily:
             instance.add_claim_reward_count_config()
+            instance.default_config[cls.CONF_KEEP_DUNGEON] = False
+            instance.config_description[cls.CONF_KEEP_DUNGEON] = "领奖失败时停留在副本并通知"
 
     def run(self):
         super().run()
+        exit_anomaly = True
         try:
             self.do_run()
-        except TaskDisabledException:
+        except _KeepRewardDungeonError:
+            exit_anomaly = False
             raise
-        except Exception as e:
-            self.log_error("AnomalyHunter Error", e)
         finally:
-            self.exit_anomaly()
+            if exit_anomaly:
+                self.exit_anomaly()
 
     def do_run(self) -> bool | None:
         target = self.normalize_target(
@@ -324,14 +332,18 @@ class AnomalyHunter(BaseStaminaTask, BaseCombatTask):
         else:
             self.log_info("未发现BOSS宝箱, 调用战斗模块")
             if self.walk_until_combat(run=True, delay=1):
-                self.combat_once(retarget_turn=False)
+                if self.combat_once(retarget_turn=False) is TeamSurvivalStatus.WIPED:
+                    self.log_warning("检测到团灭")
+                    self.operate_click(0.5008, 0.7757)
+                    self.wait_in_team(time_out=60)
+                    return False
             else:
                 return False
 
         self.log_info("调用领取BOSS宝箱模块")
 
         if not self.walk_to_boss_treasure():
-            return
+            return self._handle_claim_failure()
 
         self.log_info("正在领取交互中")
 
@@ -347,3 +359,9 @@ class AnomalyHunter(BaseStaminaTask, BaseCombatTask):
                 pre_action=lambda: self.operate_click(0.609, 0.659, after_sleep=2),
             ):
                 return True
+        return self._handle_claim_failure()
+
+    def _handle_claim_failure(self):
+        if not self.config.get(self.CONF_KEEP_DUNGEON):
+            return
+        raise _KeepRewardDungeonError("领奖失败已留在当前副本, 请确认并手动领取")
