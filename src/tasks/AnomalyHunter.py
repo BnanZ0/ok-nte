@@ -335,6 +335,18 @@ class AnomalyHunter(BaseStaminaTask, BaseCombatTask):
         self.sleep(1)
         self.operate_click(0.609, 0.659, after_sleep=2)
 
+    def consume_claim_failure_pending(self) -> bool:
+        """报告并清除"战斗完成但奖励未领取"状态。
+
+        日常任务链直接调用 do_run(), 不经过 run() 的 finally, 因此由调用方在
+        结束时查询该状态: 尚有待领奖副本时调用方不得退出副本或继续后续任务。
+        独立运行时 run() 会先消费该标记, 这里返回 False。
+        """
+        if not self.claim_failure_pending:
+            return False
+        self.claim_failure_pending = False
+        return True
+
     def do_combat_and_claim(self):
         self.log_info("战斗前检查是否有上次未领取的BOSS宝箱")
         if self.rotate_and_find_treasure():

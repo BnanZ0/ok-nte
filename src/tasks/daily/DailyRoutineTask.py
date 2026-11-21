@@ -167,6 +167,7 @@ class DailyRoutineTask(NTEOneTimeTask, BaseNTETask):
         self.visible = False
         self.task_status = {"success": [], "failed": [], "skipped": [], "pending": []}
         self.current_task_key = None
+        self._claim_pending_task = None
         self._active_routine_task = None
         self.routine_task_configs = None
         self.default_config[self.CONF_ITEMS] = self.default_items()
@@ -397,6 +398,15 @@ class DailyRoutineTask(NTEOneTimeTask, BaseNTETask):
         self.log_info("开始执行日常任务")
         for item in items:
             self._execute_routine_item(item)
+            if self._claim_pending_task is not None:
+                # 有未领取的副本奖励: 停止后续任务, 并且不做 check_exit 收尾,
+                # 否则会把仍需手动领奖的副本退掉。
+                for pending in list(self.task_status["pending"]):
+                    self.task_status["pending"].remove(pending)
+                    self.task_status["skipped"].append(pending)
+                self._print_result()
+                self.log_warning("结束执行日常任务 (未领取的副本奖励需要手动处理)", notify=True)
+                return False
         self.ensure_main(check_exit=True)
         self._print_result()
         self.log_info("结束执行日常任务")
@@ -440,11 +450,28 @@ class DailyRoutineTask(NTEOneTimeTask, BaseNTETask):
             result = task.do_run()
             if hasattr(task, "on_daily_end"):
                 task.on_daily_end(result)
+        if self._consume_claim_pending(task):
+            return _RoutineResult.FAILED
         if result is None:
             return _RoutineResult.SKIPPED
         return _RoutineResult.SUCCESS if result else _RoutineResult.FAILED
 
+    def _consume_claim_pending(self, task) -> bool:
+        """记录"战斗完成但奖励未领取"的任务, 并中止后续日常任务。
+
+        日常链直接调用 task.do_run(), 不经过任务的 run() 收尾逻辑。若此时副本里
+        还有没领的奖励, 继续跑下一个任务会通过 ensure_main(check_exit=True) 退出
+        副本, 那一局就白打了。这里停下来, 把状态留给用户手动处理。
+        """
+        consume = getattr(task, "consume_claim_failure_pending", None)
+        if not callable(consume) or not consume():
+            return False
+        self.log_warning(f"{task.name} 战斗已完成但奖励未领取, 已暂停后续日常任务", notify=True)
+        self._claim_pending_task = task.name
+        return True
+
     def _reset_task_status(self, items):
+        self._claim_pending_task = None
         self.task_status = {
             "success": [],
             "failed": [],
