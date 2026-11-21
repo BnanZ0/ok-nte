@@ -26,6 +26,13 @@ CELL_MAX = 130
 # 识别时同样外扩，否则卡片边框对不上会掉到阈值以下。
 CELL_PAD = 8
 
+# ability_/arc_ 模板当年连比例数字一起切了进来（如 0/5、86/42），数字随材料变化，
+# 直接比会把分数压到阈值以下。比对前统一切掉底部数字带（模板高 92，数字在 71 行以下）。
+DIGIT_BAND_PREFIXES = ("ability_", "arc_")
+DIGIT_BAND_PX = 24
+# 格子 bbox 一旦被条带边缘切掉，正确缩放的模板就放不进去。窗口至少留这么大。
+MIN_WINDOW = 100
+
 
 @dataclass(frozen=True)
 class GuideMatch:
@@ -132,6 +139,8 @@ def identify_cell(cell: np.ndarray, height: int = 1080, *,
         if prepared is None:
             continue
         template = prepared[0] if isinstance(prepared, tuple) else prepared
+        if key.startswith(DIGIT_BAND_PREFIXES):
+            template = template[: max(16, template.shape[0] - DIGIT_BAND_PX)]
         score = _score(cell, template)
         if score < MATCH_MIN_SCORE:
             continue
@@ -185,6 +194,20 @@ def infer_missing(tiers: Iterable[str]) -> MissingPlan:
     return MissingPlan(observed, expected, gaps)
 
 
+def _window(x: int, y: int, cw: int, ch: int, width: int, height: int,
+            min_window: int) -> tuple[int, int, int, int]:
+    """把格子 bbox 扩成不小于 min_window 的窗口。
+
+    bbox 被条带上下边切掉时光靠 CELL_PAD 补不回来，正确缩放的模板会放不进去，
+    分数会从 0.9 掉到 0.7 以下，所以这里按中心撑开窗口。
+    """
+    cx, cy = x + cw // 2, y + ch // 2
+    half_w = max(cw // 2 + CELL_PAD, min_window // 2)
+    half_h = max(ch // 2 + CELL_PAD, min_window // 2)
+    return (max(0, cx - half_w), max(0, cy - half_h),
+            min(width, cx + half_w), min(height, cy + half_h))
+
+
 def identify_row(row_image: np.ndarray, height: int = 1080, *,
                  info: dict[str, dict] | None = None) -> list[GuideMatch]:
     """认一整行材料格(含 1~3 格), 返回按 x 排序的识别结果。
@@ -197,11 +220,11 @@ def identify_row(row_image: np.ndarray, height: int = 1080, *,
     # 阈值必须按同一比例放宽, 否则高分辨率下有效材料会在模板匹配前被筛掉。
     scale = max(1, int(height or 1080)) / 1080
     cell_min, cell_max = CELL_MIN * scale, CELL_MAX * scale
+    min_window = int(MIN_WINDOW * scale)
     matches = []
     h, w = row_image.shape[:2]
     for x, y, cw, chh in find_cells(row_image, cell_min, cell_max):
-        x1, y1 = max(0, x - CELL_PAD), max(0, y - CELL_PAD)
-        x2, y2 = min(w, x + cw + CELL_PAD), min(h, y + chh + CELL_PAD)
+        x1, y1, x2, y2 = _window(x, y, cw, chh, w, h, min_window)
         match = identify_cell(row_image[y1:y2, x1:x2], height, info=meta)
         if match is None:
             continue

@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import re
 import unicodedata
-from dataclasses import replace
 
 import cv2
 
@@ -19,7 +18,6 @@ from src.tasks.cultivation_goal.core import (
     Ratio,
     decide,
     diff_ownage,
-    effective_stamina,
     estimate_runs,
     parse_ratios,
     plan_burst,
@@ -295,13 +293,11 @@ class CultivationGoalMixin:
         """主流程：按缺口选本刷体力，账本模式下不回页重读。"""
         self.info_set("培养目标版本", CG_VERSION)
         weekly_first = bool(self.config.get(self.CONF_CG_WEEKLY_FIRST, True))
-        daily_target = self.resolve_stamina_target()
-        if not daily_target:
-            # 今日 180 体力 / 100 活跃已达标时原任务会跳过；培养目标模式是主人主动勾选的，继续按当前体力跑。
-            self._cg_note("info", "今日体力目标已达标, 培养目标模式不受原任务跳过限制")
-            daily_target = None
+        # 目标只是「今日最低消耗量」, 用于满足日常活跃度；不作为中途截断条件。
+        resolved_target = self.resolve_stamina_target()
+        if not resolved_target:
+            self._cg_note("info", "今日体力目标已达标, 按当前体力继续刷到材料齐全")
         cfg = PlanConfig(
-            daily_target=daily_target,
             max_rounds=30,
             prefer_weekly=weekly_first,
         )
@@ -321,7 +317,7 @@ class CultivationGoalMixin:
         self.info_set("周本剩余次数", remaining)
         report.emit(
             "start",
-            daily_target=cfg.daily_target,
+            daily_target=resolved_target,
             weekly_remaining=remaining,
             weekly_blocked=weekly_blocked,
             config={
@@ -347,10 +343,6 @@ class CultivationGoalMixin:
         self._cg_loot_partial = False
         self._cg_scan_flags = []
         self._cg_burst_unconfirmed = False
-        # 今日还需消耗的体力: 每花一笔就递减, 否则同一个目标值会被每轮重复放行。
-        budget_left = daily_target
-        # 已确认花掉的体力, 只增不减; 回页补体力时不能因此把预算放回去。
-        spent_confirmed = 0
         self._cg_start_stamina = None
         self._cg_weekly_budget = None
         self._cg_arm_reward_capture()
@@ -366,14 +358,6 @@ class CultivationGoalMixin:
                     if stamina is not None and stamina >= 0:
                         if getattr(self, "_cg_start_stamina", None) is None:
                             self._cg_start_stamina = stamina
-                        # 面板体力是真值, 但中途补体力会让差值偏小; 已确认的消耗只增不减。
-                        spent_measured = max(0, self._cg_start_stamina - stamina)
-                        spent_total = max(spent_confirmed, spent_measured)
-                        budget_left = (
-                            None
-                            if daily_target is None
-                            else max(0, daily_target - spent_total)
-                        )
                     if rows:
                         ledger = LootLedger(stamina, rows)
                         # 基准里沿用旧值的行不能累计掉落, 防止陈旧基准把掉落记重;
@@ -402,14 +386,13 @@ class CultivationGoalMixin:
                 self._cg_reward_loot = []
                 self._cg_loot_partial = False
                 self._cg_scan_flags = []
-                round_cfg = cfg if budget_left is None else replace(cfg, daily_target=budget_left)
-                decision = decide(state, round_cfg)
+                decision = decide(state, cfg)
                 self.info_set("培养目标决策", f"{decision.action.value}: {decision.reason}")
                 report.emit(
                     "round",
                     round=rounds + 1,
                     stamina=stamina,
-                    effective_stamina=effective_stamina(stamina, round_cfg.daily_target),
+                    effective_stamina=stamina,
                     weekly_remaining=remaining,
                     weekly_blocked=weekly_blocked,
                     read_failed=rows is None,
@@ -442,8 +425,8 @@ class CultivationGoalMixin:
                     self._cg_last_action_labels = [
                         row.label for row in (rows or ()) if row.landing == "weekly"
                     ]
-                    # 原版按面板体力排领取次数, 这里把今日剩余预算一起传下去。
-                    self._cg_weekly_budget = effective_stamina(stamina, round_cfg.daily_target)
+                    # 原版按面板体力排领取次数, 这里把当前体力传下去(不按今日目标截断)。
+                    self._cg_weekly_budget = stamina
                     self._cg_reset_scan_quota(6)
                     claimed, finished = self._cg_run_weekly()
                     ok = claimed > 0
@@ -465,8 +448,8 @@ class CultivationGoalMixin:
                             self._cg_capture("weekly_failed")
                 elif decision.action is Action.MATERIAL:
                     self._cg_last_action_labels = [decision.row.label]
-                    # 连打/双倍只按生效体力(含日预算)规划, 防止面板余额绕过预算。
-                    budget = effective_stamina(stamina, round_cfg.daily_target)
+                    # 连打/双倍按当前面板体力规划。
+                    budget = stamina
                     self._cg_weekly_budget = budget
                     burst, per_claim = self._cg_burst_plan(decision.row, budget, gains)
                     self._cg_burst_next = (burst, per_claim)
@@ -490,6 +473,7 @@ class CultivationGoalMixin:
                         ok=ok,
                         burst=burst,
                         per_claim=per_claim,
+                        skipped=not attempted,
                     )
                     if burst > 1:
                         estimate = f"{per_claim:.2f}" if per_claim else "未知"
@@ -500,16 +484,17 @@ class CultivationGoalMixin:
                     if ok:
                         material_done += 1
                     else:
+                        # 未出发的行(周本次数已用完)已在上面记过原因, 不再报「本局未完成」。
                         skipped.append(decision.row.label)
-                        self._cg_note(
-                            "warning",
-                            f"{decision.row.label} 本局未完成, 本次跳过该行继续其它行",
-                        )
                         if attempted:
+                            self._cg_note(
+                                "warning",
+                                f"{decision.row.label} 本局未完成, 本次跳过该行继续其它行",
+                            )
                             self._cg_capture("material_failed")
                 elif decision.action is Action.CONSOLE:
                     console_done = 1
-                    result = self._cg_run_console(effective_stamina(stamina, round_cfg.daily_target))
+                    result = self._cg_run_console(stamina)
                     report.emit("action", round=rounds + 1, action="console", ok=bool(result))
                     self._cg_stop(report, "切换空幕交回原版逻辑", rounds, weekly_done, material_done, console_done)
                     return result
@@ -522,9 +507,6 @@ class CultivationGoalMixin:
                         spent = decision.row.cost * units
                     if spent:
                         ledger.spend(spent)
-                        spent_confirmed += spent
-                        if budget_left is not None:
-                            budget_left = max(0, budget_left - spent)
                         self._cg_note("info", f"账本扣体力 {spent}, 剩 {ledger.stamina}")
                     if decision.action in (Action.WEEKLY, Action.MATERIAL):
                         labels = getattr(self, "_cg_last_action_labels", None) or ()
@@ -1107,7 +1089,7 @@ class CultivationGoalMixin:
                 return claimed
 
             def budget_stamina():
-                # 原版按面板体力排领取次数, 这里压到今日剩余预算, 防止越过目标多领。
+                # 原版按面板体力排领取次数, 这里与传入预算取小(预算=当前体力时等同不限制)。
                 current = raw_stamina()
                 if current is None or current < 0 or budget is None:
                     return current
@@ -1341,37 +1323,54 @@ class CultivationGoalMixin:
             return False
 
     def do_combat_and_claim(self, double: bool):
-        """副本打完走到宝箱领奖。
+        """副本打完走到纪念品处领奖。
 
-        上游版按 F 后只找一帧领奖按钮, 实测连续三帧扑空就判「领奖未确认」把整轮作废;
-        这里改成: 先看按钮是否已开(避免 F 把界面切关), 没开再交互, 交互后给界面留 2.5 秒。
-        搜索带同时向上放宽: 领奖按钮是世界锚定的, 站得越近画面上越靠上。
+        走位交给上游 walk_to_treasure: 它按纪念品在屏幕上的位置算 w/a/s/d 方向,
+        目标丢失一秒会自动转视角重找 —— 14:18/14:20 两次实机领奖成功走的就是这条路径。
+        盲按 W 的六面搜索走不通, 因为方向来自镜头朝向, 镜头没对准就越走越远。
+
+        上游唯一的坑是 end_condition 用 find_interac: F 提示 3 米外就亮, 角色停在
+        2 米外按 F 游戏不响应。所以提示亮起后要分小步蹭进去, 每步都试一次 F。
         """
         self.log_info("开始执行战斗流程")
         self.walk_until_combat(run=True, delay=1)
         self.combat_once()
         self.log_info("战斗结束，正在前往领取奖励")
-        area = self.box_of_screen(0.2645, 0.560, 0.7352, 0.700, name="cg_reward_area_wide")
-
-        def find_claim():
-            return self.find_feature(Labels.claim_icon, box=area)
-
-        def action():
-            claims = self.wait_until(find_claim, time_out=0.8, raise_if_not_found=False)
-            if claims:
-                return claims
-            self.walk_to_treasure()
-            self.send_interac(handle_claim=False)
-            return self.wait_until(find_claim, time_out=2.5, raise_if_not_found=False)
-
-        self.rotate_and_find_treasure()
-        claims = self.retry_on_action(action)
+        # 双倍/单倍卡片偶尔在战斗刚结束就已经在屏幕上。
+        claims = self.wait_until(self._cg_find_claim, time_out=1.0, raise_if_not_found=False)
+        if not claims:
+            claims = self.retry_on_action(self._cg_walk_claim)
+        if not claims:
+            claims = self._cg_find_claim()
         if not claims:
             self._cg_note("warning", "走到宝箱前但没找到领奖按钮")
             return False
         target = max(claims, key=lambda x: x.x) if double else min(claims, key=lambda x: x.x)
         self.operate_click(target.copy(x_offset=target.width * 3))
         return True
+
+    def _cg_find_claim(self):
+        """奖励卡片搜索带：与上游 find_all_claim 同一区域, 实测领奖条目落在 62%-65% 高度。"""
+        box = self.box_of_screen(0.2645, 0.6167, 0.7352, 0.6785, name="cg_reward_area")
+        return self.find_feature(Labels.claim_icon, box=box)
+
+    def _cg_walk_claim(self):
+        """走向纪念品并按 F; 提示亮起时还差一两米, 分小步蹭进去再按。"""
+        if not self.find_treasure() and not self.find_interac():
+            # 纪念品在视野外, 先转一圈把它找出来, 否则 walk_to_treasure 直接放弃。
+            self.rotate_and_find_treasure()
+        self.walk_to_treasure()
+        for _ in range(3):
+            claims = self._cg_press_claim()
+            if claims:
+                return claims
+            if not self.find_interac():
+                break
+            self.send_key_down("w")
+            self.sleep(0.35)
+            self.send_key_up("w")
+            self.sleep(0.1)
+        return self._cg_press_claim()
 
     def _cg_fight_once(self, row, mode="dungeon", stamina=None, burst=1, per_claim=None):
         """副本走「退出」，野外 BOSS 走「走到跟前打完捡宝箱」；支持连打与单/双倍。"""
@@ -1570,10 +1569,9 @@ class CultivationGoalMixin:
         except Exception as error:
             self._cg_note("warning", f"野外奖励界面抓拍未挂上: {error}")
 
-    def _cg_find_treasure_wide(self):
-        """多尺度查找宝箱（0.8~1.8，阈值 0.6），比上游更宽容。"""
+    def _cg_find_treasure_wide(self, name="boss_treasure"):
+        """多尺度查找宝箱/纪念品标记（0.8~1.8，阈值 0.6），比上游更宽容。"""
         try:
-            name = "boss_treasure"
             mat = self.get_feature_by_name(name).mat
             gray = cv2.cvtColor(mat, cv2.COLOR_BGR2GRAY)
             height, width = gray.shape[:2]
@@ -1663,6 +1661,11 @@ class CultivationGoalMixin:
             self.sleep(0.6)
         self._cg_note("warning", f"转 {turns} 个方向都没找到宝箱")
         return False
+
+    def _cg_press_claim(self, find_claim=None):
+        """按 F 并等奖励卡片出现; 没出现就返回 None。"""
+        self.send_key("f", after_sleep=0.6)
+        return self.wait_until(find_claim or self._cg_find_claim, time_out=1.4, raise_if_not_found=False)
 
     def _cg_approach_boss(self, target, max_steps=6, step_time=0.5):
         """enter_hunter 把「锁上怪」当「已到位」，这里按 is_boss 名牌补走。"""

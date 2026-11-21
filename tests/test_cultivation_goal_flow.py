@@ -50,9 +50,10 @@ class ClaimWaitTests(unittest.TestCase):
     """11-20 实机: 按完 F 领奖界面晚一帧弹出, 单帧检测连续三次扑空 -> 误判「领奖未确认」。"""
 
     class _Stub(CultivationGoalMixin):
-        def __init__(self, hits_at, opened_before=False):
+        def __init__(self, hits_at, opened_before=False, retry_after=1):
             self.hits_at = hits_at
             self.opened_before = opened_before
+            self.retry_after = retry_after
             self.finds = 0
             self.finds_after_interact = 0
             self.interacts = 0
@@ -74,6 +75,38 @@ class ClaimWaitTests(unittest.TestCase):
         def walk_to_treasure(self):
             pass
 
+        def find_treasure(self):
+            return FakeBox("treasure")
+
+        def find_interac(self):
+            return [FakeBox("interac")]
+
+        def width_of_screen(self, ratio):
+            return int(1920 * ratio)
+
+        def middle_click(self, **k):
+            pass
+
+        def walk_until_interac(self, direction="w", time_out=10):
+            return False
+
+        def move_mouse_relative(self, dx, dy):
+            pass
+
+        def send_key(self, key, **k):
+            if key == "f":
+                self.interacts += 1
+                self.finds_after_interact = 0
+
+        def send_key_down(self, *a, **k):
+            pass
+
+        def send_key_up(self, *a, **k):
+            pass
+
+        def sleep(self, *a, **k):
+            pass
+
         def send_interac(self, **k):
             self.interacts += 1
             self.finds_after_interact = 0
@@ -85,6 +118,8 @@ class ClaimWaitTests(unittest.TestCase):
             self.finds += 1
             if not self.interacts:
                 return [FakeBox("claim")] if self.opened_before else []
+            if self.interacts < self.retry_after:
+                return []
             self.finds_after_interact += 1
             return [FakeBox("claim")] if self.finds_after_interact >= self.hits_at else []
 
@@ -122,6 +157,13 @@ class ClaimWaitTests(unittest.TestCase):
         self.assertFalse(task.do_combat_and_claim(False))
         self.assertEqual(task.clicks, [])
         self.assertTrue(any("没找到领奖按钮" in m for m in task.notes))
+
+    def test_claim_walks_closer_when_f_has_no_effect(self):
+        """第一轮按 F 没反应(还站在提示范围外 2m), 走近半步后再按就该领到。"""
+        task = self._Stub(hits_at=1, retry_after=2)
+        self.assertTrue(task.do_combat_and_claim(False))
+        self.assertEqual(task.interacts, 2)
+        self.assertEqual(len(task.clicks), 1)
 
 
 class FakeTask(CultivationGoalMixin):
@@ -620,6 +662,10 @@ class FlowSimulationTests(unittest.TestCase):
         self.assertEqual(task.weekly_runs, 0)
         self.assertTrue(any("周本次数已用完" in m for _, m in task.logs), task.logs)
         self.assertFalse(any("领奖未确认" in m for _, m in task.logs), task.logs)
+        # 没出发的行只记 skipped, 不再误报「本局未完成」。
+        first = actions_from(self.report_path)[0]
+        self.assertTrue(first.get("skipped"))
+        self.assertFalse(any("本局未完成" in m for _, m in task.logs), task.logs)
 
     def test_weekly_unconfirmed_claims_void_ledger(self):
         """周本有领取没看到结算确认: 已确认次数照记扣, 但账本作废回养成指南复核。
@@ -707,21 +753,19 @@ class FlowSimulationTests(unittest.TestCase):
         self.assertTrue(task.run_cultivation_goal())
         records = read_records(self.report_path)
 
-        self.assertIsNone(records[0]["daily_target"])
-        self.assertTrue(any("不受原任务跳过限制" in m for _, m in task.logs))
+        self.assertEqual(records[0]["daily_target"], 0)
+        self.assertTrue(any("按当前体力继续刷" in m for _, m in task.logs))
         self.assertEqual([a["action"] for a in actions_from(self.report_path)], ["material"])
 
-    def test_daily_target_is_not_reused_every_round(self):
-        # 目标 80 只够打一次双倍; 旧实现每轮都取 min(体力, 80), 会一路刷到 300。
-        task = self.make(stamina=[300] * 6, daily_target=80)
-        task.cg_loot_reader = lambda: {"等级-第2行": (9,)}
-        task.run_cultivation_goal()
-        actions = actions_from(self.report_path)
+    def test_remaining_budget_does_not_block_affordable_run(self):
+        # 主人 11-21 实测: 今日目标额度只剩 20, 面板还有 70 体力, 40 的副本明明打得起。
+        # 目标只是最低消耗量, 不能当截断条件。
+        task = self.make(stamina=[70, 30], daily_target=20, weekly_text="0/3")
+        self.assertTrue(task.run_cultivation_goal())
         rounds = [r for r in read_records(self.report_path) if r["event"] == "round"]
 
-        self.assertEqual([a["action"] for a in actions], ["material"])
-        # 80 - 60(等级副本单局) 只剩 20, 不够再打一次; 旧实现第二轮仍是 80。
-        self.assertEqual(rounds[-1]["effective_stamina"], 20)
+        self.assertEqual(rounds[0]["effective_stamina"], 70)
+        self.assertEqual([a["action"] for a in actions_from(self.report_path)], ["material"])
 
     def test_invalid_stamina_still_reads_requirement_rows(self):
         task = self.make(stamina=-1)

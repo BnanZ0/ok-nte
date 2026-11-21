@@ -31,8 +31,8 @@ class CultivationGoalTask(CultivationGoalMixin, AnomalyTask):
         instance.config_description.update(
             {
                 cls.CONF_STAMINA_TARGET: (
-                    "今日体力花到这个累计数就停；今日目标已达标或设为 0 时不受每日目标限制，"
-                    "按当前体力一直刷到材料齐全；材料齐全后仍会切空幕继续消耗剩余体力。"
+                    "今日最低消耗目标（用于满足日常活跃度），不作为截断条件：达标后仍按当前体力继续刷，"
+                    "材料齐全后切空幕消耗剩余体力，直到体力不够一次副本为止。"
                 ),
                 cls.CONF_CG_WEEKLY_FIRST: (
                     "周本刷取开关：开=优先刷满本周异象巡礼（每周 3 次，每次 60 体力）再刷其它材料；"
@@ -43,6 +43,13 @@ class CultivationGoalTask(CultivationGoalMixin, AnomalyTask):
                 ),
             }
         )
+
+    @classmethod
+    def register_daily_routine_entry(cls) -> bool:
+        """插件形态下把本任务挂成日常子项; 宿主文件零改动, 升级不会被还原。"""
+        from src.tasks.cultivation_goal.daily_hook import register_daily_routine_entry
+
+        return register_daily_routine_entry(cls)
 
     def do_run(self) -> bool | None:
         return self.run_cultivation_goal()

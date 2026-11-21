@@ -26,7 +26,9 @@ class CultivationPositions:
     ratio_half_height: float = 0.024
     # 图标中心比数字行高约 23px，按卡片中心裁才不会切掉顶部。
     icon_row_offset: float = 0.021
-    icon_half_height: float = 0.05
+    # 半高要容得下整张卡（1080 下约 92px，即 ±0.043）；0.05 会把卡片顶部切掉，
+    # 切过的格子放不进正确缩放的模板，识别分数直接掉到阈值以下。行距 0.14，不会串行。
+    icon_half_height: float = 0.062
     # 数字区横向范围，再宽会读进按钮。
     ratio_box_x: tuple[float, float] = (0.34, 0.64)
 

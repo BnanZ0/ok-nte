@@ -67,6 +67,24 @@ def _row_strip(img, center_y):
     return img[y1:y2, int(w * 0.30):int(w * 0.85)]
 
 
+# 样本是 1920x1110(带标题栏), 线上帧是 1080 高的纯游戏区。
+_SAMPLE_FRAME_HEIGHT = 1110
+_KIND_ROW = {"ability": ("异能", 0), "arc": ("弧盘", 1),
+             "boss": ("等级", 1), "weekly": ("异能", 1)}
+
+
+def _runtime_strip(img, kind):
+    """按 flow._cg_identify_row 的方式裁行带, 用于校验线上口径。"""
+    from src.tasks.cultivation_goal.positions import POS
+
+    tab, row = _KIND_ROW[kind]
+    h, w = img.shape[:2]
+    center = (POS.ratio_row_y[tab][row] - POS.icon_row_offset) * h
+    half = POS.icon_half_height * h
+    return img[max(0, int(center - half)):int(center + half),
+               int(w * 0.30):int(w * 0.85)]
+
+
 class MetadataTests(unittest.TestCase):
     def test_library_has_five_ability_dungeons(self):
         dungeons = {info["dungeon"] for info in load_info().values() if info["kind"] == "ability"}
@@ -182,6 +200,62 @@ class RowRegressionTests(unittest.TestCase):
                 for match in matches:
                     self.assertEqual(match.tier_source, "color", match.key)
                     self.assertTrue(match.key.endswith(match.tier), match.key)
+
+
+class RuntimeCropTests(unittest.TestCase):
+    """线上裁剪口径的回归: 条带半高必须装得下整张卡。
+
+    以前测试用 center±60 裁, 线上用 ratio±0.05*1080=±54, 卡片顶部被切掉,
+    格子里放不进正确缩放的模板, 三条目标行 (异能/等级/弧盘) 全部识别失败,
+    而测试一直是绿的。这里一律按 POS 的口径裁。
+    """
+
+    def test_band_is_tall_enough_for_a_card(self):
+        from src.tasks.cultivation_goal.positions import POS
+        # 1080 高下卡片约 92px, 两侧各留 10px 余量
+        self.assertGreaterEqual(POS.icon_half_height * 1080 * 2, 92 + 20)
+
+    def test_rows_are_recognized_with_runtime_crop(self):
+        # 1080 高、无标题栏的纯游戏帧: 卡片顶部就在条带边缘上, 半高一缩就切掉。
+        # 2026-11-21 现场图(异能页 30/8 · 20/40 · 10/13)当时三条目标行全部识别失败。
+        live = _SHOTS / "2026-11-21_guide_ability_扑克茶会_1080.jpg"
+        if live.exists():
+            with self.subTest(name=live.name):
+                got_kind, got_dungeon, votes = vote_dungeon(
+                    identify_row(_runtime_strip(_load(live), "ability")))
+                self.assertEqual((got_kind, got_dungeon), ("ability", "扑克茶会"))
+                self.assertEqual(votes, 3)
+        for name, (kind, dungeon, _center) in _SAMPLES.items():
+            with self.subTest(name=name):
+                path = _SHOTS / name
+                if not path.exists():
+                    self.skipTest(f"缺样本 {name}")
+                strip = _runtime_strip(_load(path), kind)
+                got_kind, got_dungeon, votes = vote_dungeon(identify_row(strip))
+                self.assertEqual((got_kind, got_dungeon), (kind, dungeon))
+                self.assertGreaterEqual(votes, 1)
+
+    def test_digit_band_is_trimmed_before_matching(self):
+        # ability_/arc_ 模板连比例数字一起切了进来, 不裁掉底部数字带时
+        # 分数只有 0.70 上下, 压在 0.72 阈值下面; 裁掉后同一张图能到 0.9。
+        from src.tasks.cultivation_goal import guide_icons
+
+        cell = _load(_SHOTS / "2026-11-19_guide_ability_扑克茶会.jpg")[560:660, 736:810]
+        meta = load_info()
+        scored = {}
+        for trim in (0, guide_icons.DIGIT_BAND_PX):
+            best = 0.0
+            for key in available_keys():
+                prepared = guide_icons.GUIDE_ICON.get_template(key, 1080)
+                if prepared is None:
+                    continue
+                template = prepared[0] if isinstance(prepared, tuple) else prepared
+                if trim:
+                    template = template[: template.shape[0] - trim]
+                best = max(best, guide_icons._score(cell, template))
+            scored[trim] = best
+        self.assertGreater(scored[guide_icons.DIGIT_BAND_PX], scored[0] + 0.1, scored)
+        self.assertGreaterEqual(scored[guide_icons.DIGIT_BAND_PX], MATCH_MIN_SCORE)
 
 
 class MissingPlanTests(unittest.TestCase):

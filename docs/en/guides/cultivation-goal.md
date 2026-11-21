@@ -1,4 +1,4 @@
-# Spend Stamina for Character Growth (module version 1.5.8.8)
+# Spend Stamina for Character Growth (module version 1.5.8.9)
 
 Automatically spend stamina on the materials missing from your current character growth goals, as listed in the in-game Cultivation Guide. It is a **standalone task** in the task list, on the same level as Anomaly Zone / Anomaly Hunts / Anomaly Pilgrimage, and does not interfere with them. The module version is independent of the ok-nte host version; until it is merged into a host release, availability follows the standalone plugin release.
 
