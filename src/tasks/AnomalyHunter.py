@@ -2,7 +2,7 @@ import cv2
 import numpy as np
 from ok import TaskDisabledException
 
-from src.combat.BaseCombatTask import BaseCombatTask
+from src.combat.BaseCombatTask import BaseCombatTask, TeamSurvivalStatus
 from src.Labels import Labels
 from src.tasks.BaseNTETask import BaseNTETask
 from src.tasks.BaseStaminaTask import BaseStaminaTask
@@ -354,9 +354,11 @@ class AnomalyHunter(BaseStaminaTask, BaseCombatTask):
             combat_done = False
         else:
             self.log_info("未发现BOSS宝箱, 调用战斗模块")
-            combat_done = True
             if self.walk_until_combat(run=True, delay=1):
-                self.combat_once(retarget_turn=False)
+                # 团灭时没有可领取的奖励, 不能当成"战斗已完成但没领到奖",
+                # 否则会保留副本并提示手动领取一个并不存在的奖励。
+                status = self.combat_once(retarget_turn=False)
+                combat_done = status != TeamSurvivalStatus.WIPED
             else:
                 return False
 
