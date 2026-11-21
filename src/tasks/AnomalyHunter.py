@@ -353,23 +353,25 @@ class AnomalyHunter(BaseStaminaTask, BaseCombatTask):
 
     def do_combat_and_claim(self):
         self.log_info("战斗前检查是否有上次未领取的BOSS宝箱")
-        fought_without_wipe = True
+        # reward_possible 表示"这次可能存在未领取的奖励": 开局的遗留宝箱, 或本局
+        # 战斗未以团灭结束。它只用于决定领奖失败时是否可以保留副本, 不影响原有
+        # 的领奖尝试流程。
+        reward_possible = True
         if self.rotate_and_find_treasure():
             self.log_info("发现BOSS宝箱, 跳过战斗")
-            fought_without_wipe = False
         else:
             self.log_info("未发现BOSS宝箱, 调用战斗模块")
             if self.walk_until_combat(run=True, delay=1):
                 # 仅排除团灭: 超时或中断同样会走到这里, 因此该值不证明 BOSS 已被击败。
                 status = self.combat_once(retarget_turn=False)
-                fought_without_wipe = status != TeamSurvivalStatus.WIPED
+                reward_possible = status != TeamSurvivalStatus.WIPED
             else:
                 return False
 
         self.log_info("调用领取BOSS宝箱模块")
 
         if not self.walk_to_boss_treasure():
-            return self._handle_claim_failure(fought_without_wipe)
+            return self._handle_claim_failure(reward_possible)
 
         self.log_info("正在领取交互中")
 
@@ -385,19 +387,20 @@ class AnomalyHunter(BaseStaminaTask, BaseCombatTask):
                 pre_action=lambda: self.operate_click(0.609, 0.659, after_sleep=2),
             ):
                 return True
-        return self._handle_claim_failure(fought_without_wipe)
+        return self._handle_claim_failure(reward_possible)
 
-    def _handle_claim_failure(self, fought_without_wipe):
+    def _handle_claim_failure(self, reward_possible):
         """走不到宝箱或等不到领取按钮时的处理。
 
-        只有手动运行且开启"领奖失败保留副本"时才保留副本并通知; 默认、日常任务链
-        以及团灭的情况一律按普通失败处理, 保持原有的退出与传送行为。
+        只有手动运行且开启"领奖失败保留副本"时才保留副本并通知; 默认与日常任务链
+        一律按普通失败处理, 保持原有的退出与传送行为。
 
-        注意 ``fought_without_wipe`` 只表示"战斗没有以团灭结束", 并不证明 BOSS
-        已被击败: 战斗超时或中断时同样为 True。因此提示措辞不含"已完成"的断言,
-        用户收到通知后需自行确认当前是否真的还有未领取的奖励。
+        ``reward_possible`` 表示"这次可能存在未领取的奖励", 包括开局就发现的遗留
+        宝箱, 以及本局战斗未以团灭结束。它**不证明 BOSS 已被击败**: 战斗超时或
+        中断时同样为 True。因此提示措辞不含"已完成"的断言, 用户收到通知后需自行
+        确认当前是否真的还有未领取的奖励。
         """
-        if fought_without_wipe and self._keep_reward_dungeon:
+        if reward_possible and self._keep_reward_dungeon:
             self.claim_failure_pending = True
             self.log_warning(
                 "异象追猎未能自动领取奖励, 已保留当前副本, 请确认并手动领取",
