@@ -177,7 +177,7 @@ class AnomalyHunter(BaseStaminaTask, BaseCombatTask):
                 break
 
         if self.claim_failure_pending:
-            self.claim_failure_pending = False
+            # 保留标记: run() 的 finally 依据它跳过 exit_anomaly(), 并在那里统一清除。
             self.log_warning("检测到未领取的副本奖励，已跳过传送并保留当前位置", notify=True)
             return False
 
@@ -367,7 +367,7 @@ class AnomalyHunter(BaseStaminaTask, BaseCombatTask):
                 pre_action=lambda: self.operate_click(0.609, 0.659, after_sleep=2),
             ):
                 return True
-        return self._handle_claim_failure(True)
+        return self._handle_claim_failure(combat_done)
 
     def _handle_claim_failure(self, combat_done):
         """战斗已完成但找不到领奖入口时, 通知用户并保留副本等待手动处理。"""
