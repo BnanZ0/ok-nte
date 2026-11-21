@@ -76,8 +76,9 @@ class AnomalyHunter(BaseStaminaTask, BaseCombatTask):
             # 停摆, 因此该开关不进入日常配置。
             instance.default_config[cls.CONF_KEEP_REWARD_DUNGEON] = False
             instance.config_description[cls.CONF_KEEP_REWARD_DUNGEON] = (
-                "战斗已完成但未能自动领取奖励时, 保留当前副本并通知手动领取, "
-                "而不是直接退出。仅在手动运行本任务时生效, 日常任务不受影响。"
+                "未能自动领取奖励时保留当前副本并通知手动领取, 而不是直接退出。"
+                "战斗超时或中断也会触发, 收到通知后请自行确认是否真有未领取的奖励。"
+                "仅在手动运行本任务时生效, 日常任务不受影响。"
             )
         instance.default_config.update(
             {
@@ -113,7 +114,7 @@ class AnomalyHunter(BaseStaminaTask, BaseCombatTask):
             self.claim_failure_pending = False
             self._keep_reward_dungeon = False
             if keep_pending:
-                self.log_warning("保留当前副本等待手动领取奖励, 未执行退出副本操作", notify=True)
+                self.log_warning("已保留当前副本, 未执行退出副本操作, 请确认是否有未领奖励", notify=True)
             else:
                 self.exit_anomaly()
 
@@ -193,7 +194,7 @@ class AnomalyHunter(BaseStaminaTask, BaseCombatTask):
 
         if self.claim_failure_pending:
             # 标记留给 run() 的收尾逻辑消费, 这里只跳过传送并提前返回。
-            self.log_warning("检测到未领取的副本奖励，已跳过传送并保留当前位置", notify=True)
+            self.log_warning("已跳过传送以保留当前位置, 请确认是否有未领奖励", notify=True)
             return False
 
         self.log_info("异象追猎任务完成，尝试传送到最近的电话亭")
@@ -352,23 +353,23 @@ class AnomalyHunter(BaseStaminaTask, BaseCombatTask):
 
     def do_combat_and_claim(self):
         self.log_info("战斗前检查是否有上次未领取的BOSS宝箱")
-        combat_done = True
+        fought_without_wipe = True
         if self.rotate_and_find_treasure():
             self.log_info("发现BOSS宝箱, 跳过战斗")
-            combat_done = False
+            fought_without_wipe = False
         else:
             self.log_info("未发现BOSS宝箱, 调用战斗模块")
             if self.walk_until_combat(run=True, delay=1):
-                # 团灭时没有可领取的奖励, 不能当作"战斗已完成但没领到奖"。
+                # 仅排除团灭: 超时或中断同样会走到这里, 因此该值不证明 BOSS 已被击败。
                 status = self.combat_once(retarget_turn=False)
-                combat_done = status != TeamSurvivalStatus.WIPED
+                fought_without_wipe = status != TeamSurvivalStatus.WIPED
             else:
                 return False
 
         self.log_info("调用领取BOSS宝箱模块")
 
         if not self.walk_to_boss_treasure():
-            return self._handle_claim_failure(combat_done)
+            return self._handle_claim_failure(fought_without_wipe)
 
         self.log_info("正在领取交互中")
 
@@ -384,18 +385,22 @@ class AnomalyHunter(BaseStaminaTask, BaseCombatTask):
                 pre_action=lambda: self.operate_click(0.609, 0.659, after_sleep=2),
             ):
                 return True
-        return self._handle_claim_failure(combat_done)
+        return self._handle_claim_failure(fought_without_wipe)
 
-    def _handle_claim_failure(self, combat_done):
-        """战斗已完成但走不到宝箱或等不到领取按钮时的处理。
+    def _handle_claim_failure(self, fought_without_wipe):
+        """走不到宝箱或等不到领取按钮时的处理。
 
         只有手动运行且开启"领奖失败保留副本"时才保留副本并通知; 默认、日常任务链
-        以及战斗未确认完成的情况一律按普通失败处理, 保持原有的退出与传送行为。
+        以及团灭的情况一律按普通失败处理, 保持原有的退出与传送行为。
+
+        注意 ``fought_without_wipe`` 只表示"战斗没有以团灭结束", 并不证明 BOSS
+        已被击败: 战斗超时或中断时同样为 True。因此提示措辞不含"已完成"的断言,
+        用户收到通知后需自行确认当前是否真的还有未领取的奖励。
         """
-        if combat_done and self._keep_reward_dungeon:
+        if fought_without_wipe and self._keep_reward_dungeon:
             self.claim_failure_pending = True
             self.log_warning(
-                "异象追猎战斗已完成但未能自动领取奖励, 已保留当前副本, 请手动领取",
+                "异象追猎未能自动领取奖励, 已保留当前副本, 请确认并手动领取",
                 notify=True,
                 screenshot=True,
             )
