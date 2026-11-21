@@ -106,7 +106,9 @@ msgid "匹配文字"
 msgstr "Corresponder Texto"
 
 msgid "适用于大世界、轨外之境、999夜等各类场景与副本"
-msgstr "Adequado para vários cenários e masmorras como mundo aberto, Beyond the Rails, 999 Nights, etc."
+msgstr ""
+"Adequado para vários cenários e masmorras como mundo aberto, Beyond the "
+"Rails, 999 Nights, etc."
 
 msgid "可用指令"
 msgstr "Comandos Disponíveis"
@@ -151,8 +153,12 @@ msgstr "{combo} desvinculado de {}"
 msgid "应用更改"
 msgstr "Aplicar Alterações"
 
-msgid "当前未绑定任何{combo}.\n遇到此角色将默认使用基础通用脚本(BaseChar)."
-msgstr "Nenhum {combo} está vinculado no momento.\nEste personagem usará o script genérico básico (BaseChar) por padrão."
+msgid ""
+"当前未绑定任何{combo}.\n"
+"遇到此角色将默认使用基础通用脚本(BaseChar)."
+msgstr ""
+"Nenhum {combo} está vinculado no momento.\n"
+"Este personagem usará o script genérico básico (BaseChar) por padrão."
 
 msgid "循环次数"
 msgstr "Contagem de Ciclos"
@@ -190,8 +196,12 @@ msgstr "Característica não obtida"
 msgid "关联特征"
 msgstr "Vincular característica"
 
-msgid "此为 Python 脚本, 不可在此修改.\n请在对应的源文件中直接修改代码."
-msgstr "Este é um script Python e não pode ser modificado aqui.\nPor favor, modifique o código diretamente no arquivo-fonte correspondente."
+msgid ""
+"此为 Python 脚本, 不可在此修改.\n"
+"请在对应的源文件中直接修改代码."
+msgstr ""
+"Este é um script Python e não pode ser modificado aqui.\n"
+"Por favor, modifique o código diretamente no arquivo-fonte correspondente."
 
 msgid "没有找到匹配的指令。"
 msgstr "Nenhum comando correspondente encontrado."
@@ -251,7 +261,8 @@ msgid "运行一次测试"
 msgstr "Executar um teste"
 
 msgid "下拉选择, 或直接输入名称以创建新{combo}"
-msgstr "Selecione no menu suspenso ou insira um nome para criar um novo {combo}"
+msgstr ""
+"Selecione no menu suspenso ou insira um nome para criar um novo {combo}"
 
 msgid "重命名失败"
 msgstr "Falha ao renomear"
@@ -276,7 +287,9 @@ msgid "队伍管理"
 msgstr "Gestão de Equipe"
 
 msgid "关闭时仅在中键选中敌人且画面识别到关键特征时开启战斗"
-msgstr "Quando desativado, o combate inicia apenas se um inimigo for clicado com o botão do meio e características-chave forem detectadas na tela"
+msgstr ""
+"Quando desativado, o combate inicia apenas se um inimigo for clicado com o "
+"botão do meio e características-chave forem detectadas na tela"
 
 msgid ""
 "开启后优先通过 ESC 键关闭成功界面，避免后台抢占鼠标。\n"
@@ -570,21 +583,27 @@ msgid "每2小时重新登入"
 msgstr "Fazer login novamente a cada 2 horas"
 
 msgid "除了选择内建存在的 [{combo}] 外,您也可以自己输入名称来建立自己的 [文本型{combo}]。"
-msgstr "Além de selecionar uma [{combo}] integrada, você também pode inserir um nome para criar a sua própria [{combo} em formato de texto]."
+msgstr ""
+"Além de selecionar uma [{combo}] integrada, você também pode inserir um nome"
+" para criar a sua própria [{combo} em formato de texto]."
 
 msgid ""
-"<b>外置代码用法:</b><br>"
-"在 [{data_manager}] 中点击 [{show_builtin}], 选中内置角色后点击 [{copy_external}] 创建可编辑副本。<br>"
-"回到此页, 选择 {external_code} 脚本, 修改 Python 代码后点击 [{apply}] 保存并绑定到当前角色。<br>"
-"也可在 [{data_manager}] 中点击 [{open_folder}] 手动编辑 .py 文件, 保存后点击 [{refresh}] 重新加载。"
-"每个文件须且仅须定义一个 BaseChar 子类。<br>"
-"外置代码会以本软件相同权限运行, 请仅使用可信来源。"
+"<b>外置代码用法:</b><br>在 [{data_manager}] 中点击 [{show_builtin}], 选中内置角色后点击 "
+"[{copy_external}] 创建可编辑副本。<br>回到此页, 选择 {external_code} 脚本, 修改 Python 代码后点击 "
+"[{apply}] 保存并绑定到当前角色。<br>也可在 [{data_manager}] 中点击 [{open_folder}] 手动编辑 .py "
+"文件, 保存后点击 [{refresh}] 重新加载。每个文件须且仅须定义一个 BaseChar 子类。<br>外置代码会以本软件相同权限运行, "
+"请仅使用可信来源。"
 msgstr ""
-"<b>Como usar código externo:</b><br>"
-"Em [{data_manager}], clique em [{show_builtin}], selecione um personagem integrado e clique em [{copy_external}] para criar uma cópia editável.<br>"
-"Volte a esta página, selecione um script {external_code}, edite o código Python e clique em [{apply}] para salvá-lo e vinculá-lo ao personagem atual.<br>"
-"Você também pode abrir [{open_folder}] em [{data_manager}] e editar arquivos .py manualmente. Depois de salvar, clique em [{refresh}] para recarregá-los. Cada arquivo deve definir exatamente uma subclasse de BaseChar.<br>"
-"O código externo é executado com as mesmas permissões deste aplicativo. Use apenas código confiável."
+"<b>Como usar código externo:</b><br>Em [{data_manager}], clique em "
+"[{show_builtin}], selecione um personagem integrado e clique em "
+"[{copy_external}] para criar uma cópia editável.<br>Volte a esta página, "
+"selecione um script {external_code}, edite o código Python e clique em "
+"[{apply}] para salvá-lo e vinculá-lo ao personagem atual.<br>Você também "
+"pode abrir [{open_folder}] em [{data_manager}] e editar arquivos .py "
+"manualmente. Depois de salvar, clique em [{refresh}] para recarregá-los. "
+"Cada arquivo deve definir exatamente uma subclasse de BaseChar.<br>O código "
+"externo é executado com as mesmas permissões deste aplicativo. Use apenas "
+"código confiável."
 
 msgid "九百九十九夜"
 msgstr "999 Nights"
@@ -628,11 +647,20 @@ msgstr "Dispositivo de saída em segundo plano"
 msgid "Open SoundVolumeCommandLine Download Page"
 msgstr "Abrir página de descarga do SoundVolumeCommandLine"
 
-msgid "Optionally route the game to a selected Windows output device while it is in the background. SoundVolumeCommandLine is not bundled; select your own downloaded copy."
-msgstr "Opcionalmente, roteia o áudio do jogo para um dispositivo de saída do Windows selecionado enquanto estiver em segundo plano. O SoundVolumeCommandLine não está incluído; selecione sua própria cópia baixada."
+msgid ""
+"Optionally route the game to a selected Windows output device while it is in"
+" the background. SoundVolumeCommandLine is not bundled; select your own "
+"downloaded copy."
+msgstr ""
+"Opcionalmente, roteia o áudio do jogo para um dispositivo de saída do "
+"Windows selecionado enquanto estiver em segundo plano. O "
+"SoundVolumeCommandLine não está incluído; selecione sua própria cópia "
+"baixada."
 
 msgid "Switch game audio output when the game window leaves the foreground"
-msgstr "Alternar a saída de áudio do jogo quando a janela do jogo sair do primeiro plano"
+msgstr ""
+"Alternar a saída de áudio do jogo quando a janela do jogo sair do primeiro "
+"plano"
 
 msgid "Select svcl.exe downloaded from NirSoft"
 msgstr "Selecionar o svcl.exe baixado do NirSoft"
@@ -643,8 +671,11 @@ msgstr "Dispositivo de saída usado enquanto o jogo está em segundo plano"
 msgid "Open the official NirSoft SoundVolumeCommandLine page"
 msgstr "Abrir a página oficial do NirSoft SoundVolumeCommandLine"
 
-msgid "SoundVolumeCommandLine (svcl.exe);;Executable Files (*.exe);;All Files (*)"
-msgstr "SoundVolumeCommandLine (svcl.exe);;Arquivos executáveis (*.exe);;Todos os arquivos (*)"
+msgid ""
+"SoundVolumeCommandLine (svcl.exe);;Executable Files (*.exe);;All Files (*)"
+msgstr ""
+"SoundVolumeCommandLine (svcl.exe);;Arquivos executáveis (*.exe);;Todos os "
+"arquivos (*)"
 
 msgid "Select svcl.exe"
 msgstr "Selecionar svcl.exe"
@@ -678,15 +709,25 @@ msgstr "Duração máxima do combate"
 msgid "战斗时不切人"
 msgstr "Não trocar de personagem durante o combate"
 
-msgid "主界面检测失败。建议操作: \n1. 关闭显卡滤镜与锐化功能；\n2. 尝试开启 Windows “自动管理应用的颜色”设置。"
-msgstr "Falha ao detectar a interface principal. Ações sugeridas: \n1. Desative os filtros e a nitidez da placa de vídeo;\n2. Tente ativar a configuração do Windows \"Gerenciar cores automaticamente para aplicativos\"."
+msgid ""
+"主界面检测失败。建议操作: \n"
+"1. 关闭显卡滤镜与锐化功能；\n"
+"2. 尝试开启 Windows “自动管理应用的颜色”设置。"
+msgstr ""
+"Falha ao detectar a interface principal. Ações sugeridas: \n"
+"1. Desative os filtros e a nitidez da placa de vídeo;\n"
+"2. Tente ativar a configuração do Windows \"Gerenciar cores automaticamente para aplicativos\"."
 
 msgid "大世界检测失败: 请检查游戏内 UI 透明度是否已设置为 1.0。"
-msgstr "Falha ao detectar o mundo aberto: verifique se a opacidade da interface do usuário no jogo foi definida como 1.0."
+msgstr ""
+"Falha ao detectar o mundo aberto: verifique se a opacidade da interface do "
+"usuário no jogo foi definida como 1.0."
 
 #, python-brace-format
 msgid "当前 CPU 不支持 AVX2, OpenVINO 检测器 {model} 无法启用。"
-msgstr "A CPU atual não oferece suporte a AVX2. Não foi possível ativar o detector {model} do OpenVINO."
+msgstr ""
+"A CPU atual não oferece suporte a AVX2. Não foi possível ativar o detector "
+"{model} do OpenVINO."
 
 msgid "战斗后等待至时长上限"
 msgstr "Aguardar até o tempo limite após o combate"
@@ -712,11 +753,10 @@ msgstr "Continuar presentes"
 msgid "停止"
 msgstr "Parar"
 
-msgid "在游戏赠礼页点击{}"
-msgstr "Clique em {} na página de presentes do jogo"
-
-msgid "点击礼物卡片可设定优先级，再次点击取消"
-msgstr "Clique em um cartão de presente para definir a prioridade, clique novamente para cancelar"
+msgid "在游戏赠礼页点击{}。点击礼物卡片可设定优先级，再次点击取消。"
+msgstr ""
+"Clique em {} na página de presentes do jogo. Clique em um cartão de presente"
+" para definir a prioridade, clique novamente para cancelar."
 
 msgid "赠礼状态"
 msgstr "Status de presentes"
@@ -770,13 +810,16 @@ msgid "没有可用的游戏画面"
 msgstr "Nenhuma tela do jogo disponível"
 
 msgid "请先捕获、选择礼物并启用至少一个角色。"
-msgstr "Por favor, capture, selecione presentes e ative pelo menos um personagem primeiro."
+msgstr ""
+"Por favor, capture, selecione presentes e ative pelo menos um personagem "
+"primeiro."
 
 msgid "使用录制功能"
 msgstr "Usar recurso de gravação"
 
 msgid "启用后录制并回放选择目标关卡的操作"
-msgstr "Quando ativado, grava e reproduz as ações usadas para selecionar a fase alvo"
+msgstr ""
+"Quando ativado, grava e reproduz as ações usadas para selecionar a fase alvo"
 
 msgid "异象追猎"
 msgstr "Caça às Anomalias"
@@ -791,7 +834,9 @@ msgid "领取奖励次数"
 msgstr "Vezes para resgatar recompensa"
 
 msgid "设置为0则领取当前体力可领取的全部奖励"
-msgstr "Defina como 0 para resgatar todas as recompensas disponíveis com a energia atual"
+msgstr ""
+"Defina como 0 para resgatar todas as recompensas disponíveis com a energia "
+"atual"
 
 msgid "音霸魔王"
 msgstr "Beat King"
@@ -818,7 +863,10 @@ msgid "自动战斗检测诊断"
 msgstr "Diagnósticos de detecção de combate automático"
 
 msgid "持续检测诊断 Lv, 锁定目标标记(白色菱形)和红色血条; 请手动停止以查看完整报告"
-msgstr "Diagnostica continuamente a detecção de Lv, marcador de alvo fixado (losango branco) e barra de vida vermelha; por favor, pare manualmente para visualizar o relatório completo."
+msgstr ""
+"Diagnostica continuamente a detecção de Lv, marcador de alvo fixado (losango"
+" branco) e barra de vida vermelha; por favor, pare manualmente para "
+"visualizar o relatório completo."
 
 msgid "喷泉签到"
 msgstr "Check-in da Fonte"
@@ -827,17 +875,23 @@ msgid "防止 NTE 移动鼠标"
 msgstr "Evitar que o NTE mova o cursor"
 
 msgid "后台运行时，在 NTE 将鼠标移动到屏幕中心后，自动恢复鼠标位置。"
-msgstr "Ao rodar em segundo plano, restaura automaticamente a posição do cursor após o NTE movê-lo para o centro da tela."
+msgstr ""
+"Ao rodar em segundo plano, restaura automaticamente a posição do cursor após"
+" o NTE movê-lo para o centro da tela."
 
 msgid ""
 "关联角色特征后，即可自动识别角色并使用绑定的出招表；游戏内换人/换队无需手动调整。\n"
 "未关联时，将使用通用脚本。"
-msgstr "Após vincular os recursos do personagem, ele será identificado automaticamente e usará a tabela de combos vinculada; trocas de personagem/equipe no jogo não exigem ajuste manual.\nSem vínculo, o script genérico será usado."
+msgstr ""
+"Após vincular os recursos do personagem, ele será identificado automaticamente e usará a tabela de combos vinculada; trocas de personagem/equipe no jogo não exigem ajuste manual.\n"
+"Sem vínculo, o script genérico será usado."
 
 msgid ""
 "{fixed_team}会优先使用已填写槽位；未填写的槽位仍会自动识别。\n"
 "如果游戏内切换队伍，已填写槽位需要在软件里手动修改。"
-msgstr "{fixed_team} priorizará os slots preenchidos; os slots não preenchidos ainda serão reconhecidos automaticamente.\nSe você alternar de equipe no jogo, os slots preenchidos precisarão ser alterados manualmente no software."
+msgstr ""
+"{fixed_team} priorizará os slots preenchidos; os slots não preenchidos ainda serão reconhecidos automaticamente.\n"
+"Se você alternar de equipe no jogo, os slots preenchidos precisarão ser alterados manualmente no software."
 
 msgid "循环模式"
 msgstr "Modo de Ciclo"
@@ -992,15 +1046,44 @@ msgstr "Reconhecimento de Equipe"
 msgid "提示"
 msgstr "Dicas"
 
-msgid "<p><b style=\"color: #d83b01;\">注意：</b>此面板 <b style=\"color: #d83b01;\">不会</b> 在进入战斗或更换阵容时实时自动刷新或同步显示。<br>这是个用于向数据库关联或添加 [角色特征] 的工具面板。<br>点击 [{scan_team}] 后点击 [关联或添加] 特征, 自动战斗时就会识别对应的角色。<br>如果不想管理 [角色特征], 可以直接使用 [{fixed_team}] 功能。</p>"
-msgstr "<p><b style=\"color: #d83b01;\">Nota:</b> Este painel <b style=\"color: #d83b01;\">NÃO</b> atualiza ou sincroniza automaticamente em tempo real ao entrar em combate ou trocar de formação.<br>Este é um painel de ferramentas para associar ou adicionar [Características de Personagem] ao banco de dados.<br>Clique em [{scan_team}] e depois em [Associar ou Adicionar] característica para que o combate automático reconheça os personagens correspondentes.<br>Se não quiser gerenciar [Características de Personagem], você pode usar diretamente a função [{fixed_team}].</p>"
+msgid ""
+"<p><b style=\"color: #d83b01;\">注意：</b>此面板 <b style=\"color: "
+"#d83b01;\">不会</b> 在进入战斗或更换阵容时实时自动刷新或同步显示。<br>这是个用于向数据库关联或添加 [角色特征] "
+"的工具面板。<br>点击 [{scan_team}] 后点击 [关联或添加] 特征, 自动战斗时就会识别对应的角色。<br>如果不想管理 [角色特征],"
+" 可以直接使用 [{fixed_team}] 功能。</p>"
+msgstr ""
+"<p><b style=\"color: #d83b01;\">Nota:</b> Este painel <b style=\"color: "
+"#d83b01;\">NÃO</b> atualiza ou sincroniza automaticamente em tempo real ao "
+"entrar em combate ou trocar de formação.<br>Este é um painel de ferramentas "
+"para associar ou adicionar [Características de Personagem] ao banco de "
+"dados.<br>Clique em [{scan_team}] e depois em [Associar ou Adicionar] "
+"característica para que o combate automático reconheça os personagens "
+"correspondentes.<br>Se não quiser gerenciar [Características de Personagem],"
+" você pode usar diretamente a função [{fixed_team}].</p>"
 
-msgid "<p>用于配置并保存常用的 4 人队伍阵容与出招表, 修改后立即生效。<br>方案中的 1~4 号位仅用于 [{fixed_preset}] 功能; 已绑定特征的角色放在哪个号位都可以, 不影响识别。<br>点击 [{apply_preset}] 可一键更新应用方案中各角色的出招表 (未选择出招表则保持原配置不变)。<br>开启 [{fixed_preset}] 后自动战斗将直接采用此阵容, 无需等待特征识别 (未录入特征的角色亦可直接战斗)。<br>点击 [{fill_scan}] 可将上方特征扫描识别出的队伍角色快速填入当前方案。</p>"
-msgstr "<p>Configure e salve formações e combos de equipe de 4 personagens, com efeito imediato após a modificação.<br>As posições 1–4 deste preset são usadas apenas pela função [{fixed_preset}]. Se um personagem já tiver uma característica vinculada, ele pode ocupar qualquer posição sem afetar o reconhecimento.<br>Clique em [{apply_preset}] para aplicar os combos de cada personagem neste modelo predefinido (espaços sem combo selecionado manterão a configuração original).<br>Ative [{fixed_preset}] para que o combate automático adote diretamente esta equipe sem esperar pelo reconhecimento de características (personagens sem características registradas podem combater diretamente).<br>Clique em [{fill_scan}] para preencher rapidamente no modelo atual os personagens reconhecidos no escaneamento acima.</p>"
+msgid ""
+"<p>用于配置并保存常用的 4 人队伍阵容与出招表, 修改后立即生效。<br>方案中的 1~4 号位仅用于 [{fixed_preset}] 功能; "
+"已绑定特征的角色放在哪个号位都可以, 不影响识别。<br>点击 [{apply_preset}] 可一键更新应用方案中各角色的出招表 "
+"(未选择出招表则保持原配置不变)。<br>开启 [{fixed_preset}] 后自动战斗将直接采用此阵容, 无需等待特征识别 "
+"(未录入特征的角色亦可直接战斗)。<br>点击 [{fill_scan}] 可将上方特征扫描识别出的队伍角色快速填入当前方案。</p>"
+msgstr ""
+"<p>Configure e salve formações e combos de equipe de 4 personagens, com "
+"efeito imediato após a modificação.<br>As posições 1–4 deste preset são "
+"usadas apenas pela função [{fixed_preset}]. Se um personagem já tiver uma "
+"característica vinculada, ele pode ocupar qualquer posição sem afetar o "
+"reconhecimento.<br>Clique em [{apply_preset}] para aplicar os combos de cada"
+" personagem neste modelo predefinido (espaços sem combo selecionado manterão"
+" a configuração original).<br>Ative [{fixed_preset}] para que o combate "
+"automático adote diretamente esta equipe sem esperar pelo reconhecimento de "
+"características (personagens sem características registradas podem combater "
+"diretamente).<br>Clique em [{fill_scan}] para preencher rapidamente no "
+"modelo atual os personagens reconhecidos no escaneamento acima.</p>"
 
 #, python-brace-format
 msgid "OpenVINO 检测器 {model} 推理超时, 已自动停用。重启程序后将重新尝试启用。"
-msgstr "O detector {model} do OpenVINO foi desativado porque a inferência excedeu o tempo limite. O aplicativo tentará reativá-lo ao reiniciar."
+msgstr ""
+"O detector {model} do OpenVINO foi desativado porque a inferência excedeu o "
+"tempo limite. O aplicativo tentará reativá-lo ao reiniciar."
 
 msgid "批量删除"
 msgstr "Exclusão em Lote"
@@ -1030,7 +1113,9 @@ msgid "脚本文件名 (.py)"
 msgstr "Nome do Arquivo de Script (.py)"
 
 msgid "将在 external_chars/ 目录下生成独立的 Python 脚本供您编辑与调试."
-msgstr "Um script Python independente será gerado no diretório external_chars/ para edição e depuração."
+msgstr ""
+"Um script Python independente será gerado no diretório external_chars/ para "
+"edição e depuração."
 
 msgid "无法读取 Python 脚本."
 msgstr "Não foi possível ler o script Python."
@@ -1047,8 +1132,10 @@ msgstr "Personagem"
 msgid "指令"
 msgstr "Comando"
 
-msgid "请先应用更改后再运行测试."
-msgstr "Por favor, aplique as alterações antes de executar o teste."
+msgid "请先应用外置代码更改后再运行测试."
+msgstr ""
+"Por favor, aplique as alterações do código externo antes de executar o "
+"teste."
 
 msgid "角色工具任务未注册"
 msgstr "A tarefa de ferramentas de personagem não está registrada"
@@ -1062,8 +1149,32 @@ msgstr "Perguntar à IA"
 msgid "AI提示模版已复制。请粘贴到AI聊天机器人中。"
 msgstr "Modelo de prompt de IA copiado. Cole-o em um chatbot de IA."
 
-msgid "{SOURCE}\n\n我想实现: \n\n请修改上面完整的 {class_name} 角色自动化代码。\n\n只返回整个文件完整修改后的 Python 代码，不要返回补丁或解释。\n保持类名为 {class_name}。保留仍然需要的 import。\n\n在思考辅助方法、任务 API、状态、切人、冷却和战斗流程时, 请参考: \nBaseChar 角色基类: {BASE_CHAR_URL}\nCombat Planner 开发指南: {COMBAT_PLANNER_URL}"
-msgstr "{SOURCE}\n\nQuero realizar: \n\nModifique o código completo de automação do personagem {class_name} acima.\n\nRetorne apenas o código Python totalmente modificado de todo o arquivo, sem patches ou explicações.\nMantenha o nome da classe como {class_name}. Mantenha os imports necessários.\n\nAo considerar métodos auxiliares, APIs de tarefas, estados, troca de personagens, recargas e fluxo de combate, consulte: \nClasse base de personagem BaseChar: {BASE_CHAR_URL}\nGuia de desenvolvimento do Combat Planner: {COMBAT_PLANNER_URL}"
+msgid ""
+"{SOURCE}\n"
+"\n"
+"我想实现: \n"
+"\n"
+"请修改上面完整的 {class_name} 角色自动化代码。\n"
+"\n"
+"只返回整个文件完整修改后的 Python 代码，不要返回补丁或解释。\n"
+"保持类名为 {class_name}。保留仍然需要的 import。\n"
+"\n"
+"在思考辅助方法、任务 API、状态、切人、冷却和战斗流程时, 请参考: \n"
+"BaseChar 角色基类: {BASE_CHAR_URL}\n"
+"Combat Planner 开发指南: {COMBAT_PLANNER_URL}"
+msgstr ""
+"{SOURCE}\n"
+"\n"
+"Quero realizar: \n"
+"\n"
+"Modifique o código completo de automação do personagem {class_name} acima.\n"
+"\n"
+"Retorne apenas o código Python totalmente modificado de todo o arquivo, sem patches ou explicações.\n"
+"Mantenha o nome da classe como {class_name}. Mantenha os imports necessários.\n"
+"\n"
+"Ao considerar métodos auxiliares, APIs de tarefas, estados, troca de personagens, recargas e fluxo de combate, consulte: \n"
+"Classe base de personagem BaseChar: {BASE_CHAR_URL}\n"
+"Guia de desenvolvimento do Combat Planner: {COMBAT_PLANNER_URL}"
 
 msgid "OK"
 msgstr "OK"
@@ -1105,7 +1216,9 @@ msgid "外置代码目录名称无效"
 msgstr "O nome do diretório de código externo é inválido"
 
 msgid "外置代码目录“{}”已存在, 请修改目录名称后重试。"
-msgstr "O diretório de código externo \"{}\" já existe. Altere o nome e tente novamente."
+msgstr ""
+"O diretório de código externo \"{}\" já existe. Altere o nome e tente "
+"novamente."
 
 msgid "大小"
 msgstr "Tamanho"
@@ -1180,7 +1293,10 @@ msgid "社区方案"
 msgstr "Predefinição da comunidade"
 
 msgid "社区方案含外置代码; 导入后会以本软件权限运行, 请仅导入可信来源."
-msgstr "As predefinições da comunidade podem conter código externo; após a importação, ele será executado com as permissões deste software. Importe apenas de fontes confiáveis."
+msgstr ""
+"As predefinições da comunidade podem conter código externo; após a "
+"importação, ele será executado com as permissões deste software. Importe "
+"apenas de fontes confiáveis."
 
 msgid "角色阵容"
 msgstr "Formação da equipe"
@@ -1204,7 +1320,9 @@ msgid "删除方案"
 msgstr "Excluir predefinição"
 
 msgid "检测到该方案包含外置代码，是否同时删除对应的代码文件?"
-msgstr "Esta predefinição contém código externo. Deseja também excluir os arquivos de código correspondentes?"
+msgstr ""
+"Esta predefinição contém código externo. Deseja também excluir os arquivos "
+"de código correspondentes?"
 
 msgid "全部删除"
 msgstr "Excluir tudo"
@@ -1222,7 +1340,9 @@ msgid "启用开战优先级"
 msgstr "Ativar prioridade de início de combate"
 
 msgid "关闭时不按角色执行开战首切"
-msgstr "Quando desativado, a troca inicial de personagem no início do combate não é realizada"
+msgstr ""
+"Quando desativado, a troca inicial de personagem no início do combate não é "
+"realizada"
 
 msgid "鼠标占用警告"
 msgstr "Aviso de controle do mouse"
@@ -1237,7 +1357,9 @@ msgid "ZIP 格式备份; 导入将覆盖当前数据"
 msgstr "Backup em formato ZIP; a importação substituirá os dados atuais"
 
 msgid "手动修改 Python 代码后, 需点击 [{refresh}] 生效"
-msgstr "Depois de modificar o código Python manualmente, clique em [{refresh}] para aplicar."
+msgstr ""
+"Depois de modificar o código Python manualmente, clique em [{refresh}] para "
+"aplicar."
 
 msgid "编写指南"
 msgstr "Guia de Criação"
@@ -1246,13 +1368,16 @@ msgid "噗卡乐园 - 命中幸运星"
 msgstr "Puka Land - Acertar a Estrela da Sorte"
 
 msgid "在可进行NPC交互的位置启动任务"
-msgstr "Inicie a tarefa em um local onde a interação com NPC esteja disponível"
+msgstr ""
+"Inicie a tarefa em um local onde a interação com NPC esteja disponível"
 
 msgid "从工坊填入"
 msgstr "Preencher da Oficina"
 
 msgid "选择方案与版本, 填入名称、描述、作者和版本."
-msgstr "Selecione a predefinição e versão, preencha o nome, descrição, autor e versão."
+msgstr ""
+"Selecione a predefinição e versão, preencha o nome, descrição, autor e "
+"versão."
 
 msgid "填入信息"
 msgstr "Preencher Informações"
@@ -1313,10 +1438,14 @@ msgid "本地安装文件缺失, 请重新导入."
 msgstr "Faltam arquivos instalados. Importe o pacote novamente."
 
 msgid "无法读取工坊安装记录, 请检查 workshop_installs.json."
-msgstr "Não foi possível ler o registro de instalações. Verifique workshop_installs.json."
+msgstr ""
+"Não foi possível ler o registro de instalações. Verifique "
+"workshop_installs.json."
 
 msgid "下载的方案与更新信息不一致, 请刷新工坊后重试."
-msgstr "O pacote baixado não corresponde à atualização. Atualize a oficina e tente novamente."
+msgstr ""
+"O pacote baixado não corresponde à atualização. Atualize a oficina e tente "
+"novamente."
 
 msgid "一鍵更新"
 msgstr "Atualizar"
@@ -1368,23 +1497,45 @@ msgid "找不到模块加载器"
 msgstr "Carregador de módulo não encontrado"
 
 msgid "外置角色模块必须且只能定义一个 BaseChar 子类"
-msgstr "O módulo de personagem externo deve definir exatamente uma subclasse de BaseChar"
+msgstr ""
+"O módulo de personagem externo deve definir exatamente uma subclasse de "
+"BaseChar"
 
 msgid "角色实现标识重复: {impl_id}"
 msgstr "ID de implementação de personagem duplicado: {impl_id}"
 
 msgid "本次仅刷所选类型及其目标; 成功结束后才按循环模式更新下次目标。"
-msgstr "Esta execução farma apenas o tipo e o alvo selecionados. O modo de ciclo atualiza o alvo da próxima execução somente após concluir com sucesso."
+msgstr ""
+"Esta execução farma apenas o tipo e o alvo selecionados. O modo de ciclo "
+"atualiza o alvo da próxima execução somente após concluir com sucesso."
 
-msgid "每次日常仅刷当前目标, 本次不在多个目标间分配体力。\n停用: 下次仍刷当前目标。\n自动循环序号/目标: 成功结束后切到同类型的下一个序号或奖励目标, 末项后回到首项。\n自定义循环: 成功结束后按下方序列更新下次目标; 失败或跳过时不切换。"
-msgstr "Cada execução diária farma apenas o alvo atual, sem dividir energia entre vários alvos.\nDesativado: manter o alvo atual na próxima execução.\nCiclo automático de números/alvos: após o sucesso, selecionar o próximo número ou alvo de recompensa do mesmo tipo; após o último, voltar ao primeiro.\nCiclo personalizado: após o sucesso, atualizar o alvo da próxima execução conforme a lista abaixo. Falhas e execuções puladas não avançam o ciclo."
+msgid ""
+"每次日常仅刷当前目标, 本次不在多个目标间分配体力。\n"
+"停用: 下次仍刷当前目标。\n"
+"自动循环序号/目标: 成功结束后切到同类型的下一个序号或奖励目标, 末项后回到首项。\n"
+"自定义循环: 成功结束后按下方序列更新下次目标; 失败或跳过时不切换。"
+msgstr ""
+"Cada execução diária farma apenas o alvo atual, sem dividir energia entre vários alvos.\n"
+"Desativado: manter o alvo atual na próxima execução.\n"
+"Ciclo automático de números/alvos: após o sucesso, selecionar o próximo número ou alvo de recompensa do mesmo tipo; após o último, voltar ao primeiro.\n"
+"Ciclo personalizado: após o sucesso, atualizar o alvo da próxima execução conforme a lista abaixo. Falhas e execuções puladas não avançam o ciclo."
 
-msgid "按列表顺序轮换, 末项后回到首项; 每次日常只刷一个目标, 下次运行才刷下一个。\n数字是副本序号, 不是次数; 例如「异能升级材料: 1」表示该类型的第1项。\n首次仍刷上方当前目标; 若其不在序列中, 成功后将下次目标设为序列首项; 空序列不切换。"
-msgstr "Alternar na ordem da lista e voltar ao início após o último item. Cada execução diária farma um único alvo; o próximo é farmado na próxima execução.\nOs números são índices de masmorra, não quantidades de execuções. Por exemplo, Materiais de melhoria de habilidade: 1 indica a primeira masmorra desse tipo.\nA primeira execução usa o alvo atual acima. Se ele não estiver na lista, o sucesso define o primeiro item como alvo da próxima execução. Uma lista vazia não altera o alvo."
+msgid ""
+"按列表顺序轮换, 末项后回到首项; 每次日常只刷一个目标, 下次运行才刷下一个。\n"
+"数字是副本序号, 不是次数; 例如「异能升级材料: 1」表示该类型的第1项。\n"
+"首次仍刷上方当前目标; 若其不在序列中, 成功后将下次目标设为序列首项; 空序列不切换。"
+msgstr ""
+"Alternar na ordem da lista e voltar ao início após o último item. Cada execução diária farma um único alvo; o próximo é farmado na próxima execução.\n"
+"Os números são índices de masmorra, não quantidades de execuções. Por exemplo, Materiais de melhoria de habilidade: 1 indica a primeira masmorra desse tipo.\n"
+"A primeira execução usa o alvo atual acima. Se ele não estiver na lista, o sucesso define o primeiro item como alvo da próxima execução. Uma lista vazia não altera o alvo."
 
 #, python-brace-format
-msgid "按今日累计消耗计算, 扣除已消耗体力; 每份奖励{cost}体力, 剩余目标向上取整。\n今日已消耗180体力或活跃度达100时跳过; 体力不足时仅刷可领取的次数。"
-msgstr "Meta de gasto total de energia de hoje, descontando a energia já gasta. Cada recompensa custa {cost}; a meta restante é arredondada para cima.\nPula se já foram gastos 180 de energia hoje ou a atividade chegou a 100. Se faltar energia, resgata apenas as recompensas possíveis."
+msgid ""
+"按今日累计消耗计算, 扣除已消耗体力; 每份奖励{cost}体力, 剩余目标向上取整。\n"
+"今日已消耗180体力或活跃度达100时跳过; 体力不足时仅刷可领取的次数。"
+msgstr ""
+"Meta de gasto total de energia de hoje, descontando a energia já gasta. Cada recompensa custa {cost}; a meta restante é arredondada para cima.\n"
+"Pula se já foram gastos 180 de energia hoje ou a atividade chegou a 100. Se faltar energia, resgata apenas as recompensas possíveis."
 
 msgid "筛选"
 msgstr "Filtros"
@@ -1408,8 +1559,12 @@ msgid "清空筛选"
 msgstr "Limpar filtros"
 
 #, python-brace-format
-msgid "已安装: {installed}\n最新版本: {latest}"
-msgstr "Versão instalada: {installed}\nVersão mais recente: {latest}"
+msgid ""
+"已安装: {installed}\n"
+"最新版本: {latest}"
+msgstr ""
+"Versão instalada: {installed}\n"
+"Versão mais recente: {latest}"
 
 #, python-brace-format
 msgid "显示 {} / {} 个方案"
@@ -1425,7 +1580,8 @@ msgid "异象巡礼"
 msgstr "Peregrinação de anomalias"
 
 msgid "按目标清单顺序进行异象巡礼"
-msgstr "Conclua a peregrinação de anomalias seguindo a ordem da lista de alvos"
+msgstr ""
+"Conclua a peregrinação de anomalias seguindo a ordem da lista de alvos"
 
 msgid "目标"
 msgstr "Alvos"
@@ -1434,16 +1590,23 @@ msgid "轮换起始日期"
 msgstr "Data de início da rotação"
 
 msgid "按清单顺序循环, 末项后回到首项; 重复选择表示重复挑战同一目标"
-msgstr "Percorra a lista em ordem e volte ao primeiro item depois do último. Selecione um alvo mais de uma vez para repetir o desafio."
+msgstr ""
+"Percorra a lista em ordem e volte ao primeiro item depois do último. "
+"Selecione um alvo mais de uma vez para repetir o desafio."
 
 msgid "可选, 格式 YYYY-MM-DD; 每满7天按清单推进3项, 本周已领取次数也计入进度。留空则每次从清单首项开始循环。"
-msgstr "Opcional, no formato YYYY-MM-DD. Avance três posições a cada sete dias e conte as recompensas já resgatadas nesta semana. Deixe em branco para começar pelo primeiro item a cada execução."
+msgstr ""
+"Opcional, no formato YYYY-MM-DD. Avance três posições a cada sete dias e "
+"conte as recompensas já resgatadas nesta semana. Deixe em branco para "
+"começar pelo primeiro item a cada execução."
 
 msgid "每周开始运行日"
 msgstr "Dia de início semanal"
 
 msgid "仅在所选星期至周日运行, 本周更早的日期会跳过。"
-msgstr "Execute a tarefa do dia escolhido até domingo. Os dias anteriores da semana são ignorados."
+msgstr ""
+"Execute a tarefa do dia escolhido até domingo. Os dias anteriores da semana "
+"são ignorados."
 
 msgid "周一"
 msgstr "Segunda-feira"
@@ -1466,100 +1629,123 @@ msgstr "Sábado"
 msgid "周日"
 msgstr "Domingo"
 
+msgid "消耗体力培养角色"
+msgstr "Gastar Stamina para Aprimorar Personagem"
+
+msgid "按培养目标缺口自动消耗体力：周本 > 世界BOSS > 异能 > 弧盘"
+msgstr ""
+"Gasta stamina pelas faltas: Semanal > Chefe Mundial > Habilidade > Arco"
+
+msgid "连打单次上限（局），只是保险丝，实际还会被缺口和体力截断。"
+msgstr "Máximo de rodadas encadeadas."
+
+msgid "开局读一次养成指南四行和体力，之后按每局掉落增量本地记账，不再每局回页重读；掉落读不出时自动回页复核，不凭空猜数。"
+msgstr "Ler uma vez no início, depois registrar por drop."
+
+msgid "领奖时抓拍现场截图，供排查识别偏差；默认关闭。"
+msgstr "Capturar tela ao resgatar; desligado por padrão."
+
+msgid "今日体力花到这个累计数就停；今日目标已达标或设为 0 时不受每日目标限制，按当前体力一直刷到材料齐全；材料齐全后仍会切空幕继续消耗剩余体力。"
+msgstr ""
+"Para quando o estamina acumulado de hoje atingir este valor; se a meta de "
+"hoje já foi atingida ou for 0, não há limite diário e continua farmeando até"
+" completar todos os materiais.; quando todos os materiais estiverem "
+"completos, ainda mudará para a Cortina Vazia para gastar a estamina "
+"restante."
+
+msgid "周本刷取开关：开=优先刷满本周异象巡礼（每周 3 次，每次 60 体力）再刷其它材料；关=直接刷其它材料，周本只在异能第 2 行缺料时才打。"
+msgstr ""
+"Interruptor do chefe semanal: ON=concluir primeiro a Peregrinação de "
+"Anomalia da semana (3 vezes por semana, 60 de estamina cada) antes de outros"
+" materiais; OFF=farmear outros materiais diretamente, e o chefe semanal só é"
+" combatido quando a linha 2 de Habilidade está sem materiais."
+
+msgid "每局领奖后在日志统计各材料本次掉落多少、已有多少、还差多少。"
+msgstr ""
+"Após cada recompensa, registra no log quanto de cada material caiu, quanto "
+"você tem e quanto falta."
+
+msgid "在游戏赠礼页点击{}"
+msgstr "Clique em {} na página de presentes do jogo"
+
+msgid "点击礼物卡片可设定优先级，再次点击取消"
+msgstr ""
+"Clique em um cartão de presente para definir a prioridade, clique novamente "
+"para cancelar"
+
+msgid "请先应用更改后再运行测试."
+msgstr "Por favor, aplique as alterações antes de executar o teste."
 
 msgid "Close"
 msgstr "Fechar"
 
-
 msgid "Drag to reorder"
 msgstr "Arraste para reordenar"
-
 
 msgid "Failed"
 msgstr "Falhou"
 
-
 msgid "Include in this daily routine"
 msgstr "Incluir nesta rotina diária"
-
 
 msgid "Name"
 msgstr "Nome"
 
-
 msgid "No tasks available."
 msgstr "Nenhuma tarefa disponível."
-
 
 msgid "Pause"
 msgstr "Pausar"
 
-
 msgid "Paused"
 msgstr "Pausado"
-
 
 msgid "Pending"
 msgstr "Pendente"
 
-
 msgid "Queued"
 msgstr "Na fila"
-
 
 msgid "Reset"
 msgstr "Redefinir"
 
-
 msgid "Resume"
 msgstr "Continuar"
-
 
 msgid "Routine settings"
 msgstr "Configurações da rotina"
 
-
 msgid "Run info"
 msgstr "Informações da execução"
-
 
 msgid "Running"
 msgstr "Em execução"
 
-
 msgid "Select a task to see its settings."
 msgstr "Selecione uma tarefa para ver suas configurações."
-
 
 msgid "Skipped"
 msgstr "Ignorado"
 
-
 msgid "Start"
 msgstr "Iniciar"
-
 
 msgid "Stop"
 msgstr "Parar"
 
-
 msgid "Succeeded"
 msgstr "Concluído"
-
 
 msgid "Task settings"
 msgstr "Configurações da tarefa"
 
-
 msgid "Value"
 msgstr "Valor"
-
 
 msgid "检测到该方案包含外置代码, 是否同时删除对应的代码文件?"
 msgstr ""
 "Esta predefinição contém código externo. Deseja também excluir os arquivos "
 "de código correspondentes?"
-
 
 msgid "角色列表"
 msgstr "Personagens"
@@ -1580,7 +1766,10 @@ msgid "允许约会目标兜底"
 msgstr "Permitir alvo alternativo"
 
 msgid "支持正则表达式匹配目标名称, 留空时选择顶部可选目标"
-msgstr "Aceita regex no nome do alvo; vazio seleciona o primeiro alvo disponível."
+msgstr ""
+"Aceita regex no nome do alvo; vazio seleciona o primeiro alvo disponível."
 
 msgid "指定目标找不到或不可用时, 尝试选择顶部可选目标"
-msgstr "Se o alvo indicado não for encontrado ou estiver indisponível, tenta selecionar o primeiro alvo disponível."
+msgstr ""
+"Se o alvo indicado não for encontrado ou estiver indisponível, tenta "
+"selecionar o primeiro alvo disponível."

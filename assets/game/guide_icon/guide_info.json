@@ -1,0 +1,482 @@
+{
+  "ability_扑克茶会_绿": {
+    "kind": "ability",
+    "dungeon": "扑克茶会",
+    "tier": "绿",
+    "quality": "绿",
+    "w": 66,
+    "h": 92,
+    "single": false,
+    "evidence": {
+      "warm_ratio": 0.857,
+      "warm_sat": 112.0
+    }
+  },
+  "ability_扑克茶会_蓝": {
+    "kind": "ability",
+    "dungeon": "扑克茶会",
+    "tier": "蓝",
+    "quality": "蓝",
+    "w": 66,
+    "h": 92,
+    "single": false,
+    "evidence": {
+      "warm_ratio": 0.0
+    }
+  },
+  "ability_扑克茶会_紫": {
+    "kind": "ability",
+    "dungeon": "扑克茶会",
+    "tier": "紫",
+    "quality": "紫",
+    "w": 66,
+    "h": 92,
+    "single": false,
+    "evidence": {
+      "warm_ratio": 0.845,
+      "warm_sat": 146.0
+    }
+  },
+  "ability_越狱艺术_绿": {
+    "kind": "ability",
+    "dungeon": "越狱艺术",
+    "tier": "绿",
+    "quality": "绿",
+    "w": 66,
+    "h": 92,
+    "single": false,
+    "evidence": {
+      "warm_ratio": 0.894,
+      "warm_sat": 109.0
+    }
+  },
+  "ability_越狱艺术_蓝": {
+    "kind": "ability",
+    "dungeon": "越狱艺术",
+    "tier": "蓝",
+    "quality": "蓝",
+    "w": 66,
+    "h": 92,
+    "single": false,
+    "evidence": {
+      "warm_ratio": 0.0
+    }
+  },
+  "ability_越狱艺术_紫": {
+    "kind": "ability",
+    "dungeon": "越狱艺术",
+    "tier": "紫",
+    "quality": "紫",
+    "w": 66,
+    "h": 92,
+    "single": false,
+    "evidence": {
+      "warm_ratio": 0.906,
+      "warm_sat": 143.0
+    }
+  },
+  "ability_惊喜派对_绿": {
+    "kind": "ability",
+    "dungeon": "惊喜派对",
+    "tier": "绿",
+    "quality": "绿",
+    "w": 64,
+    "h": 92,
+    "single": false,
+    "evidence": {
+      "warm_ratio": 0.877,
+      "warm_sat": 107.0
+    }
+  },
+  "ability_惊喜派对_蓝": {
+    "kind": "ability",
+    "dungeon": "惊喜派对",
+    "tier": "蓝",
+    "quality": "蓝",
+    "w": 64,
+    "h": 92,
+    "single": false,
+    "evidence": {
+      "warm_ratio": 0.0
+    }
+  },
+  "ability_惊喜派对_紫": {
+    "kind": "ability",
+    "dungeon": "惊喜派对",
+    "tier": "紫",
+    "quality": "紫",
+    "w": 64,
+    "h": 92,
+    "single": false,
+    "evidence": {
+      "warm_ratio": 0.871,
+      "warm_sat": 139.0
+    }
+  },
+  "ability_小心鸽子_绿": {
+    "kind": "ability",
+    "dungeon": "小心鸽子",
+    "tier": "绿",
+    "quality": "绿",
+    "w": 88,
+    "h": 92,
+    "single": false,
+    "evidence": {
+      "warm_ratio": 0.782,
+      "warm_sat": 119.0
+    }
+  },
+  "ability_小心鸽子_蓝": {
+    "kind": "ability",
+    "dungeon": "小心鸽子",
+    "tier": "蓝",
+    "quality": "蓝",
+    "w": 74,
+    "h": 92,
+    "single": false,
+    "evidence": {
+      "warm_ratio": 0.0
+    }
+  },
+  "ability_小心鸽子_紫": {
+    "kind": "ability",
+    "dungeon": "小心鸽子",
+    "tier": "紫",
+    "quality": "紫",
+    "w": 61,
+    "h": 92,
+    "single": false,
+    "evidence": {
+      "warm_ratio": 0.858,
+      "warm_sat": 139.0
+    }
+  },
+  "ability_心电感应_绿": {
+    "kind": "ability",
+    "dungeon": "心电感应",
+    "tier": "绿",
+    "quality": "绿",
+    "w": 64,
+    "h": 92,
+    "single": false,
+    "evidence": {
+      "warm_ratio": 0.881,
+      "warm_sat": 106.0
+    }
+  },
+  "ability_心电感应_蓝": {
+    "kind": "ability",
+    "dungeon": "心电感应",
+    "tier": "蓝",
+    "quality": "蓝",
+    "w": 64,
+    "h": 92,
+    "single": false,
+    "evidence": {
+      "warm_ratio": 0.0
+    }
+  },
+  "ability_心电感应_紫": {
+    "kind": "ability",
+    "dungeon": "心电感应",
+    "tier": "紫",
+    "quality": "紫",
+    "w": 64,
+    "h": 92,
+    "single": false,
+    "evidence": {
+      "warm_ratio": 0.88,
+      "warm_sat": 140.0
+    }
+  },
+  "arc_泡影罐头·液态梦_绿": {
+    "kind": "arc",
+    "dungeon": "泡影罐头·液态梦",
+    "tier": "绿",
+    "quality": "绿",
+    "w": 60,
+    "h": 92,
+    "single": false,
+    "evidence": {
+      "warm_ratio": 0.128,
+      "warm_sat": 81.0
+    }
+  },
+  "arc_泡影罐头·液态梦_蓝": {
+    "kind": "arc",
+    "dungeon": "泡影罐头·液态梦",
+    "tier": "蓝",
+    "quality": "蓝",
+    "w": 60,
+    "h": 92,
+    "single": false,
+    "evidence": {
+      "warm_ratio": 0.0
+    }
+  },
+  "arc_泡影罐头·液态梦_紫": {
+    "kind": "arc",
+    "dungeon": "泡影罐头·液态梦",
+    "tier": "紫",
+    "quality": "紫",
+    "w": 59,
+    "h": 92,
+    "single": false,
+    "evidence": {
+      "warm_ratio": 0.303,
+      "warm_sat": 164.0
+    }
+  },
+  "arc_泡影罐头·戏剧芯_绿": {
+    "kind": "arc",
+    "dungeon": "泡影罐头·戏剧芯",
+    "tier": "绿",
+    "quality": "绿",
+    "w": 94,
+    "h": 92,
+    "single": false,
+    "evidence": {
+      "warm_ratio": 0.423,
+      "warm_sat": 79.0
+    }
+  },
+  "arc_泡影罐头·戏剧芯_蓝": {
+    "kind": "arc",
+    "dungeon": "泡影罐头·戏剧芯",
+    "tier": "蓝",
+    "quality": "蓝",
+    "w": 92,
+    "h": 92,
+    "single": false,
+    "evidence": {
+      "warm_ratio": 0.026
+    }
+  },
+  "arc_泡影罐头·戏剧芯_紫": {
+    "kind": "arc",
+    "dungeon": "泡影罐头·戏剧芯",
+    "tier": "紫",
+    "quality": "紫",
+    "w": 90,
+    "h": 92,
+    "single": false,
+    "evidence": {
+      "warm_ratio": 0.564,
+      "warm_sat": 187.0
+    }
+  },
+  "arc_泡影罐头·冷甜点_绿": {
+    "kind": "arc",
+    "dungeon": "泡影罐头·冷甜点",
+    "tier": "绿",
+    "quality": "绿",
+    "w": 81,
+    "h": 92,
+    "single": false,
+    "evidence": {
+      "warm_ratio": 0.261,
+      "warm_sat": 75.0
+    }
+  },
+  "arc_泡影罐头·冷甜点_蓝": {
+    "kind": "arc",
+    "dungeon": "泡影罐头·冷甜点",
+    "tier": "蓝",
+    "quality": "蓝",
+    "w": 87,
+    "h": 92,
+    "single": false,
+    "evidence": {
+      "warm_ratio": 0.005
+    }
+  },
+  "arc_泡影罐头·冷甜点_紫": {
+    "kind": "arc",
+    "dungeon": "泡影罐头·冷甜点",
+    "tier": "紫",
+    "quality": "紫",
+    "w": 87,
+    "h": 92,
+    "single": false,
+    "evidence": {
+      "warm_ratio": 0.645,
+      "warm_sat": 173.0
+    }
+  },
+  "arc_泡影罐头·苹果核_绿": {
+    "kind": "arc",
+    "dungeon": "泡影罐头·苹果核",
+    "tier": "绿",
+    "quality": "绿",
+    "w": 72,
+    "h": 92,
+    "single": false,
+    "evidence": {
+      "warm_ratio": 0.595,
+      "warm_sat": 80.0
+    }
+  },
+  "arc_泡影罐头·苹果核_蓝": {
+    "kind": "arc",
+    "dungeon": "泡影罐头·苹果核",
+    "tier": "蓝",
+    "quality": "蓝",
+    "w": 78,
+    "h": 92,
+    "single": false,
+    "evidence": {
+      "warm_ratio": 0.036
+    }
+  },
+  "arc_泡影罐头·苹果核_紫": {
+    "kind": "arc",
+    "dungeon": "泡影罐头·苹果核",
+    "tier": "紫",
+    "quality": "紫",
+    "w": 76,
+    "h": 92,
+    "single": false,
+    "evidence": {
+      "warm_ratio": 0.619,
+      "warm_sat": 160.0
+    }
+  },
+  "arc_泡影罐头·螺旋乐_绿": {
+    "kind": "arc",
+    "dungeon": "泡影罐头·螺旋乐",
+    "tier": "绿",
+    "quality": "绿",
+    "w": 86,
+    "h": 92,
+    "single": false,
+    "evidence": {
+      "warm_ratio": 0.547,
+      "warm_sat": 78.0
+    }
+  },
+  "arc_泡影罐头·螺旋乐_蓝": {
+    "kind": "arc",
+    "dungeon": "泡影罐头·螺旋乐",
+    "tier": "蓝",
+    "quality": "蓝",
+    "w": 86,
+    "h": 92,
+    "single": false,
+    "evidence": {
+      "warm_ratio": 0.027
+    }
+  },
+  "arc_泡影罐头·螺旋乐_紫": {
+    "kind": "arc",
+    "dungeon": "泡影罐头·螺旋乐",
+    "tier": "紫",
+    "quality": "紫",
+    "w": 86,
+    "h": 92,
+    "single": false,
+    "evidence": {
+      "warm_ratio": 0.602,
+      "warm_sat": 187.0
+    }
+  },
+  "boss_塞润尼缇": {
+    "kind": "boss",
+    "dungeon": "塞润尼缇",
+    "tier": "",
+    "quality": "",
+    "w": 88,
+    "h": 68,
+    "single": true,
+    "top_ratio": 0.7
+  },
+  "boss_囿巢鸟": {
+    "kind": "boss",
+    "dungeon": "囿巢鸟",
+    "tier": "",
+    "quality": "",
+    "w": 80,
+    "h": 68,
+    "single": true,
+    "top_ratio": 0.7
+  },
+  "boss_斑蝶": {
+    "kind": "boss",
+    "dungeon": "斑蝶",
+    "tier": "",
+    "quality": "",
+    "w": 98,
+    "h": 62,
+    "single": true,
+    "top_ratio": 0.7
+  },
+  "boss_无首铁驭": {
+    "kind": "boss",
+    "dungeon": "无首铁驭",
+    "tier": "",
+    "quality": "",
+    "w": 98,
+    "h": 68,
+    "single": true,
+    "top_ratio": 0.7
+  },
+  "boss_海囚": {
+    "kind": "boss",
+    "dungeon": "海囚",
+    "tier": "",
+    "quality": "",
+    "w": 96,
+    "h": 68,
+    "single": true,
+    "top_ratio": 0.7
+  },
+  "boss_音霸魔王": {
+    "kind": "boss",
+    "dungeon": "音霸魔王",
+    "tier": "",
+    "quality": "",
+    "w": 98,
+    "h": 72,
+    "single": true,
+    "top_ratio": 0.7
+  },
+  "boss_黑之书": {
+    "kind": "boss",
+    "dungeon": "黑之书",
+    "tier": "",
+    "quality": "",
+    "w": 68,
+    "h": 39,
+    "single": true,
+    "top_ratio": 0.7
+  },
+  "weekly_永不谢幕的阿拉克涅": {
+    "kind": "weekly",
+    "dungeon": "永不谢幕的阿拉克涅",
+    "tier": "",
+    "quality": "",
+    "w": 68,
+    "h": 40,
+    "single": true,
+    "top_ratio": 0.7
+  },
+  "weekly_墨菲克斯": {
+    "kind": "weekly",
+    "dungeon": "墨菲克斯",
+    "tier": "",
+    "quality": "",
+    "w": 72,
+    "h": 33,
+    "single": true,
+    "top_ratio": 0.7
+  },
+  "weekly_讨债人": {
+    "kind": "weekly",
+    "dungeon": "讨债人",
+    "tier": "",
+    "quality": "",
+    "w": 70,
+    "h": 68,
+    "single": true,
+    "top_ratio": 0.7
+  }
+}

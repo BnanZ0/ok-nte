@@ -8,6 +8,10 @@ ok-nte is a Windows automation tool for *Neverness To Everness*. It interacts th
 - [Before you start](getting-started/configuration.md)
 - [Quick start](guides/quick-start.md)
 
+## Feature guides
+
+- [Spend Stamina for Character Growth](guides/cultivation-goal.md): auto-farm stamina by growth-goal material gaps (standalone task; shipped as a plugin until merged into a host release).
+
 ## Features and development
 
 - [Feature overview](features/overview.md)
