@@ -1,5 +1,5 @@
 from ok.ui.qt.Communicate import communicate
-from ok.ui.qt.kit import Button, Card, Label, Pill, SettingRow, Table, icon
+from ok.ui.qt.kit import Button, Card, Label, Pill, SettingRow, Table, icon, show_toast
 from ok.ui.qt.kit.theme import rgba, set_style_property, theme
 from ok.ui.qt.tasks.config_form import ConfigForm
 from ok.ui.qt.tasks.tasks_page import start_task, stop_task
@@ -26,6 +26,7 @@ from PySide6.QtWidgets import (
     QHeaderView,
     QLabel,
     QLayout,
+    QMenu,
     QScrollArea,
     QSizePolicy,
     QStackedWidget,
@@ -127,10 +128,13 @@ class _DragHandle(QWidget):
 class _RoutineRow(QFrame):
     picked = Signal(object)
     enabled_changed = Signal(str, bool)
+    run_requested = Signal(str)
+    stop_requested = Signal(str)
 
     def __init__(self, task_id, name, page, parent):
         super().__init__(parent)
         self.task_id = task_id
+        self._page = page
         self.setObjectName("dailyRoutineRow")
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -194,6 +198,23 @@ class _RoutineRow(QFrame):
         ):
             self.picked.emit(self.task_id)
         super().mouseReleaseEvent(event)
+
+    def contextMenuEvent(self, event):
+        """右键菜单: 单独运行该子任务, 不改动日常链的勾选集合。"""
+        if self.task_id is None:
+            return
+        menu = QMenu(self)
+        run_action = menu.addAction(self._page.tr("单独运行"))
+        stop_action = menu.addAction(self._page.tr("停止"))
+        running = self._page.is_single_running(self.task_id)
+        run_action.setEnabled(not running)
+        stop_action.setEnabled(running)
+        chosen = menu.exec(event.globalPos())
+        if chosen is run_action:
+            self.run_requested.emit(self.task_id)
+        elif chosen is stop_action:
+            self.stop_requested.emit(self.task_id)
+        event.accept()
 
     def keyPressEvent(self, event):
         if event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter, Qt.Key.Key_Space):
@@ -400,6 +421,8 @@ class DailyRoutineTab(CustomTab):
                 row.set_enabled(item["enabled"])
                 row.picked.connect(self.select_task)
                 row.enabled_changed.connect(self._set_enabled)
+                row.run_requested.connect(self.run_single_task)
+                row.stop_requested.connect(self.stop_single_task)
                 self.rows[item["id"]] = row
                 self.list_layout.insertWidget(self.list_layout.count() - 1, row)
         self.empty_label.setVisible(not self.rows)
@@ -706,6 +729,38 @@ class DailyRoutineTab(CustomTab):
     def _stop(self):
         if self.task is not None:
             stop_task(self.task)
+            self._refresh_state()
+
+    def _child_task(self, task_id):
+        routine = self.task
+        return routine.task_for_id(task_id) if routine is not None else None
+
+    def is_single_running(self, task_id):
+        child = self._child_task(task_id)
+        return bool(child is not None and child.enabled and not child.paused)
+
+    def run_single_task(self, task_id):
+        """单独运行一个子任务, 不改动日常链的勾选集合。"""
+        child = self._child_task(task_id)
+        if child is None:
+            return
+        routine = self.task
+        if routine is not None and routine.enabled and routine.running:
+            # 原型阶段: 日常链运行中直接拒绝, 避免两个任务争用同一份输入与截图。
+            show_toast(
+                self.window(),
+                self.tr("请先停止日常任务"),
+                self.tr("日常任务运行中, 无法单独运行子任务"),
+                tone="danger",
+            )
+            return
+        start_task(child, self)
+        self._refresh_state()
+
+    def stop_single_task(self, task_id):
+        child = self._child_task(task_id)
+        if child is not None:
+            stop_task(child)
             self._refresh_state()
 
     def _pause(self):
