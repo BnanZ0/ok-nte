@@ -799,6 +799,16 @@ class DailyRoutineTab(CustomTab):
                 tone="danger",
             )
             return
+        # 暂停中的任务走 start_task 的 unpause 分支, 不会读取配置; 中途换配置会让
+        # 它带着与启动时不同的配置恢复。这种情况直接拒绝, 要求先停止再重新运行。
+        if child.enabled and child.paused:
+            show_toast(
+                self.window(),
+                self.tr("请先停止该子任务"),
+                self.tr("该子任务处于暂停状态, 请停止后再单独运行"),
+                tone="danger",
+            )
+            return
         # 配置必须在提交启动请求之前生效, 否则异步执行可能先读到任务自身配置。
         self._apply_daily_config(task_id, child)
         start_task(child, self)
@@ -811,12 +821,15 @@ class DailyRoutineTab(CustomTab):
         child = self._child_task(task_id)
         if child is None:
             return
-        # 已排队但还没开跑的任务要先从待启动队列摘掉, 否则 stop_task 停不掉它。
+        # 已排队但还没开跑的任务要先从待启动队列摘掉; cancel_task 自己会返回是否
+        # 真的取消了排队, 取消失败(或没有控制器)时回退到正常停止流程。
         controller = self._start_controller()
-        if controller is not None and self._is_pending(child):
-            controller.cancel_task(child)
-        else:
+        cancelled = controller is not None and controller.cancel_task(child)
+        if not cancelled:
             stop_task(child)
+        else:
+            # 取消了待启动请求, 配置不会再有 task_done 来恢复, 这里补上。
+            self._on_single_task_done(child)
         self._refresh_state()
 
     def _pause(self):
