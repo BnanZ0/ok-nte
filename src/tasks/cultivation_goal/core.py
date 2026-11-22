@@ -198,6 +198,7 @@ class LootLedger:
         weekly_remaining: int,
         weekly_blocked: bool,
         skip_labels,
+        weekly_known: bool = False,
     ) -> PlanState:
         return PlanState(
             stamina=self.stamina,
@@ -205,6 +206,7 @@ class LootLedger:
             rows=self.rows,
             rounds_done=rounds_done,
             weekly_blocked=weekly_blocked,
+            weekly_known=weekly_known,
             skip_labels=tuple(skip_labels),
         )
 
@@ -226,6 +228,9 @@ class PlanState:
     rows: tuple[MaterialRow, ...] = ()
     rounds_done: int = 0
     weekly_blocked: bool = False
+    # 周本次数是否真的读过面板。关掉「周本刷取」时 remaining 恒 0 但含义是未知,
+    # 不能据此判定「次数用完」, 否则异能第2行缺料时会被误跳过。
+    weekly_known: bool = False
     read_failed: bool = False
     # 本次已失败的行，不重复尝试。
     skip_labels: tuple[str, ...] = ()
@@ -249,7 +254,12 @@ def effective_stamina(current: int, daily_target: int | None) -> int:
 
 
 def decide(state: PlanState, cfg: PlanConfig | None = None) -> Decision:
-    """周本优先 → 未达标材料 → 全满刷空幕 → 体力不够下一次则停。"""
+    """周本优先 → 未达标材料 → 空幕（优先级最低、无次数上限）→ 体力不够下一次则停。
+
+    空幕排在最后不是因为它差, 而是因为它**没有次数上限**: 只有它能在「所有材料都够、
+    或剩下的行都已经推不动」时继续把体力花掉, 所以它必须永远垫底, 用来兜住
+    「有体力却没副本可打」的情况。
+    """
     cfg = cfg or PlanConfig()
     stamina = effective_stamina(state.stamina, cfg.daily_target)
 
@@ -281,12 +291,20 @@ def decide(state: PlanState, cfg: PlanConfig | None = None) -> Decision:
         names = ", ".join(row.label for row in uncertain)
         return Decision(Action.STOP, f"材料行读不出: {names}")
 
-    # 周本行按缺口驱动(设计基准: 即使周本次数/读数不可用, 缺料仍尝试巡礼,
-    # 领奖确认失败后由 skip 兜底), 不在这里排除。
+    # 周本次数用完 = 这一行本周已达上限, 不能再算「未达标」。
+    # 否则它永远排在 pending 首位, 每轮都要白跑一次巡礼才跳过, 空幕兜底根本到不了。
+    # 只在真的读过面板时才这样判: 关掉「周本刷取」时 remaining 恒 0 但那是未知。
+    exhausted = {
+        row.label
+        for row in state.rows
+        if row.landing == "weekly" and state.weekly_known and state.weekly_remaining <= 0
+    }
     pending = [
         row
         for row in state.rows
-        if row.satisfied is False and row.label not in state.skip_labels
+        if row.satisfied is False
+        and row.label not in state.skip_labels
+        and row.label not in exhausted
     ]
     for row in pending:
         if stamina >= row.cost:
@@ -294,12 +312,18 @@ def decide(state: PlanState, cfg: PlanConfig | None = None) -> Decision:
     if pending:
         cheapest = min(row.cost for row in pending)
         return Decision(Action.STOP, f"体力 {stamina} 不够剩余材料副本 ({cheapest})")
-    if any(row.satisfied is False for row in state.rows):
-        skipped = ", ".join(row.label for row in state.rows if row.satisfied is False)
-        return Decision(Action.STOP, f"剩余材料行本次均已失败: {skipped}")
+    unfinished = [
+        row.label for row in state.rows if row.satisfied is False and row.label not in exhausted
+    ]
+    if unfinished:
+        return Decision(Action.STOP, f"剩余材料行本次均已失败: {', '.join(unfinished)}")
 
     if stamina >= cfg.console_cost:
-        return Decision(Action.CONSOLE, "培养目标材料全满, 刷空幕", cost=cfg.console_cost)
+        if exhausted:
+            reason = f"{', '.join(sorted(exhausted))} 缺料但周本次数已用完, 交给空幕消耗体力"
+        else:
+            reason = "培养目标材料全满, 交给空幕消耗体力"
+        return Decision(Action.CONSOLE, reason, cost=cfg.console_cost)
     return Decision(Action.STOP, f"体力 {stamina} 不够空幕 ({cfg.console_cost})")
 
 
@@ -308,6 +332,26 @@ def next_weekly_remaining(state: PlanState, claimed: bool) -> int:
     if not claimed or state.weekly_remaining <= 0:
         return state.weekly_remaining
     return state.weekly_remaining - 1
+
+
+def pick_console_row(rows) -> tuple[int | None, str]:
+    """挑空幕缺口最大的那一行；行号 +1 就是异象界域的「空幕序号」。
+
+    空幕四行对应四个空幕副本（钟表把戏 / 雕塑展馆 / 纬线织机 / 守卫萝卜）。
+    读不出的行不参与比较；全读不出或全满就返回 None —— 宁可这次不刷，
+    也不要按 1 号盲刷：刷错副本等于白花 40 体力。
+    """
+    gaps = []
+    for row in rows or ():
+        gap = row_gap(row)
+        if gap is not None:
+            gaps.append((row.row_index, gap))
+    if not gaps:
+        return None, "空幕行读不出"
+    index, gap = max(gaps, key=lambda item: item[1])
+    if gap <= 0:
+        return None, "空幕材料已全满"
+    return index, f"第 {index + 1} 行缺 {gap}"
 
 
 def map_reward_to_counts(

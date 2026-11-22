@@ -21,12 +21,13 @@ from src.tasks.cultivation_goal.core import (
     estimate_runs,
     merged_owned,
     parse_ratios,
+    pick_console_row,
     plan_burst,
     parse_weekly_remaining,
     repair_swallowed_slash,
     row_gap,
 )
-from src.tasks.cultivation_goal.positions import HUNTER_BOSS_NAMES, POS, TARGET_ROWS
+from src.tasks.cultivation_goal.positions import CONSOLE_DUNGEONS, HUNTER_BOSS_NAMES, POS, TARGET_ROWS
 from src.tasks.cultivation_goal.report import RunReport, row_snapshot
 from src.tasks.cultivation_goal.version import VERSION as CG_VERSION
 
@@ -378,11 +379,12 @@ class CultivationGoalMixin:
                         rows=rows or (),
                         rounds_done=rounds,
                         weekly_blocked=weekly_blocked,
+                        weekly_known=weekly_first,
                         read_failed=rows is None,
                         skip_labels=tuple(skipped),
                     )
                 else:
-                    state = ledger.as_state(rounds, remaining, weekly_blocked, skipped)
+                    state = ledger.as_state(rounds, remaining, weekly_blocked, skipped, weekly_known=weekly_first)
                 # 每局开打前清掉上一局的抓拍，避免旧掉落重复入账。
                 self._cg_reward_loot = []
                 self._cg_loot_partial = False
@@ -413,6 +415,22 @@ class CultivationGoalMixin:
                     f"第 {rounds + 1} 轮 体力={stamina} 周本剩余={remaining} "
                     f"→ {decision.action.value} / {decision.reason}",
                 )
+
+                if rounds == 0:
+                    blocked_weekly = [
+                        row.label
+                        for row in (rows or ())
+                        if row.landing == "weekly"
+                        and weekly_first
+                        and remaining <= 0
+                        and row.satisfied is False
+                    ]
+                    if blocked_weekly:
+                        self._cg_note(
+                            "info",
+                            f"{'、'.join(blocked_weekly)} 缺料但周本次数已用完, "
+                            "本次直接跳过(不计为未完成), 空幕兜底时照常刷",
+                        )
 
                 if decision.action is Action.STOP:
                     self._cg_stop(report, decision.reason, rounds, weekly_done, material_done, console_done)
@@ -494,11 +512,20 @@ class CultivationGoalMixin:
                             )
                             self._cg_capture("material_failed")
                 elif decision.action is Action.CONSOLE:
-                    console_done = 1
-                    result = self._cg_run_console(stamina)
-                    report.emit("action", round=rounds + 1, action="console", ok=bool(result))
-                    self._cg_stop(report, "切换空幕交回原版逻辑", rounds, weekly_done, material_done, console_done)
-                    return result
+                    # 空幕优先级最低且没有次数上限: 别的行都推不动了才走到这里,
+                    # 它的任务就是把「没处花的体力」换成材料, 所以一次刷到底。
+                    runs = self._cg_run_console(stamina)
+                    console_done = runs
+                    report.emit("action", round=rounds + 1, action="console", ok=runs > 0, runs=runs)
+                    spent = int(getattr(self, "_cg_console_spent", 0) or 0)
+                    if ledger is not None and spent:
+                        ledger.spend(spent)
+                        self._cg_note(
+                            "info", f"账本扣体力 {spent} ({runs} 局空幕), 剩 {ledger.stamina}"
+                        )
+                    reason = f"空幕兜底结束: {runs} 局" if runs else f"空幕未刷成: {decision.reason}"
+                    self._cg_stop(report, reason, rounds, weekly_done, material_done, console_done)
+                    return runs > 0
                 if ledger is not None:
                     spent = 0
                     if decision.action is Action.WEEKLY:
@@ -1715,49 +1742,82 @@ class CultivationGoalMixin:
             self._cg_note("warning", f"补走异常, 按现状开打: {error}")
             return False
 
-    def _cg_run_original(self):
-        """交回原版 AnomalyTask 逻辑。"""
-        from src.tasks.AnomalyTask import AnomalyTask
+    def _cg_run_console(self, budget=None) -> int:
+        """空幕兜底: 按缺口选序号, 自己循环并逐局记账, 返回实际领到几局。
 
-        result = AnomalyTask.do_run(self)
-        self._cg_note("info", f"原版任务执行结果: {result}")
-        return result
+        空幕在刷取优先级里排最后, 理由是它**没有次数上限**: 别的行推不动了(材料已满、
+        周本次数用完), 只有它还能继续把体力换成材料, 否则剩余体力就只能溢出浪费。
 
-    def _cg_run_console(self, budget=None):
-        """材料全满时切到空幕，交回原版逻辑刷完体力。
-
-        budget 是本轮剩余体力预算: None 表示不限额(跟随面板), 数字则原版最多只领这么多。
+        以前是把任务类型切给原版 `AnomalyTask.do_run` 一把跑完, 插件只拿到一个 bool:
+        序号恒为 1、掉落在账本里看不见、失败分不清第几局。现在只借原版的入场导航
+        (传送 + 体力面板 + 序号点击已成熟), 循环/记账/失败重试自己做。
         """
         from src.tasks.AnomalyTask import AnomalyTask
 
-        if budget is not None and budget <= 0:
-            self._cg_note("warning", "今日体力目标已用完, 不再委派空幕")
-            return False
-        original_type = self.config.get(self.CONF_TASK_TYPE, _MISSING)
-        original_console_id = self.config.get(AnomalyTask.CONF_CONSOLE_ID, _MISSING)
-        # 原版看到 must use stamina 为 0 会直接不进副本; 这里换成剩余预算(或放开)。
-        # 原版按 ceil(目标/每份消耗) 排次数, 预算 60 会被取整成 2 份(80 点)超支,
-        # 这里向下取整成整份: 预算 60 只放行 1 份(40), 预算 80 放行 2 份。
         per_claim = AnomalyTask.TASK_COST
+        if budget is not None and budget <= 0:
+            self._cg_note("warning", "今日体力目标已用完, 不再刷空幕")
+            return 0
         if budget is None:
             goal = CG_CONSOLE_STAMINA_OPEN
         else:
+            # 原版按 ceil(目标/每份) 排次数, 预算 60 会取整成 2 份(80 点)超支, 这里向下取整。
             goal = (int(budget) // per_claim) * per_claim
             if goal < per_claim:
-                self._cg_note("warning", f"剩余预算 {budget} 不足一份空幕奖励({per_claim}), 不再委派")
-                return False
+                self._cg_note(
+                    "warning", f"剩余预算 {budget} 不足一份空幕奖励({per_claim}), 不再刷空幕"
+                )
+                return 0
+
+        index = self._cg_pick_console_index()
+        if index is None:
+            return 0
+
+        original_type = self.config.get(self.CONF_TASK_TYPE, _MISSING)
+        original_id = self.config.get(AnomalyTask.CONF_CONSOLE_ID, _MISSING)
         saved_goal = self.info.get(CG_INFO_MUST_USE, _MISSING)
         try:
-            # 本任务 setup_config 未注册空幕序号, 临时注入默认值避免原版 get_sub_idx 取不到。
-            if original_console_id is _MISSING:
-                dict.__setitem__(self.config, AnomalyTask.CONF_CONSOLE_ID, 1)
-            # 用 dict 原生赋值避免临时切换写盘。
             dict.__setitem__(self.config, self.CONF_TASK_TYPE, self.TASK_CONSOLE)
+            dict.__setitem__(self.config, AnomalyTask.CONF_CONSOLE_ID, index + 1)
+            # 上一轮残留的局数会让原版判错次数, 清掉让本次按预算重算。
+            for key in ("双倍次数", "单倍次数"):
+                self.info.pop(key, None)
             if saved_goal is _MISSING or not saved_goal:
                 self.info_set(CG_INFO_MUST_USE, goal)
-            self._cg_bypass = True
-            self._cg_note("info", f"材料全满, 切换空幕按原版刷体力 (预算 {goal})")
-            return self._cg_run_original()
+            if self.enter_anomaly(index) is not True:
+                self._cg_note("warning", "空幕入场失败, 本次不再刷空幕")
+                self._cg_capture("console_failed")
+                return 0
+            double_count = int(self.info_get("双倍次数") or 0)
+            total = double_count + int(self.info_get("单倍次数") or 0)
+            self._cg_note("info", f"空幕入场成功(序号 {index + 1}), 计划 {total} 局, 预算 {goal}")
+            done, failures = 0, 0
+            self._cg_console_spent = 0
+            while done < total and failures < 2:
+                self.wait_until(self.find_exit, time_out=30, raise_if_not_found=False)
+                self.wait_in_team()
+                self.sleep(1)
+                # 每局单独清抓拍, 否则多局掉落会累加成一笔糊涂账。
+                self._cg_reward_loot = []
+                self._cg_loot_partial = False
+                if not self.do_combat_and_claim(done < double_count):
+                    failures += 1
+                    self._cg_note("warning", f"空幕第 {done + 1}/{total} 局领奖失败, 退出后重试")
+                    self._cg_capture("console_failed")
+                    self.exit_anomaly()
+                    if failures >= 2 or self.enter_anomaly(index, retry=True) is not True:
+                        break
+                    continue
+                double_run = done < double_count
+                spent = per_claim * (2 if double_run else 1)
+                done += 1
+                failures = 0
+                self._cg_console_spent += spent
+                if done < total:
+                    self.wait_click_confirm(range=CG_BURST_CONFIRM_RANGE, raise_if_not_found=False)
+            self.wait_click_confirm(range=CG_FINAL_CONFIRM_RANGE, raise_if_not_found=False)
+            self._cg_note("info", f"空幕结束: 共领 {done}/{total} 局")
+            return done
         finally:
             if saved_goal is _MISSING:
                 self.info.pop(CG_INFO_MUST_USE, None)
@@ -1765,10 +1825,82 @@ class CultivationGoalMixin:
                 self.info_set(CG_INFO_MUST_USE, saved_goal)
             for key, value in (
                 (self.CONF_TASK_TYPE, original_type),
-                (AnomalyTask.CONF_CONSOLE_ID, original_console_id),
+                (AnomalyTask.CONF_CONSOLE_ID, original_id),
             ):
                 if value is _MISSING:
                     self.config.pop(key, None)
                 else:
                     dict.__setitem__(self.config, key, value)
-            self._cg_bypass = False
+            self.exit_anomaly()
+
+    def _cg_pick_console_index(self):
+        """读「空幕」tab 挑缺口最大的行, 返回 0 基行号; 读不出/全满返回 None。"""
+        if not self._cg_ensure_guide():
+            return None
+        self._cg_click(POS.tab_x["空幕"], POS.overview_tabs_y, "空幕 tab", after_sleep=0.7)
+        rows = self._cg_read_console_rows()
+        self._cg_capture("console_guide")
+        detail = " | ".join(
+            "/".join(f"{ratio.owned}/{ratio.required}" for ratio in row.ratios)
+            if row.ratios
+            else "读不出"
+            for row in rows
+        ) or "一行都没读到"
+        index, why = pick_console_row(rows)
+        if index is None:
+            self._cg_note(
+                "warning", f"空幕 [{detail}] → {why}, 为避免刷错副本白花体力, 本次不刷空幕"
+            )
+            return None
+        self._cg_note("info", f"空幕 [{detail}] → 选序号 {index + 1} ({why})")
+        return index
+
+    def _cg_read_console_rows(self):
+        """读「空幕」tab 每行的 xx/xx。
+
+        行坐标先按异能页布局假设(positions 里单独留了「空幕」一项), 首跑截
+        cg_console_guide 后按实拍校正 —— 别拿猜的坐标当定论。
+        """
+        tab = "空幕"
+        rows = []
+        for row_index, center_y in enumerate(POS.ratio_row_y[tab]):
+            x1, x2 = POS.ratio_box_x
+            box = self.box_of_screen(
+                x1,
+                center_y - POS.ratio_half_height,
+                x2,
+                center_y + POS.ratio_half_height,
+                name=f"cg_{tab}_{row_index}",
+                hcenter=True,
+            )
+            text = self._cg_read_line(box)
+            ratios = self._cg_usable_ratios(text) if text else None
+            self._cg_note("info", f"{tab} 第 {row_index + 1} 行 (y {center_y:.3f}): {text or '<空>'}")
+            rows.append(
+                MaterialRow(tab=tab, row_index=row_index, cost=40, landing="console", ratios=ratios)
+            )
+        return rows
+
+    def _cg_log_console_loot(self, index: int, run_no: int):
+        """记一局空幕掉落, 顺带用副本名反查序号是否选对。"""
+        loot = getattr(self, "_cg_reward_loot", None) or []
+        if not loot:
+            self._cg_note("info", f"空幕第 {run_no} 局: 掉落没读到, 只记局数")
+            return
+        text = " ".join(f"{item['dungeon']}×{item['count']}" for item in loot)
+        self._cg_note("info", f"空幕第 {run_no} 局掉落: {text}")
+        dungeons = {item["dungeon"] for item in loot if item.get("dungeon")}
+        expected = CONSOLE_DUNGEONS[index] if 0 <= index < len(CONSOLE_DUNGEONS) else None
+        if expected and dungeons and expected not in dungeons:
+            self._cg_note(
+                "warning",
+                f"空幕序号 {index + 1} 预期 {expected}, 实际产出 {sorted(dungeons)}"
+                " —— 行号与序号的映射可能不是 1:1",
+            )
+        self._cg_report().emit(
+            "console_loot",
+            run=run_no,
+            console_id=index + 1,
+            entries=[{"name": item.get("dungeon"), "key": item["key"], "count": item["count"]}
+                     for item in loot],
+        )

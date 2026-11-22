@@ -425,10 +425,24 @@ class FakeTask(CultivationGoalMixin):
             return 0, False
         return self.weekly_claims, self.weekly_finished
 
-    def _cg_run_original(self):
+    def info_get(self, key, default=None):
+        return self.info.get(key, default)
+
+    def enter_anomaly(self, idx, retry=False):
+        """空幕入场替身: 记住序号与当时的任务类型, 并按 must use stamina 排局数。"""
+        self.console_entries = getattr(self, "console_entries", [])
+        self.console_entries.append((idx, retry))
+        self.console_type_seen = self.config.get(self.CONF_TASK_TYPE)
+        self.console_id_seen = self.config.get("空幕序号")
+        if getattr(self, "console_entry_fails", 0) > 0:
+            self.console_entry_fails -= 1
+            return False
+        units = int(self.info.get("must use stamina", 0) or 0) // 40
+        double_count, single_count = divmod(units, 2)
+        self.info["双倍次数"] = double_count
+        self.info["单倍次数"] = single_count
         self.console_runs += 1
-        self.original_config_type = self.config.get(self.CONF_TASK_TYPE)
-        return "console-original"
+        return True
 
 
 def actions_from(report_path):
@@ -673,6 +687,7 @@ class FlowSimulationTests(unittest.TestCase):
         self.assertIn("读取失败", stop["reason"])
 
     def test_all_satisfied_switches_to_console_and_restores_config(self):
+        """四行全满 → 空幕兜底; 干完要把任务类型和序号还原, 不能污染配置文件。"""
         task = self.make(
             weekly_text="0/3",
             texts={
@@ -680,13 +695,15 @@ class FlowSimulationTests(unittest.TestCase):
                 "弧盘-第2行": "3/0 33/17",
                 "异能-第1行": "10/9",
                 "异能-第2行": "3/2",
+                "空幕-第2行": "0/6",
             },
         )
-        self.assertEqual(task.run_cultivation_goal(), "console-original")
-        self.assertEqual(task.console_runs, 1)
-        self.assertEqual(task.original_config_type, "空幕")
+        self.assertTrue(task.run_cultivation_goal())
+        self.assertEqual(task.console_type_seen, "空幕")
+        self.assertEqual(task.console_id_seen, 2)
         self.assertEqual(task.config[task.CONF_TASK_TYPE], "异象界域")
-        self.assertFalse(task._cg_bypass)
+        self.assertNotIn("空幕序号", task.config)
+        self.assertNotIn("must use stamina", task.info)
         self.assertEqual(actions_from(self.report_path)[-1]["action"], "console")
 
     def test_claim_failure_does_not_count_weekly(self):
@@ -720,11 +737,15 @@ class FlowSimulationTests(unittest.TestCase):
         self.assertEqual(task.weekly_runs, 1)
 
     def test_weekly_row_skipped_when_panel_says_zero(self):
-        """面板读到周本 0 次时, 巡礼行直接跳过, 不能跑空还误报「领奖未确认」作废账本。"""
+        """面板读到周本 0 次且缺料: 直接跳过该行去刷其它行, 不白跑一趟巡礼。
+
+        以前是把它排在第一顺位再跳过, 每轮都要耗一次「领奖未确认」的风险;
+        现在决策层就把它排除, 其它行都满了才轮到空幕兜底。
+        """
         task = self.make(
             weekly_text="0/3",
             weekly_first=True,
-            stamina=[300, 0],
+            stamina=[300, 39],
             texts=[{**DEFAULT_TEXTS, "异能-第2行": "0/2"}, dict(DEFAULT_TEXTS)],
         )
         task.run_cultivation_goal()
@@ -732,9 +753,9 @@ class FlowSimulationTests(unittest.TestCase):
         self.assertEqual(task.weekly_runs, 0)
         self.assertTrue(any("周本次数已用完" in m for _, m in task.logs), task.logs)
         self.assertFalse(any("领奖未确认" in m for _, m in task.logs), task.logs)
-        # 没出发的行只记 skipped, 不再误报「本局未完成」。
         first = actions_from(self.report_path)[0]
-        self.assertTrue(first.get("skipped"))
+        self.assertEqual(first["action"], "material")
+        self.assertEqual(first["label"], "等级-第2行")
         self.assertFalse(any("本局未完成" in m for _, m in task.logs), task.logs)
 
     def test_weekly_unconfirmed_claims_void_ledger(self):
@@ -1230,6 +1251,81 @@ class FlowSimulationTests(unittest.TestCase):
         self.assertTrue(any("未识别出落点" in m for _, m in task.logs))
         self.assertTrue(any("本次跳过该行" in m for _, m in task.logs))
 
+    CONSOLE_TEXTS = {
+        "等级-第2行": "1902/212",
+        "弧盘-第2行": "3/0 33/17",
+        "异能-第1行": "10/9",
+        "异能-第2行": "3/2",
+        "空幕-第2行": "0/6",
+    }
+
+    def test_console_picks_the_row_with_the_biggest_gap(self):
+        """空幕不能盲刷 1 号: 按「空幕」页缺口挑行, 行号+1 就是异象界域的序号。"""
+        task = self.make(
+            weekly_text="0/3",
+            texts={**self.CONSOLE_TEXTS, "空幕-第1行": "9/9", "空幕-第3行": "4/9"},
+        )
+        task.run_cultivation_goal()
+
+        self.assertEqual(task.console_entries[0][0], 1)
+        self.assertTrue(any("选序号 2" in m for _, m in task.logs), task.logs)
+
+    def test_console_refuses_when_rows_unreadable(self):
+        """空幕行读不出就别刷 —— 刷错副本等于白花 40 体力。"""
+        texts = {key: value for key, value in self.CONSOLE_TEXTS.items() if not key.startswith("空幕")}
+        task = self.make(weekly_text="0/3", texts=texts)
+        task.run_cultivation_goal()
+
+        self.assertEqual(task.console_runs, 0)
+        self.assertEqual(getattr(task, "console_entries", []), [])
+        self.assertTrue(any("刷错副本" in m for _, m in task.logs), task.logs)
+
+    def test_console_loops_each_run_and_spends_real_stamina(self):
+        """120 体力 = 1 双倍 + 1 单倍 = 2 局; 扣账要按真实消耗 120, 不是 局数×40。"""
+        task = self.make(weekly_text="0/3", stamina=120, texts=self.CONSOLE_TEXTS)
+        task.run_cultivation_goal()
+
+        self.assertEqual(len(task.claims), 2)
+        self.assertEqual(task.claim_flags, [True, False])
+        self.assertEqual(task._cg_console_spent, 120)
+        self.assertTrue(any("账本扣体力 120" in m for _, m in task.logs), task.logs)
+        self.assertEqual(read_records(self.report_path)[-1]["console_done"], 2)
+
+    def test_console_budget_floors_to_whole_rewards(self):
+        """预算向下取整成整份: 60 只放行 1 局单倍, 不足 40 直接不刷。
+
+        原版按 ceil(目标/40) 排次数, 直接传 60 会被排成 2 份(80 点)超支。
+        """
+        task = self.make(weekly_text="0/3", texts=self.CONSOLE_TEXTS)
+
+        self.assertEqual(task._cg_run_console(60), 1)
+        self.assertEqual(task.claim_flags, [False])
+        self.assertEqual(task._cg_run_console(20), 0)
+        self.assertEqual(len(task.claims), 1)
+
+    def test_console_retries_once_then_gives_up(self):
+        """单局领奖失败退出重进一次; 连续两局失败就收场, 不无限重试。"""
+        task = self.make(weekly_text="0/3", stamina=120, texts=self.CONSOLE_TEXTS)
+        task.claim_script = False
+        task.run_cultivation_goal()
+
+        self.assertEqual(len(task.claims), 2)
+        self.assertIn("cg_console_failed", task.captures)
+        self.assertTrue(any("领奖失败" in m for _, m in task.logs), task.logs)
+
+    def test_console_restores_config_on_exception(self):
+        class BrokenConsole(FakeTask):
+            def enter_anomaly(self, idx, retry=False):
+                raise RuntimeError("enter failed")
+
+        task = BrokenConsole(weekly_text="0/3", report=self.report, texts=self.CONSOLE_TEXTS)
+        with self.assertRaises(RuntimeError):
+            task._cg_run_console(120)
+
+        self.assertEqual(task.config[task.CONF_TASK_TYPE], "异象界域")
+        self.assertNotIn("空幕序号", task.config)
+        self.assertNotIn("must use stamina", task.info)
+
     def test_console_does_not_write_config_to_disk(self):
         class TrackedConfig(dict):
             def __init__(self, *args, **kwargs):
@@ -1243,97 +1339,28 @@ class FlowSimulationTests(unittest.TestCase):
             def save_file(self):
                 self.saves += 1
 
-        task = self.make(
-            weekly_text="0/3",
-            texts={
-                "等级-第2行": "1902/212",
-                "弧盘-第2行": "3/0 33/17",
-                "异能-第1行": "10/9",
-                "异能-第2行": "3/2",
-            },
-        )
+        task = self.make(weekly_text="0/3", texts=self.CONSOLE_TEXTS)
         tracked = TrackedConfig(task.config)
         task.config = tracked
         task.run_cultivation_goal()
 
-        self.assertEqual(tracked.saves, 0)
+        self.assertEqual(tracked.saves, 0, "临时的空幕配置不能落盘")
         self.assertEqual(tracked[task.CONF_TASK_TYPE], "异象界域")
-        self.assertEqual(task.original_config_type, "空幕")
-
-    def test_console_config_restored_on_exception(self):
-        class BrokenConsole(FakeTask):
-            def _cg_run_original(self):
-                raise RuntimeError("original failed")
-
-        task = BrokenConsole(
-            weekly_text="0/3",
-            texts={
-                "等级-第2行": "1902/212",
-                "弧盘-第2行": "3/0 33/17",
-                "异能-第1行": "10/9",
-                "异能-第2行": "3/2",
-            },
-            report=self.report,
-        )
-        with self.assertRaises(RuntimeError):
-            task.run_cultivation_goal()
-        self.assertEqual(task.config[task.CONF_TASK_TYPE], "异象界域")
-        self.assertFalse(task._cg_bypass)
-
-    def test_console_passes_remaining_budget_to_original_task(self):
-        """委派空幕要把本轮剩余预算交给原版, 否则原版按启动时的目标超额领取。"""
-
-        class SpyConsole(FakeTask):
-            def _cg_run_original(self):
-                self.seen_goal = self.info.get("must use stamina", "absent")
-                return "console-original"
-
-        task = SpyConsole(report=self.report)
-        task.info["must use stamina"] = 0
-        self.assertEqual(task._cg_run_console(120), "console-original")
-        self.assertEqual(task.seen_goal, 120)
-        self.assertEqual(task.info["must use stamina"], 0, "委派结束后必须还原")
 
     def test_console_without_budget_opens_stamina_limit(self):
         """不限额时给原版一个大值, 让它按面板体力刷空; 借来的键要删掉。"""
+        task = self.make(weekly_text="0/3", texts=self.CONSOLE_TEXTS)
 
-        class SpyConsole(FakeTask):
-            def _cg_run_original(self):
-                self.seen_goal = self.info.get("must use stamina", "absent")
-                return "console-original"
-
-        task = SpyConsole(report=self.report)
-        self.assertEqual(task._cg_run_console(), "console-original")
-        self.assertEqual(task.seen_goal, CG_CONSOLE_STAMINA_OPEN)
+        self.assertGreater(task._cg_run_console(), 0)
         self.assertNotIn("must use stamina", task.info)
 
     def test_console_refuses_exhausted_budget(self):
-        """今日预算已经用完时不再委派空幕。"""
+        """今日预算已经用完时不再碰空幕。"""
+        task = self.make(weekly_text="0/3", texts=self.CONSOLE_TEXTS)
 
-        task = FakeTask(report=self.report)
-        self.assertFalse(task._cg_run_console(0))
+        self.assertEqual(task._cg_run_console(0), 0)
         self.assertEqual(task.console_runs, 0)
         self.assertEqual(task.config[task.CONF_TASK_TYPE], "异象界域")
-
-    def test_console_budget_floors_to_whole_rewards(self):
-        """预算向下取整成整份: 60 只放行 1 份(40), 80 放行 2 份, 不足一份直接不委派。
-
-        原版按 ceil(目标/40) 排次数, 直接传 60 会被排成 2 份(80 点)超支。
-        """
-
-        class SpyConsole(FakeTask):
-            def _cg_run_original(self):
-                self.seen_goal = self.info.get("must use stamina", "absent")
-                return "console-original"
-
-        task = SpyConsole(report=self.report)
-        task.info["must use stamina"] = 0
-        self.assertEqual(task._cg_run_console(60), "console-original")
-        self.assertEqual(task.seen_goal, 40)
-        self.assertEqual(task._cg_run_console(80), "console-original")
-        self.assertEqual(task.seen_goal, 80)
-        self.assertFalse(task._cg_run_console(20))
-        self.assertEqual(task.info["must use stamina"], 0, "委派结束后必须还原")
 
     def test_weekly_skipped_unless_option_enabled(self):
         """周本材料已满时默认不为次数白跑, 体力全留给缺料的行。"""

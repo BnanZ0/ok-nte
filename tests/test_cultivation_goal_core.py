@@ -16,6 +16,7 @@ from src.tasks.cultivation_goal.core import (
     next_weekly_remaining,
     parse_ratios,
     parse_weekly_remaining,
+    pick_console_row,
     plan_burst,
     row_gap,
 )
@@ -291,6 +292,31 @@ class RewardMappingTests(unittest.TestCase):
                                  ("boss_黑之书",)),
             (5,),
         )
+
+
+class ConsolePickTests(unittest.TestCase):
+    """空幕是优先级最低、没有次数上限的那一档: 挑哪个副本要按缺口, 不能盲刷 1 号。"""
+
+    def test_picks_the_row_with_the_biggest_gap(self):
+        rows = [row("空幕", 0, "9/9"), row("空幕", 1, "0/6"), row("空幕", 2, "4/9")]
+        index, why = pick_console_row(rows)
+        self.assertEqual(index, 1)
+        self.assertIn("缺 6", why)
+
+    def test_full_console_stops_instead_of_farming(self):
+        rows = [row("空幕", 0, "9/9"), row("空幕", 1, "6/6")]
+        self.assertEqual(pick_console_row(rows), (None, "空幕材料已全满"))
+
+    def test_unreadable_rows_never_fall_back_to_first(self):
+        rows = [row("空幕", 0, ""), row("空幕", 1, ""), row("空幕", 2, "0/6")]
+        self.assertEqual(pick_console_row(rows)[0], 2)
+        self.assertEqual(pick_console_row([row("空幕", 0, "")]), (None, "空幕行读不出"))
+
+    def test_row_order_maps_to_console_index(self):
+        # 行号 +1 就是异象界域的「空幕序号」: 第 3 行 = 序号 3。
+        index, _ = pick_console_row([row("空幕", 0, "1/1"), row("空幕", 1, "1/1"),
+                                    row("空幕", 2, "0/3")])
+        self.assertEqual(index + 1, 3)
 
 
 class CombineUpTests(unittest.TestCase):

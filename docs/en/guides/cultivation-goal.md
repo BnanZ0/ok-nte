@@ -10,7 +10,12 @@ At start it opens the character's Cultivation Guide and reads all four target ro
 2. Fill rows in order: **Weekly (Anomaly Pilgrimage) > Level row 2 (World BOSS) > Ability row 1 > Arc row 2**.
 3. Chaining is fully automatic: keep using Continue Challenge while the current dungeon's output does not yet cover the gap; switch to the next dungeon once the gap is filled.
 4. After each claim the log prints a loot summary: how much of each material dropped, how much you have, and how much is still needed.
-5. Move to the next row when one is full; when all four are full, switch to Console to spend the remaining stamina; stop when stamina cannot cover one more run.
+5. Move to the next row when one is full; stop when stamina cannot cover one more run.
+6. **Console has the lowest farming priority, but no run limit**: once every other row is stuck (materials
+   complete, or weekly runs used up while still short), Console is what turns the remaining stamina into
+   materials instead of letting it overflow. It picks the dungeon with the biggest gap on the Console page
+   (Clockwork Trick / Sculpture Hall / Loom of Latitudes / Guard Radish) and keeps going until stamina runs out.
+   If the Console page cannot be read, it deliberately does nothing — farming the wrong dungeon just burns 40 stamina.
 
 ### Material row to dungeon map
 
