@@ -753,10 +753,13 @@ msgstr "Continuar presentes"
 msgid "停止"
 msgstr "Parar"
 
-msgid "在游戏赠礼页点击{}。点击礼物卡片可设定优先级，再次点击取消。"
+msgid "在游戏赠礼页点击{}"
+msgstr "Clique em {} na página de presentes do jogo"
+
+msgid "点击礼物卡片可设定优先级，再次点击取消"
 msgstr ""
-"Clique em {} na página de presentes do jogo. Clique em um cartão de presente"
-" para definir a prioridade, clique novamente para cancelar."
+"Clique em um cartão de presente para definir a prioridade, clique novamente "
+"para cancelar"
 
 msgid "赠礼状态"
 msgstr "Status de presentes"
@@ -1132,10 +1135,8 @@ msgstr "Personagem"
 msgid "指令"
 msgstr "Comando"
 
-msgid "请先应用外置代码更改后再运行测试."
-msgstr ""
-"Por favor, aplique as alterações do código externo antes de executar o "
-"teste."
+msgid "请先应用更改后再运行测试."
+msgstr "Por favor, aplique as alterações antes de executar o teste."
 
 msgid "角色工具任务未注册"
 msgstr "A tarefa de ferramentas de personagem não está registrada"
@@ -1629,53 +1630,6 @@ msgstr "Sábado"
 msgid "周日"
 msgstr "Domingo"
 
-msgid "消耗体力培养角色"
-msgstr "Gastar Stamina para Aprimorar Personagem"
-
-msgid "按培养目标缺口自动消耗体力：周本 > 世界BOSS > 异能 > 弧盘"
-msgstr ""
-"Gasta stamina pelas faltas: Semanal > Chefe Mundial > Habilidade > Arco"
-
-msgid "连打单次上限（局），只是保险丝，实际还会被缺口和体力截断。"
-msgstr "Máximo de rodadas encadeadas."
-
-msgid "开局读一次养成指南四行和体力，之后按每局掉落增量本地记账，不再每局回页重读；掉落读不出时自动回页复核，不凭空猜数。"
-msgstr "Ler uma vez no início, depois registrar por drop."
-
-msgid "领奖时抓拍现场截图，供排查识别偏差；默认关闭。"
-msgstr "Capturar tela ao resgatar; desligado por padrão."
-
-msgid "今日体力花到这个累计数就停；今日目标已达标或设为 0 时不受每日目标限制，按当前体力一直刷到材料齐全；材料齐全后仍会切空幕继续消耗剩余体力。"
-msgstr ""
-"Para quando o estamina acumulado de hoje atingir este valor; se a meta de "
-"hoje já foi atingida ou for 0, não há limite diário e continua farmeando até"
-" completar todos os materiais.; quando todos os materiais estiverem "
-"completos, ainda mudará para a Cortina Vazia para gastar a estamina "
-"restante."
-
-msgid "周本刷取开关：开=优先刷满本周异象巡礼（每周 3 次，每次 60 体力）再刷其它材料；关=直接刷其它材料，周本只在异能第 2 行缺料时才打。"
-msgstr ""
-"Interruptor do chefe semanal: ON=concluir primeiro a Peregrinação de "
-"Anomalia da semana (3 vezes por semana, 60 de estamina cada) antes de outros"
-" materiais; OFF=farmear outros materiais diretamente, e o chefe semanal só é"
-" combatido quando a linha 2 de Habilidade está sem materiais."
-
-msgid "每局领奖后在日志统计各材料本次掉落多少、已有多少、还差多少。"
-msgstr ""
-"Após cada recompensa, registra no log quanto de cada material caiu, quanto "
-"você tem e quanto falta."
-
-msgid "在游戏赠礼页点击{}"
-msgstr "Clique em {} na página de presentes do jogo"
-
-msgid "点击礼物卡片可设定优先级，再次点击取消"
-msgstr ""
-"Clique em um cartão de presente para definir a prioridade, clique novamente "
-"para cancelar"
-
-msgid "请先应用更改后再运行测试."
-msgstr "Por favor, aplique as alterações antes de executar o teste."
-
 msgid "Close"
 msgstr "Fechar"
 
@@ -1773,3 +1727,45 @@ msgid "指定目标找不到或不可用时, 尝试选择顶部可选目标"
 msgstr ""
 "Se o alvo indicado não for encontrado ou estiver indisponível, tenta "
 "selecionar o primeiro alvo disponível."
+
+msgid "领奖失败时留在副本"
+msgstr "Ficar na masmorra se falhar ao coletar a recompensa"
+
+msgid "领奖失败时停留在副本并通知"
+msgstr "Se falhar ao coletar a recompensa, ficar na masmorra e notificar."
+
+msgid "消耗体力培养角色"
+msgstr "Gastar Stamina para Aprimorar Personagem"
+
+msgid "按培养目标缺口自动消耗体力：周本 > 世界BOSS > 异能 > 弧盘"
+msgstr ""
+"Gasta stamina pelas faltas: Semanal > Chefe Mundial > Habilidade > Arco"
+
+msgid "连打单次上限（局），只是保险丝，实际还会被缺口和体力截断。"
+msgstr "Máximo de rodadas encadeadas."
+
+msgid "开局读一次养成指南四行和体力，之后按每局掉落增量本地记账，不再每局回页重读；掉落读不出时自动回页复核，不凭空猜数。"
+msgstr "Ler uma vez no início, depois registrar por drop."
+
+msgid "领奖时抓拍现场截图，供排查识别偏差；默认关闭。"
+msgstr "Capturar tela ao resgatar; desligado por padrão."
+
+msgid "今日体力花到这个累计数就停；今日目标已达标或设为 0 时不受每日目标限制，按当前体力一直刷到材料齐全；材料齐全后仍会切空幕继续消耗剩余体力。"
+msgstr ""
+"Para quando o estamina acumulado de hoje atingir este valor; se a meta de "
+"hoje já foi atingida ou for 0, não há limite diário e continua farmeando até"
+" completar todos os materiais.; quando todos os materiais estiverem "
+"completos, ainda mudará para a Cortina Vazia para gastar a estamina "
+"restante."
+
+msgid "周本刷取开关：开=优先刷满本周异象巡礼（每周 3 次，每次 60 体力）再刷其它材料；关=直接刷其它材料，周本只在异能第 2 行缺料时才打。"
+msgstr ""
+"Interruptor do chefe semanal: ON=concluir primeiro a Peregrinação de "
+"Anomalia da semana (3 vezes por semana, 60 de estamina cada) antes de outros"
+" materiais; OFF=farmear outros materiais diretamente, e o chefe semanal só é"
+" combatido quando a linha 2 de Habilidade está sem materiais."
+
+msgid "每局领奖后在日志统计各材料本次掉落多少、已有多少、还差多少。"
+msgstr ""
+"Após cada recompensa, registra no log quanto de cada material caiu, quanto "
+"você tem e quanto falta."

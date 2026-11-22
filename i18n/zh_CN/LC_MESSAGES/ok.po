@@ -467,7 +467,7 @@ msgid "选择日常任务中的一咖舍处理方式"
 msgstr ""
 
 msgid "不执行"
-msgstr "不执行"
+msgstr ""
 
 msgid "抛竿失败时，补充默认鱼饵并出售鱼获后重试"
 msgstr ""
@@ -965,7 +965,10 @@ msgstr ""
 msgid "停止"
 msgstr ""
 
-msgid "在游戏赠礼页点击{}。点击礼物卡片可设定优先级，再次点击取消。"
+msgid "在游戏赠礼页点击{}"
+msgstr ""
+
+msgid "点击礼物卡片可设定优先级，再次点击取消"
 msgstr ""
 
 msgid "赠礼状态"
@@ -1174,70 +1177,70 @@ msgid "自动闯关"
 msgstr ""
 
 msgid "{} 个空槽位"
-msgstr "{} 个空槽位"
+msgstr ""
 
 msgid "固定"
-msgstr "固定"
+msgstr ""
 
 msgid "已从列表移除"
-msgstr "已从列表移除"
+msgstr ""
 
 msgid "已删除"
 msgstr ""
 
 msgid "已填入"
-msgstr "已填入"
+msgstr ""
 
 msgid "已应用"
-msgstr "已应用"
+msgstr ""
 
 msgid "已更新 {} 位角色的出招表"
-msgstr "已更新 {} 位角色的出招表"
+msgstr ""
 
 msgid "应用方案"
-msgstr "应用方案"
+msgstr ""
 
 msgid "扫描失败"
-msgstr "扫描失败"
+msgstr ""
 
 msgid "搜索方案"
-msgstr "搜索方案"
+msgstr ""
 
 msgid "新建方案"
-msgstr "新建方案"
+msgstr ""
 
 msgid "方案中不能重复选择角色"
-msgstr "方案中不能重复选择角色"
+msgstr ""
 
 msgid "方案列表"
-msgstr "方案列表"
+msgstr ""
 
 msgid "方案名称重复或内容无效"
-msgstr "方案名称重复或内容无效"
+msgstr ""
 
 msgid "无法保存"
-msgstr "无法保存"
+msgstr ""
 
 msgid "无法填入"
-msgstr "无法填入"
+msgstr ""
 
 msgid "没有可填入的角色"
-msgstr "没有可填入的角色"
+msgstr ""
 
 msgid "等待扫描..."
-msgstr "等待扫描..."
+msgstr ""
 
 msgid "输入或选择出招表"
-msgstr "输入或选择出招表"
+msgstr ""
 
 msgid "队伍方案"
-msgstr "队伍方案"
+msgstr ""
 
 msgid "队伍识别"
-msgstr "队伍识别"
+msgstr ""
 
 msgid "提示"
-msgstr "提示"
+msgstr ""
 
 msgid ""
 "<p><b style=\"color: #d83b01;\">注意：</b>此面板 <b style=\"color: "
@@ -1245,10 +1248,6 @@ msgid ""
 "的工具面板。<br>点击 [{scan_team}] 后点击 [关联或添加] 特征, 自动战斗时就会识别对应的角色。<br>如果不想管理 [角色特征],"
 " 可以直接使用 [{fixed_team}] 功能。</p>"
 msgstr ""
-"<p><b style=\"color: #d83b01;\">注意：</b>此面板 <b style=\"color: "
-"#d83b01;\">不会</b> 在进入战斗或更换阵容时实时自动刷新或同步显示。<br>这是个用于向数据库关联或添加 [角色特征] "
-"的工具面板。<br>点击 [{scan_team}] 后点击 [关联或添加] 特征, 自动战斗时就会识别对应的角色。<br>如果不想管理 [角色特征],"
-" 可以直接使用 [{fixed_team}] 功能。</p>"
 
 msgid ""
 "<p>用于配置并保存常用的 4 人队伍阵容与出招表, 修改后立即生效。<br>方案中的 1~4 号位仅用于 [{fixed_preset}] 功能; "
@@ -1274,55 +1273,55 @@ msgid ""
 msgstr ""
 
 msgid "显示内置"
-msgstr "显示内置"
+msgstr ""
 
 msgid "复制为外置"
-msgstr "复制为外置"
+msgstr ""
 
 msgid "复制成功"
-msgstr "复制成功"
+msgstr ""
 
 msgid "复制失败"
-msgstr "复制失败"
+msgstr ""
 
 msgid "已成功创建外置代码: {}"
-msgstr "已成功创建外置代码: {}"
+msgstr ""
 
 msgid "复制为外置代码"
-msgstr "复制为外置代码"
+msgstr ""
 
 msgid "目录"
-msgstr "目录"
+msgstr ""
 
 msgid "脚本文件名 (.py)"
-msgstr "脚本文件名 (.py)"
+msgstr ""
 
 msgid "将在 external_chars/ 目录下生成独立的 Python 脚本供您编辑与调试."
-msgstr "将在 external_chars/ 目录下生成独立的 Python 脚本供您编辑与调试."
+msgstr ""
 
 msgid "无法读取 Python 脚本."
-msgstr "无法读取 Python 脚本."
+msgstr ""
 
 msgid "外置代码应用失败"
-msgstr "外置代码应用失败"
+msgstr ""
 
 msgid "已应用外置代码: {}"
-msgstr "已应用外置代码: {}"
+msgstr ""
 
 msgid "角色"
-msgstr "角色"
+msgstr ""
 
 msgid "指令"
-msgstr "指令"
+msgstr ""
 
-msgid "请先应用外置代码更改后再运行测试."
-msgstr "请先应用外置代码更改后再运行测试."
+msgid "请先应用更改后再运行测试."
+msgstr ""
 
 msgid "角色工具任务未注册"
-msgstr "角色工具任务未注册"
+msgstr ""
 
 msgid "角色工具任务不可用"
-msgstr "角色工具任务不可用"
+msgstr ""
 
 msgid "询问AI"
 msgstr ""
@@ -1352,133 +1351,133 @@ msgid "设置"
 msgstr ""
 
 msgid "上传"
-msgstr "上传"
+msgstr ""
 
 msgid "作者"
-msgstr "作者"
+msgstr ""
 
 msgid "全部作者"
-msgstr "全部作者"
+msgstr ""
 
 msgid "全部角色"
-msgstr "全部角色"
+msgstr ""
 
 msgid "内置"
-msgstr "内置"
+msgstr ""
 
 msgid "刷新"
-msgstr "刷新"
+msgstr ""
 
 msgid "加载失败: {}"
-msgstr "加载失败: {}"
+msgstr ""
 
 msgid "取消"
-msgstr "取消"
+msgstr ""
 
 msgid "外置"
-msgstr "外置"
+msgstr ""
 
 msgid "外置代码目录"
-msgstr "外置代码目录"
+msgstr ""
 
 msgid "外置代码目录名称无效"
-msgstr "外置代码目录名称无效"
+msgstr ""
 
 msgid "外置代码目录“{}”已存在, 请修改目录名称后重试。"
-msgstr "外置代码目录“{}”已存在, 请修改目录名称后重试。"
+msgstr ""
 
 msgid "大小"
-msgstr "大小"
+msgstr ""
 
 msgid "导入"
-msgstr "导入"
+msgstr ""
 
 msgid "导入完成"
-msgstr "导入完成"
+msgstr ""
 
 msgid "导出"
-msgstr "导出"
+msgstr ""
 
 msgid "导出完成"
-msgstr "导出完成"
+msgstr ""
 
 msgid "导出社区方案"
-msgstr "导出社区方案"
+msgstr ""
 
 msgid "导出队伍"
-msgstr "导出队伍"
+msgstr ""
 
 msgid "工坊"
-msgstr "工坊"
+msgstr ""
 
 msgid "工坊会显示来自公开仓库的 ZIP 方案."
-msgstr "工坊会显示来自公开仓库的 ZIP 方案."
+msgstr ""
 
 msgid "已创建方案: {}"
-msgstr "已创建方案: {}"
+msgstr ""
 
 msgid "已加载 {} 个方案"
-msgstr "已加载 {} 个方案"
+msgstr ""
 
 msgid "当前方案没有可导出的出招表."
-msgstr "当前方案没有可导出的出招表."
+msgstr ""
 
 msgid "成员"
-msgstr "成员"
+msgstr ""
 
 msgid "描述"
-msgstr "描述"
+msgstr ""
 
 msgid "搜索名称, 说明, 作者或角色"
-msgstr "搜索名称, 说明, 作者或角色"
+msgstr ""
 
 msgid "操作失败"
-msgstr "操作失败"
+msgstr ""
 
 msgid "方案说明"
-msgstr "方案说明"
+msgstr ""
 
 msgid "无法导出"
-msgstr "无法导出"
+msgstr ""
 
 msgid "更新时间"
-msgstr "更新时间"
+msgstr ""
 
 msgid "本地方案名称"
-msgstr "本地方案名称"
+msgstr ""
 
 msgid "正在加载工坊..."
-msgstr "正在加载工坊..."
+msgstr ""
 
 msgid "没有说明."
-msgstr "没有说明."
+msgstr ""
 
 msgid "版本"
-msgstr "版本"
+msgstr ""
 
 msgid "社区方案"
-msgstr "社区方案"
+msgstr ""
 
 msgid "社区方案含外置代码; 导入后会以本软件权限运行, 请仅导入可信来源."
-msgstr "社区方案含外置代码; 导入后会以本软件权限运行, 请仅导入可信来源."
+msgstr ""
 
 msgid "角色阵容"
-msgstr "角色阵容"
+msgstr ""
 
 msgid "调整筛选条件或稍后刷新工坊."
-msgstr "调整筛选条件或稍后刷新工坊."
+msgstr ""
 
 msgid "返回"
-msgstr "返回"
+msgstr ""
 
 msgid "选择一个方案"
-msgstr "选择一个方案"
+msgstr ""
 
 msgid "队伍配置"
-msgstr "队伍配置"
+msgstr ""
 
 msgid "不是该角色?"
-msgstr "不是该角色?"
+msgstr ""
 
 msgid "删除方案"
 msgstr ""
@@ -1508,19 +1507,19 @@ msgid "鼠标占用警告"
 msgstr ""
 
 msgid "数据备份"
-msgstr "数据备份"
+msgstr ""
 
 msgid "用户数据"
-msgstr "用户数据"
+msgstr ""
 
 msgid "ZIP 格式备份; 导入将覆盖当前数据"
-msgstr "ZIP 格式备份; 导入将覆盖当前数据"
+msgstr ""
 
 msgid "手动修改 Python 代码后, 需点击 [{refresh}] 生效"
-msgstr "手动修改 Python 代码后, 需点击 [{refresh}] 生效"
+msgstr ""
 
 msgid "编写指南"
-msgstr "编写指南"
+msgstr ""
 
 msgid "噗卡乐园 - 命中幸运星"
 msgstr ""
@@ -1573,52 +1572,52 @@ msgid "选择与游戏当前演奏界面一致的乐器"
 msgstr ""
 
 msgid "文件列表已变化, 无法自动更新, 请重新导入."
-msgstr "文件列表已变化, 无法自动更新, 请重新导入."
+msgstr ""
 
 msgid "本地源码已修改, 已跳过自动更新."
-msgstr "本地源码已修改, 已跳过自动更新."
+msgstr ""
 
 msgid "本地安装文件缺失, 请重新导入."
-msgstr "本地安装文件缺失, 请重新导入."
+msgstr ""
 
 msgid "无法读取工坊安装记录, 请检查 workshop_installs.json."
-msgstr "无法读取工坊安装记录, 请检查 workshop_installs.json."
+msgstr ""
 
 msgid "下载的方案与更新信息不一致, 请刷新工坊后重试."
-msgstr "下载的方案与更新信息不一致, 请刷新工坊后重试."
+msgstr ""
 
 msgid "一鍵更新"
 msgstr "一键更新"
 
 msgid "更新"
-msgstr "更新"
+msgstr ""
 
 msgid "更新到 {}"
-msgstr "更新到 {}"
+msgstr ""
 
 msgid "已是最新"
-msgstr "已是最新"
+msgstr ""
 
 msgid "正在更新出招表..."
-msgstr "正在更新出招表..."
+msgstr ""
 
 msgid "已更新 {} 份方案, {} 项失败"
-msgstr "已更新 {} 份方案, {} 项失败"
+msgstr ""
 
 msgid "更新失败"
-msgstr "更新失败"
+msgstr ""
 
 msgid "请等待当前导入或导出完成后再更新."
-msgstr "请等待当前导入或导出完成后再更新."
+msgstr ""
 
 msgid "加载失败"
-msgstr "加载失败"
+msgstr ""
 
 msgid "方案"
-msgstr "方案"
+msgstr ""
 
 msgid "重命名"
-msgstr "重命名"
+msgstr ""
 
 msgid ""
 "角色: {character}\n"
@@ -1627,23 +1626,18 @@ msgid ""
 "{error_type}: {detail}\n"
 "可能与接口或依赖不兼容, 请至工坊更新方案或将此信息反馈给方案作者."
 msgstr ""
-"角色: {character}\n"
-"出招表: {combo}\n"
-"出错位置: {location}\n"
-"{error_type}: {detail}\n"
-"可能与接口或依赖不兼容, 请至工坊更新方案或将此信息反馈给方案作者."
 
 msgid "找不到模块加载器"
-msgstr "找不到模块加载器"
+msgstr ""
 
 msgid "外置角色模块必须且只能定义一个 BaseChar 子类"
-msgstr "外置角色模块必须且只能定义一个 BaseChar 子类"
+msgstr ""
 
 msgid "角色实现标识重复: {impl_id}"
-msgstr "角色实现标识重复: {impl_id}"
+msgstr ""
 
 msgid "本次仅刷所选类型及其目标; 成功结束后才按循环模式更新下次目标。"
-msgstr "本次仅刷所选类型及其目标; 成功结束后才按循环模式更新下次目标。"
+msgstr ""
 
 msgid ""
 "每次日常仅刷当前目标, 本次不在多个目标间分配体力。\n"
@@ -1651,145 +1645,99 @@ msgid ""
 "自动循环序号/目标: 成功结束后切到同类型的下一个序号或奖励目标, 末项后回到首项。\n"
 "自定义循环: 成功结束后按下方序列更新下次目标; 失败或跳过时不切换。"
 msgstr ""
-"每次日常仅刷当前目标, 本次不在多个目标间分配体力。\n"
-"停用: 下次仍刷当前目标。\n"
-"自动循环序号/目标: 成功结束后切到同类型的下一个序号或奖励目标, 末项后回到首项。\n"
-"自定义循环: 成功结束后按下方序列更新下次目标; 失败或跳过时不切换。"
 
 msgid ""
 "按列表顺序轮换, 末项后回到首项; 每次日常只刷一个目标, 下次运行才刷下一个。\n"
 "数字是副本序号, 不是次数; 例如「异能升级材料: 1」表示该类型的第1项。\n"
 "首次仍刷上方当前目标; 若其不在序列中, 成功后将下次目标设为序列首项; 空序列不切换。"
 msgstr ""
-"按列表顺序轮换, 末项后回到首项; 每次日常只刷一个目标, 下次运行才刷下一个。\n"
-"数字是副本序号, 不是次数; 例如「异能升级材料: 1」表示该类型的第1项。\n"
-"首次仍刷上方当前目标; 若其不在序列中, 成功后将下次目标设为序列首项; 空序列不切换。"
 
 #, python-brace-format
 msgid ""
 "按今日累计消耗计算, 扣除已消耗体力; 每份奖励{cost}体力, 剩余目标向上取整。\n"
 "今日已消耗180体力或活跃度达100时跳过; 体力不足时仅刷可领取的次数。"
 msgstr ""
-"按今日累计消耗计算, 扣除已消耗体力; 每份奖励{cost}体力, 剩余目标向上取整。\n"
-"今日已消耗180体力或活跃度达100时跳过; 体力不足时仅刷可领取的次数。"
 
 msgid "筛选"
-msgstr "筛选"
+msgstr ""
 
 msgid "阵容关键词"
-msgstr "阵容关键词"
+msgstr ""
 
 msgid "输入关键词后按 Enter 添加"
-msgstr "输入关键词后按 Enter 添加"
+msgstr ""
 
 msgid "移除关键词 {}"
-msgstr "移除关键词 {}"
+msgstr ""
 
 msgid "展开筛选"
-msgstr "展开筛选"
+msgstr ""
 
 msgid "收起筛选"
-msgstr "收起筛选"
+msgstr ""
 
 msgid "清空筛选"
-msgstr "清空筛选"
+msgstr ""
 
 #, python-brace-format
 msgid ""
 "已安装: {installed}\n"
 "最新版本: {latest}"
 msgstr ""
-"已安装: {installed}\n"
-"最新版本: {latest}"
 
 #, python-brace-format
 msgid "显示 {} / {} 个方案"
-msgstr "显示 {} / {} 个方案"
+msgstr ""
 
 msgid "没有匹配的方案"
-msgstr "没有匹配的方案"
+msgstr ""
 
 msgid "Cancel"
 msgstr "取消"
 
 msgid "异象巡礼"
-msgstr "异象巡礼"
+msgstr ""
 
 msgid "按目标清单顺序进行异象巡礼"
-msgstr "按目标清单顺序进行异象巡礼"
+msgstr ""
 
 msgid "目标"
-msgstr "目标"
+msgstr ""
 
 msgid "轮换起始日期"
-msgstr "轮换起始日期"
+msgstr ""
 
 msgid "按清单顺序循环, 末项后回到首项; 重复选择表示重复挑战同一目标"
-msgstr "按清单顺序循环, 末项后回到首项; 重复选择表示重复挑战同一目标"
+msgstr ""
 
 msgid "可选, 格式 YYYY-MM-DD; 每满7天按清单推进3项, 本周已领取次数也计入进度。留空则每次从清单首项开始循环。"
-msgstr "可选, 格式 YYYY-MM-DD; 每满7天按清单推进3项, 本周已领取次数也计入进度。留空则每次从清单首项开始循环。"
+msgstr ""
 
 msgid "每周开始运行日"
-msgstr "每周开始运行日"
+msgstr ""
 
 msgid "仅在所选星期至周日运行, 本周更早的日期会跳过。"
-msgstr "仅在所选星期至周日运行, 本周更早的日期会跳过。"
+msgstr ""
 
 msgid "周一"
-msgstr "周一"
+msgstr ""
 
 msgid "周二"
-msgstr "周二"
+msgstr ""
 
 msgid "周三"
-msgstr "周三"
+msgstr ""
 
 msgid "周四"
-msgstr "周四"
+msgstr ""
 
 msgid "周五"
-msgstr "周五"
+msgstr ""
 
 msgid "周六"
-msgstr "周六"
+msgstr ""
 
 msgid "周日"
-msgstr "周日"
-
-msgid "消耗体力培养角色"
-msgstr ""
-
-msgid "按培养目标缺口自动消耗体力：周本 > 世界BOSS > 异能 > 弧盘"
-msgstr ""
-
-msgid "连打单次上限（局），只是保险丝，实际还会被缺口和体力截断。"
-msgstr ""
-
-msgid "开局读一次养成指南四行和体力，之后按每局掉落增量本地记账，不再每局回页重读；掉落读不出时自动回页复核，不凭空猜数。"
-msgstr ""
-
-msgid "领奖时抓拍现场截图，供排查识别偏差；默认关闭。"
-msgstr ""
-
-msgid "今日体力花到这个累计数就停；今日目标已达标或设为 0 时不受每日目标限制，按当前体力一直刷到材料齐全；材料齐全后仍会切空幕继续消耗剩余体力。"
-msgstr ""
-"今日体力花到这个累计数就停；今日目标已达标或设为 0 时不受每日目标限制，按当前体力一直刷到材料齐全。；材料齐全后仍会切空幕继续消耗剩余体力。"
-
-msgid "周本刷取开关：开=优先刷满本周异象巡礼（每周 3 次，每次 60 体力）再刷其它材料；关=直接刷其它材料，周本只在异能第 2 行缺料时才打。"
-msgstr ""
-"周本刷取开关：开=优先刷满本周异象巡礼（每周 3 次，每次 60 体力）再刷其它材料；关=直接刷其它材料，周本只在异能第 2 行缺料时才打。"
-
-msgid "每局领奖后在日志统计各材料本次掉落多少、已有多少、还差多少。"
-msgstr "每局领奖后在日志统计各材料本次掉落多少、已有多少、还差多少。"
-
-msgid "在游戏赠礼页点击{}"
-msgstr ""
-
-msgid "点击礼物卡片可设定优先级，再次点击取消"
-msgstr ""
-
-msgid "请先应用更改后再运行测试."
 msgstr ""
 
 msgid "Close"
@@ -1884,3 +1832,35 @@ msgstr ""
 
 msgid "指定目标找不到或不可用时, 尝试选择顶部可选目标"
 msgstr ""
+
+msgid "领奖失败时留在副本"
+msgstr ""
+
+msgid "领奖失败时停留在副本并通知"
+msgstr ""
+
+msgid "消耗体力培养角色"
+msgstr ""
+
+msgid "按培养目标缺口自动消耗体力：周本 > 世界BOSS > 异能 > 弧盘"
+msgstr ""
+
+msgid "连打单次上限（局），只是保险丝，实际还会被缺口和体力截断。"
+msgstr ""
+
+msgid "开局读一次养成指南四行和体力，之后按每局掉落增量本地记账，不再每局回页重读；掉落读不出时自动回页复核，不凭空猜数。"
+msgstr ""
+
+msgid "领奖时抓拍现场截图，供排查识别偏差；默认关闭。"
+msgstr ""
+
+msgid "今日体力花到这个累计数就停；今日目标已达标或设为 0 时不受每日目标限制，按当前体力一直刷到材料齐全；材料齐全后仍会切空幕继续消耗剩余体力。"
+msgstr ""
+"今日体力花到这个累计数就停；今日目标已达标或设为 0 时不受每日目标限制，按当前体力一直刷到材料齐全。；材料齐全后仍会切空幕继续消耗剩余体力。"
+
+msgid "周本刷取开关：开=优先刷满本周异象巡礼（每周 3 次，每次 60 体力）再刷其它材料；关=直接刷其它材料，周本只在异能第 2 行缺料时才打。"
+msgstr ""
+"周本刷取开关：开=优先刷满本周异象巡礼（每周 3 次，每次 60 体力）再刷其它材料；关=直接刷其它材料，周本只在异能第 2 行缺料时才打。"
+
+msgid "每局领奖后在日志统计各材料本次掉落多少、已有多少、还差多少。"
+msgstr "每局领奖后在日志统计各材料本次掉落多少、已有多少、还差多少。"
