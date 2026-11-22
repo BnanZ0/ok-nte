@@ -12,11 +12,13 @@ from src.tasks.cultivation_goal.core import (
     LootLedger,
     estimate_runs,
     map_reward_to_counts,
-    merged_owned,
+    claims_needed,
+    lowest_units,
     next_weekly_remaining,
     parse_ratios,
     parse_weekly_remaining,
-    pick_console_row,
+    console_index_for,
+    match_console_set,
     plan_burst,
     row_gap,
 )
@@ -191,8 +193,9 @@ class DecisionTests(unittest.TestCase):
 
 
 class MaterialGainTests(unittest.TestCase):
-    def test_gap_sums_every_material_in_the_row(self):
-        self.assertEqual(row_gap(row("弧盘", 1, "3/10 5/15")), 17)
+    def test_gap_is_counted_in_lowest_tier_units(self):
+        # 3 绿 + 5 蓝 vs 10 绿 + 15 蓝 = 18 件 vs 55 件(最低档) → 缺 37。
+        self.assertEqual(row_gap(row("弧盘", 1, "3/10 5/15")), 37)
 
     def test_gap_is_zero_when_satisfied(self):
         self.assertEqual(row_gap(row("等级", 1, "195/195 1906/81")), 0)
@@ -201,8 +204,8 @@ class MaterialGainTests(unittest.TestCase):
         self.assertIsNone(row_gap(row("等级", 1, "读不出")))
 
     def test_gain_counts_each_material_slot(self):
-        # 弧盘一行掉两种材料, 只看第一个数字会漏掉后一种。
-        self.assertEqual(diff_ownage(parse_ratios("0/10 0/15"), parse_ratios("4/10 6/15")), 10)
+        # 弧盘一行掉两种材料, 只看第一个数字会漏掉后一种; 增量也折最低档(4 + 6*3)。
+        self.assertEqual(diff_ownage(parse_ratios("0/10 0/15"), parse_ratios("4/10 6/15")), 22)
 
     def test_gain_never_goes_negative(self):
         self.assertEqual(diff_ownage(parse_ratios("9/10"), parse_ratios("2/10")), 0)
@@ -229,13 +232,14 @@ class LootLedgerTests(unittest.TestCase):
         self.assertTrue(ledger.apply_loot("异能-第1行", (9,)))
         self.assertEqual(row_gap(ledger.rows[0]), 0)
         self.assertTrue(ledger.apply_loot("弧盘-第2行", (4, 5)))
-        self.assertEqual(row_gap(ledger.rows[1]), 16)
+        # 4 绿 + 5 蓝 = 19 件, 需求 55 件 → 缺 36。
+        self.assertEqual(row_gap(ledger.rows[1]), 36)
 
     def test_wrong_slot_count_is_rejected(self):
         ledger = LootLedger(300, (row("弧盘", 1, "0/10 0/15"),))
         self.assertFalse(ledger.apply_loot("弧盘-第2行", (4,)))
         self.assertFalse(ledger.apply_loot("不存在", (4, 5)))
-        self.assertEqual(row_gap(ledger.rows[0]), 25)
+        self.assertEqual(row_gap(ledger.rows[0]), 55)
 
     def test_spend_and_state(self):
         ledger = LootLedger(300, (row("异能", 0, "0/9"),))
@@ -294,63 +298,88 @@ class RewardMappingTests(unittest.TestCase):
         )
 
 
-class ConsolePickTests(unittest.TestCase):
-    """空幕是优先级最低、没有次数上限的那一档: 挑哪个副本要按缺口, 不能盲刷 1 号。"""
+class ConsoleSetTests(unittest.TestCase):
+    """空幕页只有套装名，关卡只能靠套装名反查：认不出就要停，不许盲刷 1 号。"""
 
-    def test_picks_the_row_with_the_biggest_gap(self):
-        rows = [row("空幕", 0, "9/9"), row("空幕", 1, "0/6"), row("空幕", 2, "4/9")]
-        index, why = pick_console_row(rows)
-        self.assertEqual(index, 1)
-        self.assertIn("缺 6", why)
+    def test_reads_set_name_out_of_ocr_noise(self):
+        # 实际读到的是 `推荐套装 「失落光芒」x4`，书名号/空格/x4 都要吃掉。
+        self.assertEqual(match_console_set("推荐套装 「失落光芒」x4"), ("钟表把戏", "失落光芒"))
 
-    def test_full_console_stops_instead_of_farming(self):
-        rows = [row("空幕", 0, "9/9"), row("空幕", 1, "6/6")]
-        self.assertEqual(pick_console_row(rows), (None, "空幕材料已全满"))
+    def test_colon_variants_all_match(self):
+        for text in ("「恶魔之血：诅咒」", "「恶魔之血:诅咒」", "恶魔之血 诅咒"):
+            self.assertEqual(match_console_set(text), ("雕塑展馆", "恶魔之血：诅咒"))
 
-    def test_unreadable_rows_never_fall_back_to_first(self):
-        rows = [row("空幕", 0, ""), row("空幕", 1, ""), row("空幕", 2, "0/6")]
-        self.assertEqual(pick_console_row(rows)[0], 2)
-        self.assertEqual(pick_console_row([row("空幕", 0, "")]), (None, "空幕行读不出"))
+    def test_truncated_name_falls_back_to_prefix(self):
+        # 冒号后半段被 OCR 吞掉是常态：只读到「恶魔之血」也要认出来。
+        self.assertEqual(match_console_set("推荐套装「恶魔之血」"), ("雕塑展馆", "恶魔之血：诅咒"))
 
-    def test_row_order_maps_to_console_index(self):
-        # 行号 +1 就是异象界域的「空幕序号」: 第 3 行 = 序号 3。
-        index, _ = pick_console_row([row("空幕", 0, "1/1"), row("空幕", 1, "1/1"),
-                                    row("空幕", 2, "0/3")])
-        self.assertEqual(index + 1, 3)
+    def test_unknown_set_stops_instead_of_farming_first(self):
+        index, why = console_index_for(("推荐套装 「虚构套装甲」x4", "当前套装 「虚构套装甲」x4"))
+        self.assertIsNone(index)
+        self.assertIn("未收录", why)
+
+    def test_suggest_set_wins_over_current(self):
+        index, why = console_index_for(("「缇娅的夜间酒馆」", "「失落光芒」"))
+        self.assertEqual(index, 3)  # 守卫萝卜
+        self.assertIn("推荐套装", why)
+
+    def test_current_set_used_when_suggest_unreadable(self):
+        index, _ = console_index_for(("", "「街头拳王」"))
+        self.assertEqual(index, 1)  # 雕塑展馆
+
+    def test_dungeon_index_matches_console_id(self):
+        # 下标 +1 就是异象界域的「空幕序号」：纬线织机 = 3。
+        self.assertEqual(console_index_for(("「森林萤火之心」", ""))[0] + 1, 3)
+
+    def test_late_nodes_and_aliases(self):
+        # 兔子洞共 6 个节点: 音速蓝刺猬属于第 5 个「心智图谱」(11-22 主人查证)。
+        self.assertEqual(console_index_for(("「音速蓝刺猬」x4", ""))[0] + 1, 5)
+        self.assertEqual(console_index_for(("「影之信条」x4", ""))[0] + 1, 6)
+        # 攻略站旧译也要认: 静谧山庄 = 宁静庄园, 西雅的夜酒馆 = 缇娅的夜间酒馆。
+        self.assertEqual(match_console_set("「静谧山庄」"), ("心智图谱", "静谧山庄"))
+        self.assertEqual(match_console_set("「西雅的夜酒馆」"), ("守卫萝卜", "西雅的夜酒馆"))
 
 
-class CombineUpTests(unittest.TestCase):
-    """异能/弧盘材料三档, 3 个低档合 1 个高档（11-19 合成界面实证）。
+class LowestTierTests(unittest.TestCase):
+    """异能/弧盘一行三档, 3 个低档合 1 个高档, 反过来 1 个高档也能拆 3 个低档。
 
-    判定必须用「折算后」的拥有量, 否则会把「低档一大堆能合上来」的行判成缺料,
-    白白再刷一局 (11-22 实况: 48/8 32/40 16/13 被判缺 8, 实际靠 13 蓝 + 1 紫已满)。
+    既然合成与拆解都允许, 档位只是同一材料的形态, 判定必须把所有档位折成最低档件数
+    再比总量; 逐档比会把「高档多出来的能拆下来补低档」误判成缺料, 白刷一局。
     """
 
-    def test_carry_chains_to_top_tier(self):
+    def test_all_tiers_fold_into_lowest_units(self):
         self.assertEqual(
-            merged_owned([Ratio(48, 8), Ratio(32, 40), Ratio(16, 13)]), (9, 42, 17))
+            lowest_units([Ratio(48, 8), Ratio(32, 40), Ratio(16, 13)]), (288, 245))
 
     def test_low_tier_surplus_fills_the_row(self):
         r = row("异能", 0, "48/8 32/40 16/13")
         self.assertTrue(r.satisfied)
         self.assertEqual(row_gap(r), 0)
 
-    def test_partial_surplus_is_not_counted(self):
-        # 绿只多出 2 个, 不够 3 个, 不能折上去。
-        self.assertEqual(merged_owned([Ratio(10, 8), Ratio(20, 40)]), (10, 20))
+    def test_high_tier_surplus_can_be_broken_down(self):
+        # 低档一件没有、高档多出 60 个: 拆下来足够补低档的 15, 这一行已经够了。
+        r = row("异能", 0, "0/15 60/0")
+        self.assertTrue(r.satisfied)
+        self.assertEqual(row_gap(r), 0)
+
+    def test_spare_high_tier_covers_the_last_missing_piece(self):
+        # 11-22 第 3 轮实况 42/8 28/40 14/13: 折最低档 252 件 > 245 件, 靠拆 1 个紫就够。
+        r = row("异能", 0, "42/8 28/40 14/13")
+        self.assertTrue(r.satisfied)
+        self.assertEqual(row_gap(r), 0)
+
+    def test_two_short_is_still_short(self):
+        # 13 个紫刚好够自己, 没有余量可拆: 243 件 < 245 件, 还差 2 件。
+        r = row("异能", 0, "42/8 28/40 13/13")
+        self.assertFalse(r.satisfied)
+        self.assertEqual(row_gap(r), 2)
+
+    def test_two_low_short_is_not_counted(self):
+        # 绿只多出 2 个, 不到 3 个, 折不上也拆不下去: 70 件 vs 128 件。
+        self.assertEqual(lowest_units([Ratio(10, 8), Ratio(20, 40)]), (70, 128))
         r = row("异能", 0, "10/8 20/40")
         self.assertFalse(r.satisfied)
-        self.assertEqual(row_gap(r), 20)
-
-    def test_one_short_is_still_short(self):
-        # 11-22 第 3 轮实况: 42/8 28/40 14/13 → 绿合 11 个蓝后 39/40, 还差 1 个, 该刷。
-        r = row("异能", 0, "42/8 28/40 14/13")
-        self.assertFalse(r.satisfied)
-        self.assertEqual(row_gap(r), 1)
-
-    def test_reserved_demand_is_not_donated(self):
-        # 绿刚好够自己(8/8)时不能再往上供, 否则自己就不够了。
-        self.assertEqual(merged_owned([Ratio(8, 8), Ratio(20, 40)]), (8, 20))
+        self.assertEqual(row_gap(r), 58)
 
     def test_single_tier_row_unchanged(self):
         r = row("等级", 1, "61/60")
@@ -361,6 +390,12 @@ class CombineUpTests(unittest.TestCase):
         r = row("异能", 0, "")
         self.assertIsNone(r.satisfied)
         self.assertIsNone(row_gap(r))
+
+    def test_claims_needed_uses_per_claim_when_known(self):
+        self.assertEqual(claims_needed(120, 40), 3)
+        # 没有产出记录时按「一份 ≈ 1 件最高档」估: 三档行 1 紫 = 9 件最低档。
+        self.assertEqual(claims_needed(90, None, 3), 10)
+        self.assertIsNone(claims_needed(None, 40))
 
 
 class WeeklyAccountingTests(unittest.TestCase):

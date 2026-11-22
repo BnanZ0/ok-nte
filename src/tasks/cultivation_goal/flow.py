@@ -9,6 +9,7 @@ import cv2
 
 from src.Labels import Labels
 from src.tasks.cultivation_goal.core import (
+    CONSOLE_DUNGEONS,
     RATIO_RE,
     Action,
     LootLedger,
@@ -16,18 +17,19 @@ from src.tasks.cultivation_goal.core import (
     PlanConfig,
     PlanState,
     Ratio,
+    claims_needed,
+    console_index_for,
     decide,
     diff_ownage,
     estimate_runs,
-    merged_owned,
+    lowest_units,
     parse_ratios,
-    pick_console_row,
     plan_burst,
     parse_weekly_remaining,
     repair_swallowed_slash,
     row_gap,
 )
-from src.tasks.cultivation_goal.positions import CONSOLE_DUNGEONS, HUNTER_BOSS_NAMES, POS, TARGET_ROWS
+from src.tasks.cultivation_goal.positions import HUNTER_BOSS_NAMES, POS, TARGET_ROWS
 from src.tasks.cultivation_goal.report import RunReport, row_snapshot
 from src.tasks.cultivation_goal.version import VERSION as CG_VERSION
 
@@ -347,6 +349,8 @@ class CultivationGoalMixin:
         self._cg_burst_unconfirmed = False
         self._cg_start_stamina = None
         self._cg_weekly_budget = None
+        # 空幕关卡每场只认一次: 认出来后同场后续几局不再走养成指南。
+        self._cg_console_index = _MISSING
         self._cg_arm_reward_capture()
         # 单行失败只跳过该行，不让整场停摆。
         skipped: list[str] = []
@@ -847,22 +851,24 @@ class CultivationGoalMixin:
     def _cg_material_brief(self, rows, gains):
         """汇总每行缺口、上局产出与预估局数。
 
-        多档行会把「低档合上来之后」的拥有量写出来, 否则 `48/8 32/40 16/13` 这种
-        一眼看着还缺蓝的行为什么判已满会让人对不上账。
+        多档行额外写出「折最低级」的总件数: `48/8 32/40 16/13` 看着还缺蓝,
+        折成最低档是 288/245 件, 已经够了 —— 不写出来对不上账。
         """
         parts = []
         for row in rows:
             raw = "·".join(f"{ratio.owned}/{ratio.required}" for ratio in row.ratios or ())
-            merged = merged_owned(row.ratios) if row.ratios else ()
-            folded = " 合后" + "/".join(str(value) for value in merged)
+            folded = ""
+            if row.ratios and len(row.ratios) > 1:
+                owned, required = lowest_units(row.ratios)
+                folded = f" 折最低级{owned}/{required}"
             gap = row_gap(row)
             if gap is None:
                 parts.append(f"{row.label} 读不出")
             elif gap == 0:
-                parts.append(f"{row.label} 已满({raw}{folded if merged else ''})")
+                parts.append(f"{row.label} 已满({raw}{folded})")
             else:
                 gain = gains.get(row.label)
-                text = f"{row.label} {raw}{folded if merged else ''} 缺{gap}"
+                text = f"{row.label} {raw}{folded} 缺{gap}"
                 if gain is not None:
                     runs = estimate_runs(gap, gain)
                     text += f" 上局+{gain}" + (f" 约{runs}局" if runs else "")
@@ -1322,13 +1328,15 @@ class CultivationGoalMixin:
             self._cg_report().emit("loot_stats", rows=stats)
 
     def _cg_fold_tail(self, row) -> str:
-        """多档行的折算结论；单档行没有合成可言, 返回空串。"""
+        """多档行的折算结论；单档行没有折算可言, 返回空串。"""
         if not row.ratios or len(row.ratios) < 2:
             return ""
         gap = row_gap(row)
         if gap is None:
             return ""
-        return " → 合后已满" if gap == 0 else f" → 合后还缺{gap}"
+        owned, required = lowest_units(row.ratios)
+        tail = f" → 折最低级{owned}/{required}"
+        return tail + (" 已满" if gap == 0 else f" 还缺{gap}")
 
     def _cg_burst_plan(self, row, stamina, gains):
         """自动连打: 上一局产出不足以覆盖缺口就继续连打, 只对副本生效。"""
@@ -1340,12 +1348,18 @@ class CultivationGoalMixin:
         count = plan_burst(row_gap(row), per_claim, stamina, row.cost, self.CG_BURST_LIMIT)
         return max(1, count), per_claim
 
-    def _cg_pick_double(self, row, stamina, gap=None):
-        """体力够两份且缺口≥2 时走双倍；缺口只剩 1 份或体力不足退回单倍。"""
+    def _cg_pick_double(self, row, stamina, gap=None, per_claim=None):
+        """体力够两份且还差≥2 份时走双倍；只差 1 份或体力不足退回单倍。
+
+        缺口是最低档件数, 不能直接和「份」比 —— 先用单份产出换成份数。
+        """
         if stamina is None or stamina < 2 * row.cost:
             return False
         gap = row_gap(row) if gap is None else gap
-        return gap is None or gap >= 2
+        if gap is None:
+            return True
+        need = claims_needed(gap, per_claim, len(row.ratios or ()))
+        return need is not None and need >= 2
 
     def _cg_reward_settled(self, time_out=6) -> bool:
         """领奖点击后必须看到结算确认框, 才算这一局真的到账。
@@ -1444,12 +1458,13 @@ class CultivationGoalMixin:
                 if done == 0:
                     self._cg_note("warning", f"体力 {remaining} 不够 {row.label} ({row.cost})")
                 break
-            double = self._cg_pick_double(row, remaining, gap)
+            double = self._cg_pick_double(row, remaining, gap, per_claim)
             if done or double:
                 self._cg_note(
                     "info",
                     f"{row.label} 第 {done + 1}/{total} 局 "
-                    f"{'双倍' if double else '单倍'}, 剩余体力 {remaining}, 估算缺口 {gap}",
+                    f"{'双倍' if double else '单倍'}, 剩余体力 {remaining}, "
+                    f"估算缺口 {gap} 件最低档",
                 )
             if not self.do_combat_and_claim(double):
                 self._cg_note("warning", f"未确认领奖成功: {row.label}, 不计入已完成")
@@ -1481,7 +1496,9 @@ class CultivationGoalMixin:
             )
             self.sleep(2)
             cont = done < total and remaining >= row.cost
-            if cont and (gap is None or gap > 1):
+            # 缺口是最低档件数, 换成份数才能和「还差一局」比。
+            need = claims_needed(gap, per_claim, len(row.ratios or ()))
+            if cont and (need is None or need > 1):
                 # 小区域是「继续挑战」；找不到就正常收场。
                 if not self.wait_click_confirm(
                     range=CG_BURST_CONFIRM_RANGE, raise_if_not_found=False
@@ -1497,9 +1514,11 @@ class CultivationGoalMixin:
                 self.sleep(1)
                 continue
             if done < total:
-                if gap is not None and gap <= 1:
+                if need is not None and need <= 1:
                     self._cg_note(
-                        "info", f"{row.label} 估算材料已够(余 {gap:.1f}), 提前收场回养成页复核"
+                        "info",
+                        f"{row.label} 估算材料已够(余 {gap} 件最低档 ≈ {need:.1f} 份), "
+                        "提前收场回养成页复核",
                     )
                 else:
                     self._cg_note("info", f"{row.label} 剩余体力 {remaining}, 连打收场")
@@ -1755,6 +1774,8 @@ class CultivationGoalMixin:
         from src.tasks.AnomalyTask import AnomalyTask
 
         per_claim = AnomalyTask.TASK_COST
+        # 先清零: 提前返回时决策侧会读这个值扣账本, 留着上次的数会重复扣一遍体力。
+        self._cg_console_spent = 0
         if budget is not None and budget <= 0:
             self._cg_note("warning", "今日体力目标已用完, 不再刷空幕")
             return 0
@@ -1776,6 +1797,7 @@ class CultivationGoalMixin:
         original_type = self.config.get(self.CONF_TASK_TYPE, _MISSING)
         original_id = self.config.get(AnomalyTask.CONF_CONSOLE_ID, _MISSING)
         saved_goal = self.info.get(CG_INFO_MUST_USE, _MISSING)
+        entered = False
         try:
             dict.__setitem__(self.config, self.CONF_TASK_TYPE, self.TASK_CONSOLE)
             dict.__setitem__(self.config, AnomalyTask.CONF_CONSOLE_ID, index + 1)
@@ -1788,11 +1810,19 @@ class CultivationGoalMixin:
                 self._cg_note("warning", "空幕入场失败, 本次不再刷空幕")
                 self._cg_capture("console_failed")
                 return 0
+            entered = True
             double_count = int(self.info_get("双倍次数") or 0)
-            total = double_count + int(self.info_get("单倍次数") or 0)
+            single_count = int(self.info_get("单倍次数") or 0)
+            total = double_count + single_count
+            if total <= 0:
+                # 体力刚够一份或上游没算出次数时 total 会是 0, 不喊一声就会静默返回 0。
+                self._cg_note(
+                    "warning",
+                    f"空幕入场后没算出局数(双倍 {double_count} / 单倍 {single_count}), 本次不刷",
+                )
+                return 0
             self._cg_note("info", f"空幕入场成功(序号 {index + 1}), 计划 {total} 局, 预算 {goal}")
             done, failures = 0, 0
-            self._cg_console_spent = 0
             while done < total and failures < 2:
                 self.wait_until(self.find_exit, time_out=30, raise_if_not_found=False)
                 self.wait_in_team()
@@ -1801,8 +1831,18 @@ class CultivationGoalMixin:
                 self._cg_reward_loot = []
                 self._cg_loot_partial = False
                 if not self.do_combat_and_claim(done < double_count):
+                    claimed, why_failed = False, "领奖失败"
+                elif not self._cg_reward_settled():
+                    # 点了按钮还停在领取界面(11-22 15:35 实测形态): 这局没到账, 不能记成功。
+                    self._cg_capture("claim_unsettled")
+                    claimed, why_failed = False, "领奖后未见结算界面"
+                else:
+                    claimed, why_failed = True, ""
+                if not claimed:
                     failures += 1
-                    self._cg_note("warning", f"空幕第 {done + 1}/{total} 局领奖失败, 退出后重试")
+                    self._cg_note(
+                        "warning", f"空幕第 {done + 1}/{total} 局{why_failed}, 退出后重试"
+                    )
                     self._cg_capture("console_failed")
                     self.exit_anomaly()
                     if failures >= 2 or self.enter_anomaly(index, retry=True) is not True:
@@ -1813,8 +1853,15 @@ class CultivationGoalMixin:
                 done += 1
                 failures = 0
                 self._cg_console_spent += spent
+                # 每局单独记掉落: 顺带用奖励卡上的关卡名反查序号选的对不对。
+                self._cg_log_console_loot(index, done)
                 if done < total:
-                    self.wait_click_confirm(range=CG_BURST_CONFIRM_RANGE, raise_if_not_found=False)
+                    # 点不到「继续挑战」就是连打到头了(体力/次数用尽), 硬撑下一局只会空打。
+                    if not self.wait_click_confirm(
+                        range=CG_BURST_CONFIRM_RANGE, raise_if_not_found=False
+                    ):
+                        self._cg_note("info", f"空幕无继续挑战按钮, 第 {done} 局后收场")
+                        break
             self.wait_click_confirm(range=CG_FINAL_CONFIRM_RANGE, raise_if_not_found=False)
             self._cg_note("info", f"空幕结束: 共领 {done}/{total} 局")
             return done
@@ -1831,71 +1878,89 @@ class CultivationGoalMixin:
                     self.config.pop(key, None)
                 else:
                     dict.__setitem__(self.config, key, value)
-            self.exit_anomaly()
+            if entered:
+                # 没进过本就不要调: exit_anomaly 会在主界面上反复按 ESC 找「已离开副本」。
+                self.exit_anomaly()
 
     def _cg_pick_console_index(self):
-        """读「空幕」tab 挑缺口最大的行, 返回 0 基行号; 读不出/全满返回 None。"""
+        """读「空幕」tab 的推荐套装，反查兔子洞关卡；读不出/未收录返回 None。
+
+        空幕页是「当前套装 / 推荐套装」两块，没有异能页那种四行 xx/xx，判定依据
+        只能是套装名：套装名 → 关卡的表来自游戏内卡带详情页的「获取途径」。
+        认出的关卡缓存一次，本次任务后续几局不再重复走养成指南（那条路最慢）。
+        """
+        cached = getattr(self, "_cg_console_index", _MISSING)
+        if cached is not _MISSING:
+            if cached is None:
+                return None
+            self._cg_note("info", f"沿用已认出的空幕序号 {cached + 1}")
+            return cached
+        self._cg_console_index = None
         if not self._cg_ensure_guide():
             return None
         self._cg_click(POS.tab_x["空幕"], POS.overview_tabs_y, "空幕 tab", after_sleep=0.7)
-        rows = self._cg_read_console_rows()
+        current, suggest = self._cg_read_console_sets()
         self._cg_capture("console_guide")
-        detail = " | ".join(
-            "/".join(f"{ratio.owned}/{ratio.required}" for ratio in row.ratios)
-            if row.ratios
-            else "读不出"
-            for row in rows
-        ) or "一行都没读到"
-        index, why = pick_console_row(rows)
+        index, why = console_index_for((suggest, current))
         if index is None:
             self._cg_note(
-                "warning", f"空幕 [{detail}] → {why}, 为避免刷错副本白花体力, 本次不刷空幕"
+                "warning", f"空幕 {why}, 为避免刷错副本白花体力, 本次不刷空幕"
             )
             return None
-        self._cg_note("info", f"空幕 [{detail}] → 选序号 {index + 1} ({why})")
+        if index >= 4:
+            # 第 5/6 节点（心智图谱 / 轨道之夜）需要猎人等级解锁。空幕本来就不记收获,
+            # 所以不掉落认不出也无所谓; 只在未解锁时入场会失败 —— 那样不扣体力, 可放心试。
+            self._cg_note(
+                "info",
+                f"空幕 {why}: 属后段节点, 若未解锁会入场失败(不扣体力)",
+            )
+        self._cg_console_index = index
+        self._cg_note("info", f"空幕 {why}")
         return index
 
-    def _cg_read_console_rows(self):
-        """读「空幕」tab 每行的 xx/xx。
+    def _cg_read_console_sets(self):
+        """OCR「当前套装」「推荐套装」两行，返回 (当前, 推荐)。
 
-        行坐标先按异能页布局假设(positions 里单独留了「空幕」一项), 首跑截
-        cg_console_guide 后按实拍校正 —— 别拿猜的坐标当定论。
+        只能读到套装名（如「音速蓝刺猬」x4），关卡要靠 core.CONSOLE_SETS 反查；
+        读不出就返回空串，由 console_index_for 判为未收录，不猜。
         """
-        tab = "空幕"
-        rows = []
-        for row_index, center_y in enumerate(POS.ratio_row_y[tab]):
-            x1, x2 = POS.ratio_box_x
+        texts = []
+        for label, center_y in zip(("当前套装", "推荐套装"), POS.console_set_y):
+            x1, x2 = POS.console_set_x
             box = self.box_of_screen(
                 x1,
-                center_y - POS.ratio_half_height,
+                center_y - POS.console_set_half_height,
                 x2,
-                center_y + POS.ratio_half_height,
-                name=f"cg_{tab}_{row_index}",
+                center_y + POS.console_set_half_height,
+                name=f"cg_console_set_{len(texts)}",
                 hcenter=True,
             )
             text = self._cg_read_line(box)
-            ratios = self._cg_usable_ratios(text) if text else None
-            self._cg_note("info", f"{tab} 第 {row_index + 1} 行 (y {center_y:.3f}): {text or '<空>'}")
-            rows.append(
-                MaterialRow(tab=tab, row_index=row_index, cost=40, landing="console", ratios=ratios)
-            )
-        return rows
+            self._cg_note("info", f"空幕{label} (y {center_y:.3f}): {text or '<空>'}")
+            texts.append(text or "")
+        return texts[0], texts[1]
 
     def _cg_log_console_loot(self, index: int, run_no: int):
-        """记一局空幕掉落, 顺带用副本名反查序号是否选对。"""
+        """记一局空幕的结算掉落（尽力而为），顺带用副本名反查序号选对没。
+
+        空幕不需要把掉落算进培养缺口——它是「体力没处花」的兜底，刷什么材料都行，
+        到不到账只看结算页有没有出现。这里纯粹留证据：奖励卡几乎全是金色圆盘、
+        图案差异极小，认错很正常，所以只记日志不参与任何判定。
+        """
         loot = getattr(self, "_cg_reward_loot", None) or []
         if not loot:
-            self._cg_note("info", f"空幕第 {run_no} 局: 掉落没读到, 只记局数")
+            self._cg_note("info", f"空幕第 {run_no} 局: 未读出掉落(金圆盘模板相近, 属正常)")
             return
         text = " ".join(f"{item['dungeon']}×{item['count']}" for item in loot)
         self._cg_note("info", f"空幕第 {run_no} 局掉落: {text}")
+        # 奖励卡上的名字是「钟表把戏 金」这种「关卡 + 档位」, 反查要用包含而不是全等。
         dungeons = {item["dungeon"] for item in loot if item.get("dungeon")}
         expected = CONSOLE_DUNGEONS[index] if 0 <= index < len(CONSOLE_DUNGEONS) else None
-        if expected and dungeons and expected not in dungeons:
+        if expected and dungeons and not any(expected in name for name in dungeons):
             self._cg_note(
-                "warning",
-                f"空幕序号 {index + 1} 预期 {expected}, 实际产出 {sorted(dungeons)}"
-                " —— 行号与序号的映射可能不是 1:1",
+                "info",
+                f"空幕第 {run_no} 局产出 {sorted(dungeons)} 与预期 {expected} 不符"
+                " —— 金圆盘模板相近, 多半是认错图标, 仅供参考",
             )
         self._cg_report().emit(
             "console_loot",

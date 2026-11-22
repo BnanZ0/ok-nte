@@ -61,6 +61,54 @@ def parse_weekly_remaining(text: str) -> int | None:
     return counts.pop() if len(counts) == 1 else None
 
 
+# 兔子洞六个空幕节点；下标 +1 就是异象界域的「空幕序号」。
+# 前四个来自实拍（养成指南四行 + 卡带详情「获取途径」），后两个来自攻略站对照表，
+# 名称只用于日志/报告，真正决定去向的是下标，因此不影响进本。
+CONSOLE_DUNGEONS = (
+    "钟表把戏",
+    "雕塑展馆",
+    "纬线织机",
+    "守卫萝卜",
+    "心智图谱",
+    "轨道之夜",
+)
+
+# 空幕套装 → 兔子洞节点。来源是游戏内卡带详情页的「获取途径」= 兔子洞·<节点名>。
+# 养成指南「空幕」页只写套装名（如「音速蓝刺猬」x4），不写节点，只能靠这张表反查。
+# 同一套装在攻略站/旧译里有别名，一并收录：别名认不出就等于这轮白不刷。
+CONSOLE_SETS = {
+    # 钟表把戏
+    "失落光芒": "钟表把戏",
+    "迪亚波罗斯": "钟表把戏",
+    # 雕塑展馆
+    "恶魔之血：诅咒": "雕塑展馆",
+    "街头拳王": "雕塑展馆",
+    # 纬线织机
+    "森林萤火之心": "纬线织机",
+    "真红：双生蝶": "纬线织机",
+    # 守卫萝卜
+    "缇娅的夜间酒馆": "守卫萝卜",
+    "西雅的夜酒馆": "守卫萝卜",
+    "守卫王国": "守卫萝卜",
+    "王国卫士": "守卫萝卜",
+    # 心智图谱
+    "音速蓝刺猬": "心智图谱",
+    "静谧山庄": "心智图谱",
+    "宁静庄园": "心智图谱",
+    # 轨道之夜
+    "影之信条": "轨道之夜",
+    "小小大冒险": "轨道之夜",
+    "微小的大冒险": "轨道之夜",
+}
+
+_NON_WORD_RE = re.compile(r"[^0-9A-Za-z\u4e00-\u9fff]")
+
+
+def _name_key(text: str) -> str:
+    """去掉「」、空格、x4 后缀这类噪音，只留字词本身。"""
+    return _NON_WORD_RE.sub("", text or "")
+
+
 class Action(str, Enum):
     WEEKLY = "weekly"
     MATERIAL = "material"
@@ -78,11 +126,11 @@ class MaterialRow:
 
     @property
     def satisfied(self) -> bool | None:
-        """够不够用「折算后」的拥有量判 —— 低档多出来的能 3:1 合成高一档。"""
+        """够不够按「折成最低档的总件数」判 —— 合成与拆解都是 3:1, 档位只是同一材料的形态。"""
         if self.ratios is None:
             return None
-        merged = merged_owned(self.ratios)
-        return all(got >= ratio.required for got, ratio in zip(merged, self.ratios))
+        owned, required = lowest_units(self.ratios)
+        return owned >= required
 
     @property
     def label(self) -> str:
@@ -90,18 +138,21 @@ class MaterialRow:
 
 
 def row_gap(row: MaterialRow) -> int | None:
-    """这一行还差多少材料（低档溢出已按 3:1 折算）；读数无效返回 None。"""
+    """这一行还差多少件**最低档**材料（各档按 3:1 统一折算）；读数无效返回 None。"""
     if row.ratios is None:
         return None
-    merged = merged_owned(row.ratios)
-    return sum(max(0, ratio.required - got) for got, ratio in zip(merged, row.ratios))
+    owned, required = lowest_units(row.ratios)
+    return max(0, required - owned)
 
 
 def diff_ownage(prev, curr) -> int | None:
-    """两轮间的拥有量增量；槽位数变化返回 None。"""
+    """两轮间的拥有量增量, 折成最低档件数；槽位数变化返回 None。"""
     if not prev or not curr or len(prev) != len(curr):
         return None
-    return sum(max(0, new.owned - old.owned) for old, new in zip(prev, curr))
+    return sum(
+        max(0, new.owned - old.owned) * COMBINE_RATIO ** index
+        for index, (old, new) in enumerate(zip(prev, curr))
+    )
 
 
 def estimate_runs(gap: int | None, gain: int | None) -> int | None:
@@ -131,23 +182,25 @@ def plan_burst(
 COMBINE_RATIO = 3
 
 
-def merged_owned(ratios, ratio: int = COMBINE_RATIO) -> tuple[int, ...]:
-    """把低档溢出按 ratio:1 折进高一档后的各槽拥有量。
+def lowest_units(ratios, ratio: int = COMBINE_RATIO) -> tuple[int, int]:
+    """把「拥有 / 需求」都折成最低档件数, 返回 (拥有, 需求)。
 
-    ratios 顺序与界面一致（左→右 = 低档→高档）。每档先留够自己的需求量, 余量才往上折:
-    `48/8、32/40、16/13` 折完是 `9/8、42/40、17/13` —— 靠 13 个蓝 + 1 个紫补齐,
-    所以这一行其实已经够了, 不该再为「32/40」去刷体力。
+    ratios 顺序与界面一致（左→右 = 低档→高档）, 第 i 档 1 件 = 最低档 ratio**i 件。
+    游戏里合成(3 低→1 高)和拆解(1 高→3 低)都允许, 所以档位只是同一材料的形态,
+    只需比总量: `48/8、32/40、16/13` = 288 件 vs 245 件, 已经够了, 不该再刷。
+    反过来 `0/15、60/0` 里高档多出来的能拆下来补低档, 也算够 —— 逐档比会误判成缺 15 件。
     """
-    owned = [max(0, int(r.owned)) for r in ratios]
-    need = [max(0, int(r.required)) for r in ratios]
-    for index in range(len(owned) - 1):
-        surplus = owned[index] - need[index]
-        if surplus < ratio:
-            continue
-        carry = surplus // ratio
-        owned[index] -= carry * ratio
-        owned[index + 1] += carry
-    return tuple(owned)
+    owned = sum(max(0, int(r.owned)) * ratio ** index for index, r in enumerate(ratios))
+    required = sum(max(0, int(r.required)) * ratio ** index for index, r in enumerate(ratios))
+    return owned, required
+
+
+def claims_needed(gap: int | None, per_claim: float | None, tiers: int = 1) -> float | None:
+    """把「最低档缺口」换成还差几份副本产出; 没有产出记录时按「一份≈1 件最高档」估。"""
+    if gap is None:
+        return None
+    unit = per_claim if per_claim and per_claim > 0 else float(COMBINE_RATIO ** max(0, tiers - 1))
+    return gap / unit
 
 
 
@@ -334,24 +387,48 @@ def next_weekly_remaining(state: PlanState, claimed: bool) -> int:
     return state.weekly_remaining - 1
 
 
-def pick_console_row(rows) -> tuple[int | None, str]:
-    """挑空幕缺口最大的那一行；行号 +1 就是异象界域的「空幕序号」。
+def match_console_set(text: str) -> tuple[str, str] | None:
+    """在 OCR 文本里认收录的空幕套装，返回 (关卡, 命中套装名)。
 
-    空幕四行对应四个空幕副本（钟表把戏 / 雕塑展馆 / 纬线织机 / 守卫萝卜）。
-    读不出的行不参与比较；全读不出或全满就返回 None —— 宁可这次不刷，
-    也不要按 1 号盲刷：刷错副本等于白花 40 体力。
+    套装名带「」、后面跟 x4，冒号有全半角差异，统一去噪后做包含匹配；
+    命中多个取最长 —— 「恶魔之血」这种前半段也能命中，不能让短串抢先。
+    冒号后半段常被 OCR 吞掉，再补一次「冒号前」的宽松匹配兜底。
     """
-    gaps = []
-    for row in rows or ():
-        gap = row_gap(row)
-        if gap is not None:
-            gaps.append((row.row_index, gap))
-    if not gaps:
-        return None, "空幕行读不出"
-    index, gap = max(gaps, key=lambda item: item[1])
-    if gap <= 0:
-        return None, "空幕材料已全满"
-    return index, f"第 {index + 1} 行缺 {gap}"
+    plain = _name_key(text)
+    if not plain:
+        return None
+    hits = []
+    for set_name, dungeon in CONSOLE_SETS.items():
+        key = _name_key(set_name)
+        if key and key in plain:
+            hits.append((len(key), dungeon, set_name))
+    if not hits:
+        for set_name, dungeon in CONSOLE_SETS.items():
+            head = _name_key(re.split(r"[：:]", set_name)[0])
+            if len(head) >= 4 and head in plain:
+                hits.append((len(head), dungeon, set_name))
+    if not hits:
+        return None
+    _, dungeon, set_name = max(hits)
+    return dungeon, set_name
+
+
+def console_index_for(names: Iterable[str]) -> tuple[int | None, str]:
+    """按「推荐套装 → 当前套装」顺序认关卡，返回 (0 基序号, 说明)。
+
+    推荐套装优先（角色该穿的那套），当前套装兜底（已穿对时也照常刷）。
+    都认不出就返回 None —— 宁可这轮不刷空幕，也不按 1 号盲刷白花 40 体力。
+    """
+    labels = ("推荐套装", "当前套装")
+    texts = list(names)[: len(labels)]
+    for label, text in zip(labels, texts):
+        hit = match_console_set(text)
+        if hit:
+            dungeon, set_name = hit
+            index = CONSOLE_DUNGEONS.index(dungeon)
+            return index, f"{label}「{set_name}」→ {dungeon} (序号 {index + 1})"
+    shown = " / ".join(f"{label}={text or '空'}" for label, text in zip(labels, texts))
+    return None, f"套装名未收录({shown})"
 
 
 def map_reward_to_counts(

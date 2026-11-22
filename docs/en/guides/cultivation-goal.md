@@ -10,12 +10,22 @@ At start it opens the character's Cultivation Guide and reads all four target ro
 2. Fill rows in order: **Weekly (Anomaly Pilgrimage) > Level row 2 (World BOSS) > Ability row 1 > Arc row 2**.
 3. Chaining is fully automatic: keep using Continue Challenge while the current dungeon's output does not yet cover the gap; switch to the next dungeon once the gap is filled.
 4. After each claim the log prints a loot summary: how much of each material dropped, how much you have, and how much is still needed.
+   **All tiers of a row are counted in lowest-tier units** (3 low combine into 1 high, and 1 high can be
+   dismantled back into 3 low, so tiers are just forms of the same material): `48/8 · 32/40 · 16/13` folds
+   into 288 / 245 units and is already enough, so no further runs; conversely `0/15 · 60/0` is also enough
+   because the spare high tier can be dismantled to cover the low gap. The log prints both the raw readings
+   and the folded `owned/required` so the numbers reconcile.
 5. Move to the next row when one is full; stop when stamina cannot cover one more run.
 6. **Console has the lowest farming priority, but no run limit**: once every other row is stuck (materials
    complete, or weekly runs used up while still short), Console is what turns the remaining stamina into
-   materials instead of letting it overflow. It picks the dungeon with the biggest gap on the Console page
-   (Clockwork Trick / Sculpture Hall / Loom of Latitudes / Guard Radish) and keeps going until stamina runs out.
-   If the Console page cannot be read, it deliberately does nothing — farming the wrong dungeon just burns 40 stamina.
+   materials instead of letting it overflow. Which dungeon it runs is decided by the **recommended set**:
+   the Console page only shows set names (e.g. "Speedy Hedgehog" x4), which are looked up in a
+   set → Rabbit Hole node table (Clockwork Trick / Sculpture Hall / Loom of Latitudes / Guard Radish /
+   Mental Atlas / Night of the Track); the run then uses the stock F1 dungeon-select flow. If the set name
+   cannot be read or is not listed, it deliberately does nothing — farming the wrong dungeon just burns 40 stamina.
+   Console runs are **logged but not booked** (the drops are nearly all the same gold disc, so icons cannot tell
+   nodes apart); confirmation only checks that the settlement confirm button appears. Nodes 5/6 (Mental Atlas /
+   Night of the Track) need hunter level to unlock; if locked the entry simply fails and **no stamina is spent**.
 
 ### Material row to dungeon map
 
@@ -25,6 +35,7 @@ At start it opens the character's Cultivation Guide and reads all four target ro
 | Level row 2 | Anomaly Hunts (World BOSS) | 60 | Wild BOSS, walk up before fighting |
 | Ability row 1 | Anomaly Zone dungeon | 40 | Double reward and chaining supported |
 | Arc row 2 | Arc dungeon (Bubble Can) | 40 | Row 1 is generic upgrade material, not a dungeon drop |
+| Console (lowest priority) | Anomaly Zone · Console (Rabbit Hole) | 40 | No run limit; dungeon comes from the recommended set, refuses to run when unreadable |
 
 Other rows (common drops, EXP cards, Level row 1, etc.) are out of scope.
 
@@ -66,6 +77,8 @@ Chaining is automatic with no option: estimated from the previous round's output
 - Row numbers are read by OCR; an occasional slash misread as `1` (e.g. `47/60` → `47160`) is repaired at parse time, with tiered retries as fallback.
 - Material icons and reward-card loot use local templates; no game memory is read and no game files are modified.
 - Loot from each claim list is accumulated locally (ledger mode); when loot is unreadable the guide is re-checked once instead of guessing.
+  Console is the exception: it has no run limit and any material is useful, so its loot is **logged only, never booked** —
+  whether a run counted is decided solely by the settlement screen appearing.
 - Each run writes a JSONL evidence chain to `logs/cultivation_goal.jsonl`; view it with `python -m src.tasks.cultivation_goal.report`.
 
 ## Notes / troubleshooting

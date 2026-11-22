@@ -22,6 +22,13 @@ class CultivationPositions:
     material_button_x: float = 0.890
     ratio_row_y: dict[str, tuple[float, float, float]] | None = None
     material_row_y: dict[str, tuple[float, float, float]] | None = None
+    # 养成指南「空幕」页没有异能页那种四行比例，只有「当前套装 / 推荐套装」两块，
+    # 判定依据是套装名（→ 兔子洞关卡），所以只留这两行名称的位置。
+    # 两值来自 11-22 实拍 1920x1110（客户区 1080）行投影，文字中心 y=295/666。
+    console_set_y: tuple[float, float] = (0.281, 0.617)
+    # 半高 0.030：一行小字上下各留 32px，再高就会框到下方格子上的数量角标。
+    console_set_half_height: float = 0.030
+    console_set_x: tuple[float, float] = (0.32, 0.60)
     # box 半高约 ±26px，小于行间距，不会串到相邻行。
     ratio_half_height: float = 0.024
     # 图标中心比数字行高约 23px，按卡片中心裁才不会切掉顶部。
@@ -57,9 +64,6 @@ class CultivationPositions:
                     "等级": (0.579, 0.719, 0.860),
                     "弧盘": (0.602, 0.743, 0.883),
                     "异能": (0.579, 0.719, 0.860),
-                    # 空幕页先按异能页布局（三行、行距 0.14）；首跑会截 cg_console_guide，
-                    # 实拍有偏差就按图改这三行，别猜。
-                    "空幕": (0.579, 0.719, 0.860),
                 },
             )
         if self.material_row_y is None:
@@ -87,9 +91,7 @@ HUNTER_BOSS_NAMES = (
     "斑蝶",
 )
 
-# 空幕四个副本；养成指南「空幕」tab 自上而下的行号 ≈ 异象界域的空幕序号。
-# 顺序来自 material_info.json 的 curtain_r1..r4，实跑会用结算页副本名反查是否对得上。
-CONSOLE_DUNGEONS = ("钟表把戏", "雕塑展馆", "纬线织机", "守卫萝卜")
+# 空幕四个副本的顺序与异象界域「空幕序号」一致，常量放在 core.CONSOLE_DUNGEONS。
 
 # 刷取优先级：周本 > 等级 > 异能 > 弧盘；decide() 按序取第一条未达标行。
 TARGET_ROWS = (

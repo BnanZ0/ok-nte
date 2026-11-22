@@ -13,6 +13,7 @@ from types import SimpleNamespace
 
 from src.tasks.cultivation_goal.core import MaterialRow, Ratio, parse_ratios
 from src.tasks.cultivation_goal.flow import (
+    CG_BURST_CONFIRM_RANGE,
     CG_CONSOLE_STAMINA_OPEN,
     CG_FINAL_CONFIRM_RANGE,
     CultivationGoalMixin,
@@ -26,6 +27,9 @@ DEFAULT_TEXTS = {
     "等级-第2行": "0/76",
     "异能-第1行": "0/9",
     "弧盘-第2行": "0/10 0/15",
+    # 空幕页只给套装名, 关卡靠套装名反查; 默认「失落光芒」= 钟表把戏 = 序号 1。
+    "套装-推荐": "推荐套装 「失落光芒」x4",
+    "套装-当前": "当前套装 「失落光芒」x4",
 }
 
 
@@ -379,11 +383,13 @@ class FakeTask(CultivationGoalMixin):
         else:
             current = self._script(self.texts, self.round_index)
             parts = name.split("_")
-            label = (
-                f"{parts[1]}-第{int(parts[2]) + 1}行"
-                if len(parts) == 3 and parts[2].isdigit()
-                else name
-            )
+            if name.startswith("cg_console_set_"):
+                # 空幕页只有「当前套装 / 推荐套装」两行文字, 0 = 当前, 1 = 推荐。
+                label = "套装-当前" if name.endswith("_0") else "套装-推荐"
+            elif len(parts) == 3 and parts[2].isdigit():
+                label = f"{parts[1]}-第{int(parts[2]) + 1}行"
+            else:
+                label = name
             text = current.get(label, "") if isinstance(current, dict) else ""
         return [FakeBox(text)] if text else []
 
@@ -527,7 +533,9 @@ class FlowSimulationTests(unittest.TestCase):
             [a["label"] for a in actions],
             ["异能-第1行", "弧盘-第2行", "弧盘-第2行"],
         )
-        self.assertEqual([r["stamina"] for r in rounds[:4]], [300, 220, 140, 60])
+        # 第 4 轮缺口 19 件最低档, 单份产出 36 件 → 一份就够, 走单倍(140→100)。
+        # 旧口径把「件数」和「份」混着比, 这里会多打一份双倍, 白花 40 体力。
+        self.assertEqual([r["stamina"] for r in rounds[:4]], [300, 220, 140, 100])
         self.assertTrue(any("账本模式" in msg for _, msg in task.logs))
 
     def test_ledger_mode_falls_back_to_page_when_loot_unreadable(self):
@@ -656,7 +664,7 @@ class FlowSimulationTests(unittest.TestCase):
         self.assertTrue(labels)
         self.assertEqual(labels[0], "弧盘-第2行")
         self.assertNotIn("异能-第1行", labels)
-        self.assertTrue(any("合后" in msg for _, msg in task.logs))
+        self.assertTrue(any("折最低级" in msg for _, msg in task.logs))
 
     def test_burst_stops_immediately_on_failed_claim(self):
         row = MaterialRow("异能", 0, 40, "domain", parse_ratios("0/9"))
@@ -695,7 +703,8 @@ class FlowSimulationTests(unittest.TestCase):
                 "弧盘-第2行": "3/0 33/17",
                 "异能-第1行": "10/9",
                 "异能-第2行": "3/2",
-                "空幕-第2行": "0/6",
+                # 推荐套装「恶魔之血：诅咒」属于雕塑展馆 = 序号 2。
+                "套装-推荐": "推荐套装 「恶魔之血：诅咒」x4",
             },
         )
         self.assertTrue(task.run_cultivation_goal())
@@ -1256,29 +1265,35 @@ class FlowSimulationTests(unittest.TestCase):
         "弧盘-第2行": "3/0 33/17",
         "异能-第1行": "10/9",
         "异能-第2行": "3/2",
-        "空幕-第2行": "0/6",
+        "套装-推荐": "推荐套装 「失落光芒」x4",
     }
 
-    def test_console_picks_the_row_with_the_biggest_gap(self):
-        """空幕不能盲刷 1 号: 按「空幕」页缺口挑行, 行号+1 就是异象界域的序号。"""
+    def test_console_index_follows_recommended_set(self):
+        """空幕页只有套装名: 「缇娅的夜间酒馆」→ 守卫萝卜 = 序号 4, 不能盲刷 1 号。"""
         task = self.make(
             weekly_text="0/3",
-            texts={**self.CONSOLE_TEXTS, "空幕-第1行": "9/9", "空幕-第3行": "4/9"},
+            texts={**self.CONSOLE_TEXTS, "套装-推荐": "推荐套装 「缇娅的夜间酒馆」x4"},
         )
         task.run_cultivation_goal()
 
-        self.assertEqual(task.console_entries[0][0], 1)
-        self.assertTrue(any("选序号 2" in m for _, m in task.logs), task.logs)
+        self.assertEqual(task.console_entries[0][0], 3)
+        self.assertTrue(any("守卫萝卜 (序号 4)" in m for _, m in task.logs), task.logs)
 
-    def test_console_refuses_when_rows_unreadable(self):
-        """空幕行读不出就别刷 —— 刷错副本等于白花 40 体力。"""
-        texts = {key: value for key, value in self.CONSOLE_TEXTS.items() if not key.startswith("空幕")}
-        task = self.make(weekly_text="0/3", texts=texts)
+    def test_console_refuses_when_set_unlisted(self):
+        """套装没收录就别刷 —— 刷错副本等于白花 40 体力。"""
+        task = self.make(
+            weekly_text="0/3",
+            texts={
+                key: value
+                for key, value in {**self.CONSOLE_TEXTS, "套装-推荐": "「虚构套装甲」x4"}.items()
+                if key != "套装-当前"
+            },
+        )
         task.run_cultivation_goal()
 
         self.assertEqual(task.console_runs, 0)
         self.assertEqual(getattr(task, "console_entries", []), [])
-        self.assertTrue(any("刷错副本" in m for _, m in task.logs), task.logs)
+        self.assertTrue(any("未收录" in m for _, m in task.logs), task.logs)
 
     def test_console_loops_each_run_and_spends_real_stamina(self):
         """120 体力 = 1 双倍 + 1 单倍 = 2 局; 扣账要按真实消耗 120, 不是 局数×40。"""
@@ -1361,6 +1376,128 @@ class FlowSimulationTests(unittest.TestCase):
         self.assertEqual(task._cg_run_console(0), 0)
         self.assertEqual(task.console_runs, 0)
         self.assertEqual(task.config[task.CONF_TASK_TYPE], "异象界域")
+
+    def test_console_allows_late_node_without_templates(self):
+        """第 5/6 节点照刷: 空幕不记收获, 奖励卡认不出无所谓, 未解锁只会入场失败(不扣体力)。"""
+        task = self.make(
+            weekly_text="0/3",
+            texts={**self.CONSOLE_TEXTS, "套装-推荐": "推荐套装 「音速蓝刺猬」x4"},
+        )
+        task.run_cultivation_goal()
+
+        entries = getattr(task, "console_entries", [])
+        self.assertEqual(entries[:1], [(4, False)])  # 0 基 → 序号 5
+        self.assertGreater(task.console_runs, 0)
+        self.assertTrue(any("后段节点" in m for _, m in task.logs), task.logs)
+
+    def test_console_logs_loot_without_false_alarm(self):
+        """奖励卡名是「钟表把戏 金」这种带档位的写法, 序号对得上就不该报映射错误。"""
+
+        class LootConsole(FakeTask):
+            def do_combat_and_claim(self, flag):
+                ok = super().do_combat_and_claim(flag)
+                self._cg_reward_loot = [
+                    {"key": "curtain_r1_s2", "count": 2, "dungeon": "钟表把戏 金", "inliers": 0}
+                ]
+                return ok
+
+        task = LootConsole(weekly_text="0/3", report=self.report, texts=self.CONSOLE_TEXTS)
+        task._cg_run_console(40)
+
+        records = [r for r in read_records(self.report_path) if r["event"] == "console_loot"]
+        self.assertEqual(len(records), 1)
+        self.assertEqual(records[0]["console_id"], 1)
+        self.assertFalse(any("与预期" in m for _, m in task.logs), task.logs)
+
+    def test_console_logs_mismatched_loot_as_reference_only(self):
+        """金圆盘模板相近, 产出对不上只记参考信息, 不当告警也不当选错本的证据。"""
+
+        class WrongLoot(FakeTask):
+            def do_combat_and_claim(self, flag):
+                ok = super().do_combat_and_claim(flag)
+                self._cg_reward_loot = [
+                    {"key": "curtain_r2_s2", "count": 2, "dungeon": "雕塑展馆 金", "inliers": 0}
+                ]
+                return ok
+
+        task = WrongLoot(weekly_text="0/3", report=self.report, texts=self.CONSOLE_TEXTS)
+        task._cg_run_console(40)
+
+        self.assertTrue(any("仅供参考" in m for _, m in task.logs), task.logs)
+
+    def test_console_stops_when_continue_button_is_gone(self):
+        """点不到「继续挑战」说明连打到头, 不能再硬打下一局空转。"""
+
+        class NoContinue(FakeTask):
+            def wait_click_confirm(self, pre_action=None, range=None, on_found=None, **kwargs):
+                if range == CG_BURST_CONFIRM_RANGE:
+                    return False
+                return True
+
+        task = NoContinue(weekly_text="0/3", report=self.report, texts=self.CONSOLE_TEXTS)
+        task._cg_run_console(240)
+
+        self.assertEqual(len(task.claims), 1)
+        self.assertTrue(any("无继续挑战按钮" in m for _, m in task.logs), task.logs)
+
+    def test_console_resets_spent_on_early_return(self):
+        """提前返回不能留着上次的消耗 —— 决策侧会拿这个值扣账本, 留着就重复扣。"""
+        task = self.make(weekly_text="0/3", report=self.report, texts=self.CONSOLE_TEXTS)
+
+        self.assertEqual(task._cg_run_console(40), 1)
+        self.assertEqual(task._cg_console_spent, 40)
+
+        self.assertEqual(task._cg_run_console(20), 0)
+        self.assertEqual(task._cg_console_spent, 0)
+
+    def test_console_does_not_exit_when_entry_fails(self):
+        """入场就没成功时不能调 exit_anomaly —— 它会在主界面上反复按 ESC 找「已离开副本」。"""
+
+        class EntryFail(FakeTask):
+            exits = 0
+
+            def enter_anomaly(self, idx, retry=False):
+                super().enter_anomaly(idx, retry)
+                return False
+
+            def exit_anomaly(self):
+                self.exits += 1
+
+        task = EntryFail(weekly_text="0/3", report=self.report, texts=self.CONSOLE_TEXTS)
+
+        self.assertEqual(task._cg_run_console(80), 0)
+        self.assertEqual(task.exits, 0)
+
+    def test_console_warns_when_no_runs_computed(self):
+        """上游没算出局数时不能静默返回 0, 否则日志上看不出这轮发生过什么。"""
+
+        class ZeroRuns(FakeTask):
+            def enter_anomaly(self, idx, retry=False):
+                super().enter_anomaly(idx, retry)
+                self.info["双倍次数"] = 0
+                self.info["单倍次数"] = 0
+                return True
+
+        task = ZeroRuns(weekly_text="0/3", report=self.report, texts=self.CONSOLE_TEXTS)
+
+        self.assertEqual(task._cg_run_console(80), 0)
+        self.assertTrue(any("没算出局数" in m for _, m in task.logs), task.logs)
+
+    def test_console_run_not_counted_when_settlement_never_appears(self):
+        """领奖点完却停在领取界面(11-22 15:35 实测形态): 这局不算到账, 撤掉重进也只重试一次。"""
+
+        class Unsettled(FakeTask):
+            def _cg_reward_settled(self, time_out=6):
+                return False
+
+        task = Unsettled(weekly_text="0/3", report=self.report, texts=self.CONSOLE_TEXTS)
+        runs = task._cg_run_console(120)
+
+        self.assertEqual(runs, 0)
+        self.assertEqual(task.claims, [True, True])
+        self.assertEqual(task._cg_console_spent, 0)
+        self.assertIn("cg_claim_unsettled", task.captures)
+        self.assertTrue(any("未见结算界面" in m for _, m in task.logs), task.logs)
 
     def test_weekly_skipped_unless_option_enabled(self):
         """周本材料已满时默认不为次数白跑, 体力全留给缺料的行。"""
@@ -1483,7 +1620,8 @@ class MaterialGainFlowTests(unittest.TestCase):
         ]
         self.make(stamina=[300, 0], texts=texts).run_cultivation_goal()
         rounds = [r for r in read_records(self.report_path) if r["event"] == "round"]
-        self.assertEqual(rounds[1]["gains"]["弧盘-第2行"], 10)
+        # 增量也折最低档: 4 绿 + 6 蓝 = 4 + 18 = 22 件。
+        self.assertEqual(rounds[1]["gains"]["弧盘-第2行"], 22)
 
     def test_two_empty_rounds_drop_the_row(self):
         """连打两局一点没涨, 说明这副本不产这个材料, 不能继续烧体力。"""
