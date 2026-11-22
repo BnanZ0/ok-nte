@@ -130,10 +130,19 @@ class _DailyTaskSchema:
     config_type: dict
 
 
-class _RoutineResult(StrEnum):
+class _RoutineStatus(StrEnum):
+    PENDING = "pending"
+    RUNNING = "running"
     SUCCESS = "success"
     FAILED = "failed"
     SKIPPED = "skipped"
+
+
+@dataclass
+class _SingleTaskRequest:
+    task_id: str
+    started: bool = False
+    cancelled: bool = False
 
 
 class _DailyTaskConfig(Config):
@@ -165,8 +174,8 @@ class DailyRoutineTask(NTEOneTimeTask, BaseNTETask):
         self.support_schedule_task = True
         self.show_in_task_tab = False
         self.visible = False
-        self.task_status = {"success": [], "failed": [], "skipped": [], "pending": []}
-        self.current_task_key = None
+        self.task_status: dict[str, _RoutineStatus] = {}
+        self.single_task_request: _SingleTaskRequest | None = None
         self._active_routine_task = None
         self.routine_task_configs = None
         self.default_config[self.CONF_ITEMS] = self.default_items()
@@ -198,6 +207,36 @@ class DailyRoutineTask(NTEOneTimeTask, BaseNTETask):
     @staticmethod
     def entries_by_id():
         return {entry.task_id: entry for entry in DAILY_ROUTINE_ENTRIES}
+
+    @property
+    def current_task_key(self):
+        return next(
+            (key for key, status in self.task_status.items() if status == _RoutineStatus.RUNNING),
+            None,
+        )
+
+    @property
+    def has_pending_items(self):
+        return _RoutineStatus.PENDING in self.task_status.values()
+
+    def queue_batch_status(self):
+        task_ids = [item["id"] for item in self.normalize_items() if item["enabled"]]
+        self.task_status = dict.fromkeys(task_ids, _RoutineStatus.PENDING)
+        return task_ids
+
+    def request_single_task(self, task_id):
+        request = _SingleTaskRequest(task_id)
+        self.single_task_request = request
+        self.task_status = {task_id: _RoutineStatus.PENDING}
+        return request
+
+    def clear_unfinished_statuses(self):
+        if self.has_pending_items or self.current_task_key is not None:
+            self.task_status = {
+                key: status
+                for key, status in self.task_status.items()
+                if status not in (_RoutineStatus.PENDING, _RoutineStatus.RUNNING)
+            }
 
     def on_create(self):
         self.routine_task_configs = Config(
@@ -368,95 +407,107 @@ class DailyRoutineTask(NTEOneTimeTask, BaseNTETask):
             task.config_type = original_type
 
     def run(self):
-        super().run()
+        request, self.single_task_request = self.single_task_request, None
+        try:
+            if request is not None:
+                if request.cancelled:
+                    raise TaskDisabledException()
+                task_id = request.task_id
+                task = self.task_for_id(task_id)
+                if task is None or task.enabled or task.running:
+                    self.task_status[task_id] = _RoutineStatus.SKIPPED
+                else:
+                    self._run_routine_task(task_id, task, single_request=request)
+                return
+            super().run()
+            self._run_batch()
+        finally:
+            self.clear_unfinished_statuses()
+
+    def _run_batch(self):
         try:
             self.do_run()
         except TaskDisabledException:
             raise
         except Exception as error:
             self.screenshot("daily_routine_unexpected_exception")
-            if self.current_task_key:
-                self.info_set("当前失败任务", self.current_task_key)
             self._print_result(interrupted=True)
             self.log_error("DailyRoutineTask error", error)
             raise
 
     def do_run(self) -> bool:
         self.scene.set_logged_in(False)
-        items = self.normalize_items()
-        selected = [item for item in items if item["enabled"]]
-        if not selected:
-            self.log_info("日常任务没有已选任务，跳过执行")
-            return True
-        tasks = [self.task_for_id(item["id"]) for item in selected]
-        if routine_has_active_tasks([task for task in tasks if task is not None]):
-            self.log_warning("日常任务中的任务已在运行或排队，跳过重复入队")
-            return False
-        self._reset_task_status(items)
-        self.current_task_key = None
-        self.log_info("开始执行日常任务")
-        for item in items:
-            self._execute_routine_item(item)
-        self.ensure_main(check_exit=True)
-        self._print_result()
-        self.log_info("结束执行日常任务")
-        return not self.task_status["failed"]
-
-    def _execute_routine_item(self, item):
-        task_id = item["id"]
-        task = None
-        result = _RoutineResult.SKIPPED
+        task_ids = self.queue_batch_status()
         try:
-            if item["enabled"]:
-                task = self.task_for_id(task_id)
-                if task is None:
-                    self.log_info(f"任务不支持当前语言, 跳过: {task_id}")
-                else:
-                    self.current_task_key = task_id
-                    result = self._run_routine_task(task_id, task)
+            if not task_ids:
+                self.log_info("日常任务没有已选任务，跳过执行")
+                return True
+            tasks = {task_id: self.task_for_id(task_id) for task_id in task_ids}
+            if routine_has_active_tasks(task for task in tasks.values() if task is not None):
+                self.log_warning("日常任务中的任务已在运行或排队，跳过重复入队")
+                return False
+            self.log_info("开始执行日常任务")
+            for task_id, task in tasks.items():
+                self._execute_routine_item(task_id, task)
+            self.ensure_main(check_exit=True)
+            self._print_result()
+            self.log_info("结束执行日常任务")
+            return _RoutineStatus.FAILED not in self.task_status.values()
+        finally:
+            self.clear_unfinished_statuses()
+
+    def _execute_routine_item(self, task_id, task):
+        if task is None:
+            self.task_status[task_id] = _RoutineStatus.SKIPPED
+            self.log_info(f"任务不支持当前语言, 跳过: {task_id}")
+            return
+        try:
+            self._run_routine_task(task_id, task)
         except TaskDisabledException:
             raise
         except Exception as error:
-            name = task.name if task is not None else task_id
-            self.log_error(f"任务运行失败: {name}", error)
-            result = _RoutineResult.FAILED
-        finally:
-            self.current_task_key = None
-
-        self.task_status["pending"].remove(task_id)
-        self.task_status[result].append(task_id)
-        if result == _RoutineResult.FAILED:
+            self.log_error(f"任务运行失败: {task.name}", error)
+        result = self.task_status[task_id]
+        if result == _RoutineStatus.FAILED:
             self.screenshot(f"daily_routine_fail_{task_id}")
-        if task is not None and result != _RoutineResult.SKIPPED:
-            message = "任务完成" if result == _RoutineResult.SUCCESS else "任务失败"
+        if result != _RoutineStatus.SKIPPED:
+            message = "任务完成" if result == _RoutineStatus.SUCCESS else "任务失败"
             self.log_info(f"{message}: {task.name}")
 
-    def _run_routine_task(self, task_id, task) -> _RoutineResult:
-        """Map True, False and None task outcomes to success, failure and skipping."""
-        self.info_set("当前任务", task.name)
-        self.log_info(f"开始任务: {task.name}")
-        self.ensure_main(check_exit=True)
-        with self._active_task_context(task_id, task):
-            result = task.do_run()
-            if hasattr(task, "on_daily_end"):
-                task.on_daily_end(result)
+    def _run_routine_task(self, task_id, task, *, single_request: _SingleTaskRequest | None = None):
+        self.task_status[task_id] = _RoutineStatus.RUNNING
+        try:
+            task.info_clear()
+            self.info_set("当前任务", task.name)
+            if single_request is None:
+                self.log_info(f"开始任务: {task.name}")
+            else:
+                single_request.started = True
+                super().run()
+            self.ensure_main(check_exit=True)
+            with self._active_task_context(task_id, task):
+                result = task.do_run()
+                if single_request is None and hasattr(task, "on_daily_end"):
+                    task.on_daily_end(result)
+        except TaskDisabledException:
+            raise
+        except Exception as error:
+            self.task_status[task_id] = _RoutineStatus.FAILED
+            task.info_set("Error", str(error))
+            raise
         if result is None:
-            return _RoutineResult.SKIPPED
-        return _RoutineResult.SUCCESS if result else _RoutineResult.FAILED
-
-    def _reset_task_status(self, items):
-        self.task_status = {
-            "success": [],
-            "failed": [],
-            "skipped": [],
-            "pending": [item["id"] for item in items],
-        }
+            self.task_status[task_id] = _RoutineStatus.SKIPPED
+        else:
+            self.task_status[task_id] = _RoutineStatus.SUCCESS if result else _RoutineStatus.FAILED
 
     def _print_result(self, interrupted=False):
         results = {
-            status: [self._task_display_name(task_id) for task_id in task_ids]
-            for status, task_ids in self.task_status.items()
-            if status in ("success", "failed", "skipped")
+            status: [
+                self._task_display_name(task_id)
+                for task_id, item_status in self.task_status.items()
+                if item_status == status
+            ]
+            for status in ("success", "failed", "skipped")
         }
         self.info_set("success", f"{results['success']}")
         self.info_set("failed", f"{results['failed']}")

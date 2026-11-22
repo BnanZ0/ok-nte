@@ -1,8 +1,9 @@
+from ok import og
 from ok.ui.qt.Communicate import communicate
 from ok.ui.qt.kit import Button, Card, Label, Pill, SettingRow, Table, icon
 from ok.ui.qt.kit.theme import rgba, set_style_property, theme
 from ok.ui.qt.tasks.config_form import ConfigForm
-from ok.ui.qt.tasks.tasks_page import start_task, stop_task
+from ok.ui.qt.tasks.tasks_page import start_pending, start_task, stop_task
 from ok.ui.qt.widget.CustomTab import CustomTab
 from ok.ui.qt.widget.UpdateConfigWidgetItem import value_to_string
 from PySide6.QtCore import (
@@ -38,6 +39,10 @@ from src.tasks.daily.DailyRoutineTask import DailyRoutineTask, selection_is_comp
 from src.ui.foundation.widgets.page_tabs import PageTabStrip
 from src.ui.foundation.widgets.separator import Separator
 from src.ui.foundation.widgets.task_actions import add_task_actions
+
+
+def _task_is_active(task):
+    return task is not None and (task.enabled or task.running or start_pending(task))
 
 
 class _DragHandle(QWidget):
@@ -204,7 +209,7 @@ class _RoutineRow(QFrame):
 
 
 class DailyRoutineTab(CustomTab):
-    """Daily selection and settings, with controls for the parent routine only."""
+    """Daily selection, settings and run controls."""
 
     ACTION_BAR_HEIGHT = 72
     icon = "calendar"
@@ -225,10 +230,8 @@ class DailyRoutineTab(CustomTab):
         self._swaps = QParallelAnimationGroup(self)
         self._swaps.finished.connect(self._swap_targets.clear)
         self._was_active = False
+        self._single_run = None
         self._info_closed = False
-        self._last_statuses = None
-        self._previous_run_statuses = None
-        self._row_status_text = {}
         self._disposed = False
         self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.vBoxLayout.setContentsMargins(20, 18, 20, 0)
@@ -267,11 +270,19 @@ class DailyRoutineTab(CustomTab):
         detail_layout.setSpacing(14)
         self.detail_title = Label("", "title")
         self.detail_title.setWordWrap(True)
-        header = QVBoxLayout()
-        header.setSpacing(6)
-        header.addWidget(self.detail_title)
+        header_text = QVBoxLayout()
+        header_text.setSpacing(6)
+        header_text.addWidget(self.detail_title)
         self.detail_description = Label("", "secondary", word_wrap=True)
-        header.addWidget(self.detail_description)
+        header_text.addWidget(self.detail_description)
+        self.run_button = Button(
+            QCoreApplication.translate("TasksPage", "Run task"), icon="play", variant="secondary"
+        )
+        self.run_button.clicked.connect(self._start_item)
+        header = QHBoxLayout()
+        header.setSpacing(16)
+        header.addLayout(header_text, 1)
+        header.addWidget(self.run_button, 0, Qt.AlignmentFlag.AlignVCenter)
         detail_layout.addLayout(header)
 
         self.tabs = PageTabStrip()
@@ -379,9 +390,8 @@ class DailyRoutineTab(CustomTab):
         if task is not self.task:
             self.task = task
             self._was_active = False
+            self._single_run = None
             self._info_closed = False
-            self._last_statuses = self._previous_run_statuses = None
-            self._row_status_text.clear()
             with QSignalBlocker(self.tabs):
                 self.tabs.set_current("settings")
         for row in self.rows.values():
@@ -475,8 +485,9 @@ class DailyRoutineTab(CustomTab):
                 else selected_id == task.current_task_key
             )
         )
-        with QSignalBlocker(self.tabs):
-            self.tabs.set_current("info" if show_info else "settings")
+        if show_info:
+            with QSignalBlocker(self.tabs):
+                self.tabs.set_current("info")
         self._show_detail()
 
     def _update_selection(self):
@@ -516,22 +527,25 @@ class DailyRoutineTab(CustomTab):
         if task_id is None or routine is None:
             self.detail_title.setText(self.tr_name)
             selected = routine
-            info = dict(selected.info) if selected is not None else {}
-            has_info = bool(
-                selected is not None and (selected.enabled or info) and not self._info_closed
+        else:
+            self.detail_title.setText(self.rows[task_id].name_label.text())
+            selected = routine.task_for_id(task_id)
+        info = dict(selected.info) if selected is not None else {}
+        if routine_selected:
+            has_info = (
+                selected is not None and (selected.enabled or bool(info)) and not self._info_closed
             )
         else:
-            name = self.rows[task_id].name_label.text()
-            self.detail_title.setText(name)
-            selected = routine.task_for_id(task_id)
-            # The same child object can run standalone. Its info is not scoped
-            # to daily execution, but its status on the parent routine is.
-            status = self._row_status_text.get(task_id)
-            info = {name: status} if status else {}
-            has_info = bool(info)
+            single_run = self._single_run
+            is_single_target = single_run is not None and single_run.task_id == task_id
+            if is_single_target and not single_run.started:
+                info = {}
+            has_info = bool(info) or is_single_target or task_id == routine.current_task_key
         description = getattr(selected, "description", "")
         self.detail_description.setText(self.tr(description) if description else "")
         self.detail_description.setVisible(bool(description))
+        self.run_button.setVisible(not routine_selected and selected is not None)
+        self.run_button.setEnabled(not routine_selected and self._can_start_item(selected))
         self._show_detail_page(routine_selected, info, has_info)
 
     def _show_detail_page(self, routine_selected, info, has_info):
@@ -698,13 +712,57 @@ class DailyRoutineTab(CustomTab):
         self.finish_drag(commit=False)
         self._settle_swaps()
 
-    def _start(self):
-        if self.task is not None:
-            start_task(self.task, self)
+    def _has_pending_run(self):
+        return self._single_run is not None or (
+            self.task is not None and self.task.has_pending_items
+        )
+
+    def _routine_is_active(self):
+        # The controller drops pending entries just before it enables the tasks.
+        if self._has_pending_run():
+            controller = getattr(getattr(og, "app", None), "start_controller", None)
+            if getattr(controller, "starting", False) is True:
+                return True
+        return _task_is_active(self.task)
+
+    def _can_start_item(self, child):
+        return child is not None and not self._routine_is_active() and not _task_is_active(child)
+
+    def _start_item(self):
+        task_id = self.selected_task_id
+        if task_id is None or self.task is None:
+            return
+        child = self.task.task_for_id(task_id)
+        if not self._can_start_item(child):
+            return
+        self._start(task_id=task_id)
+        if self._single_run is not None and self.selected_task_id == task_id:
+            self.tabs.set_current("info")
+
+    def _start(self, *, task_id=None):
+        task = self.task
+        if task is None:
+            return
+        if not self._routine_is_active():
+            self._clear_single_run()
+            if task_id is not None:
+                self._single_run = task.request_single_task(task_id)
+        elif task_id is not None or not (task.enabled and task.paused):
+            return
+        try:
+            start_task(task, self)
+        finally:
             self._refresh_state()
+
+    def _clear_single_run(self):
+        if self._single_run is not None and self.task.single_task_request is self._single_run:
+            self.task.single_task_request = None
+        self._single_run = None
 
     def _stop(self):
         if self.task is not None:
+            if self._single_run is not None:
+                self._single_run.cancelled = True
             stop_task(self.task)
             self._refresh_state()
 
@@ -715,29 +773,39 @@ class DailyRoutineTab(CustomTab):
 
     def _refresh_state(self):
         task = self.task
-        if task is None:
-            active = running = paused = False
-        else:
-            active = task.enabled
-            running = active and task.running
-            paused = active and task.paused
-        if active and not self._was_active:
+        active = self._routine_is_active()
+        enabled = task is not None and task.enabled
+        if not active:
+            self._clear_single_run()
+            if task is not None:
+                task.clear_unfinished_statuses()
+        elif (
+            task is not None
+            and self._single_run is None
+            and not self._was_active
+            and not task.running
+            and not task.has_pending_items
+        ):
+            task.queue_batch_status()
+        if enabled and not self._was_active:
             self._info_closed = False
-            self._previous_run_statuses = self._last_statuses
-            self.selected_task_id = None
-            self._update_selection()
-            with QSignalBlocker(self.tabs):
-                self.tabs.set_current("info")
-        elif not active and self._was_active:
+            if self._single_run is None:
+                self.selected_task_id = None
+                self._update_selection()
+                with QSignalBlocker(self.tabs):
+                    self.tabs.set_current("info")
+        elif not enabled and self._was_active:
             self._bind_task_form()
             if self.routine_form is not None:
                 self.routine_form.update_config()
-        self._was_active = active
-        self._refresh_controls(task, active, running, paused)
+        self._was_active = enabled
+        self._refresh_controls(task, active)
         self._refresh_row_statuses(task)
         self._show_detail()
 
-    def _refresh_controls(self, task, active, running, paused):
+    def _refresh_controls(self, task, active):
+        running = active and task.enabled and task.running
+        paused = active and task.enabled and task.paused
         items = self._visible_items()
         complete = bool(
             task is not None
@@ -767,33 +835,19 @@ class DailyRoutineTab(CustomTab):
         self.status_label.setText(state)
 
     def _refresh_row_statuses(self, task):
-        self._last_statuses = getattr(task, "task_status", None)
-        # The executor replaces this map only when it actually starts a new
-        # routine. While queued, do not display the previous run's results.
-        statuses = (
-            self._last_statuses if self._last_statuses is not self._previous_run_statuses else {}
-        )
-        statuses = statuses or {}
+        statuses = task.task_status if task is not None else {}
         labels = {
+            "pending": (self.tr("Pending"), "neutral"),
+            "running": (self.tr("Running"), "success"),
             "success": (self.tr("Succeeded"), "success"),
             "failed": (self.tr("Failed"), "danger"),
             "skipped": (self.tr("Skipped"), "neutral"),
-            "pending": (self.tr("Pending"), "neutral"),
         }
-        self._row_status_text.clear()
         for task_id, row in self.rows.items():
-            status = next((key for key in labels if task_id in statuses.get(key, ())), None)
-            if task_id == getattr(task, "current_task_key", None):
-                text, tone = self.tr("Running"), "accent"
-            elif status:
-                text, tone = labels[status]
-            else:
-                text, tone = "", "neutral"
+            text, tone = labels.get(statuses.get(task_id), ("", "neutral"))
             row.status_label.setText(text)
             row.status_label.set_tone(tone)
             row.status_label.setVisible(bool(text))
-            if text:
-                self._row_status_text[task_id] = text
 
     def _fill_info(self, info):
         self.info_table.setRowCount(len(info))
@@ -815,7 +869,7 @@ class DailyRoutineTab(CustomTab):
             self._refresh_state()
 
     def _tick(self):
-        if self.isVisible() and not self._disposed:
+        if not self._disposed and (self.isVisible() or self._has_pending_run()):
             self._refresh_state()
 
     def showEvent(self, event):

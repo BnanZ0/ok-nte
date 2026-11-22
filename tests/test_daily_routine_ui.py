@@ -1,4 +1,4 @@
-"""Exercise the daily page's config boundary and parent-only task controls."""
+"""Exercise the daily page's config boundary and task controls."""
 
 import os
 import unittest
@@ -49,8 +49,8 @@ class TestDailyRoutineUI(unittest.TestCase):
         self.routine.running = False
         self.routine.first_run_alert = None
         self.routine.info = {}
-        self.routine.current_task_key = None
-        self.routine.task_status = {key: [] for key in ("success", "failed", "skipped", "pending")}
+        self.routine.single_task_request = None
+        self.routine.task_status = {}
         self.routine.default_config = {
             DailyRoutineTask.CONF_ITEMS: self.routine.default_items(),
             "Notify": True,
@@ -63,6 +63,7 @@ class TestDailyRoutineUI(unittest.TestCase):
                 name=task_id,
                 enabled=False,
                 running=False,
+                info={},
                 config=_MemoryConfig({"Option": True, "Count": 2}),
                 default_config={"Option": True, "Count": 2},
                 config_description={},
@@ -291,28 +292,25 @@ class TestDailyRoutineUI(unittest.TestCase):
         self.assertNotIn(self.page._on_task_event, communicate.task._subscribers)
         self.assertNotIn(self.page.refresh_tasks, communicate.task_list_updated._subscribers)
 
-    def test_info_and_row_status_follow_parent_and_rebind_after_run(self):
+    def test_info_follows_selected_task_and_row_status_follows_routine(self):
         self.page.select_task("daily_claim")
-        normal = self.children["daily_claim"].config
-        self.children["daily_claim"].info = {"Old standalone result": "stale"}
+        claim = self.children["daily_claim"]
+        normal = claim.config
+        claim.info = {"Progress": "preparing"}
+        self.children["coffee"].info = {"Supplies": "available"}
         self.children["coffee"].enabled = True
         self.routine._enabled = True
         self.routine.running = True
-        self.routine.task_status = {
-            "success": [],
-            "failed": [],
-            "skipped": [],
-            "pending": ["furniture"],
-        }
-        self.routine.current_task_key = "daily_claim"
+        self.routine.task_status = {"daily_claim": "running", "furniture": "pending"}
         self.routine.info = {"Result": "working"}
         communicate.task.emit(self.routine)
         self.assertEqual(self.page.rows["daily_claim"].status_label.text(), "Running")
+        self.assertEqual(self.page.rows["daily_claim"].status_label.property("tone"), "success")
         self.assertTrue(self.page.rows["coffee"].status_label.isHidden())
         self.assertTrue(self.page.routine_row.property("selected"))
         self.page.select_task("furniture")
         self.assertIs(self.page.pages.currentWidget(), self.page.task_scroll)
-        self.assertFalse(self.page.tabs.item("info").isHidden())
+        self.assertTrue(self.page.tabs.item("info").isHidden())
         self.page.select_task("daily_claim")
         self.assertIs(self.page.pages.currentWidget(), self.page.info_table)
         self.page.tabs.item("settings").click()
@@ -321,22 +319,27 @@ class TestDailyRoutineUI(unittest.TestCase):
         self.page.tabs.item("info").click()
         self.assertIsInstance(self.page.info_table, Table)
         self.assertEqual(self.page.info_table.rowCount(), 1)
-        self.assertEqual(self.page.info_table.item(0, 0).text(), "daily_claim")
-        self.assertEqual(self.page.info_table.item(0, 1).text(), "Running")
+        self.assertEqual(self.page.info_table.item(0, 0).text(), "Progress")
+        self.assertEqual(self.page.info_table.item(0, 1).text(), "preparing")
+        claim.info["Progress"] = "claiming"
+        self.page._refresh_state()
+        self.assertEqual(self.page.info_table.item(0, 1).text(), "claiming")
+        self.page.select_task("coffee")
+        self.assertIs(self.page.pages.currentWidget(), self.page.info_table)
+        self.assertEqual(self.page.info_table.item(0, 0).text(), "Supplies")
+        self.page.select_task("daily_claim")
         self.routine.routine_task_configs["daily_claim"] = {"Option": False, "Count": 3}
         self.routine._enabled = False
         self.routine.running = False
-        self.routine.current_task_key = None
-        self.routine.task_status["success"] = ["daily_claim"]
+        self.routine.task_status = {"daily_claim": "success"}
         self.routine.info = {"Result": "completed"}
+        claim.info["Progress"] = "claimed"
         communicate.task.emit(self.routine)
-        self.assertEqual(self.page.info_table.item(0, 1).text(), "Succeeded")
+        self.assertEqual(self.page.info_table.item(0, 1).text(), "claimed")
+        self.assertEqual(self.page.rows["daily_claim"].status_label.text(), "Succeeded")
         self.assertFalse(self.page.task_form.config["Option"])
-        self.assertIs(self.children["daily_claim"].config, normal)
-        self.page.select_task("daily_claim")
-        self.assertIs(self.page.pages.currentWidget(), self.page.task_scroll)
+        self.assertIs(claim.config, normal)
         self.page.select_task(None)
-        self.page.tabs.item("info").click()
         self.assertEqual(self.page.info_table.item(0, 1).text(), "completed")
         self.page.close_info_button.click()
         self.page._refresh_state()
@@ -349,8 +352,182 @@ class TestDailyRoutineUI(unittest.TestCase):
         self.assertIs(self.page.pages.currentWidget(), self.page.info_table)
         self.assertEqual(self.page.info_table.rowCount(), 0)
         self.page.select_task("daily_claim")
-        self.assertTrue(self.page.tabs.item("info").isHidden())
-        self.assertTrue(self.page.rows["daily_claim"].status_label.isHidden())
+        self.assertEqual(self.page.info_table.item(0, 1).text(), "claimed")
+        self.assertEqual(self.page.rows["daily_claim"].status_label.text(), "Pending")
+
+    def test_batch_queue_shows_only_checked_items_and_clears_on_cancel(self):
+        def start(task):
+            pending.append(task)
+            controller.starting = True
+            communicate.task.emit(task)
+
+        def cancel(task):
+            pending.remove(task)
+            communicate.task.emit(task)
+
+        pending = []
+        controller = SimpleNamespace(
+            start=start, is_task_pending=pending.__contains__, cancel_task=cancel, starting=False
+        )
+        app = SimpleNamespace(start_controller=controller, tr=lambda text: text)
+        self.routine.disable = Mock()
+        self.routine.unpause = Mock()
+        self.routine.task_status = {"coffee": "success"}
+        with patch.object(og, "app", app):
+            self.page.start_button.click()
+
+            self.assertEqual(self.page.rows["daily_claim"].status_label.text(), "Pending")
+            self.assertEqual(self.page.rows["daily_anomaly"].status_label.text(), "Pending")
+            self.assertTrue(self.page.rows["coffee"].status_label.isHidden())
+
+            self.page.stop_button.click()
+            controller.starting = False
+            self.page._tick()
+
+            self.assertTrue(all(row.status_label.isHidden() for row in self.page.rows.values()))
+            self.assertFalse(self.page.start_button.isHidden())
+
+    def test_detail_runs_selected_unchecked_item_and_locks_while_active(self):
+        row = self.page.rows["coffee"]
+        child = self.children["coffee"]
+        child.info = {"Previous": "stale"}
+        run_button = self.page.run_button
+        self.assertTrue(run_button.isHidden())
+        self.assertEqual(run_button.variant, "secondary")
+        self.assertFalse(row.enabled_check.isChecked())
+        pending = []
+
+        def start_item(task):
+            controller.starting = True
+            pending.append(task)
+            communicate.task.emit(task)
+
+        controller = SimpleNamespace(
+            start=Mock(side_effect=start_item), is_task_pending=pending.__contains__, starting=False
+        )
+        app = SimpleNamespace(start_controller=controller, tr=lambda text: text)
+        with patch.object(og, "app", app):
+            self.routine._enabled = True
+            communicate.task.emit(self.routine)
+            self.page.select_task("coffee")
+            self.assertFalse(run_button.isHidden())
+            self.assertFalse(run_button.isEnabled())
+            run_button.click()
+            controller.start.assert_not_called()
+
+            self.routine._enabled = False
+            self.routine.task_status = {"daily_claim": "success", "furniture": "skipped"}
+            communicate.task.emit(self.routine)
+            previous_result = self.page.rows["daily_claim"].status_label
+            previous_skip = self.page.rows["furniture"].status_label
+            self.assertEqual(previous_result.text(), "Succeeded")
+            self.assertEqual(previous_skip.text(), "Skipped")
+            self.page.tabs.item("settings").click()
+            self.assertEqual(self.page.tabs.current_key(), "settings")
+            run_button.click()
+            controller.start.assert_called_once_with(self.routine)
+            request = self.routine.single_task_request
+            self.assertEqual(request.task_id, "coffee")
+            self.assertEqual(row.status_label.text(), "Pending")
+            self.assertTrue(previous_result.isHidden())
+            self.assertTrue(previous_skip.isHidden())
+            self.assertFalse(row.enabled_check.isChecked())
+            self.assertFalse(run_button.isEnabled())
+            self.assertFalse(self.page.stop_button.isHidden())
+            self.assertEqual(self.page.selected_task_id, "coffee")
+            self.assertIs(self.page.pages.currentWidget(), self.page.info_table)
+            self.assertEqual(self.page.info_table.rowCount(), 0)
+
+            pending.clear()
+            self.page._refresh_state()
+            self.assertTrue(self.page.start_button.isHidden())
+            self.assertFalse(run_button.isEnabled())
+            self.page.start_button.click()
+            controller.start.assert_called_once_with(self.routine)
+            self.assertIs(self.routine.single_task_request, request)
+
+            self.routine.single_task_request = None
+            self.routine._enabled = True
+            self.routine.running = True
+            controller.starting = False
+            communicate.task.emit(self.routine)
+            self.assertEqual(self.page.selected_task_id, "coffee")
+            self.assertTrue(row.property("selected"))
+            self.assertFalse(run_button.isHidden())
+            self.assertFalse(run_button.isEnabled())
+            self.assertIs(self.page.pages.currentWidget(), self.page.info_table)
+            self.assertEqual(self.page.info_table.rowCount(), 0)
+
+            self.routine.task_status["coffee"] = "running"
+            child.info.clear()
+            request.started = True
+            child.info["Progress"] = "collecting"
+            self.page._refresh_state()
+            self.assertEqual(self.page.info_table.item(0, 1).text(), "collecting")
+            self.assertEqual(row.status_label.text(), "Running")
+            self.assertTrue(previous_result.isHidden())
+            self.assertTrue(previous_skip.isHidden())
+
+            self.routine._enabled = False
+            self.routine.running = False
+            self.routine.task_status["coffee"] = "success"
+            communicate.task.emit(self.routine)
+            self.assertEqual(self.page.selected_task_id, "coffee")
+            self.assertTrue(run_button.isEnabled())
+            self.assertEqual(row.status_label.text(), "Succeeded")
+            self.assertTrue(previous_result.isHidden())
+            self.assertTrue(previous_skip.isHidden())
+
+            self.routine._enabled = True
+            communicate.task.emit(self.routine)
+            self.assertIsNone(self.page.selected_task_id)
+            self.assertTrue(self.page.routine_row.property("selected"))
+            self.assertEqual(previous_result.text(), "Pending")
+            self.assertTrue(row.status_label.isHidden())
+
+    def test_detail_run_is_disabled_while_selected_child_is_active_elsewhere(self):
+        child = self.children["coffee"]
+        pending = []
+        controller = SimpleNamespace(start=Mock(), is_task_pending=pending.__contains__)
+        app = SimpleNamespace(start_controller=controller, tr=lambda text: text)
+        with patch.object(og, "app", app):
+            self.page.select_task("coffee")
+            self.assertTrue(self.page.run_button.isEnabled())
+            for enabled, running, launching in (
+                (True, False, False),
+                (False, True, False),
+                (False, False, True),
+            ):
+                with self.subTest(enabled=enabled, running=running, launching=launching):
+                    child.enabled, child.running = enabled, running
+                    pending[:] = [child] if launching else []
+                    self.page._refresh_state()
+                    self.assertFalse(self.page.run_button.isEnabled())
+                    self.page.run_button.click()
+                    controller.start.assert_not_called()
+
+            pending.clear()
+            self.page._refresh_state()
+            self.assertTrue(self.page.run_button.isEnabled())
+
+    def test_stop_cancels_single_item_even_after_controller_drops_pending_entry(self):
+        controller = SimpleNamespace(start=Mock(), starting=True)
+        app = SimpleNamespace(start_controller=controller, tr=lambda text: text)
+        self.routine.disable = Mock()
+        self.routine.unpause = Mock()
+        with patch.object(og, "app", app):
+            self.page.select_task("coffee")
+            self.page.run_button.click()
+            request = self.routine.single_task_request
+            self.page.stop_button.click()
+            self.assertTrue(request.cancelled)
+            self.assertIs(self.routine.single_task_request, request)
+
+            controller.starting = False
+            self.page._refresh_state()
+            self.assertIsNone(self.routine.single_task_request)
+            self.assertTrue(self.page.run_button.isEnabled())
+            self.assertTrue(self.page.rows["coffee"].status_label.isHidden())
 
     def test_routine_reset_restores_order_and_selection_without_resetting_daily_config(self):
         self.assertTrue(self.page.routine_row.property("selected"))

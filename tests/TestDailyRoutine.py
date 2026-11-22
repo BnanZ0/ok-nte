@@ -16,6 +16,7 @@ from src.tasks.daily.DailyRoutineTask import (
     selection_is_complete,
     start_routine_tasks,
 )
+from src.tasks.NTEOneTimeTask import NTEOneTimeTask
 
 
 class TestDailyRoutineConfig(unittest.TestCase):
@@ -139,13 +140,7 @@ class TestDailyRoutineConfig(unittest.TestCase):
     def test_daily_anomaly_cycle_is_saved_to_the_routine_config(self):
         task = object.__new__(DailyRoutineTask)
         task.routine_task_configs = {}
-        task.task_status = {
-            "success": [],
-            "failed": [],
-            "skipped": [],
-            "pending": ["daily_anomaly"],
-        }
-        task.current_task_key = None
+        task.task_status = {"daily_anomaly": "pending"}
         task._active_routine_task = None
         task.sleep_check_interval = 1
         task.info_set = Mock()
@@ -170,12 +165,11 @@ class TestDailyRoutineConfig(unittest.TestCase):
             default_config={BaseNTETask.CONF_CLAIM_REWARD_COUNT: 0},
             config_description={BaseNTETask.CONF_CLAIM_REWARD_COUNT: "normal"},
             config_type={},
+            info_clear=Mock(),
             do_run=Mock(return_value=True),
             on_daily_end=Mock(side_effect=on_daily_end),
         )
-        task.task_for_id = Mock(return_value=child)
-
-        task._execute_routine_item({"id": "daily_anomaly", "enabled": True})
+        task._execute_routine_item("daily_anomaly", child)
 
         self.assertIs(child.config, normal_config)
         self.assertIsNot(observed["config"], normal_config)
@@ -191,6 +185,7 @@ class TestDailyRoutineConfig(unittest.TestCase):
             task.routine_task_configs["daily_anomaly"][AnomalyTask.CONF_STAMINA_TARGET], 180
         )
         child.do_run.assert_called_once_with()
+        child.info_clear.assert_called_once_with()
         child.on_daily_end.assert_called_once_with(True)
 
     def test_selected_tasks_follow_persisted_order(self):
@@ -310,7 +305,6 @@ class TestDailyRoutineStart(unittest.TestCase):
         task.screenshot = Mock()
         task.info_set = Mock()
         task.ensure_main = Mock()
-        task.current_task_key = None
         task._active_routine_task = None
         task.sleep_check_interval = 1
         task.config = {}
@@ -332,9 +326,7 @@ class TestDailyRoutineStart(unittest.TestCase):
         result = task.do_run()
 
         self.assertFalse(result)
-        self.assertEqual(task.task_status["success"], ["daily_claim"])
-        self.assertEqual(task.task_status["failed"], ["coffee"])
-        self.assertEqual(task.task_status["skipped"], ["gift"])
+        self.assertEqual(task.task_status, {"daily_claim": "success", "coffee": "failed"})
         self.assertEqual(task.ensure_main.call_count, 3)
         first.do_run.assert_called_once_with()
         second.do_run.assert_called_once_with()
@@ -379,11 +371,97 @@ class TestDailyRoutineStart(unittest.TestCase):
 
         self.assertFalse(result)
         task.task_for_id.assert_called_once_with("daily_claim")
+        self.assertEqual(task.task_status, {})
 
     def test_active_task_detection(self):
         self.assertTrue(routine_has_active_tasks([SimpleNamespace(enabled=True, running=False)]))
         self.assertTrue(routine_has_active_tasks([SimpleNamespace(enabled=False, running=True)]))
         self.assertFalse(routine_has_active_tasks([SimpleNamespace(enabled=False, running=False)]))
+
+    def _single_item(self):
+        child = Mock(
+            enabled=False, running=False, config={"Option": False}, sleep_check_interval=0.2
+        )
+        child.info = {"previous result": 2}
+        child.info_clear.side_effect = child.info.clear
+        child.info_set.side_effect = child.info.__setitem__
+        task = object.__new__(DailyRoutineTask)
+        task.request_single_task("coffee")
+        task.sleep_check_interval = -1
+        task._active_routine_task = None
+        task.task_for_id = Mock(return_value=child)
+        task.daily_task_config = Mock(return_value={"Option": True})
+        task.ensure_main = Mock()
+        task.info_set = Mock()
+        task.do_run = Mock()
+        task._print_result = Mock()
+        task.log_bot_info = Mock()
+        return task, child
+
+    @patch.object(NTEOneTimeTask, "run")
+    def test_single_item_uses_daily_settings_without_batch_completion(self, prepare):
+        task, child = self._single_item()
+        original_config = child.config
+
+        def run_child():
+            self.assertEqual(task.current_task_key, "coffee")
+            self.assertEqual(child.config, {"Option": True})
+            self.assertEqual(child.info, {})
+            return True
+
+        child.do_run.side_effect = run_child
+
+        task.run()
+
+        prepare.assert_called_once_with()
+        task.task_for_id.assert_called_once_with("coffee")
+        child.do_run.assert_called_once_with()
+        child.on_daily_end.assert_not_called()
+        task.do_run.assert_not_called()
+        task._print_result.assert_not_called()
+        task.log_bot_info.assert_not_called()
+        self.assertEqual(task.task_status, {"coffee": "success"})
+        self.assertIsNone(task.current_task_key)
+        self.assertIs(child.config, original_config)
+
+        task.run()
+        task.do_run.assert_called_once_with()
+
+    @patch.object(NTEOneTimeTask, "run")
+    def test_single_item_records_unsuccessful_outcomes(self, _prepare):
+        for result, status in ((False, "failed"), (None, "skipped")):
+            with self.subTest(result=result):
+                task, child = self._single_item()
+                child.do_run.return_value = result
+
+                task.run()
+
+                self.assertEqual(task.task_status, {"coffee": status})
+
+    @patch.object(NTEOneTimeTask, "run")
+    def test_single_item_exception_is_available_in_child_info(self, _prepare):
+        task, child = self._single_item()
+        child.do_run.side_effect = RuntimeError("single item failed")
+
+        with self.assertRaisesRegex(RuntimeError, "single item failed"):
+            task.run()
+
+        self.assertEqual(child.info, {"Error": "single item failed"})
+        self.assertEqual(task.task_status, {"coffee": "failed"})
+        task.log_bot_info.assert_not_called()
+
+    @patch.object(NTEOneTimeTask, "run")
+    def test_single_item_cancelled_during_start_handoff_runs_no_task(self, prepare):
+        task, child = self._single_item()
+        task.single_task_request.cancelled = True
+
+        with self.assertRaises(TaskDisabledException):
+            task.run()
+
+        prepare.assert_not_called()
+        child.do_run.assert_not_called()
+        task.do_run.assert_not_called()
+        self.assertEqual(task.task_status, {})
 
 
 class FakeStaminaTask(BaseStaminaTask, BaseCombatTask):
@@ -401,7 +479,6 @@ class TestDailyRoutineExecution(unittest.TestCase):
         task.scene = Mock()
         task.config = {}
         task.routine_task_configs = {task_id: {BaseStaminaTask.CONF_STAMINA_TARGET: target}}
-        task.current_task_key = None
         task._active_routine_task = None
         task.sleep_check_interval = 1
         task.is_chinese = Mock(return_value=False)
@@ -420,6 +497,7 @@ class TestDailyRoutineExecution(unittest.TestCase):
                 name=key,
                 enabled=False,
                 running=False,
+                info={},
                 sleep_check_interval=0.2,
                 config={"normal": True},
                 default_config={},
@@ -429,8 +507,10 @@ class TestDailyRoutineExecution(unittest.TestCase):
             )
             for key in (task_id, "daily_claim")
         }
+        children["daily_claim"].info_clear = children["daily_claim"].info.clear
+        for child in children.values():
+            child.info_set = Mock(side_effect=child.info.__setitem__)
         children[task_id].read_daily_activity = Mock(return_value=activity)
-        children[task_id].info_set = task.info_set
         children[task_id].log_info = task.log_info
         if task_id == "daily_anomaly":
             children[task_id].shift_id = Mock()
@@ -465,8 +545,7 @@ class TestDailyRoutineExecution(unittest.TestCase):
                 child.do_run.assert_called_once_with()
                 self.assertEqual(child.stamina_targets, [60])
                 children["daily_claim"].do_run.assert_called_once_with()
-                self.assertEqual(task.task_status["success"], [task_id, "daily_claim"])
-                self.assertEqual(task.task_status["pending"], [])
+                self.assertEqual(task.task_status, {task_id: "success", "daily_claim": "success"})
                 self.assertEqual(
                     task.routine_task_configs[task_id][BaseStaminaTask.CONF_STAMINA_TARGET], 120
                 )
@@ -492,8 +571,9 @@ class TestDailyRoutineExecution(unittest.TestCase):
                 children["daily_anomaly"].on_daily_end.assert_called_once_with(None)
                 children["daily_anomaly"].shift_id.assert_not_called()
                 children["daily_claim"].do_run.assert_called_once_with()
-                self.assertEqual(task.task_status["skipped"], ["daily_anomaly"])
-                self.assertEqual(task.task_status["success"], ["daily_claim"])
+                self.assertEqual(
+                    task.task_status, {"daily_anomaly": "skipped", "daily_claim": "success"}
+                )
                 self.assertIsNone(task.current_task_key)
 
     def test_zero_target_skips_activity_reading(self):
@@ -503,7 +583,7 @@ class TestDailyRoutineExecution(unittest.TestCase):
 
         children["daily_anomaly"].read_daily_activity.assert_not_called()
         children["daily_anomaly"].do_run.assert_called_once_with()
-        self.assertEqual(task.task_status["skipped"], ["daily_anomaly"])
+        self.assertEqual(task.task_status["daily_anomaly"], "skipped")
 
     def test_each_run_reads_fresh_progress_and_keeps_user_target(self):
         task, children = self._routine()
@@ -531,8 +611,7 @@ class TestDailyRoutineExecution(unittest.TestCase):
         child.on_daily_end.assert_called_once_with(False)
         child.shift_id.assert_not_called()
         self.assertIs(child.config, original_config)
-        self.assertEqual(task.task_status["failed"], ["daily_anomaly"])
-        self.assertEqual(task.task_status["success"], ["daily_claim"])
+        self.assertEqual(task.task_status, {"daily_anomaly": "failed", "daily_claim": "success"})
         self.assertIsNone(task.current_task_key)
 
     def test_unreadable_activity_fails_only_stamina_task(self):
@@ -549,9 +628,10 @@ class TestDailyRoutineExecution(unittest.TestCase):
                 children["daily_anomaly"].do_run.assert_called_once_with()
                 children["daily_anomaly"].shift_id.assert_not_called()
                 children["daily_claim"].do_run.assert_called_once_with()
-                self.assertEqual(task.task_status["failed"], ["daily_anomaly"])
-                self.assertEqual(task.task_status["success"], ["daily_claim"])
-                self.assertEqual(task.task_status["pending"], [])
+                self.assertIn("Error", children["daily_anomaly"].info)
+                self.assertEqual(
+                    task.task_status, {"daily_anomaly": "failed", "daily_claim": "success"}
+                )
                 self.assertIsNone(task.current_task_key)
 
     def test_navigation_failure_is_recorded_and_next_task_continues(self):
@@ -561,12 +641,12 @@ class TestDailyRoutineExecution(unittest.TestCase):
         self.assertFalse(task.do_run())
 
         children["daily_anomaly"].do_run.assert_not_called()
+        self.assertEqual(children["daily_anomaly"].info, {"Error": "navigation failed"})
         children["daily_claim"].do_run.assert_called_once_with()
-        self.assertEqual(task.task_status["failed"], ["daily_anomaly"])
-        self.assertEqual(task.task_status["success"], ["daily_claim"])
+        self.assertEqual(task.task_status, {"daily_anomaly": "failed", "daily_claim": "success"})
         self.assertIsNone(task.current_task_key)
 
-    def test_interruption_restores_context_and_keeps_unfinished_tasks_pending(self):
+    def test_interruption_restores_context_and_clears_unfinished_statuses(self):
         task, children = self._routine()
         child = children["daily_anomaly"]
         original_config = child.config
@@ -575,13 +655,21 @@ class TestDailyRoutineExecution(unittest.TestCase):
         with self.assertRaises(TaskDisabledException):
             task.do_run()
 
-        self.assertEqual(task.task_status["pending"], ["daily_anomaly", "daily_claim"])
-        self.assertEqual(task.task_status["failed"], [])
+        self.assertEqual(task.task_status, {})
         self.assertIs(child.config, original_config)
         self.assertIsNone(task._active_routine_task)
         self.assertIsNone(task.current_task_key)
         self.assertEqual(task.sleep_check_interval, 1)
         children["daily_claim"].do_run.assert_not_called()
+
+    def test_interruption_preserves_completed_task_status(self):
+        task, children = self._routine()
+        children["daily_claim"].do_run.side_effect = TaskDisabledException("stopped")
+
+        with self.assertRaises(TaskDisabledException):
+            task.do_run()
+
+        self.assertEqual(task.task_status, {"daily_anomaly": "success"})
 
     def test_failed_config_load_leaves_context_unchanged(self):
         task, children = self._routine()

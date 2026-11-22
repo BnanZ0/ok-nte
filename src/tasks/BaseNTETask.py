@@ -730,7 +730,6 @@ class BaseNTETask(
         return result
 
     def ensure_main(self, esc=True, in_world=False, check_exit=False, time_out=30):
-        self.info_set("current task", f"wait main esc={esc}")
         if not self.scene.logged_in():
             time_out = 600
         if not self.wait_until(
@@ -745,7 +744,6 @@ class BaseNTETask(
             self.log_error(msg, notify=True)
             raise CannotFindException(msg)
         self.sleep(0.5)
-        self.info_set("current task", None)
 
     def is_main(self, esc=True, in_world=True, check_exit=False):
         if in_world:
