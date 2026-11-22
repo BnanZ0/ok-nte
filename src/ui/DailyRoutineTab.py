@@ -1,4 +1,6 @@
+from ok import og
 from ok.ui.qt.Communicate import communicate
+from ok.util.logger import Logger
 from ok.ui.qt.kit import Button, Card, Label, Pill, SettingRow, Table, icon, show_toast
 from ok.ui.qt.kit.theme import rgba, set_style_property, theme
 from ok.ui.qt.tasks.config_form import ConfigForm
@@ -39,6 +41,8 @@ from src.tasks.daily.DailyRoutineTask import DailyRoutineTask, selection_is_comp
 from src.ui.foundation.widgets.page_tabs import PageTabStrip
 from src.ui.foundation.widgets.separator import Separator
 from src.ui.foundation.widgets.task_actions import add_task_actions
+
+logger = Logger.get_logger(__name__)
 
 
 class _DragHandle(QWidget):
@@ -251,6 +255,10 @@ class DailyRoutineTab(CustomTab):
         self._previous_run_statuses = None
         self._row_status_text = {}
         self._disposed = False
+        # 单独运行时: task -> 运行前的原配置。start_task 只是异步提交启动请求,
+        # 因此配置上下文必须跨越整个执行期, 由 task_done 负责恢复。
+        self._single_run_configs = {}
+        communicate.task_done.connect(self._on_single_task_done)
         self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.vBoxLayout.setContentsMargins(20, 18, 20, 0)
         self.vBoxLayout.setSpacing(8)
@@ -735,33 +743,81 @@ class DailyRoutineTab(CustomTab):
         routine = self.task
         return routine.task_for_id(task_id) if routine is not None else None
 
+    def _apply_daily_config(self, task_id, child):
+        """让单独运行使用该任务在日常链里的配置, 并在执行期结束后恢复。"""
+        routine = self.task
+        if routine is None or child in self._single_run_configs:
+            return
+        try:
+            config = routine.daily_task_config(task_id, child)
+        except Exception as error:  # 配置不可用时按任务自身配置运行
+            logger.warning(f"cannot build daily config for {task_id}: {error}")
+            return
+        self._single_run_configs[child] = (child.config, child.sleep_check_interval)
+        child.config = config
+        child.sleep_check_interval = routine.sleep_check_interval
+
+    def _on_single_task_done(self, task):
+        restored = self._single_run_configs.pop(task, None)
+        if restored is None:
+            return
+        task.config, task.sleep_check_interval = restored
+        self._refresh_state()
+
+    def _start_controller(self):
+        app = getattr(og, "app", None)
+        return getattr(app, "start_controller", None) if app is not None else None
+
+    def _is_pending(self, task):
+        controller = self._start_controller()
+        return bool(controller is not None and controller.is_task_pending(task))
+
+    def _routine_busy(self):
+        """日常链是否在运行或排队: 两种情况都不能让子任务单独抢占输入。"""
+        routine = self.task
+        if routine is None:
+            return False
+        return bool(routine.running or self._is_pending(routine))
+
     def is_single_running(self, task_id):
         child = self._child_task(task_id)
-        return bool(child is not None and child.enabled and not child.paused)
+        if child is None:
+            return False
+        # 未启动但已排队的请求同样算"正在跑", 否则用户无法把它停下来。
+        return bool((child.enabled and not child.paused) or self._is_pending(child))
 
     def run_single_task(self, task_id):
         """单独运行一个子任务, 不改动日常链的勾选集合。"""
         child = self._child_task(task_id)
         if child is None:
             return
-        routine = self.task
-        if routine is not None and routine.enabled and routine.running:
-            # 原型阶段: 日常链运行中直接拒绝, 避免两个任务争用同一份输入与截图。
+        if self._routine_busy():
             show_toast(
                 self.window(),
                 self.tr("请先停止日常任务"),
-                self.tr("日常任务运行中, 无法单独运行子任务"),
+                self.tr("日常任务运行中或已排队, 无法单独运行子任务"),
                 tone="danger",
             )
             return
+        # 配置必须在提交启动请求之前生效, 否则异步执行可能先读到任务自身配置。
+        self._apply_daily_config(task_id, child)
         start_task(child, self)
+        if not self._is_pending(child) and not child.enabled:
+            # 启动被取消(例如首跑提示被否), 立刻恢复配置, 避免泄漏。
+            self._on_single_task_done(child)
         self._refresh_state()
 
     def stop_single_task(self, task_id):
         child = self._child_task(task_id)
-        if child is not None:
+        if child is None:
+            return
+        # 已排队但还没开跑的任务要先从待启动队列摘掉, 否则 stop_task 停不掉它。
+        controller = self._start_controller()
+        if controller is not None and self._is_pending(child):
+            controller.cancel_task(child)
+        else:
             stop_task(child)
-            self._refresh_state()
+        self._refresh_state()
 
     def _pause(self):
         if self.task is not None:
