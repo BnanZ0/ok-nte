@@ -8,12 +8,11 @@ from src.tasks.cultivation_goal.core import (
     Ratio,
     decide,
     diff_ownage,
-    effective_gap,
     effective_stamina,
     LootLedger,
     estimate_runs,
     map_reward_to_counts,
-    fold_up,
+    merged_owned,
     next_weekly_remaining,
     parse_ratios,
     parse_weekly_remaining,
@@ -295,34 +294,47 @@ class RewardMappingTests(unittest.TestCase):
 
 
 class CombineUpTests(unittest.TestCase):
-    """弧盘材料绿蓝紫三档，3 个低档合 1 个高档（11-19 合成界面实证）。"""
+    """异能/弧盘材料三档, 3 个低档合 1 个高档（11-19 合成界面实证）。
 
-    def test_folds_each_tier_by_ratio(self):
-        # (紫, 蓝, 绿)：3 紫 + 6 蓝(合 2) + 9 绿(合 1 紫) = 6 个紫等价
-        self.assertEqual(fold_up((3, 6, 9)), 6)
+    判定必须用「折算后」的拥有量, 否则会把「低档一大堆能合上来」的行判成缺料,
+    白白再刷一局 (11-22 实况: 48/8 32/40 16/13 被判缺 8, 实际靠 13 蓝 + 1 紫已满)。
+    """
 
-    def test_partial_tier_never_counts(self):
-        # 2 个蓝拼不出 1 个紫，不能当整的用。
-        self.assertEqual(fold_up((0, 2, 0)), 0)
-        self.assertEqual(fold_up((0, 0, 8)), 0)
+    def test_carry_chains_to_top_tier(self):
+        self.assertEqual(
+            merged_owned([Ratio(48, 8), Ratio(32, 40), Ratio(16, 13)]), (9, 42, 17))
 
-    def test_no_tiers(self):
-        self.assertEqual(fold_up(()), 0)
-        self.assertEqual(fold_up(None), 0)
+    def test_low_tier_surplus_fills_the_row(self):
+        r = row("异能", 0, "48/8 32/40 16/13")
+        self.assertTrue(r.satisfied)
+        self.assertEqual(row_gap(r), 0)
 
-    def test_effective_gap_subtracts_combine_result(self):
-        # 真实一局: 弧盘第 2 行 3/15 缺 12, 蓝有 6 个能合 2 个 -> 实缺口 10。
-        r = row("弧盘", 1, "3/15")
-        self.assertEqual(row_gap(r), 12)
-        self.assertEqual(effective_gap(r, extras=[2]), 10)
+    def test_partial_surplus_is_not_counted(self):
+        # 绿只多出 2 个, 不够 3 个, 不能折上去。
+        self.assertEqual(merged_owned([Ratio(10, 8), Ratio(20, 40)]), (10, 20))
+        r = row("异能", 0, "10/8 20/40")
+        self.assertFalse(r.satisfied)
+        self.assertEqual(row_gap(r), 20)
 
-    def test_effective_gap_never_negative(self):
-        r = row("弧盘", 1, "3/15")
-        self.assertEqual(effective_gap(r, extras=[99]), 0)
+    def test_one_short_is_still_short(self):
+        # 11-22 第 3 轮实况: 42/8 28/40 14/13 → 绿合 11 个蓝后 39/40, 还差 1 个, 该刷。
+        r = row("异能", 0, "42/8 28/40 14/13")
+        self.assertFalse(r.satisfied)
+        self.assertEqual(row_gap(r), 1)
 
-    def test_effective_gap_without_extras_matches_row_gap(self):
-        r = row("弧盘", 1, "0/10 0/15")
-        self.assertEqual(effective_gap(r), row_gap(r))
+    def test_reserved_demand_is_not_donated(self):
+        # 绿刚好够自己(8/8)时不能再往上供, 否则自己就不够了。
+        self.assertEqual(merged_owned([Ratio(8, 8), Ratio(20, 40)]), (8, 20))
+
+    def test_single_tier_row_unchanged(self):
+        r = row("等级", 1, "61/60")
+        self.assertTrue(r.satisfied)
+        self.assertEqual(row_gap(r), 0)
+
+    def test_unreadable_row_stays_unknown(self):
+        r = row("异能", 0, "")
+        self.assertIsNone(r.satisfied)
+        self.assertIsNone(row_gap(r))
 
 
 class WeeklyAccountingTests(unittest.TestCase):

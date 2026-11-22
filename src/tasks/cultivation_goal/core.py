@@ -78,9 +78,11 @@ class MaterialRow:
 
     @property
     def satisfied(self) -> bool | None:
+        """够不够用「折算后」的拥有量判 —— 低档多出来的能 3:1 合成高一档。"""
         if self.ratios is None:
             return None
-        return all(ratio.satisfied for ratio in self.ratios)
+        merged = merged_owned(self.ratios)
+        return all(got >= ratio.required for got, ratio in zip(merged, self.ratios))
 
     @property
     def label(self) -> str:
@@ -88,10 +90,11 @@ class MaterialRow:
 
 
 def row_gap(row: MaterialRow) -> int | None:
-    """这一行还差多少材料：各材料缺口之和；读数无效返回 None。"""
+    """这一行还差多少材料（低档溢出已按 3:1 折算）；读数无效返回 None。"""
     if row.ratios is None:
         return None
-    return sum(max(0, ratio.required - ratio.owned) for ratio in row.ratios)
+    merged = merged_owned(row.ratios)
+    return sum(max(0, ratio.required - got) for got, ratio in zip(merged, row.ratios))
 
 
 def diff_ownage(prev, curr) -> int | None:
@@ -128,29 +131,23 @@ def plan_burst(
 COMBINE_RATIO = 3
 
 
-def fold_up(tiers, ratio: int = COMBINE_RATIO) -> int:
-    """多档材料折算为最高档等价数量；tiers 从高到低排列（紫,蓝,绿）。
+def merged_owned(ratios, ratio: int = COMBINE_RATIO) -> tuple[int, ...]:
+    """把低档溢出按 ratio:1 折进高一档后的各槽拥有量。
 
-    从最低档逐级 3:1 合并进位，余量不足一个合成单位就留在本档不计数：
-    (0,2,3)→1（3绿合1蓝、2+1=3蓝合1紫），(3,6,9)→6，(0,2,0)→0，(0,0,8)→0。
+    ratios 顺序与界面一致（左→右 = 低档→高档）。每档先留够自己的需求量, 余量才往上折:
+    `48/8、32/40、16/13` 折完是 `9/8、42/40、17/13` —— 靠 13 个蓝 + 1 个紫补齐,
+    所以这一行其实已经够了, 不该再为「32/40」去刷体力。
     """
-    values = [max(0, int(v)) for v in (tiers or ())]
-    for index in range(len(values) - 1, 0, -1):
-        values[index - 1] += values[index] // ratio
-    return values[0] if values else 0
-
-
-def effective_gap(row: MaterialRow, extras=None) -> int | None:
-    """考虑 extras（按槽位的额外可用量）后的缺口，无 extras 时等于 row_gap。"""
-    if row.ratios is None:
-        return None
-    gap = 0
-    for index, ratio in enumerate(row.ratios):
-        extra = 0
-        if extras and index < len(extras):
-            extra = max(0, int(extras[index] or 0))
-        gap += max(0, ratio.required - ratio.owned - extra)
-    return gap
+    owned = [max(0, int(r.owned)) for r in ratios]
+    need = [max(0, int(r.required)) for r in ratios]
+    for index in range(len(owned) - 1):
+        surplus = owned[index] - need[index]
+        if surplus < ratio:
+            continue
+        carry = surplus // ratio
+        owned[index] -= carry * ratio
+        owned[index + 1] += carry
+    return tuple(owned)
 
 
 

@@ -19,6 +19,7 @@ from src.tasks.cultivation_goal.core import (
     decide,
     diff_ownage,
     estimate_runs,
+    merged_owned,
     parse_ratios,
     plan_burst,
     parse_weekly_remaining,
@@ -817,18 +818,24 @@ class CultivationGoalMixin:
         return gains
 
     def _cg_material_brief(self, rows, gains):
-        """汇总每行缺口、上局产出与预估局数。"""
+        """汇总每行缺口、上局产出与预估局数。
+
+        多档行会把「低档合上来之后」的拥有量写出来, 否则 `48/8 32/40 16/13` 这种
+        一眼看着还缺蓝的行为什么判已满会让人对不上账。
+        """
         parts = []
         for row in rows:
-            owned = "/".join(f"{ratio.owned}/{ratio.required}" for ratio in row.ratios or ())
+            raw = "·".join(f"{ratio.owned}/{ratio.required}" for ratio in row.ratios or ())
+            merged = merged_owned(row.ratios) if row.ratios else ()
+            folded = " 合后" + "/".join(str(value) for value in merged)
             gap = row_gap(row)
             if gap is None:
                 parts.append(f"{row.label} 读不出")
             elif gap == 0:
-                parts.append(f"{row.label} 已满({owned})")
+                parts.append(f"{row.label} 已满({raw}{folded if merged else ''})")
             else:
                 gain = gains.get(row.label)
-                text = f"{row.label} {owned} 缺{gap}"
+                text = f"{row.label} {raw}{folded if merged else ''} 缺{gap}"
                 if gain is not None:
                     runs = estimate_runs(gap, gain)
                     text += f" 上局+{gain}" + (f" 约{runs}局" if runs else "")
@@ -1281,11 +1288,20 @@ class CultivationGoalMixin:
                 short = max(0, ratio.required - ratio.owned)
                 seg.append(f"+{got} 有{ratio.owned}/{ratio.required} 还差{short}")
                 slots.append({"dropped": got, "owned": ratio.owned, "required": ratio.required})
-            parts.append(f"{row.label}[{' | '.join(seg)}]")
+            parts.append(f"{row.label}[{' | '.join(seg)}]{self._cg_fold_tail(row)}")
             stats.append({"label": row.label, "slots": slots})
         if parts:
             self._cg_note("info", "掉落统计: " + " ".join(parts))
             self._cg_report().emit("loot_stats", rows=stats)
+
+    def _cg_fold_tail(self, row) -> str:
+        """多档行的折算结论；单档行没有合成可言, 返回空串。"""
+        if not row.ratios or len(row.ratios) < 2:
+            return ""
+        gap = row_gap(row)
+        if gap is None:
+            return ""
+        return " → 合后已满" if gap == 0 else f" → 合后还缺{gap}"
 
     def _cg_burst_plan(self, row, stamina, gains):
         """自动连打: 上一局产出不足以覆盖缺口就继续连打, 只对副本生效。"""

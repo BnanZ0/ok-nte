@@ -619,6 +619,31 @@ class FlowSimulationTests(unittest.TestCase):
         self.assertEqual(claims[2]["label"], "弧盘-第2行")
         self.assertTrue(any("估算材料已够" in msg for _, msg in task.logs))
 
+    def test_combine_marks_row_full_without_extra_runs(self):
+        """低档能合上来就算够: 48/8 32/40 16/13 不该再为「32/40」白刷一局。"""
+        texts = [
+            {
+                "异能-第2行": "3/2",
+                "等级-第2行": "76/76",
+                "异能-第1行": "48/8 32/40 16/13",
+                "弧盘-第2行": "0/10",
+            },
+            {
+                "异能-第2行": "3/2",
+                "等级-第2行": "76/76",
+                "异能-第1行": "48/8 32/40 16/13",
+                "弧盘-第2行": "6/10",
+            },
+        ]
+        task = self.make(stamina=[300] * 4, texts=texts, daily_target=None)
+        task.run_cultivation_goal()
+        labels = [a["label"] for a in actions_from(self.report_path) if a.get("action") == "material"]
+
+        self.assertTrue(labels)
+        self.assertEqual(labels[0], "弧盘-第2行")
+        self.assertNotIn("异能-第1行", labels)
+        self.assertTrue(any("合后" in msg for _, msg in task.logs))
+
     def test_burst_stops_immediately_on_failed_claim(self):
         row = MaterialRow("异能", 0, 40, "domain", parse_ratios("0/9"))
         task = self.make()
