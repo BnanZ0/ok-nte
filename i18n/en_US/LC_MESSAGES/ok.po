@@ -39,10 +39,8 @@ msgstr "Turn on to avoid interruption by monthly card when executing tasks"
 msgid "Ultimate Key"
 msgstr "Ultimate Key"
 
-msgid ""
-"Your computer's local time when the monthly card will popup, hour in (1-24)"
-msgstr ""
-"Your computer's local time when the monthly card will popup, hour in (1-24)"
+msgid "Your computer's local time when the monthly card will popup, hour in (1-24)"
+msgstr "Your computer's local time when the monthly card will popup, hour in (1-24)"
 
 msgid "内置代码"
 msgstr "Built-in Code"
@@ -102,9 +100,7 @@ msgid "匹配文字"
 msgstr "Match Text"
 
 msgid "适用于大世界、轨外之境、999夜等各类场景与副本"
-msgstr ""
-"Suitable for various scenes and domains such as overworld, Beyond the Rails,"
-" 999 Nights, etc."
+msgstr "Suitable for various scenes and domains such as overworld, Beyond the Rails, 999 Nights, etc."
 
 msgid "可用指令"
 msgstr "Available Commands"
@@ -184,12 +180,8 @@ msgstr "Feature not obtained"
 msgid "关联特征"
 msgstr "Link Feature"
 
-msgid ""
-"此为 Python 脚本, 不可在此修改.\n"
-"请在对应的源文件中直接修改代码."
-msgstr ""
-"This is a Python script and cannot be modified here.\n"
-"Please modify the code directly in the corresponding source file."
+msgid "此为 Python 脚本, 不可在此修改.\n请在对应的源文件中直接修改代码."
+msgstr "This is a Python script and cannot be modified here.\nPlease modify the code directly in the corresponding source file."
 
 msgid "没有找到匹配的指令。"
 msgstr "No matching commands found."
@@ -271,9 +263,7 @@ msgid "队伍管理"
 msgstr "Team Mgmt"
 
 msgid "关闭时仅在中键选中敌人且画面识别到关键特征时开启战斗"
-msgstr ""
-"When disabled, combat starts only if an enemy is middle-clicked and key "
-"features are detected on screen"
+msgstr "When disabled, combat starts only if an enemy is middle-clicked and key features are detected on screen"
 
 msgid ""
 "开启后优先通过 ESC 键关闭成功界面，避免后台抢占鼠标。\n"
@@ -285,12 +275,8 @@ msgstr ""
 msgid "Counter Attack Threshold"
 msgstr "Counter Attack Threshold"
 
-msgid ""
-"Counter attack sound recognition threshold (0.0-1.0, lower is more "
-"sensitive)"
-msgstr ""
-"Counter attack sound recognition threshold (0.0-1.0, lower is more "
-"sensitive)"
+msgid "Counter attack sound recognition threshold (0.0-1.0, lower is more sensitive)"
+msgstr "Counter attack sound recognition threshold (0.0-1.0, lower is more sensitive)"
 
 msgid "Dodge Threshold"
 msgstr "Dodge Threshold"
@@ -449,8 +435,7 @@ msgid "声音闪避反击"
 msgstr "Sound Dodge Counterattack"
 
 msgid "未处于自动战斗时, 响应声音闪避或反击"
-msgstr ""
-"Respond to sound dodge or counterattack when auto combat is not active"
+msgstr "Respond to sound dodge or counterattack when auto combat is not active"
 
 msgid ""
 "All letter/number keys, including every hotkey above, are replaced by US QWERTY\n"
@@ -472,9 +457,7 @@ msgid "游戏启动后自动登录游戏"
 msgstr "Automatically log in after the game starts"
 
 msgid "自动循环进出关卡（需配合游戏内挂机流派使用）"
-msgstr ""
-"Automatically loop entering and exiting stages (requires an in-game AFK "
-"build)"
+msgstr "Automatically loop entering and exiting stages (requires an in-game AFK build)"
 
 msgid "自动登录游戏"
 msgstr "Auto Login"
@@ -600,8 +583,7 @@ msgid "未选择歌曲"
 msgstr "No Song Selected"
 
 msgid "每个测试音间隔约 1 秒，请用调音器确认实际发音。"
-msgstr ""
-"Each test tone is spaced by ~1s. Please use a tuner to confirm the pitch."
+msgstr "Each test tone is spaced by ~1s. Please use a tuner to confirm the pitch."
 
 msgid "测试中音行"
 msgstr "Test Mid Row"
@@ -682,9 +664,7 @@ msgid "模型调用超时时间(s)"
 msgstr "Model Call Timeout (s)"
 
 msgid "文案生成调用模型的超时时间, 超时将回退使用本地词库, 留空使用30s"
-msgstr ""
-"Timeout for text generation model calls. Will fallback to local word bank on"
-" timeout. Leave empty for 30s."
+msgstr "Timeout for text generation model calls. Will fallback to local word bank on timeout. Leave empty for 30s."
 
 msgid "关闭后将降级使用本地词库抽取发帖回复文案"
 msgstr "When disabled, it will fallback to the local vocabulary database"
@@ -711,8 +691,7 @@ msgid "回复生成提示词, 请先调试好提示词再使用"
 msgstr "Reply Generation prompt; please refine the prompt before use"
 
 msgid "开启助手模式后, 将只会辅助生成文案"
-msgstr ""
-"After enabling Assistant Mode, it will only assist in generating content"
+msgstr "After enabling Assistant Mode, it will only assist in generating content"
 
 msgid "所调用模型名称"
 msgstr "Model Name"
@@ -850,25 +829,21 @@ msgid "每2小时重新登入"
 msgstr "Re-login every 2 hours"
 
 msgid "除了选择内建存在的 [{combo}] 外,您也可以自己输入名称来建立自己的 [文本型{combo}]。"
-msgstr ""
-"In addition to selecting a built-in [{combo}], you can also enter a name to "
-"create your own [text-based {combo}]."
+msgstr "In addition to selecting a built-in [{combo}], you can also enter a name to create your own [text-based {combo}]."
 
 msgid ""
-"<b>外置代码用法:</b><br>在 [{data_manager}] 中点击 [{show_builtin}], 选中内置角色后点击 "
-"[{copy_external}] 创建可编辑副本。<br>回到此页, 选择 {external_code} 脚本, 修改 Python 代码后点击 "
-"[{apply}] 保存并绑定到当前角色。<br>也可在 [{data_manager}] 中点击 [{open_folder}] 手动编辑 .py "
-"文件, 保存后点击 [{refresh}] 重新加载。每个文件须且仅须定义一个 BaseChar 子类。<br>外置代码会以本软件相同权限运行, "
-"请仅使用可信来源。"
+"<b>外置代码用法:</b><br>"
+"在 [{data_manager}] 中点击 [{show_builtin}], 选中内置角色后点击 [{copy_external}] 创建可编辑副本。<br>"
+"回到此页, 选择 {external_code} 脚本, 修改 Python 代码后点击 [{apply}] 保存并绑定到当前角色。<br>"
+"也可在 [{data_manager}] 中点击 [{open_folder}] 手动编辑 .py 文件, 保存后点击 [{refresh}] 重新加载。"
+"每个文件须且仅须定义一个 BaseChar 子类。<br>"
+"外置代码会以本软件相同权限运行, 请仅使用可信来源。"
 msgstr ""
-"<b>Using external code:</b><br>In [{data_manager}], click [{show_builtin}], "
-"select a built-in character, then click [{copy_external}] to create an "
-"editable copy.<br>Back on this page, select an {external_code} script, edit "
-"its Python code, and click [{apply}] to save it and bind it to the current "
-"character.<br>You can also open [{open_folder}] from [{data_manager}] to "
-"edit .py files manually. After saving, click [{refresh}] to reload them. "
-"Each file must define exactly one BaseChar subclass.<br>External code runs "
-"with the same permissions as this app. Use trusted code only."
+"<b>Using external code:</b><br>"
+"In [{data_manager}], click [{show_builtin}], select a built-in character, then click [{copy_external}] to create an editable copy.<br>"
+"Back on this page, select an {external_code} script, edit its Python code, and click [{apply}] to save it and bind it to the current character.<br>"
+"You can also open [{open_folder}] from [{data_manager}] to edit .py files manually. After saving, click [{refresh}] to reload them. Each file must define exactly one BaseChar subclass.<br>"
+"External code runs with the same permissions as this app. Use trusted code only."
 
 msgid "九百九十九夜"
 msgstr "999 Nights"
@@ -909,14 +884,8 @@ msgstr "Background Output Device"
 msgid "Open SoundVolumeCommandLine Download Page"
 msgstr "Open SoundVolumeCommandLine Download Page"
 
-msgid ""
-"Optionally route the game to a selected Windows output device while it is in"
-" the background. SoundVolumeCommandLine is not bundled; select your own "
-"downloaded copy."
-msgstr ""
-"Optionally route the game to a selected Windows output device while it is in"
-" the background. SoundVolumeCommandLine is not bundled; select your own "
-"downloaded copy."
+msgid "Optionally route the game to a selected Windows output device while it is in the background. SoundVolumeCommandLine is not bundled; select your own downloaded copy."
+msgstr "Optionally route the game to a selected Windows output device while it is in the background. SoundVolumeCommandLine is not bundled; select your own downloaded copy."
 
 msgid "Switch game audio output when the game window leaves the foreground"
 msgstr "Switch game audio output when the game window leaves the foreground"
@@ -930,10 +899,8 @@ msgstr "Output device used while the game is in the background"
 msgid "Open the official NirSoft SoundVolumeCommandLine page"
 msgstr "Open the official NirSoft SoundVolumeCommandLine page"
 
-msgid ""
-"SoundVolumeCommandLine (svcl.exe);;Executable Files (*.exe);;All Files (*)"
-msgstr ""
-"SoundVolumeCommandLine (svcl.exe);;Executable Files (*.exe);;All Files (*)"
+msgid "SoundVolumeCommandLine (svcl.exe);;Executable Files (*.exe);;All Files (*)"
+msgstr "SoundVolumeCommandLine (svcl.exe);;Executable Files (*.exe);;All Files (*)"
 
 msgid "Select svcl.exe"
 msgstr "Select svcl.exe"
@@ -977,15 +944,11 @@ msgstr ""
 "2. Try enabling the Windows \"Automatically manage color for apps\" setting."
 
 msgid "大世界检测失败: 请检查游戏内 UI 透明度是否已设置为 1.0。"
-msgstr ""
-"Overworld detection failed: Please check if the in-game UI opacity has been "
-"set to 1.0."
+msgstr "Overworld detection failed: Please check if the in-game UI opacity has been set to 1.0."
 
 #, python-brace-format
 msgid "当前 CPU 不支持 AVX2, OpenVINO 检测器 {model} 无法启用。"
-msgstr ""
-"The current CPU does not support AVX2. OpenVINO detector {model} could not "
-"be enabled."
+msgstr "The current CPU does not support AVX2. OpenVINO detector {model} could not be enabled."
 
 msgid "战斗后等待至时长上限"
 msgstr "Wait until max duration after combat"
@@ -1066,16 +1029,13 @@ msgid "没有可用的游戏画面"
 msgstr "No game screen available"
 
 msgid "请先捕获、选择礼物并启用至少一个角色。"
-msgstr ""
-"Please capture, select gifts, and enable at least one character first."
+msgstr "Please capture, select gifts, and enable at least one character first."
 
 msgid "使用录制功能"
 msgstr "Use recording feature"
 
 msgid "启用后录制并回放选择目标关卡的操作"
-msgstr ""
-"When enabled, records and replays the actions used to select the target "
-"level"
+msgstr "When enabled, records and replays the actions used to select the target level"
 
 msgid "异象追猎"
 msgstr "Anomaly Hunts"
@@ -1117,9 +1077,7 @@ msgid "自动战斗检测诊断"
 msgstr "Auto-Combat Detection Diagnostics"
 
 msgid "持续检测诊断 Lv, 锁定目标标记(白色菱形)和红色血条; 请手动停止以查看完整报告"
-msgstr ""
-"Continuously diagnose detection for Lv, lock-on target marker (white "
-"diamond), and red health bar; please stop manually to view the full report."
+msgstr "Continuously diagnose detection for Lv, lock-on target marker (white diamond), and red health bar; please stop manually to view the full report."
 
 msgid "喷泉签到"
 msgstr "Fountain Check-in"
@@ -1128,9 +1086,7 @@ msgid "防止 NTE 移动鼠标"
 msgstr "Prevent NTE From Moving the Cursor"
 
 msgid "后台运行时，在 NTE 将鼠标移动到屏幕中心后，自动恢复鼠标位置。"
-msgstr ""
-"When running in the background, automatically restore the cursor position "
-"after NTE moves it to the screen center."
+msgstr "When running in the background, automatically restore the cursor position after NTE moves it to the screen center."
 
 msgid ""
 "关联角色特征后，即可自动识别角色并使用绑定的出招表；游戏内换人/换队无需手动调整。\n"
@@ -1299,52 +1255,21 @@ msgstr "Team Scan"
 msgid "提示"
 msgstr "Tips"
 
-msgid ""
-"<p><b style=\"color: #d83b01;\">注意：</b>此面板 <b style=\"color: "
-"#d83b01;\">不会</b> 在进入战斗或更换阵容时实时自动刷新或同步显示。<br>这是个用于向数据库关联或添加 [角色特征] "
-"的工具面板。<br>点击 [{scan_team}] 后点击 [关联或添加] 特征, 自动战斗时就会识别对应的角色。<br>如果不想管理 [角色特征],"
-" 可以直接使用 [{fixed_team}] 功能。</p>"
-msgstr ""
-"<p><b style=\"color: #d83b01;\">Note:</b> This panel <b style=\"color: "
-"#d83b01;\">does NOT</b> automatically refresh or synchronize in real-time "
-"when entering combat or changing lineup.<br>This is a tool panel for "
-"associating or adding [Character Features] to the database.<br>Click "
-"[{scan_team}] then click [Associate or Add] feature, and auto combat will "
-"recognize the corresponding characters.<br>If you do not want to manage "
-"[Character Features], you can directly use [{fixed_team}].</p>"
+msgid "<p><b style=\"color: #d83b01;\">注意：</b>此面板 <b style=\"color: #d83b01;\">不会</b> 在进入战斗或更换阵容时实时自动刷新或同步显示。<br>这是个用于向数据库关联或添加 [角色特征] 的工具面板。<br>点击 [{scan_team}] 后点击 [关联或添加] 特征, 自动战斗时就会识别对应的角色。<br>如果不想管理 [角色特征], 可以直接使用 [{fixed_team}] 功能。</p>"
+msgstr "<p><b style=\"color: #d83b01;\">Note:</b> This panel <b style=\"color: #d83b01;\">does NOT</b> automatically refresh or synchronize in real-time when entering combat or changing lineup.<br>This is a tool panel for associating or adding [Character Features] to the database.<br>Click [{scan_team}] then click [Associate or Add] feature, and auto combat will recognize the corresponding characters.<br>If you do not want to manage [Character Features], you can directly use [{fixed_team}].</p>"
 
-msgid ""
-"<p>用于配置并保存常用的 4 人队伍阵容与出招表, 修改后立即生效。<br>方案中的 1~4 号位仅用于 [{fixed_preset}] 功能; "
-"已绑定特征的角色放在哪个号位都可以, 不影响识别。<br>点击 [{apply_preset}] 可一键更新应用方案中各角色的出招表 "
-"(未选择出招表则保持原配置不变)。<br>开启 [{fixed_preset}] 后自动战斗将直接采用此阵容, 无需等待特征识别 "
-"(未录入特征的角色亦可直接战斗)。<br>点击 [{fill_scan}] 可将上方特征扫描识别出的队伍角色快速填入当前方案。</p>"
-msgstr ""
-"<p>Configure and save common 4-character team lineups and combos, effective "
-"immediately upon modification.<br>Preset slots 1–4 are only used by the "
-"[{fixed_preset}] feature. If a character already has a registered feature, "
-"they can occupy any slot without affecting recognition.<br>Click "
-"[{apply_preset}] to update and apply each character's combo in this preset "
-"(unselected slots keep original configuration).<br>Enable [{fixed_preset}] "
-"to directly use this preset lineup in auto combat without waiting for "
-"feature recognition (characters without registered features can combat "
-"directly).<br>Click [{fill_scan}] to quickly fill in the characters "
-"recognized from the feature scan above into the current preset.</p>"
+msgid "<p>用于配置并保存常用的 4 人队伍阵容与出招表, 修改后立即生效。<br>方案中的 1~4 号位仅用于 [{fixed_preset}] 功能; 已绑定特征的角色放在哪个号位都可以, 不影响识别。<br>点击 [{apply_preset}] 可一键更新应用方案中各角色的出招表 (未选择出招表则保持原配置不变)。<br>开启 [{fixed_preset}] 后自动战斗将直接采用此阵容, 无需等待特征识别 (未录入特征的角色亦可直接战斗)。<br>点击 [{fill_scan}] 可将上方特征扫描识别出的队伍角色快速填入当前方案。</p>"
+msgstr "<p>Configure and save common 4-character team lineups and combos, effective immediately upon modification.<br>Preset slots 1–4 are only used by the [{fixed_preset}] feature. If a character already has a registered feature, they can occupy any slot without affecting recognition.<br>Click [{apply_preset}] to update and apply each character's combo in this preset (unselected slots keep original configuration).<br>Enable [{fixed_preset}] to directly use this preset lineup in auto combat without waiting for feature recognition (characters without registered features can combat directly).<br>Click [{fill_scan}] to quickly fill in the characters recognized from the feature scan above into the current preset.</p>"
 
 #, python-brace-format
 msgid "OpenVINO 检测器 {model} 推理超时, 已自动停用。重启程序后将重新尝试启用。"
-msgstr ""
-"OpenVINO detector {model} was disabled after an inference timeout. The app "
-"will try to enable it again on restart."
+msgstr "OpenVINO detector {model} was disabled after an inference timeout. The app will try to enable it again on restart."
 
 msgid "批量删除"
 msgstr "Batch Delete"
 
-msgid ""
-"当前未绑定任何{combo}.\n"
-"遇到此角色将默认使用基础通用脚本(BaseChar)."
-msgstr ""
-"No {combo} is currently bound.\n"
-"This character will use the generic base script (BaseChar) by default when encountered."
+msgid "当前未绑定任何{combo}.\n遇到此角色将默认使用基础通用脚本(BaseChar)."
+msgstr "No {combo} is currently bound.\nThis character will use the generic base script (BaseChar) by default when encountered."
 
 msgid "显示内置"
 msgstr "Show Built-in"
@@ -1371,9 +1296,7 @@ msgid "脚本文件名 (.py)"
 msgstr "Script Filename (.py)"
 
 msgid "将在 external_chars/ 目录下生成独立的 Python 脚本供您编辑与调试."
-msgstr ""
-"A standalone Python script will be created in external_chars/ for editing "
-"and debugging."
+msgstr "A standalone Python script will be created in external_chars/ for editing and debugging."
 
 msgid "无法读取 Python 脚本."
 msgstr "Failed to read Python script."
@@ -1405,32 +1328,8 @@ msgstr "Ask AI"
 msgid "AI提示模版已复制。请粘贴到AI聊天机器人中。"
 msgstr "AI prompt template copied. Please paste it into an AI chatbot."
 
-msgid ""
-"{SOURCE}\n"
-"\n"
-"我想实现: \n"
-"\n"
-"请修改上面完整的 {class_name} 角色自动化代码。\n"
-"\n"
-"只返回整个文件完整修改后的 Python 代码，不要返回补丁或解释。\n"
-"保持类名为 {class_name}。保留仍然需要的 import。\n"
-"\n"
-"在思考辅助方法、任务 API、状态、切人、冷却和战斗流程时, 请参考: \n"
-"BaseChar 角色基类: {BASE_CHAR_URL}\n"
-"Combat Planner 开发指南: {COMBAT_PLANNER_URL}"
-msgstr ""
-"{SOURCE}\n"
-"\n"
-"I want to achieve: \n"
-"\n"
-"Please modify the complete {class_name} character automation code above.\n"
-"\n"
-"Return only the complete modified Python code for the entire file, do not return patches or explanations.\n"
-"Keep the class name as {class_name}. Keep necessary imports.\n"
-"\n"
-"When considering helper methods, task APIs, state, switching, cooldowns, and combat flow, please refer to: \n"
-"BaseChar base class: {BASE_CHAR_URL}\n"
-"Combat Planner Guide: {COMBAT_PLANNER_URL}"
+msgid "{SOURCE}\n\n我想实现: \n\n请修改上面完整的 {class_name} 角色自动化代码。\n\n只返回整个文件完整修改后的 Python 代码，不要返回补丁或解释。\n保持类名为 {class_name}。保留仍然需要的 import。\n\n在思考辅助方法、任务 API、状态、切人、冷却和战斗流程时, 请参考: \nBaseChar 角色基类: {BASE_CHAR_URL}\nCombat Planner 开发指南: {COMBAT_PLANNER_URL}"
+msgstr "{SOURCE}\n\nI want to achieve: \n\nPlease modify the complete {class_name} character automation code above.\n\nReturn only the complete modified Python code for the entire file, do not return patches or explanations.\nKeep the class name as {class_name}. Keep necessary imports.\n\nWhen considering helper methods, task APIs, state, switching, cooldowns, and combat flow, please refer to: \nBaseChar base class: {BASE_CHAR_URL}\nCombat Planner Guide: {COMBAT_PLANNER_URL}"
 
 msgid "OK"
 msgstr "OK"
@@ -1472,9 +1371,7 @@ msgid "外置代码目录名称无效"
 msgstr "The external code directory name is invalid"
 
 msgid "外置代码目录“{}”已存在, 请修改目录名称后重试。"
-msgstr ""
-"The external code directory \"{}\" already exists. Choose another name and "
-"try again."
+msgstr "The external code directory \"{}\" already exists. Choose another name and try again."
 
 msgid "大小"
 msgstr "Size"
@@ -1549,9 +1446,7 @@ msgid "社区方案"
 msgstr "Community preset"
 
 msgid "社区方案含外置代码; 导入后会以本软件权限运行, 请仅导入可信来源."
-msgstr ""
-"Community presets may contain external code; after import, it runs with this"
-" software's permissions. Import only from trusted sources."
+msgstr "Community presets may contain external code; after import, it runs with this software's permissions. Import only from trusted sources."
 
 msgid "角色阵容"
 msgstr "Team characters"
@@ -1575,9 +1470,7 @@ msgid "删除方案"
 msgstr "Delete Preset"
 
 msgid "检测到该方案包含外置代码，是否同时删除对应的代码文件?"
-msgstr ""
-"This preset contains external code. Do you also want to delete the "
-"corresponding code files?"
+msgstr "This preset contains external code. Do you also want to delete the corresponding code files?"
 
 msgid "全部删除"
 msgstr "Delete All"
@@ -1595,8 +1488,7 @@ msgid "启用开战优先级"
 msgstr "Enable Combat Start Priority"
 
 msgid "关闭时不按角色执行开战首切"
-msgstr ""
-"When disabled, initial character switch at combat start is not performed"
+msgstr "When disabled, initial character switch at combat start is not performed"
 
 msgid "鼠标占用警告"
 msgstr "Mouse Control Warning"
@@ -1611,8 +1503,7 @@ msgid "ZIP 格式备份; 导入将覆盖当前数据"
 msgstr "ZIP backup; import will overwrite current data"
 
 msgid "手动修改 Python 代码后, 需点击 [{refresh}] 生效"
-msgstr ""
-"After manually modifying Python code, click [{refresh}] to take effect."
+msgstr "After manually modifying Python code, click [{refresh}] to take effect."
 
 msgid "编写指南"
 msgstr "Writing Guide"
@@ -1627,8 +1518,7 @@ msgid "从工坊填入"
 msgstr "Fill from Workshop"
 
 msgid "选择方案与版本, 填入名称、描述、作者和版本."
-msgstr ""
-"Select preset and version, fill in name, description, author, and version."
+msgstr "Select preset and version, fill in name, description, author, and version."
 
 msgid "填入信息"
 msgstr "Fill Information"
@@ -1680,13 +1570,10 @@ msgid "本地安装文件缺失, 请重新导入."
 msgstr "Installed files are missing. Import the package again."
 
 msgid "无法读取工坊安装记录, 请检查 workshop_installs.json."
-msgstr ""
-"Cannot read workshop installation records. Check workshop_installs.json."
+msgstr "Cannot read workshop installation records. Check workshop_installs.json."
 
 msgid "下载的方案与更新信息不一致, 请刷新工坊后重试."
-msgstr ""
-"The downloaded package does not match the update. Refresh the workshop and "
-"try again."
+msgstr "The downloaded package does not match the update. Refresh the workshop and try again."
 
 msgid "一鍵更新"
 msgstr "Update"
@@ -1744,37 +1631,17 @@ msgid "角色实现标识重复: {impl_id}"
 msgstr "Duplicate character implementation ID: {impl_id}"
 
 msgid "本次仅刷所选类型及其目标; 成功结束后才按循环模式更新下次目标。"
-msgstr ""
-"This run farms only the selected type and target. The cycle mode updates the"
-" target for the next run only after a successful finish."
+msgstr "This run farms only the selected type and target. The cycle mode updates the target for the next run only after a successful finish."
 
-msgid ""
-"每次日常仅刷当前目标, 本次不在多个目标间分配体力。\n"
-"停用: 下次仍刷当前目标。\n"
-"自动循环序号/目标: 成功结束后切到同类型的下一个序号或奖励目标, 末项后回到首项。\n"
-"自定义循环: 成功结束后按下方序列更新下次目标; 失败或跳过时不切换。"
-msgstr ""
-"Each daily run farms only the current target; stamina is not split between targets in this run.\n"
-"Disabled: keep the current target for the next run.\n"
-"Auto-cycle IDs/targets: after success, select the next ID or reward target of the same type, wrapping to the first.\n"
-"Custom cycle: after success, update the next-run target using the list below. Failed or skipped runs do not advance the cycle."
+msgid "每次日常仅刷当前目标, 本次不在多个目标间分配体力。\n停用: 下次仍刷当前目标。\n自动循环序号/目标: 成功结束后切到同类型的下一个序号或奖励目标, 末项后回到首项。\n自定义循环: 成功结束后按下方序列更新下次目标; 失败或跳过时不切换。"
+msgstr "Each daily run farms only the current target; stamina is not split between targets in this run.\nDisabled: keep the current target for the next run.\nAuto-cycle IDs/targets: after success, select the next ID or reward target of the same type, wrapping to the first.\nCustom cycle: after success, update the next-run target using the list below. Failed or skipped runs do not advance the cycle."
 
-msgid ""
-"按列表顺序轮换, 末项后回到首项; 每次日常只刷一个目标, 下次运行才刷下一个。\n"
-"数字是副本序号, 不是次数; 例如「异能升级材料: 1」表示该类型的第1项。\n"
-"首次仍刷上方当前目标; 若其不在序列中, 成功后将下次目标设为序列首项; 空序列不切换。"
-msgstr ""
-"Rotate in list order, wrapping to the first item. Each daily run farms one target; the next target is farmed on the next run.\n"
-"Numbers are dungeon IDs, not run counts. For example, Ability Upgrade Materials: 1 means the first dungeon of that type.\n"
-"The first run uses the current target above. If it is absent from the list, success sets the next-run target to the first list item. An empty list leaves the target unchanged."
+msgid "按列表顺序轮换, 末项后回到首项; 每次日常只刷一个目标, 下次运行才刷下一个。\n数字是副本序号, 不是次数; 例如「异能升级材料: 1」表示该类型的第1项。\n首次仍刷上方当前目标; 若其不在序列中, 成功后将下次目标设为序列首项; 空序列不切换。"
+msgstr "Rotate in list order, wrapping to the first item. Each daily run farms one target; the next target is farmed on the next run.\nNumbers are dungeon IDs, not run counts. For example, Ability Upgrade Materials: 1 means the first dungeon of that type.\nThe first run uses the current target above. If it is absent from the list, success sets the next-run target to the first list item. An empty list leaves the target unchanged."
 
 #, python-brace-format
-msgid ""
-"按今日累计消耗计算, 扣除已消耗体力; 每份奖励{cost}体力, 剩余目标向上取整。\n"
-"今日已消耗180体力或活跃度达100时跳过; 体力不足时仅刷可领取的次数。"
-msgstr ""
-"Today's total stamina spending target, minus stamina already spent. Each reward costs {cost} stamina; the remaining target is rounded up.\n"
-"Skipped if 180 stamina has already been spent today or activity reaches 100. If stamina is low, only affordable rewards are claimed."
+msgid "按今日累计消耗计算, 扣除已消耗体力; 每份奖励{cost}体力, 剩余目标向上取整。\n今日已消耗180体力或活跃度达100时跳过; 体力不足时仅刷可领取的次数。"
+msgstr "Today's total stamina spending target, minus stamina already spent. Each reward costs {cost} stamina; the remaining target is rounded up.\nSkipped if 180 stamina has already been spent today or activity reaches 100. If stamina is low, only affordable rewards are claimed."
 
 msgid "筛选"
 msgstr "Filters"
@@ -1798,12 +1665,8 @@ msgid "清空筛选"
 msgstr "Clear filters"
 
 #, python-brace-format
-msgid ""
-"已安装: {installed}\n"
-"最新版本: {latest}"
-msgstr ""
-"Installed: {installed}\n"
-"Latest version: {latest}"
+msgid "已安装: {installed}\n最新版本: {latest}"
+msgstr "Installed: {installed}\nLatest version: {latest}"
 
 #, python-brace-format
 msgid "显示 {} / {} 个方案"
@@ -1828,23 +1691,16 @@ msgid "轮换起始日期"
 msgstr "Rotation start date"
 
 msgid "按清单顺序循环, 末项后回到首项; 重复选择表示重复挑战同一目标"
-msgstr ""
-"Cycle through the list in order, returning to the first item after the last."
-" Select a target more than once to challenge it repeatedly."
+msgstr "Cycle through the list in order, returning to the first item after the last. Select a target more than once to challenge it repeatedly."
 
 msgid "可选, 格式 YYYY-MM-DD; 每满7天按清单推进3项, 本周已领取次数也计入进度。留空则每次从清单首项开始循环。"
-msgstr ""
-"Optional, in YYYY-MM-DD format. Advance three places every seven days and "
-"include rewards already claimed this week. Leave blank to start at the first"
-" item each run."
+msgstr "Optional, in YYYY-MM-DD format. Advance three places every seven days and include rewards already claimed this week. Leave blank to start at the first item each run."
 
 msgid "每周开始运行日"
 msgstr "Weekly start day"
 
 msgid "仅在所选星期至周日运行, 本周更早的日期会跳过。"
-msgstr ""
-"Run from the selected day through Sunday. Earlier days of the week are "
-"skipped."
+msgstr "Run from the selected day through Sunday. Earlier days of the week are skipped."
 
 msgid "周一"
 msgstr "Monday"
@@ -1867,76 +1723,100 @@ msgstr "Saturday"
 msgid "周日"
 msgstr "Sunday"
 
+
 msgid "Close"
 msgstr "Close"
+
 
 msgid "Drag to reorder"
 msgstr "Drag to reorder"
 
+
 msgid "Failed"
 msgstr "Failed"
+
 
 msgid "Include in this daily routine"
 msgstr "Include in this daily routine"
 
+
 msgid "Name"
 msgstr "Name"
+
 
 msgid "No tasks available."
 msgstr "No tasks available."
 
+
 msgid "Pause"
 msgstr "Pause"
+
 
 msgid "Paused"
 msgstr "Paused"
 
+
 msgid "Pending"
 msgstr "Pending"
+
 
 msgid "Queued"
 msgstr "Queued"
 
+
 msgid "Reset"
 msgstr "Reset"
+
 
 msgid "Resume"
 msgstr "Resume"
 
+
 msgid "Routine settings"
 msgstr "Routine settings"
+
 
 msgid "Run info"
 msgstr "Run info"
 
+
 msgid "Running"
 msgstr "Running"
+
 
 msgid "Select a task to see its settings."
 msgstr "Select a task to see its settings."
 
+
 msgid "Skipped"
 msgstr "Skipped"
+
 
 msgid "Start"
 msgstr "Start"
 
+
 msgid "Stop"
 msgstr "Stop"
+
 
 msgid "Succeeded"
 msgstr "Succeeded"
 
+
 msgid "Task settings"
 msgstr "Task settings"
 
+
 msgid "Value"
 msgstr "Value"
+
 
 msgid "检测到该方案包含外置代码, 是否同时删除对应的代码文件?"
 msgstr ""
 "This preset contains external code. Do you also want to delete the "
 "corresponding code files?"
+
 
 msgid "角色列表"
 msgstr "Characters"
@@ -1957,53 +1837,7 @@ msgid "允许约会目标兜底"
 msgstr "Allow date target fallback"
 
 msgid "支持正则表达式匹配目标名称, 留空时选择顶部可选目标"
-msgstr ""
-"Supports regex target matching; blank selects the top available target."
+msgstr "Supports regex target matching; blank selects the top available target."
 
 msgid "指定目标找不到或不可用时, 尝试选择顶部可选目标"
-msgstr ""
-"If the specified target is missing or unavailable, try the top available "
-"target."
-
-msgid "领奖失败时留在副本"
-msgstr "Stay in dungeon on reward claim failure"
-
-msgid "领奖失败时停留在副本并通知"
-msgstr "Stay in the dungeon and notify if reward claiming fails."
-
-msgid "消耗体力培养角色"
-msgstr "Spend Stamina for Character Growth"
-
-msgid "按培养目标缺口自动消耗体力：周本 > 世界BOSS > 异能 > 弧盘"
-msgstr "Auto-spend stamina by goal gaps: Weekly > World BOSS > Ability > Arc"
-
-msgid "连打单次上限（局），只是保险丝，实际还会被缺口和体力截断。"
-msgstr ""
-"Max chained rounds per burst; a safety cap, also limited by gap and stamina."
-
-msgid "开局读一次养成指南四行和体力，之后按每局掉落增量本地记账，不再每局回页重读；掉落读不出时自动回页复核，不凭空猜数。"
-msgstr ""
-"Read the four goal rows and stamina once, then track loot locally each "
-"round; fall back to re-read if loot is unreadable."
-
-msgid "领奖时抓拍现场截图，供排查识别偏差；默认关闭。"
-msgstr "Capture a screenshot at reward claim for debugging; off by default."
-
-msgid "今日体力花到这个累计数就停；今日目标已达标或设为 0 时不受每日目标限制，按当前体力一直刷到材料齐全；材料齐全后仍会切空幕继续消耗剩余体力。"
-msgstr ""
-"Stop once today's stamina reaches this amount; when today's target is "
-"already met or set to 0, the daily limit no longer applies and it keeps "
-"farming until all materials are complete.; once all materials are complete, "
-"it still switches to Empty Curtain to spend the remaining stamina."
-
-msgid "周本刷取开关：开=优先刷满本周异象巡礼（每周 3 次，每次 60 体力）再刷其它材料；关=直接刷其它材料，周本只在异能第 2 行缺料时才打。"
-msgstr ""
-"Weekly boss toggle: ON = clear this week's Anomaly Pilgrimage first (3 times"
-" per week, 60 stamina each) before farming other materials; OFF = farm other"
-" materials directly, and the weekly boss is only fought when Ability row 2 "
-"lacks materials."
-
-msgid "每局领奖后在日志统计各材料本次掉落多少、已有多少、还差多少。"
-msgstr ""
-"After each reward claim, log how many of each material dropped this round, "
-"how many you have, and how many are still needed."
+msgstr "If the specified target is missing or unavailable, try the top available target."

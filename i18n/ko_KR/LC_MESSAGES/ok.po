@@ -39,8 +39,7 @@ msgstr "작업 실행 시 월정액 카드로 인한 중단을 피하기 위해 
 msgid "Ultimate Key"
 msgstr "궁극기 키"
 
-msgid ""
-"Your computer's local time when the monthly card will popup, hour in (1-24)"
+msgid "Your computer's local time when the monthly card will popup, hour in (1-24)"
 msgstr "월정액 카드가 팝업될 컴퓨터의 로컬 시간(1-24시)"
 
 msgid "内置代码"
@@ -181,12 +180,8 @@ msgstr "특징을 가져오지 못했습니다"
 msgid "关联特征"
 msgstr "특징 연결"
 
-msgid ""
-"此为 Python 脚本, 不可在此修改.\n"
-"请在对应的源文件中直接修改代码."
-msgstr ""
-"이것은 Python 스크립트이므로 여기서 수정할 수 없습니다.\n"
-"해당 소스 파일에서 직접 코드를 수정해 주세요."
+msgid "此为 Python 脚本, 不可在此修改.\n请在对应的源文件中直接修改代码."
+msgstr "이것은 Python 스크립트이므로 여기서 수정할 수 없습니다.\n해당 소스 파일에서 직접 코드를 수정해 주세요."
 
 msgid "没有找到匹配的指令。"
 msgstr "일치하는 명령을 찾을 수 없습니다."
@@ -280,9 +275,7 @@ msgstr ""
 msgid "Counter Attack Threshold"
 msgstr "반격 임계값"
 
-msgid ""
-"Counter attack sound recognition threshold (0.0-1.0, lower is more "
-"sensitive)"
+msgid "Counter attack sound recognition threshold (0.0-1.0, lower is more sensitive)"
 msgstr "반격 사운드 인식 임계값 (0.0-1.0, 낮을수록 더 민감함)"
 
 msgid "Dodge Threshold"
@@ -836,22 +829,21 @@ msgid "每2小时重新登入"
 msgstr "2시간마다 재로그인"
 
 msgid "除了选择内建存在的 [{combo}] 外,您也可以自己输入名称来建立自己的 [文本型{combo}]。"
-msgstr ""
-"기본 제공되는 [{combo}]을 선택하는 것 외에도, 이름을 입력해 나만의 [텍스트 형식의 {combo}]을 만들 수 있습니다."
+msgstr "기본 제공되는 [{combo}]을 선택하는 것 외에도, 이름을 입력해 나만의 [텍스트 형식의 {combo}]을 만들 수 있습니다."
 
 msgid ""
-"<b>外置代码用法:</b><br>在 [{data_manager}] 中点击 [{show_builtin}], 选中内置角色后点击 "
-"[{copy_external}] 创建可编辑副本。<br>回到此页, 选择 {external_code} 脚本, 修改 Python 代码后点击 "
-"[{apply}] 保存并绑定到当前角色。<br>也可在 [{data_manager}] 中点击 [{open_folder}] 手动编辑 .py "
-"文件, 保存后点击 [{refresh}] 重新加载。每个文件须且仅须定义一个 BaseChar 子类。<br>外置代码会以本软件相同权限运行, "
-"请仅使用可信来源。"
+"<b>外置代码用法:</b><br>"
+"在 [{data_manager}] 中点击 [{show_builtin}], 选中内置角色后点击 [{copy_external}] 创建可编辑副本。<br>"
+"回到此页, 选择 {external_code} 脚本, 修改 Python 代码后点击 [{apply}] 保存并绑定到当前角色。<br>"
+"也可在 [{data_manager}] 中点击 [{open_folder}] 手动编辑 .py 文件, 保存后点击 [{refresh}] 重新加载。"
+"每个文件须且仅须定义一个 BaseChar 子类。<br>"
+"外置代码会以本软件相同权限运行, 请仅使用可信来源。"
 msgstr ""
-"<b>외부 코드 사용 방법:</b><br>[{data_manager}]에서 [{show_builtin}]을 클릭하고 내장 캐릭터를 선택한"
-" 다음 [{copy_external}]을 클릭해 편집 가능한 복사본을 만드세요.<br>이 페이지로 돌아와 {external_code} "
-"스크립트를 선택하고 Python 코드를 수정한 뒤 [{apply}]를 클릭해 저장하고 현재 캐릭터에 "
-"연결하세요.<br>[{data_manager}]의 [{open_folder}]에서 .py 파일을 직접 편집할 수도 있습니다. 저장한 뒤 "
-"[{refresh}]를 클릭해 다시 불러오세요. 각 파일에는 BaseChar 하위 클래스가 하나만 있어야 합니다.<br>외부 코드는 이 "
-"앱과 동일한 권한으로 실행됩니다. 신뢰할 수 있는 코드만 사용하세요."
+"<b>외부 코드 사용 방법:</b><br>"
+"[{data_manager}]에서 [{show_builtin}]을 클릭하고 내장 캐릭터를 선택한 다음 [{copy_external}]을 클릭해 편집 가능한 복사본을 만드세요.<br>"
+"이 페이지로 돌아와 {external_code} 스크립트를 선택하고 Python 코드를 수정한 뒤 [{apply}]를 클릭해 저장하고 현재 캐릭터에 연결하세요.<br>"
+"[{data_manager}]의 [{open_folder}]에서 .py 파일을 직접 편집할 수도 있습니다. 저장한 뒤 [{refresh}]를 클릭해 다시 불러오세요. 각 파일에는 BaseChar 하위 클래스가 하나만 있어야 합니다.<br>"
+"외부 코드는 이 앱과 동일한 권한으로 실행됩니다. 신뢰할 수 있는 코드만 사용하세요."
 
 msgid "九百九十九夜"
 msgstr "구백구십구야"
@@ -892,13 +884,8 @@ msgstr "백그라운드 출력 장치"
 msgid "Open SoundVolumeCommandLine Download Page"
 msgstr "SoundVolumeCommandLine 다운로드 페이지 열기"
 
-msgid ""
-"Optionally route the game to a selected Windows output device while it is in"
-" the background. SoundVolumeCommandLine is not bundled; select your own "
-"downloaded copy."
-msgstr ""
-"게임이 백그라운드에 있을 때 선택한 Windows 출력 장치로 게임 오디오를 라우팅할 수 있습니다. "
-"SoundVolumeCommandLine는 내장되어 있지 않으므로 직접 다운로드한 복사본을 선택하세요."
+msgid "Optionally route the game to a selected Windows output device while it is in the background. SoundVolumeCommandLine is not bundled; select your own downloaded copy."
+msgstr "게임이 백그라운드에 있을 때 선택한 Windows 출력 장치로 게임 오디오를 라우팅할 수 있습니다. SoundVolumeCommandLine는 내장되어 있지 않으므로 직접 다운로드한 복사본을 선택하세요."
 
 msgid "Switch game audio output when the game window leaves the foreground"
 msgstr "게임 창이 활성화 상태를 벗어날 때 게임 오디오 출력 전환"
@@ -912,8 +899,7 @@ msgstr "게임이 백그라운드에 있을 때 사용할 출력 장치"
 msgid "Open the official NirSoft SoundVolumeCommandLine page"
 msgstr "공식 NirSoft SoundVolumeCommandLine 페이지 열기"
 
-msgid ""
-"SoundVolumeCommandLine (svcl.exe);;Executable Files (*.exe);;All Files (*)"
+msgid "SoundVolumeCommandLine (svcl.exe);;Executable Files (*.exe);;All Files (*)"
 msgstr "SoundVolumeCommandLine (svcl.exe);;실행 파일 (*.exe);;모든 파일 (*)"
 
 msgid "Select svcl.exe"
@@ -1091,8 +1077,7 @@ msgid "自动战斗检测诊断"
 msgstr "자동 전투 감지 진단"
 
 msgid "持续检测诊断 Lv, 锁定目标标记(白色菱形)和红色血条; 请手动停止以查看完整报告"
-msgstr ""
-"Lv, 고정 대상 표시(흰색 마름모) 및 빨간색 체력 바의 감지 진단을 계속합니다. 전체 보고서를 보려면 수동으로 중지하십시오"
+msgstr "Lv, 고정 대상 표시(흰색 마름모) 및 빨간색 체력 바의 감지 진단을 계속합니다. 전체 보고서를 보려면 수동으로 중지하십시오"
 
 msgid "喷泉签到"
 msgstr "분수 출석 체크"
@@ -1270,44 +1255,21 @@ msgstr "파티 인식"
 msgid "提示"
 msgstr "안내"
 
-msgid ""
-"<p><b style=\"color: #d83b01;\">注意：</b>此面板 <b style=\"color: "
-"#d83b01;\">不会</b> 在进入战斗或更换阵容时实时自动刷新或同步显示。<br>这是个用于向数据库关联或添加 [角色特征] "
-"的工具面板。<br>点击 [{scan_team}] 后点击 [关联或添加] 特征, 自动战斗时就会识别对应的角色。<br>如果不想管理 [角色特征],"
-" 可以直接使用 [{fixed_team}] 功能。</p>"
-msgstr ""
-"<p><b style=\"color: #d83b01;\">주의:</b> 이 패널은 전투 진입이나 파티 변경 시 실시간으로 자동 "
-"새로고침되거나 동기화되지 않습니다.<br>데이터베이스에 [캐릭터 특징]을 연결하거나 추가하는 도구 "
-"패널입니다.<br>[{scan_team}]을 클릭한 후 특징을 [연결 또는 추가]하면 자동 전투 시 해당 캐릭터를 "
-"인식합니다.<br>[캐릭터 특징]을 관리하지 않으려면 [{fixed_team}] 기능을 직접 사용할 수 있습니다.</p>"
+msgid "<p><b style=\"color: #d83b01;\">注意：</b>此面板 <b style=\"color: #d83b01;\">不会</b> 在进入战斗或更换阵容时实时自动刷新或同步显示。<br>这是个用于向数据库关联或添加 [角色特征] 的工具面板。<br>点击 [{scan_team}] 后点击 [关联或添加] 特征, 自动战斗时就会识别对应的角色。<br>如果不想管理 [角色特征], 可以直接使用 [{fixed_team}] 功能。</p>"
+msgstr "<p><b style=\"color: #d83b01;\">주의:</b> 이 패널은 전투 진입이나 파티 변경 시 실시간으로 자동 새로고침되거나 동기화되지 않습니다.<br>데이터베이스에 [캐릭터 특징]을 연결하거나 추가하는 도구 패널입니다.<br>[{scan_team}]을 클릭한 후 특징을 [연결 또는 추가]하면 자동 전투 시 해당 캐릭터를 인식합니다.<br>[캐릭터 특징]을 관리하지 않으려면 [{fixed_team}] 기능을 직접 사용할 수 있습니다.</p>"
 
-msgid ""
-"<p>用于配置并保存常用的 4 人队伍阵容与出招表, 修改后立即生效。<br>方案中的 1~4 号位仅用于 [{fixed_preset}] 功能; "
-"已绑定特征的角色放在哪个号位都可以, 不影响识别。<br>点击 [{apply_preset}] 可一键更新应用方案中各角色的出招表 "
-"(未选择出招表则保持原配置不变)。<br>开启 [{fixed_preset}] 后自动战斗将直接采用此阵容, 无需等待特征识别 "
-"(未录入特征的角色亦可直接战斗)。<br>点击 [{fill_scan}] 可将上方特征扫描识别出的队伍角色快速填入当前方案。</p>"
-msgstr ""
-"<p>자주 사용하는 4인 파티 구성 및 스킬 콤보를 설정하고 저장하며, 수정 즉시 적용됩니다.<br>프리셋의 1~4번 슬롯은 "
-"[{fixed_preset}] 기능에서만 사용됩니다. 특징이 이미 등록된 캐릭터는 어느 슬롯에 배치해도 인식에 영향을 주지 "
-"않습니다.<br>[{apply_preset}] 클릭 시 이 프리셋의 각 캐릭터 스킬 콤보를 일괄 적용합니다(콤보를 선택하지 않은 경우 "
-"기존 구성 유지).<br>[{fixed_preset}] 활성화 시 특징 인식을 기다리지 않고 이 파티 구성을 자동 전투에 바로 "
-"적용합니다(특징이 등록되지 않은 캐릭터도 즉시 전투 가능).<br>[{fill_scan}] 클릭 시 위 특징 스캔에서 인식된 파티 "
-"캐릭터를 현재 프리셋에 빠르게 입력합니다.</p>"
+msgid "<p>用于配置并保存常用的 4 人队伍阵容与出招表, 修改后立即生效。<br>方案中的 1~4 号位仅用于 [{fixed_preset}] 功能; 已绑定特征的角色放在哪个号位都可以, 不影响识别。<br>点击 [{apply_preset}] 可一键更新应用方案中各角色的出招表 (未选择出招表则保持原配置不变)。<br>开启 [{fixed_preset}] 后自动战斗将直接采用此阵容, 无需等待特征识别 (未录入特征的角色亦可直接战斗)。<br>点击 [{fill_scan}] 可将上方特征扫描识别出的队伍角色快速填入当前方案。</p>"
+msgstr "<p>자주 사용하는 4인 파티 구성 및 스킬 콤보를 설정하고 저장하며, 수정 즉시 적용됩니다.<br>프리셋의 1~4번 슬롯은 [{fixed_preset}] 기능에서만 사용됩니다. 특징이 이미 등록된 캐릭터는 어느 슬롯에 배치해도 인식에 영향을 주지 않습니다.<br>[{apply_preset}] 클릭 시 이 프리셋의 각 캐릭터 스킬 콤보를 일괄 적용합니다(콤보를 선택하지 않은 경우 기존 구성 유지).<br>[{fixed_preset}] 활성화 시 특징 인식을 기다리지 않고 이 파티 구성을 자동 전투에 바로 적용합니다(특징이 등록되지 않은 캐릭터도 즉시 전투 가능).<br>[{fill_scan}] 클릭 시 위 특징 스캔에서 인식된 파티 캐릭터를 현재 프리셋에 빠르게 입력합니다.</p>"
 
 #, python-brace-format
 msgid "OpenVINO 检测器 {model} 推理超时, 已自动停用。重启程序后将重新尝试启用。"
-msgstr ""
-"추론 시간이 초과되어 OpenVINO 감지기 {model}이 비활성화되었습니다. 앱을 다시 시작할 때 활성화를 다시 시도합니다."
+msgstr "추론 시간이 초과되어 OpenVINO 감지기 {model}이 비활성화되었습니다. 앱을 다시 시작할 때 활성화를 다시 시도합니다."
 
 msgid "批量删除"
 msgstr "일괄 삭제"
 
-msgid ""
-"当前未绑定任何{combo}.\n"
-"遇到此角色将默认使用基础通用脚本(BaseChar)."
-msgstr ""
-"현재 바인딩된 {combo}가 없습니다.\n"
-"이 캐릭터를 만날 경우 기본 공용 스크립트(BaseChar)가 사용됩니다."
+msgid "当前未绑定任何{combo}.\n遇到此角色将默认使用基础通用脚本(BaseChar)."
+msgstr "현재 바인딩된 {combo}가 없습니다.\n이 캐릭터를 만날 경우 기본 공용 스크립트(BaseChar)가 사용됩니다."
 
 msgid "显示内置"
 msgstr "내장 표시"
@@ -1366,32 +1328,8 @@ msgstr "AI에게 질문"
 msgid "AI提示模版已复制。请粘贴到AI聊天机器人中。"
 msgstr "AI 프롬프트 템플릿이 복사되었습니다. AI 챗봇에 붙여넣으세요."
 
-msgid ""
-"{SOURCE}\n"
-"\n"
-"我想实现: \n"
-"\n"
-"请修改上面完整的 {class_name} 角色自动化代码。\n"
-"\n"
-"只返回整个文件完整修改后的 Python 代码，不要返回补丁或解释。\n"
-"保持类名为 {class_name}。保留仍然需要的 import。\n"
-"\n"
-"在思考辅助方法、任务 API、状态、切人、冷却和战斗流程时, 请参考: \n"
-"BaseChar 角色基类: {BASE_CHAR_URL}\n"
-"Combat Planner 开发指南: {COMBAT_PLANNER_URL}"
-msgstr ""
-"{SOURCE}\n"
-"\n"
-"구현하려는 내용: \n"
-"\n"
-"위의 완전한 {class_name} 캐릭터 자동화 코드를 수정해 주세요.\n"
-"\n"
-"패치나 설명 없이 전체 파일의 완전히 수정된 Python 코드만 반환해 주세요.\n"
-"클래스 이름은 {class_name}로 유지하고, 필요한 import를 유지해 주세요.\n"
-"\n"
-"보조 메서드, 작업 API, 상태, 캐릭터 교체, 쿨다운 및 전투 흐름을 고려할 때 다음을 참고하세요: \n"
-"BaseChar 캐릭터 기본 클래스: {BASE_CHAR_URL}\n"
-"Combat Planner 개발 가이드: {COMBAT_PLANNER_URL}"
+msgid "{SOURCE}\n\n我想实现: \n\n请修改上面完整的 {class_name} 角色自动化代码。\n\n只返回整个文件完整修改后的 Python 代码，不要返回补丁或解释。\n保持类名为 {class_name}。保留仍然需要的 import。\n\n在思考辅助方法、任务 API、状态、切人、冷却和战斗流程时, 请参考: \nBaseChar 角色基类: {BASE_CHAR_URL}\nCombat Planner 开发指南: {COMBAT_PLANNER_URL}"
+msgstr "{SOURCE}\n\n구현하려는 내용: \n\n위의 완전한 {class_name} 캐릭터 자동화 코드를 수정해 주세요.\n\n패치나 설명 없이 전체 파일의 완전히 수정된 Python 코드만 반환해 주세요.\n클래스 이름은 {class_name}로 유지하고, 필요한 import를 유지해 주세요.\n\n보조 메서드, 작업 API, 상태, 캐릭터 교체, 쿨다운 및 전투 흐름을 고려할 때 다음을 참고하세요: \nBaseChar 캐릭터 기본 클래스: {BASE_CHAR_URL}\nCombat Planner 개발 가이드: {COMBAT_PLANNER_URL}"
 
 msgid "OK"
 msgstr "확인"
@@ -1508,9 +1446,7 @@ msgid "社区方案"
 msgstr "커뮤니티 프리셋"
 
 msgid "社区方案含外置代码; 导入后会以本软件权限运行, 请仅导入可信来源."
-msgstr ""
-"커뮤니티 프리셋에는 외부 코드가 포함될 수 있습니다. 가져온 후 이 소프트웨어의 권한으로 실행되므로 신뢰할 수 있는 출처에서만 "
-"가져오세요."
+msgstr "커뮤니티 프리셋에는 외부 코드가 포함될 수 있습니다. 가져온 후 이 소프트웨어의 권한으로 실행되므로 신뢰할 수 있는 출처에서만 가져오세요."
 
 msgid "角色阵容"
 msgstr "팀 구성"
@@ -1697,33 +1633,15 @@ msgstr "캐릭터 구현 ID 중복: {impl_id}"
 msgid "本次仅刷所选类型及其目标; 成功结束后才按循环模式更新下次目标。"
 msgstr "이번 실행에서는 선택한 유형과 대상만 진행합니다. 성공적으로 종료한 뒤 순환 모드에 따라 다음 실행 대상을 갱신합니다."
 
-msgid ""
-"每次日常仅刷当前目标, 本次不在多个目标间分配体力。\n"
-"停用: 下次仍刷当前目标。\n"
-"自动循环序号/目标: 成功结束后切到同类型的下一个序号或奖励目标, 末项后回到首项。\n"
-"自定义循环: 成功结束后按下方序列更新下次目标; 失败或跳过时不切换。"
-msgstr ""
-"일일 실행 1회에는 현재 대상만 진행하며 여러 대상에 스태미나를 나누지 않습니다.\n"
-"비활성화: 다음에도 현재 대상을 진행합니다.\n"
-"번호/대상 자동 순환: 성공 후 같은 유형의 다음 번호 또는 보상 대상으로 변경하며 마지막 다음은 처음으로 돌아갑니다.\n"
-"사용자 지정 순환: 성공 후 아래 목록에 따라 다음 실행 대상을 갱신합니다. 실패하거나 건너뛰면 변경하지 않습니다."
+msgid "每次日常仅刷当前目标, 本次不在多个目标间分配体力。\n停用: 下次仍刷当前目标。\n自动循环序号/目标: 成功结束后切到同类型的下一个序号或奖励目标, 末项后回到首项。\n自定义循环: 成功结束后按下方序列更新下次目标; 失败或跳过时不切换。"
+msgstr "일일 실행 1회에는 현재 대상만 진행하며 여러 대상에 스태미나를 나누지 않습니다.\n비활성화: 다음에도 현재 대상을 진행합니다.\n번호/대상 자동 순환: 성공 후 같은 유형의 다음 번호 또는 보상 대상으로 변경하며 마지막 다음은 처음으로 돌아갑니다.\n사용자 지정 순환: 성공 후 아래 목록에 따라 다음 실행 대상을 갱신합니다. 실패하거나 건너뛰면 변경하지 않습니다."
 
-msgid ""
-"按列表顺序轮换, 末项后回到首项; 每次日常只刷一个目标, 下次运行才刷下一个。\n"
-"数字是副本序号, 不是次数; 例如「异能升级材料: 1」表示该类型的第1项。\n"
-"首次仍刷上方当前目标; 若其不在序列中, 成功后将下次目标设为序列首项; 空序列不切换。"
-msgstr ""
-"목록 순서대로 순환하며 마지막 다음은 처음으로 돌아갑니다. 일일 실행마다 대상 하나만 진행하고 다음 대상은 다음 실행에 진행합니다.\n"
-"숫자는 던전 번호이며 실행 횟수가 아닙니다. 예: 「이능 강화 재료: 1」은 해당 유형의 첫 번째 던전입니다.\n"
-"첫 실행은 위에서 선택한 현재 대상을 진행합니다. 목록에 없는 대상이면 성공 후 다음 실행 대상을 목록 첫 항목으로 설정합니다. 빈 목록이면 변경하지 않습니다."
+msgid "按列表顺序轮换, 末项后回到首项; 每次日常只刷一个目标, 下次运行才刷下一个。\n数字是副本序号, 不是次数; 例如「异能升级材料: 1」表示该类型的第1项。\n首次仍刷上方当前目标; 若其不在序列中, 成功后将下次目标设为序列首项; 空序列不切换。"
+msgstr "목록 순서대로 순환하며 마지막 다음은 처음으로 돌아갑니다. 일일 실행마다 대상 하나만 진행하고 다음 대상은 다음 실행에 진행합니다.\n숫자는 던전 번호이며 실행 횟수가 아닙니다. 예: 「이능 강화 재료: 1」은 해당 유형의 첫 번째 던전입니다.\n첫 실행은 위에서 선택한 현재 대상을 진행합니다. 목록에 없는 대상이면 성공 후 다음 실행 대상을 목록 첫 항목으로 설정합니다. 빈 목록이면 변경하지 않습니다."
 
 #, python-brace-format
-msgid ""
-"按今日累计消耗计算, 扣除已消耗体力; 每份奖励{cost}体力, 剩余目标向上取整。\n"
-"今日已消耗180体力或活跃度达100时跳过; 体力不足时仅刷可领取的次数。"
-msgstr ""
-"오늘의 누적 소모 목표에서 이미 소모한 스태미나를 뺍니다. 보상 1회당 {cost}을 소모하며 남은 목표는 올림 처리합니다.\n"
-"오늘 이미 180을 소모했거나 활동도가 100이면 건너뜁니다. 스태미나가 부족하면 수령 가능한 횟수만 진행합니다."
+msgid "按今日累计消耗计算, 扣除已消耗体力; 每份奖励{cost}体力, 剩余目标向上取整。\n今日已消耗180体力或活跃度达100时跳过; 体力不足时仅刷可领取的次数。"
+msgstr "오늘의 누적 소모 목표에서 이미 소모한 스태미나를 뺍니다. 보상 1회당 {cost}을 소모하며 남은 목표는 올림 처리합니다.\n오늘 이미 180을 소모했거나 활동도가 100이면 건너뜁니다. 스태미나가 부족하면 수령 가능한 횟수만 진행합니다."
 
 msgid "筛选"
 msgstr "필터"
@@ -1747,12 +1665,8 @@ msgid "清空筛选"
 msgstr "필터 초기화"
 
 #, python-brace-format
-msgid ""
-"已安装: {installed}\n"
-"最新版本: {latest}"
-msgstr ""
-"설치된 버전: {installed}\n"
-"최신 버전: {latest}"
+msgid "已安装: {installed}\n最新版本: {latest}"
+msgstr "설치된 버전: {installed}\n최신 버전: {latest}"
 
 #, python-brace-format
 msgid "显示 {} / {} 个方案"
@@ -1780,9 +1694,7 @@ msgid "按清单顺序循环, 末项后回到首项; 重复选择表示重复挑
 msgstr "목록 순서대로 진행하고 마지막 항목 다음에는 처음으로 돌아갑니다. 같은 목표를 여러 번 선택하면 반복해서 도전합니다."
 
 msgid "可选, 格式 YYYY-MM-DD; 每满7天按清单推进3项, 本周已领取次数也计入进度。留空则每次从清单首项开始循环。"
-msgstr ""
-"선택 사항이며 형식은 YYYY-MM-DD입니다. 7일마다 세 항목씩 진행하며 이번 주에 이미 받은 보상 횟수도 반영합니다. 비워 두면 "
-"매번 첫 항목부터 시작합니다."
+msgstr "선택 사항이며 형식은 YYYY-MM-DD입니다. 7일마다 세 항목씩 진행하며 이번 주에 이미 받은 보상 횟수도 반영합니다. 비워 두면 매번 첫 항목부터 시작합니다."
 
 msgid "每周开始运行日"
 msgstr "매주 실행 시작 요일"
@@ -1811,74 +1723,98 @@ msgstr "토요일"
 msgid "周日"
 msgstr "일요일"
 
+
 msgid "Close"
 msgstr "닫기"
+
 
 msgid "Drag to reorder"
 msgstr "드래그하여 순서 변경"
 
+
 msgid "Failed"
 msgstr "실패"
+
 
 msgid "Include in this daily routine"
 msgstr "이 일일 루틴에 포함"
 
+
 msgid "Name"
 msgstr "이름"
+
 
 msgid "No tasks available."
 msgstr "사용 가능한 작업이 없습니다."
 
+
 msgid "Pause"
 msgstr "일시 정지"
+
 
 msgid "Paused"
 msgstr "일시 정지됨"
 
+
 msgid "Pending"
 msgstr "실행 대기"
+
 
 msgid "Queued"
 msgstr "대기열에 있음"
 
+
 msgid "Reset"
 msgstr "초기화"
+
 
 msgid "Resume"
 msgstr "계속"
 
+
 msgid "Routine settings"
 msgstr "일일 루틴 설정"
+
 
 msgid "Run info"
 msgstr "실행 정보"
 
+
 msgid "Running"
 msgstr "실행 중"
+
 
 msgid "Select a task to see its settings."
 msgstr "설정을 보려면 작업을 선택하세요."
 
+
 msgid "Skipped"
 msgstr "건너뜀"
+
 
 msgid "Start"
 msgstr "시작"
 
+
 msgid "Stop"
 msgstr "중지"
+
 
 msgid "Succeeded"
 msgstr "성공"
 
+
 msgid "Task settings"
 msgstr "작업 설정"
+
 
 msgid "Value"
 msgstr "값"
 
+
 msgid "检测到该方案包含外置代码, 是否同时删除对应的代码文件?"
 msgstr "해당 프리셋에 외부 코드가 포함되어 있습니다. 해당 코드 파일도 함께 삭제하시겠습니까?"
+
 
 msgid "角色列表"
 msgstr "캐릭터 목록"
@@ -1903,37 +1839,3 @@ msgstr "대상 이름 정규식을 지원하며, 비워 두면 맨 위의 선택
 
 msgid "指定目标找不到或不可用时, 尝试选择顶部可选目标"
 msgstr "지정한 대상을 찾지 못하거나 사용할 수 없으면 맨 위의 선택 가능한 대상을 시도합니다."
-
-msgid "领奖失败时留在副本"
-msgstr "보상 수령 실패 시 던전에 남기"
-
-msgid "领奖失败时停留在副本并通知"
-msgstr "보상 수령에 실패하면 던전에 머물며 알립니다."
-
-msgid "消耗体力培养角色"
-msgstr "스태미나로 캐릭터 육성"
-
-msgid "按培养目标缺口自动消耗体力：周本 > 世界BOSS > 异能 > 弧盘"
-msgstr "육성 목표 부족분에 따라 자동 소모: 주간 > 월드 BOSS > 이능 > 호반"
-
-msgid "连打单次上限（局），只是保险丝，实际还会被缺口和体力截断。"
-msgstr "연전 최대 판 수."
-
-msgid "开局读一次养成指南四行和体力，之后按每局掉落增量本地记账，不再每局回页重读；掉落读不出时自动回页复核，不凭空猜数。"
-msgstr "시작 시 한 번만 읽고 이후 드롭 증가분으로 관리."
-
-msgid "领奖时抓拍现场截图，供排查识别偏差；默认关闭。"
-msgstr "보상 수령 시 스크린샷. 기본 꺼짐."
-
-msgid "今日体力花到这个累计数就停；今日目标已达标或设为 0 时不受每日目标限制，按当前体力一直刷到材料齐全；材料齐全后仍会切空幕继续消耗剩余体力。"
-msgstr ""
-"오늘 누적 체력이 이 값에 도달하면 중지합니다. 오늘 목표를 이미 달성했거나 0으로 설정하면 일일 제한이 없으며 재료가 모일 때까지 현재"
-" 체력으로 계속 돌립니다.; 모든 재료가 다 모인 후에도 빈 장막으로 전환하여 남은 스태미나를 계속 소모합니다."
-
-msgid "周本刷取开关：开=优先刷满本周异象巡礼（每周 3 次，每次 60 体力）再刷其它材料；关=直接刷其它材料，周本只在异能第 2 行缺料时才打。"
-msgstr ""
-"주간 토글: ON=이번 주 이상 순례(주 3회, 회당 60 체력)를 먼저 소진한 뒤 기타 재료로. OFF=기타 재료를 바로 돌리고, 이능"
-" 2번째 줄에 재료가 부족할 때만 주간 보스를 칩니다."
-
-msgid "每局领奖后在日志统计各材料本次掉落多少、已有多少、还差多少。"
-msgstr "수령 후 로그에 재료별 이번 드롭 수, 보유 수, 부족 수를 기록합니다."
