@@ -144,6 +144,16 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/a5/f5/397b61091120a9ca5001041dd7bf76c385b3bfd67a0e5bcb74b852bd22a4/evdev-1.9.3.tar.gz", hash = "sha256:2c140e01ac8437758fa23fe5c871397412461f42d421aa20241dc8fe8cfccbc9", size = 32723, upload-time = "2026-02-05T21:54:24.987Z" }
 
 [[package]]
+name = "greenlet"
+version = "3.5.6"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/3e/6e/0091f175ccd02b02bc8811bbcbcc6ac2e980be116e3b2f7a736ca322bf84/greenlet-3.5.6.tar.gz", hash = "sha256:8e67c43bdfc88d5fee6db0d3e40175b362fc95fb85f0412d233b9b203c53a575", size = 207653, upload-time = "2026-09-14T15:42:51.806Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/c3/71/d79f1791f824f8ff15c2978746640467ae932a2365e0201069f7f272395f/greenlet-3.5.6-cp312-cp312-win_amd64.whl", hash = "sha256:7ac4abb3877c43af320392c664774eef6fa2cc063c79a55fc02d844a3cbe7395", size = 324203, upload-time = "2026-09-14T14:22:54.504Z" },
+    { url = "https://files.pythonhosted.org/packages/63/af/42aca4d56e8cb321912203069d8d34734cb288222f10ad2ae102718cc577/greenlet-3.5.6-cp312-cp312-win_arm64.whl", hash = "sha256:301102a49120b095e72a7838792b41233975fc1c155daec6d98f81c00c9280e0", size = 308310, upload-time = "2026-09-14T14:24:03.008Z" },
+]
+
+[[package]]
 name = "h11"
 version = "0.16.0"
 source = { registry = "https://pypi.org/simple" }
@@ -415,6 +425,7 @@ dependencies = [
     { name = "opencc" },
     { name = "opencv-python" },
     { name = "openvino" },
+    { name = "playwright" },
     { name = "psutil" },
     { name = "pynput" },
     { name = "pywin32" },
@@ -438,11 +449,12 @@ requires-dist = [
     { name = "comtypes", specifier = ">=1.5.0" },
     { name = "librosa", specifier = ">=1.0.1" },
     { name = "mido", specifier = ">=1.3.3" },
-    { name = "ok-script", extras = ["ocr", "qt"], specifier = "==3.0.9" },
+    { name = "ok-script", extras = ["ocr", "qt"], specifier = "==3.0.12" },
     { name = "onnxocr-ppocrv6", specifier = "==0.0.1" },
     { name = "opencc", specifier = ">=1.4.2" },
     { name = "opencv-python", specifier = ">=5.0.0.93" },
     { name = "openvino", specifier = ">=2026.3.0" },
+    { name = "playwright" },
     { name = "psutil", specifier = ">=7.2.2" },
     { name = "pynput", specifier = ">=1.8.2" },
     { name = "pywin32", specifier = "==311" },
@@ -475,7 +487,7 @@ wheels = [
 
 [[package]]
 name = "ok-script"
-version = "3.0.9"
+version = "3.0.12"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "mouse" },
@@ -488,9 +500,9 @@ dependencies = [
     { name = "requests" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/6c/90/91a53cc76f49f4107bebe527964262ecbeaa15ce13fe985731094cb1b403/ok_script-3.0.9.tar.gz", hash = "sha256:811b67ed7e972477f7c1d3d38be8a7d691f63362e6ef78f824165e185d1aed43", size = 1158890, upload-time = "2026-11-20T14:01:01.011Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/46/1b/e393a96c0ba31d7b238d019ef33905be21593747ae658d87786542862c79/ok_script-3.0.12.tar.gz", hash = "sha256:809922b2bf4bdd7d5b50a8bf41d2098515c6e7a346590a7956ad6414be1da67c", size = 1161495, upload-time = "2026-11-23T11:12:22.359Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/fb/eb/40334dcb650016a6c502c0047dfa5e928cda4ff70b61ccd39fd681a216c6/ok_script-3.0.9-py3-none-any.whl", hash = "sha256:b96b42450255b4e2b4b56423b79da0c529a1b092dd9193c0677a9d00a0f75e6d", size = 1120218, upload-time = "2026-11-20T14:00:59.375Z" },
+    { url = "https://files.pythonhosted.org/packages/27/6a/b41a55467795ad0bd4e6cf132848540044011d4a36e665bb00e8a48216e3/ok_script-3.0.12-py3-none-any.whl", hash = "sha256:bab00fe026938b02abcbc786418488630d6badc991277efe82f5890d979269fd", size = 1121101, upload-time = "2026-11-23T11:12:20.74Z" },
 ]
 
 [package.optional-dependencies]
@@ -607,6 +619,20 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/d7/47/e4501f49c178ae1d9f4a75073fda4204f52647993f075a9db4d14930e0c5/platformdirs-4.10.0.tar.gz", hash = "sha256:31e761a6a0ca04faf7353ea759bdba55652be214725111e5aac52dfa29d4bef7", size = 31224, upload-time = "2026-05-28T03:32:53.587Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/81/e6/cd9575ac904136b3cbf7aa7ee819ef86eedb7274e46f230e94ea4342e729/platformdirs-4.10.0-py3-none-any.whl", hash = "sha256:fb516cdb12eb0d857d0cd85a7c57cea4d060bee4578d6cf5a14dfdf8cbf8784a", size = 22743, upload-time = "2026-05-28T03:32:52.175Z" },
+]
+
+[[package]]
+name = "playwright"
+version = "1.65.2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "greenlet" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/b9/33/151d28773e930d0d438b73e5dcd29b418da65150f9ad05ddd772b275395e/playwright-1.65.2.tar.gz", hash = "sha256:8b031f81de9cdbe8550d8fe8b58dba47d96239e53177ee4cd47dab0fff07a87e", size = 10225683, upload-time = "2026-11-14T00:29:11.246Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/7a/e7/9fa224de4a94d7754a0654b369170fa5069274036061d0393b3a2f6a6c17/playwright-1.65.2-py3-none-win32.whl", hash = "sha256:4476703bcdd1a2db06f5db5136af7c02552b1bb519d5fa4b94a8eead2a6a41ba", size = 42673857, upload-time = "2026-11-14T00:29:00.608Z" },
+    { url = "https://files.pythonhosted.org/packages/51/9b/f071a3f3250017941a9d0ae27b8fe4deb141ce37b6b9fa176ff5bf8f34df/playwright-1.65.2-py3-none-win_amd64.whl", hash = "sha256:d0aec9e1c97b6f497f3d9f2ad6e1b7f299968e61239d71f100298b0690f3c776", size = 42673865, upload-time = "2026-11-14T00:29:04.628Z" },
+    { url = "https://files.pythonhosted.org/packages/3e/fe/ac7ee06f2a674f51577c4fa3690151e3c9147510cc1e08c8ad69eef35c03/playwright-1.65.2-py3-none-win_arm64.whl", hash = "sha256:33a224fba3fb72c5fa7eda49535b265c292f1fb87949c769754f9fcd0f5be2de", size = 38405357, upload-time = "2026-11-14T00:29:08.463Z" },
 ]
 
 [[package]]

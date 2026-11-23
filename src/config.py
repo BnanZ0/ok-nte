@@ -130,6 +130,19 @@ config = {
         "require_bg": True,  # 要求使用后台截图
         "start_exe": False,
     },
+    "browser": {
+        "url": "https://yh.wanmei.com/cloud/",
+        "resolution": (1920, 1080),
+        "channels": ["msedge", "chrome", "chromium"],
+        "navigation_timeout": 120,
+        # Keep SDR video in the compositor; direct video overlays clip WGC colors on HDR displays.
+        "args": [
+            "--webrtc-ip-handling-policy=default",
+            "--force-color-profile=srgb",
+            "--disable-direct-composition",
+        ],
+        "nick": "云游戏(未经充分测试, 需要Win11并安装Chrome或Edge)",
+    },
     # 'adb': {  # Windows游戏请填写此设置, mumu模拟器使用原生截图和input,速度极快. 其他模拟器和真机使用adb,截图速度较慢
     #     'packages': ['com.abc.efg1', 'com.abc.efg1']
     # },
