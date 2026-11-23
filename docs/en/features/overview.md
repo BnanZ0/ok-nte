@@ -7,7 +7,7 @@
 Automatically complete selected daily and weekly tasks.
 
 - **One-click Dailies**: Run your configured task routine automatically.
-- **Available Tasks**: EXP & Beetle Coins, Ability Upgrade, Arc Ascension, Console, The Cafe by Origen, Cinema Date, Bond Gifts, Anomaly Furniture, Anomaly Hunt, daily check-in at the Nacupeda Park fountain, and store purchase.
+- **Available Tasks**: EXP & Beetle Coins, Ability Upgrade, Arc Ascension, Console, The Cafe by Origen, Cinema Date, Bond Gifts, Anomaly Furniture, Anomaly Hunt, Anomaly Pilgrimage, daily check-in at the Nacupeda Park fountain, and store purchase.
 
 ### 🍹 Hobbies
 - **Auto Fishing**: Fully automated fishing process.
@@ -22,6 +22,7 @@ Automatically complete selected daily and weekly tasks.
 - **999 Nights**: AFK farming for EXP.
 - **Anomaly Domain**: Automate Anomaly Domain.
 - **Anomaly Hunt**: Automate Anomaly Hunt challenges.
+- **Anomaly Pilgrimage**: Automate Anomaly Pilgrimage challenges in the order of the target list.
 - **Auto Whirlwind**: Automatically completes 'Whirlwind' challenges.
 - **Volley Star**: Supports EXP farming, automatic match progression, and automated weekly competitions.
 - **Puka Land - Hit the Lucky Star**: Automatically play the darts minigame repeatedly to farm Star Tickets.
@@ -39,4 +40,4 @@ Automatically complete selected daily and weekly tasks.
 - **Fast Travel**: Automatic map teleportation.
 
 ### 🎹 Independent Entertainment & Utilities
-- **Auto Piano**: Automatically analyzes MIDI tracks and plays the piano.
+- **Auto Instrument Player**: Automatically analyzes MIDI tracks and plays the piano or guitar.
