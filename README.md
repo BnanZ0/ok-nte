@@ -14,6 +14,10 @@
   </p>
 
   <p>
+    <a href="https://github.com/zzstar101/awesome-nte"><img src="https://raw.githubusercontent.com/zzstar101/awesome-nte/main/assets/badge-listed.svg" alt="已收录至 Awesome NTE"></a>
+  </p>
+
+  <p>
     <a href="docs/zh-CN/getting-started/installation.md">📥 下载最新版</a> ·
     <a href="docs/zh-CN/index.md">📖 使用文档</a> ·
     <a href="docs/zh-CN/guides/quick-start.md">🚀 快速上手</a> ·

@@ -14,6 +14,10 @@ English | [简体中文](README.md)
   </p>
 
   <p>
+    <a href="https://github.com/zzstar101/awesome-nte"><img src="https://raw.githubusercontent.com/zzstar101/awesome-nte/main/assets/badge-listed.svg" alt="Listed in Awesome NTE"></a>
+  </p>
+
+  <p>
     <a href="docs/en/getting-started/installation.md">📥 Latest release</a> ·
     <a href="docs/en/index.md">📖 Documentation</a> ·
     <a href="docs/en/guides/quick-start.md">🚀 Quick start</a> ·
