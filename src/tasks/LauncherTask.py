@@ -78,11 +78,12 @@ class LauncherTask(BaseNTETask):
             raise
 
     def do_run(self):
+        self.scene.set_game_capture_ready(False)
         if self.is_browser():
+            self.scene.set_logged_in(False)
             self.browser_start()
             self.scene.set_game_capture_ready(True)
             return
-        self.scene.set_game_capture_ready(False)
         self.log_info("Launcher task started")
         dismiss_screensaver()
 
@@ -694,8 +695,11 @@ class LauncherTask(BaseNTETask):
 
     def browser_start(self):
         timer = self.clock.timer(timeout=120)
+        settle_time = None
         while not timer.expired():
+            confirm_start_box = self.box_of_screen(0.4980, 0.5271, 0.6008, 0.6313)
             if self.find_one(Labels.browser_node, horizontal_variance=0.1):
+                settle_time = None
                 if not self.wait_click_feature(
                     Labels.browser_node_rec,
                     vertical_variance=0.2,
@@ -710,21 +714,21 @@ class LauncherTask(BaseNTETask):
                     time_out=5,
                 ):
                     continue
-                if self.wait_until(
+                self.wait_until(
                     lambda: not self.find_one(Labels.browser_node, horizontal_variance=0.1),
                     time_out=10,
-                ):
-                    box = self.box_of_screen(0.4980, 0.5271, 0.6008, 0.5931)
-                    self.wait_click_feature(
-                        Labels.browser_node_confirm,
-                        box=box,
-                        raise_if_not_found=False,
-                        time_out=5,
-                    )
-                    break
-
+                )
+            elif confirm_start := self.find_one(Labels.browser_node_confirm, box=confirm_start_box):
+                settle_time = None
+                self.click(confirm_start, after_sleep=2)
             elif start_game := self.find_one(Labels.browser_start_game, horizontal_variance=0.1):
+                settle_time = None
                 self.click(start_game, after_sleep=2)
+            else:
+                if settle_time is None:
+                    settle_time = self.clock.now()
+                if self.clock.now() - settle_time > 2:
+                    break
         else:
             raise TaskDisabledException("Timed out for browser start game")
 

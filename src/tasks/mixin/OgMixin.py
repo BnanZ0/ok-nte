@@ -113,6 +113,9 @@ class OgMixin(BaseTask):
         """
         强制将窗口带到最前端。
         """
+        if self.is_browser():
+            self.log_info("browser skip bring_to_front")
+            return True
         if not self.hwnd:
             self.log_warning("bring_to_front skipped: hwnd_window unavailable")
             return False
