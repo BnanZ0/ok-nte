@@ -7,15 +7,20 @@ from typing import Optional
 import psutil
 
 
+def _window_pid(hwnd: int) -> Optional[int]:
+    if not hwnd:
+        return None
+    try:
+        pid = wintypes.DWORD()
+        ctypes.windll.user32.GetWindowThreadProcessId(wintypes.HWND(hwnd), ctypes.byref(pid))
+        return int(pid.value) or None
+    except Exception:
+        return None
+
+
 def _foreground_pid() -> Optional[int]:
     try:
-        user32 = ctypes.windll.user32
-        hwnd = user32.GetForegroundWindow()
-        if not hwnd:
-            return None
-        pid = wintypes.DWORD()
-        user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
-        return int(pid.value) or None
+        return _window_pid(ctypes.windll.user32.GetForegroundWindow())
     except Exception:
         return None
 
@@ -35,14 +40,16 @@ def name_set(process_name) -> set[str]:
     return {str(name).casefold() for name in names if name}
 
 
-def resolve_target_pid(process_name) -> Optional[int]:
+def resolve_target_pid(process_name, *, hwnd: int | None = None) -> Optional[int]:
     targets = name_set(process_name)
     if not targets:
         return None
 
-    foreground = _foreground_pid()
-    if foreground and (_process_name(foreground) or "").casefold() in targets:
-        return foreground
+    pid = _foreground_pid() if hwnd is None else _window_pid(hwnd)
+    if pid and (_process_name(pid) or "").casefold() in targets:
+        return pid
+    if hwnd is not None:
+        return None
 
     for proc in psutil.process_iter(["pid", "name"]):
         try:

@@ -16,6 +16,7 @@ import numpy as np
 from ok import Logger
 from scipy.signal import butter, correlate, filtfilt
 
+from src import get_game_target
 from src.sound_trigger.capture import MODE_PROCESS, AudioCaptureSource, create_capture_source
 from src.sound_trigger.capture.base import CAPTURE_SAMPLE_RATE
 from src.utils import clock
@@ -32,7 +33,6 @@ class SoundListener:
     detection_interval = 0.025
     log_interval = 20.0
     restart_interval = 1.0
-    default_process_name = "HTGame.exe"
 
     degree = 4
     cut_off = 1000
@@ -45,7 +45,7 @@ class SoundListener:
         counter_attack_threshold: float = 0.12,
         expansion_ratio: float = 1.0,
         is_allow_successive_trigger: bool = False,
-        process_name: str = default_process_name,
+        process_name: str | None = None,
         initialization_stop_event: Optional[threading.Event] = None,
     ):
         self.sample_path = sample_path
@@ -257,16 +257,28 @@ class SoundListener:
             self._capture = None
 
     def _listen_once(self, stop_event: threading.Event):
-        logger.info(f"Initializing WASAPI process audio capture for {self.process_name}...")
-
         max_samples = int(self.used_sr * self.sample_len)
         samples_per_check = max(1, int(self.used_sr * self.detection_interval))
         ring_buffer = np.zeros(max_samples * 2, dtype=np.float64)
         buffer_pos = 0
         total_written = 0
         samples_since_check = 0
+        target = None
 
         while self._should_run(stop_event):
+            current_target = (
+                get_game_target() if self.process_name is None else (self.process_name, None)
+            )
+            if current_target != target:
+                self._stop_capture()
+                target = current_target
+                buffer_pos = total_written = samples_since_check = 0
+
+            process_name, hwnd = current_target
+            if process_name is None:
+                stop_event.wait(0.2)
+                continue
+
             if self._capture is None or not self._capture.is_alive():
                 if self._capture is not None:
                     logger.warning(
@@ -275,12 +287,13 @@ class SoundListener:
                     self._capture.stop()
                 self._capture = create_capture_source(
                     MODE_PROCESS,
-                    process_name=self.process_name,
+                    process_name=process_name,
+                    hwnd=hwnd,
                 )
                 if not self._capture.start():
                     logger.warning(
                         "WASAPI process capture not ready for {}: {}".format(
-                            self.process_name,
+                            process_name,
                             self._capture.error,
                         )
                     )

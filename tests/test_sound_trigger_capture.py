@@ -5,7 +5,7 @@ import unittest
 from concurrent.futures import CancelledError
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import Mock, patch
+from unittest.mock import Mock, call, patch
 
 import numpy as np
 
@@ -41,6 +41,21 @@ class ProcessResolverTests(unittest.TestCase):
             {"htgame.exe", "ntegame.exe"},
         )
         self.assertEqual(name_set(["", None]), set())
+
+    def test_window_capture_uses_its_pid_even_with_another_browser_in_foreground(self):
+        from src.sound_trigger.capture import process_resolver
+
+        with (
+            patch.object(process_resolver, "_window_pid", side_effect=[42, None]),
+            patch.object(process_resolver, "_process_name", return_value="msedge.exe"),
+            patch.object(process_resolver, "_foreground_pid", return_value=100) as foreground,
+            patch.object(process_resolver.psutil, "process_iter") as processes,
+        ):
+            self.assertEqual(process_resolver.resolve_target_pid("msedge.exe", hwnd=123), 42)
+            self.assertIsNone(process_resolver.resolve_target_pid("msedge.exe", hwnd=123))
+
+        foreground.assert_not_called()
+        processes.assert_not_called()
 
 
 class ProcessLoopbackTests(unittest.TestCase):
@@ -126,6 +141,59 @@ class ProcessLoopbackTests(unittest.TestCase):
 
 
 class SoundListenerTests(unittest.TestCase):
+    def test_listener_follows_active_capture_when_browser_window_becomes_available(self):
+        from ok import og
+        from ok.device.capture_methods.browser import BrowserCaptureMethod
+
+        from src.sound_trigger.SoundListener import SoundListener
+        from src.sound_trigger.capture import MODE_PROCESS
+
+        manager = SimpleNamespace(
+            get_preferred_device=Mock(return_value={"device": "windows"}),
+            capture_method=object(),
+        )
+        browser = object.__new__(BrowserCaptureMethod)
+        browser.hwnd = 123
+        browser.exe_full_path = r"C:\Browser\msedge.exe"
+        stop_event = threading.Event()
+        native, cloud, restored = Mock(), Mock(), Mock()
+
+        def select_device(device):
+            manager.get_preferred_device.return_value = {"device": device}
+
+        def start_browser(_timeout):
+            self.assertIsNot(manager.capture_method, browser)
+            manager.capture_method = browser
+
+        native.read.side_effect = lambda **_: select_device("browser")
+        cloud.read.side_effect = lambda **_: select_device("windows")
+        restored.read.side_effect = lambda **_: stop_event.set()
+        with (
+            patch.object(og, "device_manager", manager),
+            patch.object(stop_event, "wait", side_effect=start_browser) as wait,
+            patch.object(SoundListener, "_load_samples"),
+            patch(
+                "src.sound_trigger.SoundListener.create_capture_source",
+                side_effect=[native, cloud, restored],
+            ) as create_source,
+        ):
+            listener = SoundListener(sample_path="", counter_attack_sample_path="")
+            listener._running = True
+            self.addCleanup(listener._stop_capture)
+            listener._listen_once(stop_event)
+
+        self.assertEqual(
+            create_source.call_args_list,
+            [
+                call(MODE_PROCESS, process_name="HTGame.exe", hwnd=None),
+                call(MODE_PROCESS, process_name="msedge.exe", hwnd=123),
+                call(MODE_PROCESS, process_name="HTGame.exe", hwnd=None),
+            ],
+        )
+        wait.assert_called_once()
+        native.stop.assert_called_once()
+        cloud.stop.assert_called_once()
+
     def test_context_initializes_before_task_binding_and_preserves_action_throttles(self):
         from src.sound_trigger.SoundCombatContext import SoundCombatContext
 

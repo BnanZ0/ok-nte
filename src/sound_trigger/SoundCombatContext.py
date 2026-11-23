@@ -15,18 +15,6 @@ logger = Logger.get_logger(__name__)
 ACTION_UNSET = object()
 
 
-def _game_audio_process_name() -> str:
-    try:
-        from src import GAME_EXE
-
-        return GAME_EXE
-    except Exception as exc:
-        logger.warning(
-            f"Failed to read GAME_EXE from src package, using HTGame.exe: {exc}"
-        )
-        return "HTGame.exe"
-
-
 class SoundCombatContext:
     _instance = None
     _lock = threading.Lock()
@@ -149,12 +137,10 @@ class SoundCombatContext:
             if not (0.0 <= counter_attack_threshold <= 1.0):
                 raise ValueError("counter_attack_threshold must be between 0.0 and 1.0")
 
-            audio_process_name = _game_audio_process_name()
             self._config = {
                 "sample_path": sample_path,
                 "counter_attack_sample_path": counter_attack_sample_path,
                 "dodge_all_attacks": dodge_all_attacks,
-                "audio_process_name": audio_process_name,
                 "threshold": threshold,
                 "counter_attack_threshold": counter_attack_threshold,
             }
@@ -165,7 +151,6 @@ class SoundCombatContext:
                 counter_attack_sample_path=counter_attack_sample_path,
                 threshold=threshold,
                 counter_attack_threshold=counter_attack_threshold,
-                process_name=audio_process_name,
                 initialization_stop_event=initialization_stop_event,
             )
 

@@ -458,9 +458,10 @@ class ProcessLoopbackSource(AudioCaptureSource):
     used_sr = CAPTURE_SAMPLE_RATE
     used_channel = CAPTURE_CHANNELS
 
-    def __init__(self, process_name, include_process_tree: bool = True):
+    def __init__(self, process_name, include_process_tree: bool = True, *, hwnd: int | None = None):
         super().__init__()
         self.process_name = process_name
+        self.hwnd = hwnd
         self._display_name = ",".join(sorted(name_set(process_name))) or "?"
         self.include_process_tree = include_process_tree
         self._stream_started_once = False
@@ -481,7 +482,7 @@ class ProcessLoopbackSource(AudioCaptureSource):
             failure_streak = 0
             missing_log_key = "missing_audio_process"
             while not self._stop.is_set():
-                pid = resolve_target_pid(self.process_name)
+                pid = resolve_target_pid(self.process_name, hwnd=self.hwnd)
                 if pid is None:
                     self._log_gate.info(
                         f"Waiting for audio process {self.process_name}...",
