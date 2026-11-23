@@ -1,4 +1,4 @@
-# Spend Stamina for Character Growth (module version 1.5.8.9)
+# Spend Stamina for Character Growth (module version 1.5.10.1)
 
 Automatically spend stamina on the materials missing from your current character growth goals, as listed in the in-game Cultivation Guide. It is a **standalone task** in the task list, on the same level as Anomaly Zone / Anomaly Hunts / Anomaly Pilgrimage, and does not interfere with them. The module version is independent of the ok-nte host version; until it is merged into a host release, availability follows the standalone plugin release.
 
@@ -47,7 +47,7 @@ Other rows (common drops, EXP cards, Level row 1, etc.) are out of scope.
 
 1. Open the Plugins page in ok-nte → **Add from GitHub** → enter `Camellune/ok-nte-cultivation-goal` and install the latest `.okscript` from the Release.
 2. Or download the package from https://github.com/Camellune/ok-nte-cultivation-goal/releases and install it as a local file.
-3. The task appears in the list and updates independently of the host.
+3. The task appears under the existing "Stamina" group next to Anomaly Zone, not in a tab of its own, and updates independently of the host.
 
 Do not enable both at once; registering the feature twice interferes with itself.
 
@@ -77,6 +77,8 @@ Chaining is automatic with no option: estimated from the previous round's output
 - Row numbers are read by OCR; an occasional slash misread as `1` (e.g. `47/60` → `47160`) is repaired at parse time, with tiered retries as fallback.
 - Material icons and reward-card loot use local templates; no game memory is read and no game files are modified.
 - Loot from each claim list is accumulated locally (ledger mode); when loot is unreadable the guide is re-checked once instead of guessing.
+  Stamina works the same way: **right before deciding "not enough stamina for one more run", the panel is read again**,
+  and that measured value is what the decision and the reported remainder use — the opening reading is never reported as the remainder.
   Console is the exception: it has no run limit and any material is useful, so its loot is **logged only, never booked** —
   whether a run counted is decided solely by the settlement screen appearing.
 - Each run writes a JSONL evidence chain to `logs/cultivation_goal.jsonl`; view it with `python -m src.tasks.cultivation_goal.report`.
@@ -85,6 +87,8 @@ Chaining is automatic with no option: estimated from the previous round's output
 
 - **Unreadable row**: confirm you are on the target character's Cultivation Guide at 1920x1080; a screenshot is saved only for an unreadable row with no previous reading (a row reusing last round's numbers is marked stale and is not captured again).
 - **Rows skipped repeatedly**: a row with zero gain for two chained rounds is skipped this session.
+- **Weekly dungeon not unlocked**: the bottom-right button of the map detail panel reads "追踪" (Track) instead of "传送" (Teleport). Before queueing, the plugin opens each weekly target and reads that button; on "追踪" it logs and skips that target instead of waiting 10 minutes for a teleport button that never shows. Unreadable buttons count as unlocked — a wasted attempt is cheaper than dropping a playable dungeon.
 - **Weekly not finished**: if Anomaly Pilgrimage fails midway, weekly is not retried this session; already-claimed runs still count.
+- **Remaining stamina looks off**: only the opening reading comes from the panel; in between the ledger drives it. The panel value is refreshed from the ledger, and one real measurement is taken when the run stops, so the final number is measured. Look for `收工前复核体力: 账本 X → 实测 Y` in the log if you suspect ledger drift.
 - **Out of scope**: common drops / EXP cards / Level row 1.
 - The task is independent of the three anomaly tasks; disabling it leaves them running as before.

@@ -18,6 +18,7 @@ from src.tasks.cultivation_goal.flow import (
     CG_FINAL_CONFIRM_RANGE,
     CultivationGoalMixin,
 )
+from src.tasks.cultivation_goal.flow_weekly import WeeklyMixin, weekly_entry_is_locked
 from src.tasks.cultivation_goal.report import RunReport, format_records, read_records
 
 DEFAULT_TEXTS = {
@@ -1919,6 +1920,149 @@ class DoubleClaimTests(unittest.TestCase):
         task = FakeTask(stamina=[300])
         task._cg_fight_once(self.ROW, "dungeon", 40)
         self.assertEqual(task.claim_flags, [False])
+
+
+class _FakeWeeklyProbe:
+    """只提供周本探测过滤需要的接口，探测结果由 locked/raises 指定。"""
+
+    def __init__(self, locked=(), raises=()):
+        self.locked = set(locked)
+        self.raises = set(raises)
+        self.notes = []
+        self.probed = []
+
+    def _cg_weekly_probe_locked(self, target):
+        self.probed.append(target)
+        if target in self.raises:
+            raise RuntimeError(f"列表里找不到 {target}")
+        return target in self.locked
+
+    def _cg_note(self, level, message):
+        self.notes.append((level, message))
+
+
+class WeeklyLockTests(unittest.TestCase):
+    """右下角「追踪」= 副本未解锁，要跳过而不是让上游等传送按钮等到超时。"""
+
+    def test_tracking_means_locked(self):
+        self.assertTrue(weekly_entry_is_locked("追踪"))
+        self.assertTrue(weekly_entry_is_locked("讨债人 追踪"))
+
+    def test_teleport_means_unlocked(self):
+        self.assertFalse(weekly_entry_is_locked("传送"))
+        self.assertFalse(weekly_entry_is_locked("前往"))
+        self.assertFalse(weekly_entry_is_locked("当前无法传送"))
+
+    def test_unreadable_text_stays_unlocked(self):
+        # 读不出字就当已解锁：错杀能打的副本比多试一次更亏。
+        self.assertFalse(weekly_entry_is_locked(""))
+        self.assertFalse(weekly_entry_is_locked(None))
+        self.assertFalse(weekly_entry_is_locked("收取奖励消耗"))
+
+    def test_tracking_in_progress_is_locked_too(self):
+        # 点过「追踪」后按钮会变成「追踪中/取消追踪」，同样进不去副本。
+        self.assertTrue(weekly_entry_is_locked("追踪中"))
+        self.assertTrue(weekly_entry_is_locked("取消追踪"))
+
+    def test_locked_target_is_dropped_with_log(self):
+        fake = _FakeWeeklyProbe(locked={"讨债人"})
+        kept = WeeklyMixin._cg_filter_locked_weekly(fake, ["讨债人", "守夜人"])
+        self.assertEqual(kept, ["守夜人"])
+        self.assertEqual([note[0] for note in fake.notes], ["warning"])
+        self.assertIn("讨债人", fake.notes[0][1])
+        self.assertIn("未解锁", fake.notes[0][1])
+        self.assertIn("跳过", fake.notes[0][1])
+
+    def test_probe_failure_keeps_target(self):
+        fake = _FakeWeeklyProbe(raises={"坏目标"}, locked={"讨债人"})
+        kept = WeeklyMixin._cg_filter_locked_weekly(fake, ["坏目标", "讨债人", "守夜人"])
+        self.assertEqual(kept, ["坏目标", "守夜人"])
+        self.assertIn("已解锁处理", fake.notes[0][1])
+
+    def test_all_locked_returns_empty(self):
+        fake = _FakeWeeklyProbe(locked={"讨债人", "守夜人"})
+        self.assertEqual(WeeklyMixin._cg_filter_locked_weekly(fake, ["讨债人", "守夜人"]), [])
+
+
+class StopVerifyTests(unittest.TestCase):
+    """收工判定前回面板实测体力: 账本是估算, 外层自动化只认最后写进去的数字。"""
+
+    TEXTS = {
+        "异能-第2行": "3/2",
+        "等级-第2行": "76/76",
+        "异能-第1行": "0/9",
+        "弧盘-第2行": "0/55",
+    }
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.report = RunReport(path=os.path.join(self.tmp.name, "cg.jsonl"))
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def make(self, readings, loot=None, **kwargs):
+        """readings[0] 是开局读数, 之后每次调用依次取下一个, 用完后沿用最后一个。"""
+        task = FakeTask(report=self.report, daily_target=None, texts=[self.TEXTS], **kwargs)
+        # 掉落读得出来, 账本才会一直沿用, 才会走到「体力不够」这个收工分支。
+        payload = loot if loot is not None else {"异能-第1行": (1,)}
+        task.cg_loot_reader = lambda: dict(payload)
+        calls = {"n": 0}
+
+        def reader():
+            calls["n"] += 1
+            return readings[min(calls["n"] - 1, len(readings) - 1)]
+
+        task._cg_read_stamina = reader
+        return task, calls
+
+    @staticmethod
+    def verify_notes(task):
+        return [msg for _, msg in task.logs if "收工前复核体力" in msg]
+
+    def test_insufficient_stop_reports_measured_value(self):
+        # 账本 10 就要收工, 面板实测也是 10: 判定和上报都用 10, 不能搬开局旧值。
+        task, calls = self.make([50, 10])
+        task.run_cultivation_goal()
+
+        self.assertEqual(calls["n"], 2)
+        self.assertEqual(task.info["当前体力"], 10)
+        self.assertTrue(any("体力 10 不够" in msg for _, msg in task.logs))
+        self.assertEqual(self.verify_notes(task), [])
+
+    def test_measured_more_than_ledger_resumes(self):
+        # 账本 10 收工, 面板实测还有 50: 说明账本低估, 应继续开打而不是白停。
+        task, calls = self.make([50, 50])
+        task.run_cultivation_goal()
+
+        self.assertGreaterEqual(calls["n"], 2)
+        notes = self.verify_notes(task)
+        self.assertTrue(notes)
+        self.assertIn("账本", notes[0])
+        self.assertIn("实测", notes[0])
+
+    def test_read_failure_keeps_ledger_value(self):
+        # 复核读不到(-1)时不能崩, 也不能把账本抹成 -1。
+        task, calls = self.make([50, -1])
+        task.run_cultivation_goal()
+
+        self.assertEqual(calls["n"], 2)
+        self.assertEqual(task.info["当前体力"], 10)
+        self.assertTrue(any("体力 10 不够" in msg for _, msg in task.logs))
+
+    def test_verify_runs_only_once(self):
+        # 实测完仍不够就收工, 不许反复开面板。
+        task, _ = self.make([10, 20])
+        task.run_cultivation_goal()
+        self.assertEqual(len(self.verify_notes(task)), 1)
+        self.assertEqual(task.info["当前体力"], 20)
+
+    def test_non_stamina_stop_skips_verify(self):
+        # 材料行全失败属于非体力原因, 不该多跑一次面板。
+        task, _ = self.make([300, 300], claim=False)
+        task.run_cultivation_goal()
+        self.assertEqual(self.verify_notes(task), [])
+        self.assertTrue(any("均已失败" in msg for _, msg in task.logs))
 
 
 if __name__ == "__main__":

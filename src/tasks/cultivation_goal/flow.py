@@ -189,6 +189,8 @@ class CultivationGoalMixin(ScanMixin, CombatMixin, WeeklyMixin, ConsoleMixin):
         # 单行失败只跳过该行，不让整场停摆。
         skipped: list[str] = []
         ledger = None
+        # 收工前只回面板实测一次体力, 防止账本偏差把外层自动化带偏。
+        verify_left = 1
         try:
             while True:
                 self.ensure_main(check_exit=True)
@@ -208,6 +210,8 @@ class CultivationGoalMixin(ScanMixin, CombatMixin, WeeklyMixin, ConsoleMixin):
                     # 账本模式：体力与材料按本局领奖本地更新。
                     stamina = ledger.stamina
                     rows = ledger.rows
+                    # 不再重读面板时界面会一直停在上一次的实测值, 这里让显示跟着账本走。
+                    self.info_set("当前体力", stamina)
                 gains = self._cg_track_gains(rows)
                 skipped.extend(self._cg_drop_starved(rows, gains, skipped))
                 if ledger is None:
@@ -228,6 +232,27 @@ class CultivationGoalMixin(ScanMixin, CombatMixin, WeeklyMixin, ConsoleMixin):
                 self._cg_loot_partial = False
                 self._cg_scan_flags = []
                 decision = decide(state, cfg)
+                if (
+                    decision.action is Action.STOP
+                    and decision.reason.startswith("体力")
+                    and ledger is not None
+                    and verify_left > 0
+                ):
+                    # 账本体力是估算值: 收工前回面板实测一次, 判定和上报都用实测数字。
+                    verify_left -= 1
+                    real = self._cg_read_stamina()
+                    if real is not None and real >= 0:
+                        self.info_set("当前体力", real)
+                        if real != ledger.stamina:
+                            self._cg_note(
+                                "warning",
+                                f"收工前复核体力: 账本 {ledger.stamina} → 实测 {real}",
+                            )
+                            ledger.stamina = real
+                            continue
+                    else:
+                        # 读不到就退回账本值, 别让界面留着上一个旧数字。
+                        self.info_set("当前体力", ledger.stamina)
                 self.info_set("培养目标决策", f"{decision.action.value}: {decision.reason}")
                 report.emit(
                     "round",

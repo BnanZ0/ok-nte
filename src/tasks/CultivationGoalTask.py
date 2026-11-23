@@ -9,10 +9,13 @@ from ok import TaskDisabledException
 
 from src.tasks.AnomalyTask import AnomalyTask
 from src.tasks.cultivation_goal.flow import CultivationGoalMixin
+from src.tasks.cultivation_goal.group_lock import FixedGroup
 
 
 class CultivationGoalTask(CultivationGoalMixin, AnomalyTask):
     TASK_NAME = "消耗体力培养角色"
+    # 插件加载后宿主会把 group_name 改成 script_name, 这里锁回「体力本」。
+    group_name = FixedGroup("体力本")
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

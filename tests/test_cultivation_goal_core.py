@@ -409,5 +409,26 @@ class WeeklyAccountingTests(unittest.TestCase):
         self.assertEqual(next_weekly_remaining(s, True), 0)
 
 
+class GroupLockTests(unittest.TestCase):
+    """宿主加载插件后会用 script_name 覆盖 group_name, 必须锁回「体力本」。"""
+
+    def test_task_declares_locked_group(self):
+        from src.tasks.CultivationGoalTask import CultivationGoalTask
+        from src.tasks.cultivation_goal.group_lock import FixedGroup
+
+        self.assertIsInstance(vars(CultivationGoalTask).get("group_name"), FixedGroup)
+        self.assertEqual(CultivationGoalTask.group_name, "体力本")
+
+    def test_fixed_group_ignores_assignment(self):
+        from src.tasks.cultivation_goal.group_lock import FixedGroup
+
+        class Target:
+            group_name = FixedGroup("体力本")
+
+        task = Target()
+        task.group_name = "消耗体力培养角色"
+        self.assertEqual(task.group_name, "体力本")
+
+
 if __name__ == "__main__":
     unittest.main()
