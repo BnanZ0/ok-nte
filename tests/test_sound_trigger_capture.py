@@ -141,40 +141,33 @@ class ProcessLoopbackTests(unittest.TestCase):
 
 
 class SoundListenerTests(unittest.TestCase):
-    def test_listener_follows_active_capture_when_browser_window_becomes_available(self):
-        from ok import og
-        from ok.device.capture_methods.browser import BrowserCaptureMethod
-
-        from src.sound_trigger.SoundListener import SoundListener
+    def test_listener_rebinds_when_the_shared_window_changes(self):
+        from src.game_window import GameWindow, game_window
         from src.sound_trigger.capture import MODE_PROCESS
+        from src.sound_trigger.SoundListener import SoundListener
 
-        manager = SimpleNamespace(
-            get_preferred_device=Mock(return_value={"device": "windows"}),
-            capture_method=object(),
-        )
-        browser = object.__new__(BrowserCaptureMethod)
-        browser.hwnd = 123
-        browser.exe_full_path = r"C:\Browser\msedge.exe"
+        native_window = GameWindow("HTGame.exe")
+        next_window = GameWindow(r"C:\Browser\msedge.exe", 123, False, 25)
         stop_event = threading.Event()
-        native, cloud, restored = Mock(), Mock(), Mock()
+        native, next_source, restored = Mock(), Mock(), Mock()
 
-        def select_device(device):
-            manager.get_preferred_device.return_value = {"device": device}
+        def publish(window):
+            game_window._current = window
 
-        def start_browser(_timeout):
-            self.assertIsNot(manager.capture_method, browser)
-            manager.capture_method = browser
+        def wait_for_window(_timeout):
+            self.assertIsNone(game_window.current)
+            publish(next_window)
 
-        native.read.side_effect = lambda **_: select_device("browser")
-        cloud.read.side_effect = lambda **_: select_device("windows")
+        native.read.side_effect = lambda **_: publish(None)
+        next_source.read.side_effect = lambda **_: publish(native_window)
         restored.read.side_effect = lambda **_: stop_event.set()
         with (
-            patch.object(og, "device_manager", manager),
-            patch.object(stop_event, "wait", side_effect=start_browser) as wait,
+            patch.object(game_window, "_current", native_window),
+            patch.object(stop_event, "wait", side_effect=wait_for_window) as wait,
             patch.object(SoundListener, "_load_samples"),
             patch(
                 "src.sound_trigger.SoundListener.create_capture_source",
-                side_effect=[native, cloud, restored],
+                side_effect=[native, next_source, restored],
             ) as create_source,
         ):
             listener = SoundListener(sample_path="", counter_attack_sample_path="")
@@ -192,7 +185,7 @@ class SoundListenerTests(unittest.TestCase):
         )
         wait.assert_called_once()
         native.stop.assert_called_once()
-        cloud.stop.assert_called_once()
+        next_source.stop.assert_called_once()
 
     def test_context_initializes_before_task_binding_and_preserves_action_throttles(self):
         from src.sound_trigger.SoundCombatContext import SoundCombatContext

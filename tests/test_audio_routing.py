@@ -1,14 +1,18 @@
 import sys
 import unittest
+from dataclasses import replace
 from types import SimpleNamespace
-from unittest.mock import call, patch
+from unittest.mock import Mock, call, patch
 
+from ok.core.events import EventSignal
+from ok.device.capture_methods.browser import BrowserCaptureMethod
 from ok.util.config import Config
 from ok.util.handler import ExitEvent
 
+import src.game_window as window_module
 from src import GAME_EXE
-from src.audio import browser_window, routing_config, svcl
 from src.audio import routing as audio_routing
+from src.audio import routing_config, svcl
 from src.audio.routing import (
     CONF_ENABLE,
     CONF_SVCL_PATH,
@@ -19,10 +23,15 @@ from src.audio.routing import (
     audio_route_command,
     discover_output_devices,
 )
+from src.game_window import GameWindow, GameWindowMonitor, game_window
+
+NATIVE_WINDOW = GameWindow(GAME_EXE)
+NATIVE_FOREGROUND = replace(NATIVE_WINDOW, foreground=True)
+NATIVE_BACKGROUND = replace(NATIVE_WINDOW, foreground=False)
 
 
 def _applied_route(
-    original: str, background: str, window: browser_window.BrowserWindow | None = None
+    original: str, background: str, window: GameWindow = NATIVE_WINDOW
 ) -> _SavedRoute:
     return _SavedRoute(
         _BackgroundRequest(background, "svcl.exe"),
@@ -53,11 +62,29 @@ def _set_native_output(records: list[dict[str, str]], device: str) -> None:
     records[-1]["commandlinefriendlyid"] = rf"{controller}\Application\{GAME_EXE}"
 
 
+def _native_router() -> _BackgroundAudioRouter:
+    router = _BackgroundAudioRouter()
+    router._requested_window = NATIVE_WINDOW
+    return router
+
+
+def _report_window(
+    router: _BackgroundAudioRouter, window: GameWindow | None, *, enabled: bool | None = None
+) -> None:
+    game_window._current = window
+    router.on_window(window, enabled=enabled)
+
+
 class AudioRoutingTests(unittest.TestCase):
     def setUp(self):
-        self.target_pids = patch.object(audio_routing, "_target_process_ids", return_value={80940})
-        self.target_pids.start()
-        self.addCleanup(self.target_pids.stop)
+        self.enterContext(patch.object(game_window, "_current", NATIVE_WINDOW))
+        self.enterContext(
+            patch.object(
+                window_module.psutil,
+                "process_iter",
+                return_value=[SimpleNamespace(pid=80940, info={"name": GAME_EXE})],
+            )
+        )
 
     def test_discover_output_devices_uses_sounddevice_playback_devices(self):
         fake_sounddevice = SimpleNamespace(
@@ -179,7 +206,7 @@ class AudioRoutingTests(unittest.TestCase):
         )
 
     def test_router_captures_original_app_output_device_before_background_route(self):
-        router = _BackgroundAudioRouter()
+        router = _native_router()
         router._pending_route = _BackgroundRequest("Speakers", "svcl.exe")
         data = [
             {
@@ -243,10 +270,10 @@ class AudioRoutingTests(unittest.TestCase):
                 router._run_pending_routes()
 
         self.assertEqual(run.call_args.args[0][2], DEFAULT_RENDER_DEVICE)
-        self.assertFalse(router.restore_pending)
+        self.assertIsNone(router._saved_route)
 
     def test_router_saves_default_when_current_device_is_background_target(self):
-        router = _BackgroundAudioRouter()
+        router = _native_router()
         router._pending_route = _BackgroundRequest("Speakers", "svcl.exe")
         data = [
             {
@@ -279,7 +306,7 @@ class AudioRoutingTests(unittest.TestCase):
         self.assertTrue(router._saved_route.needs_restore)
 
     def test_router_saves_default_when_current_device_name_matches_background_target_id(self):
-        router = _BackgroundAudioRouter()
+        router = _native_router()
         router._pending_route = _BackgroundRequest(
             "VB-Audio VoiceMeeter VAIO\\Device\\VoiceMeeter Input\\Render", "svcl.exe"
         )
@@ -316,7 +343,7 @@ class AudioRoutingTests(unittest.TestCase):
         self.assertTrue(router._saved_route.needs_restore)
 
     def test_router_matches_sounddevice_names_with_trademark_markers(self):
-        router = _BackgroundAudioRouter()
+        router = _native_router()
         router._pending_route = _BackgroundRequest("Speakers (Realtek(R) Audio)", "svcl.exe")
         data = [
             {
@@ -357,7 +384,7 @@ class AudioRoutingTests(unittest.TestCase):
         )
 
     def test_router_matches_target_from_global_render_devices_not_process_devices(self):
-        router = _BackgroundAudioRouter()
+        router = _native_router()
         router._pending_route = _BackgroundRequest(
             "VoiceMeeter Input (VB-Audio VoiceMeeter VAIO)", "svcl.exe"
         )
@@ -415,7 +442,7 @@ class AudioRoutingTests(unittest.TestCase):
     def test_router_restores_exact_render_endpoint_when_current_controller_has_multiple_outputs(
         self,
     ):
-        router = _BackgroundAudioRouter()
+        router = _native_router()
         router._pending_route = _BackgroundRequest(
             "VoiceMeeter Input (VB-Audio VoiceMeeter VAIO)", "svcl.exe"
         )
@@ -475,7 +502,7 @@ class AudioRoutingTests(unittest.TestCase):
         self.assertTrue(router._saved_route.needs_restore)
 
     def test_router_skips_background_route_when_original_device_capture_fails(self):
-        router = _BackgroundAudioRouter()
+        router = _native_router()
         router._pending_route = _BackgroundRequest(
             "USB Audio\\Device\\Speakers\\Render", "svcl.exe"
         )
@@ -492,7 +519,7 @@ class AudioRoutingTests(unittest.TestCase):
         self.assertIsNone(router._saved_route)
 
     def test_router_skips_background_route_when_capture_returns_default_placeholder(self):
-        router = _BackgroundAudioRouter()
+        router = _native_router()
         router._pending_route = _BackgroundRequest(
             "USB Audio\\Device\\Speakers\\Render", "svcl.exe"
         )
@@ -516,7 +543,7 @@ class AudioRoutingTests(unittest.TestCase):
         self.assertIsNone(router._saved_route)
 
     def test_failed_route_does_not_mark_device_as_requested(self):
-        router = _BackgroundAudioRouter()
+        router = _native_router()
         router._pending_route = _BackgroundRequest("Speakers", "svcl.exe")
         data = [
             {
@@ -553,7 +580,7 @@ class AudioRoutingTests(unittest.TestCase):
         alternate = r"Virtual\Device\Cable\Render"
         for replacement_succeeds in (False, True):
             with self.subTest(replacement_succeeds=replacement_succeeds):
-                router = _BackgroundAudioRouter()
+                router = _native_router()
                 records = svcl.parse_sound_items_csv(
                     "Command-Line Friendly ID,Device State,Direction,Process ID\n"
                     f"{original},Active,Render,\n"
@@ -580,7 +607,7 @@ class AudioRoutingTests(unittest.TestCase):
                     if replacement_succeeds:
                         session["commandlinefriendlyid"] = r"Virtual\Application\HTGame.exe"
 
-                    router.restore_on_exit()
+                    router.stop()
 
                 expected_tool = (
                     "replacement/svcl.exe" if replacement_succeeds else "current/svcl.exe"
@@ -595,7 +622,7 @@ class AudioRoutingTests(unittest.TestCase):
                 )
 
     def test_restore_route_uses_original_device(self):
-        router = _BackgroundAudioRouter()
+        router = _native_router()
         original = r"USB Audio\Device\Headphones\Render"
         background = r"Speaker Audio\Device\Speakers\Render"
         router._saved_route = _applied_route(original, background)
@@ -606,7 +633,7 @@ class AudioRoutingTests(unittest.TestCase):
             ),
             patch.object(svcl, "set_app_output", return_value=True) as switch,
         ):
-            router.restore_on_exit()
+            router.stop()
 
         switch.assert_called_once_with("svcl.exe", original, GAME_EXE)
         self.assertIsNone(router._saved_route)
@@ -614,7 +641,7 @@ class AudioRoutingTests(unittest.TestCase):
     def test_restore_keeps_output_manually_changed_while_backgrounded(self):
         for on_exit in (False, True):
             with self.subTest(on_exit=on_exit):
-                router = _BackgroundAudioRouter()
+                router = _native_router()
                 router._saved_route = _applied_route(
                     r"Original Audio\Device\Speakers\Render",
                     DEFAULT_RENDER_DEVICE
@@ -644,7 +671,7 @@ class AudioRoutingTests(unittest.TestCase):
                     patch.object(svcl.subprocess, "run") as run,
                 ):
                     if on_exit:
-                        router.restore_on_exit()
+                        router.stop()
                     else:
                         router._pending_route = "restore"
                         router._run_pending_routes()
@@ -653,7 +680,7 @@ class AudioRoutingTests(unittest.TestCase):
                 self.assertIsNone(router._saved_route)
 
     def test_failed_restore_keeps_saved_route_for_retry(self):
-        router = _BackgroundAudioRouter()
+        router = _native_router()
         original = r"USB Audio\Device\Headphones\Render"
         background = r"Speaker Audio\Device\Speakers\Render"
         saved = router._saved_route = _applied_route(original, background)
@@ -664,18 +691,18 @@ class AudioRoutingTests(unittest.TestCase):
             ),
             patch.object(svcl, "set_app_output", side_effect=[False, True]) as switch,
         ):
-            router.restore_on_exit()
+            router.stop()
             self.assertIs(router._saved_route, saved)
-            router.restore_on_exit()
+            router.stop()
 
         self.assertEqual(switch.call_args_list, [call("svcl.exe", original, GAME_EXE)] * 2)
         self.assertIsNone(router._saved_route)
 
     def test_restore_on_exit_skips_without_a_saved_route(self):
-        router = _BackgroundAudioRouter()
+        router = _native_router()
 
         with patch.object(svcl, "list_sound_items") as read:
-            router.restore_on_exit()
+            router.stop()
 
         read.assert_not_called()
 
@@ -744,16 +771,15 @@ class AudioRoutingTests(unittest.TestCase):
 
         restore.assert_called_once_with()
 
-    def test_route_current_window_state_uses_last_window_signal(self):
-        router = _BackgroundAudioRouter()
-        router._last_visible = False
-        with patch.object(router, "_request_route") as request:
-            router.route_current_window_state()
+    def test_enabling_routing_uses_current_window_snapshot(self):
+        game_window._current = NATIVE_BACKGROUND
+        with patch.object(audio_routing, "_router") as router:
+            audio_routing.route_background_audio_for_current_window()
 
-        request.assert_called_once_with(False, enabled=True)
+        router.on_window.assert_called_once_with(NATIVE_BACKGROUND, enabled=True)
 
     def test_foreground_route_cancels_background_route_before_worker_starts(self):
-        router = _BackgroundAudioRouter()
+        router = _native_router()
         router._pending_route = _BackgroundRequest(
             "USB Audio\\Device\\Speakers\\Render", "svcl.exe"
         )
@@ -764,32 +790,22 @@ class AudioRoutingTests(unittest.TestCase):
             patch.object(audio_routing, "_routing_config", return_value=config),
             patch.object(svcl, "list_sound_items") as read,
         ):
-            router._request_route(True, enabled=True)
+            _report_window(router, NATIVE_FOREGROUND, enabled=True)
             router._run_pending_routes()
 
         read.assert_not_called()
 
-    def test_browser_target_does_not_start_native_background_route(self):
-        router = _BackgroundAudioRouter()
-        config = {
-            CONF_ENABLE: True,
-            CONF_SVCL_PATH: "svcl.exe",
-            audio_routing.CONF_BACKGROUND_DEVICE: "Speakers",
-        }
+    def test_queued_background_route_is_skipped_after_target_changes(self):
+        router = _native_router()
+        router._pending_route = _BackgroundRequest(r"USB\Device\Speakers\Render", "svcl.exe")
+        game_window._current = GameWindow(r"c:\browser\msedge.exe", 123, False, 25)
 
-        with (
-            patch.object(audio_routing, "_routing_config", return_value=config),
-            patch.object(svcl, "is_svcl_path", return_value=True),
-            patch.object(
-                audio_routing, "get_game_target_path", return_value=(r"C:\Browser\msedge.exe", 123)
-            ),
-            patch.object(audio_routing.threading, "Thread") as worker,
-        ):
-            router.on_window(visible=False)
+        with patch.object(svcl, "list_sound_items") as read:
+            router._run_pending_routes()
 
-        worker.assert_not_called()
+        read.assert_not_called()
 
-    def test_browser_focus_changes_route_and_restore_the_cloud_audio_session(self):
+    def test_window_focus_routes_and_restores_its_audio_session(self):
         config = {
             CONF_ENABLE: True,
             CONF_SVCL_PATH: "svcl.exe",
@@ -809,166 +825,153 @@ class AudioRoutingTests(unittest.TestCase):
                 )
             )
         )
-        browser = SimpleNamespace(
+        process = SimpleNamespace(
             exe=lambda: r"C:\Browser\msedge.exe",
             children=lambda recursive: [SimpleNamespace(pid=42)],
         )
-        exit_event = ExitEvent()
-        target_path = (r"C:\Browser\msedge.exe", 123)
-        native = _BackgroundAudioRouter()
-        monitor = browser_window.BrowserWindowMonitor(
-            _BackgroundAudioRouter, native.request_restore, lambda: exit_event
-        )
+        window = GameWindow(r"c:\browser\msedge.exe", 123, False, 25)
+        routes = _BackgroundAudioRouter()
         with (
-            patch.object(audio_routing, "get_game_target_path", return_value=target_path),
-            patch.object(browser_window, "get_game_target_path", return_value=target_path),
-            patch.object(browser_window, "is_foreground_window", side_effect=[False, True]),
-            patch.object(
-                browser_window.win32process, "GetWindowThreadProcessId", return_value=(1, 25)
-            ),
-            patch.object(browser_window.psutil, "Process", return_value=browser) as process,
+            patch.object(window_module.psutil, "Process", return_value=process) as find_process,
             patch.object(audio_routing, "_routing_config", return_value=config),
             patch.object(svcl, "list_sound_items", return_value=data),
             patch.object(audio_routing.threading, "Thread") as worker,
-            patch.object(svcl.subprocess, "run", return_value=SimpleNamespace(returncode=0)) as run,
+            patch.object(svcl, "set_app_output", return_value=True) as switch,
         ):
+            game_window._current = window
+            routes.on_window(window)
+            worker.call_args.kwargs["target"]()
+            data[3]["devicestate"] = "Inactive"
+            data[4]["devicestate"] = "Active"
 
-            def run_route(_seconds):
-                worker.call_args.kwargs["target"]()
-                if run.call_count == 1:
-                    data[3]["devicestate"] = "Inactive"
-                    data[4]["devicestate"] = "Active"
-                else:
-                    exit_event.set()
-
-            with patch.object(exit_event, "wait", side_effect=run_route):
-                monitor._watch(exit_event)
+            foreground = replace(window, foreground=True)
+            game_window._current = foreground
+            routes.on_window(foreground)
+            worker.call_args.kwargs["target"]()
 
         self.assertEqual(
-            [call.args[0] for call in run.call_args_list],
-            [
-                ["svcl.exe", "/SetAppDefault", speakers, "0", "42"],
-                ["svcl.exe", "/SetAppDefault", headphones, "0", "42"],
-            ],
+            switch.call_args_list,
+            [call("svcl.exe", speakers, 42), call("svcl.exe", headphones, 42)],
         )
-        self.assertEqual([call.args for call in process.call_args_list], [(25,), (25,)])
+        self.assertEqual(find_process.call_args_list, [call(25), call(25)])
 
-    def test_leaving_browser_restores_its_route_and_disconnects_focus_events(self):
-        window = browser_window.BrowserWindow(r"c:\browser\msedge.exe", 123, 25)
-        router = _BackgroundAudioRouter(window)
-        exit_event = ExitEvent()
-        monitor = browser_window.BrowserWindowMonitor(
-            lambda _: router, lambda: None, lambda: exit_event
-        )
-        with (
-            patch.object(router, "request_restore") as restore,
-            patch.object(router, "on_window") as on_window,
-        ):
-            monitor._change_window(window, exit_event)
-            monitor._change_window(None, exit_event)
-            monitor.focus_changed.emit(False)
-
-        restore.assert_called_once_with()
-        on_window.assert_not_called()
-
-    def test_browser_focus_events_skip_duplicate_polls_and_keep_retries(self):
-        path = r"c:\browser\msedge.exe"
-        ticks = [
-            (0.00, 123, False),
-            (0.25, 123, False),
-            (0.50, 123, True),
-            (0.75, 123, True),
-            (2.00, 123, True),
-            (2.25, 456, True),
-        ]
-        index = 0
-        exit_event = ExitEvent()
-        monitor = browser_window.BrowserWindowMonitor(
-            _BackgroundAudioRouter, lambda: None, lambda: exit_event
-        )
-
-        def advance(_timeout):
-            nonlocal index
-            index += 1
-            if index == len(ticks):
-                exit_event.set()
-
-        with (
-            patch.object(
-                browser_window.clock, "_read_monotonic", side_effect=lambda: ticks[index][0]
-            ),
-            patch.object(
-                browser_window, "get_game_target_path", side_effect=lambda: (path, ticks[index][1])
-            ),
-            patch.object(
-                browser_window.win32process,
-                "GetWindowThreadProcessId",
-                side_effect=lambda hwnd: (1, hwnd),
-            ),
-            patch.object(
-                browser_window, "is_foreground_window", side_effect=lambda _: ticks[index][2]
-            ),
-            patch.object(exit_event, "wait", side_effect=advance),
-            patch.object(_BackgroundAudioRouter, "on_window") as on_window,
-        ):
-            monitor._watch(exit_event)
-
-        self.assertEqual(
-            on_window.call_args_list, [call(False), call(True), call(True), call(True)]
-        )
-
-    def test_closed_browser_retries_restore_for_the_same_executable_on_reopen(self):
-        path = r"c:\browser\msedge.exe"
-        first = browser_window.BrowserWindow(path, 123, 25)
-        reopened = browser_window.BrowserWindow(path, 456, 55)
-        different = browser_window.BrowserWindow(r"d:\other\msedge.exe", 789, 75)
+    def test_missing_target_restores_previous_route_and_ignores_its_stale_focus_event(self):
+        window = GameWindow(r"c:\browser\msedge.exe", 123, False, 25)
+        router = _BackgroundAudioRouter()
         original = r"Headset\Device\Headphones\Render"
         background = r"Speaker\Device\Speakers\Render"
-        exit_event = ExitEvent()
-        monitor = browser_window.BrowserWindowMonitor(
-            _BackgroundAudioRouter, lambda: None, lambda: exit_event
-        )
-        monitor._change_window(first, exit_event)
-        router = monitor.listener
+        router._saved_route = _applied_route(original, background, window)
+        records = _native_audio_records(background, original)
+
+        with (
+            patch.object(GameWindow, "process_ids", return_value={80940}),
+            patch.object(audio_routing.threading, "Thread") as worker,
+            patch.object(svcl, "list_sound_items", return_value=records),
+            patch.object(svcl, "set_app_output", return_value=True) as switch,
+        ):
+            _report_window(router, None)
+            router.on_window(window)
+            worker.call_args.kwargs["target"]()
+
+        switch.assert_called_once_with("svcl.exe", original, 80940)
+
+    def test_exited_target_is_not_restored_after_reopen(self):
+        path = r"c:\browser\msedge.exe"
+        first = GameWindow(path, 123, False, 25)
+        reopened = GameWindow(path, 456, True, 55)
+        original = r"Headset\Device\Headphones\Render"
+        background = r"Speaker\Device\Speakers\Render"
+        router = _BackgroundAudioRouter()
         router._saved_route = _applied_route(original, background, first)
         records = svcl.parse_sound_items_csv(
             "Command-Line Friendly ID,Device State,Direction,Process ID\n"
             f"{background},Active,Render,\n"
-            "Speaker\\Application\\msedge.exe,Inactive,Render,42\n"
+            r"Speaker\Application\msedge.exe,Active,Render,82"
         )
         with (
+            patch.object(audio_routing, "_routing_config", return_value={}),
+            patch.object(audio_routing.threading, "Thread") as worker,
             patch.object(svcl, "list_sound_items", return_value=records),
             patch.object(svcl, "set_app_output", return_value=True) as switch,
             patch.object(
-                browser_window.BrowserWindow,
+                GameWindow,
                 "process_ids",
                 autospec=True,
-                side_effect=lambda window: {42} if window == first else {82},
+                side_effect=lambda window: {82} if window == reopened else set(),
             ),
         ):
-            monitor._change_window(None, exit_event)
-            router.restore_on_exit()
-            switch.assert_not_called()
-            monitor._change_window(different, exit_event)
-            self.assertIsNot(monitor.listener, router)
-            monitor._change_window(reopened, exit_event)
-            self.assertIs(monitor.listener, router)
+            _report_window(router, None)
+            worker.call_args.kwargs["target"]()
+            _report_window(router, reopened)
 
-            records[-1]["devicestate"] = "Active"
-            records[-1]["processid"] = "82"
-            monitor.listener.restore_on_exit()
+        switch.assert_not_called()
+        worker.assert_called_once()
+        self.assertIsNone(router._saved_route)
 
-        switch.assert_called_once_with("svcl.exe", original, 82)
-        self.assertFalse(router.restore_pending)
+    def test_target_switch_retries_restore_once_before_routing_the_new_target(self):
+        original = r"Headset\Device\Headphones\Render"
+        background = r"Speaker\Device\Speakers\Render"
+        browser = GameWindow(r"c:\browser\msedge.exe", 123, False, 25)
+        intermediate = GameWindow(r"c:\browser\chrome.exe", 456, False, 55)
+        config = {
+            CONF_ENABLE: True,
+            CONF_SVCL_PATH: "svcl.exe",
+            audio_routing.CONF_BACKGROUND_DEVICE: background,
+        }
+        records = _native_audio_records(original, background)
+        records.append(
+            {
+                **records[-1],
+                "commandlinefriendlyid": r"Speaker\Application\msedge.exe",
+                "processid": "42",
+            }
+        )
+
+        for retry_succeeds in (True, False):
+            with self.subTest(retry_succeeds=retry_succeeds):
+                router = _BackgroundAudioRouter()
+                router._saved_route = _applied_route(original, background, browser)
+                results = iter((False, retry_succeeds, True))
+
+                def set_output(_exe_path, _device, _process):
+                    if switch.call_count == 1:
+                        _report_window(router, NATIVE_BACKGROUND)
+                    return next(results)
+
+                with (
+                    patch.object(audio_routing, "_routing_config", return_value=config),
+                    patch.object(audio_routing.threading, "Thread") as worker,
+                    patch.object(
+                        GameWindow,
+                        "process_ids",
+                        autospec=True,
+                        side_effect=lambda window: {42} if window == browser else {80940},
+                    ),
+                    patch.object(svcl, "list_sound_items", return_value=records),
+                    patch.object(svcl, "set_app_output", side_effect=set_output) as switch,
+                ):
+                    _report_window(router, intermediate)
+                    worker.call_args.kwargs["target"]()
+
+                worker.assert_called_once()
+                self.assertEqual(
+                    switch.call_args_list,
+                    [
+                        call("svcl.exe", original, 42),
+                        call("svcl.exe", original, 42),
+                        call("svcl.exe", background, GAME_EXE),
+                    ],
+                )
+                self.assertEqual(router._saved_route.window, NATIVE_BACKGROUND)
 
     def test_reenabling_routing_supersedes_a_queued_disable_even_during_restore(self):
         original = r"USB Audio\Device\Headphones\Render"
         background = r"Virtual Audio\Device\Speakers\Render"
         for restore_started in (False, True):
             with self.subTest(restore_started=restore_started):
-                router = _BackgroundAudioRouter()
+                router = _native_router()
                 router._saved_route = _applied_route(original, background)
-                router._last_visible = False
+                game_window._current = NATIVE_BACKGROUND
                 records = _native_audio_records(background, original)
                 config = dict.__new__(Config)
                 dict.update(
@@ -994,11 +997,7 @@ class AudioRoutingTests(unittest.TestCase):
 
                 with (
                     patch.object(audio_routing, "_router", router),
-                    patch.object(audio_routing, "_browser_monitor", SimpleNamespace(listener=None)),
                     patch.object(audio_routing, "_routing_config", return_value=config),
-                    patch.object(
-                        audio_routing, "get_game_target_path", return_value=(GAME_EXE, None)
-                    ),
                     patch.object(audio_routing.threading, "Thread") as worker,
                     patch.object(svcl, "list_sound_items", return_value=records),
                     patch.object(svcl, "set_app_output", side_effect=switch) as route,
@@ -1021,31 +1020,55 @@ class AudioRoutingTests(unittest.TestCase):
                 self.assertTrue(config[CONF_ENABLE])
 
     def test_selecting_browser_restores_native_output_before_browser_window_exists(self):
-        router = _BackgroundAudioRouter()
         original = r"USB Audio\Device\Headphones\Render"
         background = r"Virtual Audio\Device\Speakers\Render"
-        router._saved_route = _applied_route(original, background)
-        exit_event = ExitEvent()
-        monitor = browser_window.BrowserWindowMonitor(
-            _BackgroundAudioRouter, router.request_restore, lambda: exit_event
-        )
+        records = _native_audio_records(original, background)
+        config = {
+            CONF_ENABLE: True,
+            CONF_SVCL_PATH: "svcl.exe",
+            audio_routing.CONF_BACKGROUND_DEVICE: background,
+        }
+        selection = dict.__new__(Config)
+        dict.update(selection, preferred="windows")
+        selection.validator = None
+        selection.save_file = lambda: None
+        native = SimpleNamespace(hwnd=101, exe_full_path=r"C:\Game\HTGame.exe", visible=True)
+        manager = SimpleNamespace(config=selection, hwnd_window=native)
+        process = SimpleNamespace(name=lambda: GAME_EXE, children=lambda recursive: [])
+        native_signal = EventSignal("test_native_window")
+        monitor = GameWindowMonitor()
+        routes = _BackgroundAudioRouter()
+        monitor.updated.connect(routes.on_window)
         with (
-            patch.object(browser_window, "get_game_target_path", return_value=(None, None)),
-            patch.object(exit_event, "wait", side_effect=lambda _: exit_event.set()),
+            patch.object(audio_routing, "game_window", monitor),
+            patch.object(audio_routing, "_routing_config", return_value=config),
+            patch.object(window_module.og, "device_manager", manager),
+            patch.object(window_module.communicate, "window", native_signal),
+            patch.object(window_module, "get_exit_event", return_value=ExitEvent()),
+            patch.object(window_module, "_window_pid", return_value=80940),
+            patch.object(window_module.psutil, "Process", return_value=process),
+            patch.object(window_module, "Thread"),
             patch.object(audio_routing.threading, "Thread") as worker,
-            patch.object(
-                svcl, "list_sound_items", return_value=_native_audio_records(background, original)
-            ),
+            patch.object(svcl, "list_sound_items", return_value=records),
             patch.object(svcl, "set_app_output", return_value=True) as switch,
         ):
-            monitor._watch(exit_event)
+            monitor.start()
+            native.visible = False
+            native_signal.emit(False)
+            worker.call_args.kwargs["target"]()
+            _set_native_output(records, background)
+
+            selection["preferred"] = "browser"
             worker.call_args.kwargs["target"]()
 
-        switch.assert_called_once_with("svcl.exe", original, GAME_EXE)
-        self.assertIsNone(monitor.listener)
+        self.assertEqual(
+            switch.call_args_list,
+            [call("svcl.exe", background, 80940), call("svcl.exe", original, 80940)],
+        )
+        self.assertIsNone(monitor.current)
 
     def test_foreground_route_without_restore_needed_does_not_restore_default(self):
-        router = _BackgroundAudioRouter()
+        router = _native_router()
         output = r"USB Audio\Device\Headphones\Render"
         router._saved_route = _applied_route(output, output)
         config = {CONF_SVCL_PATH: "svcl.exe"}
@@ -1054,12 +1077,12 @@ class AudioRoutingTests(unittest.TestCase):
             patch.object(audio_routing, "_routing_config", return_value=config),
             patch.object(audio_routing.threading, "Thread") as worker,
         ):
-            router._request_route(True, enabled=True)
+            _report_window(router, NATIVE_FOREGROUND, enabled=True)
 
         worker.assert_not_called()
 
     def test_foreground_route_queues_restore_to_saved_original_device(self):
-        router = _BackgroundAudioRouter()
+        router = _native_router()
         original = r"USB Audio\Device\Headphones\Render"
         background = r"Virtual Audio\Device\Speakers\Render"
         router._saved_route = _applied_route(original, background)
@@ -1073,7 +1096,7 @@ class AudioRoutingTests(unittest.TestCase):
             ),
             patch.object(svcl, "set_app_output", return_value=True) as switch,
         ):
-            router._request_route(True, enabled=True)
+            _report_window(router, NATIVE_FOREGROUND, enabled=True)
             router._run_pending_routes()
 
         switch.assert_called_once_with("svcl.exe", original, GAME_EXE)
@@ -1088,7 +1111,7 @@ class AudioRoutingTests(unittest.TestCase):
         }
         for first_visible in (True, False):
             with self.subTest(first_visible=first_visible):
-                router = _BackgroundAudioRouter()
+                router = _native_router()
                 if first_visible:
                     router._saved_route = _applied_route(original, background)
                 records = (
@@ -1096,14 +1119,13 @@ class AudioRoutingTests(unittest.TestCase):
                     if first_visible
                     else _native_audio_records(original, background)
                 )
-                router._last_visible = not first_visible
                 router._worker = SimpleNamespace(is_alive=lambda: True)
                 calls = []
 
                 def switch(_exe_path, device, _process):
                     calls.append(device)
                     if len(calls) == 1:
-                        router.on_window(not first_visible)
+                        _report_window(router, replace(NATIVE_WINDOW, foreground=not first_visible))
                     _set_native_output(records, device)
                     return True
 
@@ -1112,51 +1134,141 @@ class AudioRoutingTests(unittest.TestCase):
                     patch.object(svcl, "list_sound_items", return_value=records),
                     patch.object(svcl, "set_app_output", side_effect=switch),
                 ):
-                    router.on_window(first_visible)
+                    _report_window(router, replace(NATIVE_WINDOW, foreground=first_visible))
                     router._run_pending_routes()
 
                 expected = [original, background] if first_visible else [background, original]
                 self.assertEqual(calls, expected)
-                self.assertEqual(router.restore_pending, first_visible)
+                self.assertEqual(router._saved_route is not None, first_visible)
 
-    def test_router_binds_to_ok_exit_event_for_forced_terminal_exit(self):
-        router = _BackgroundAudioRouter()
-        bound = []
-        exit_event = SimpleNamespace(bind_stop=lambda obj: bound.append(obj))
+    def test_routes_bind_to_ok_exit_event_for_forced_terminal_exit(self):
+        routes = _BackgroundAudioRouter()
+        bind_stop = Mock()
+        exit_event = SimpleNamespace(bind_stop=bind_stop)
 
-        with patch.object(
-            audio_routing.og, "ok", SimpleNamespace(exit_event=exit_event), create=True
+        with (
+            patch.object(window_module.og, "ok", SimpleNamespace(exit_event=exit_event)),
+            patch.object(window_module.og, "exit_event", None, create=True),
         ):
-            with patch.object(audio_routing.og, "exit_event", None, create=True):
-                router._bind_exit_event()
+            routes.bind_exit()
 
-        self.assertEqual(bound, [router])
+        bind_stop.assert_called_once_with(routes)
 
-    def test_router_does_not_hold_lock_when_exit_event_stops_immediately(self):
+    def test_routes_restore_when_binding_to_an_already_set_exit_event(self):
         router = _BackgroundAudioRouter()
         exit_event = ExitEvent()
         exit_event.set()
-        lock_acquired_by_stop = []
 
-        def stop():
-            acquired = router._lock.acquire(timeout=0.2)
-            lock_acquired_by_stop.append(acquired)
-            if acquired:
-                router._lock.release()
-
-        router.stop = stop
-        with patch.object(audio_routing, "_ok_exit_event", return_value=exit_event):
-            router._bind_exit_event()
-
-        self.assertEqual(lock_acquired_by_stop, [True])
-
-    def test_router_stop_restores_audio(self):
-        router = _BackgroundAudioRouter()
-
-        with patch.object(router, "restore_on_exit") as restore:
-            router.stop()
+        with (
+            patch.object(audio_routing, "get_exit_event", return_value=exit_event),
+            patch.object(router, "stop") as restore,
+        ):
+            router.bind_exit()
 
         restore.assert_called_once_with()
+
+
+class GameWindowMonitorTests(unittest.TestCase):
+    def test_browser_monitor_starts_on_selection_and_stops_on_return_to_native(self):
+        config = dict.__new__(Config)
+        dict.update(config, preferred="windows")
+        config.validator = lambda key, value: (value != "rejected", None)
+        config.save_file = lambda: None
+        native = SimpleNamespace(hwnd=101, exe_full_path=r"C:\Game\HTGame.exe", visible=True)
+        manager = SimpleNamespace(config=config, hwnd_window=native)
+        exit_event = ExitEvent()
+        monitor = GameWindowMonitor()
+        signal = EventSignal("test_native_window")
+        changed = Mock()
+        monitor.updated.connect(changed)
+        with (
+            patch.object(window_module.og, "device_manager", manager),
+            patch.object(window_module.communicate, "window", signal),
+            patch.object(window_module, "get_exit_event", return_value=exit_event),
+            patch.object(window_module, "_window_pid", return_value=25),
+            patch.object(window_module, "Thread") as thread,
+        ):
+            monitor.start()
+            monitor.start()
+            config["preferred"] = "rejected"
+            self.assertEqual(config["preferred"], "windows")
+            native.visible = False
+            signal.emit(False)
+            thread.assert_not_called()
+            changed.assert_called_with(GameWindow(GAME_EXE, 101, False, 25))
+
+            config["preferred"] = "browser"
+            thread.assert_called_once()
+            changed.assert_called_with(None)
+            changed.reset_mock()
+            native.visible = True
+            signal.emit(True)
+            changed.assert_not_called()
+
+            config["preferred"] = "windows"
+            thread.call_args.kwargs["target"](exit_event)
+            self.assertEqual(monitor.current, GameWindow(GAME_EXE, 101, True, 25))
+
+            config["preferred"] = "browser"
+            self.assertEqual(thread.call_count, 2)
+
+    def test_browser_focus_events_skip_duplicate_polls_and_keep_retries(self):
+        path = r"c:\browser\msedge.exe"
+        ticks = [
+            (0.00, 123, False),
+            (0.25, 123, False),
+            (0.50, 123, True),
+            (0.75, 123, True),
+            (2.50, 123, True),
+            (2.75, 456, True),
+            (3.00, None, None),
+        ]
+        index = 0
+        exit_event = ExitEvent()
+        monitor = GameWindowMonitor()
+        monitor._browser_selected = True
+        changed = Mock()
+        monitor.updated.connect(changed)
+        capture = object.__new__(BrowserCaptureMethod)
+        capture.exe_full_path = path
+        capture.hwnd = ticks[0][1]
+        manager = SimpleNamespace(capture_method=capture)
+
+        def advance(_timeout):
+            nonlocal index
+            index += 1
+            if index == len(ticks):
+                exit_event.set()
+            else:
+                capture.hwnd = ticks[index][1]
+
+        with (
+            patch.object(window_module.og, "device_manager", manager),
+            patch.object(
+                window_module.clock, "_read_monotonic", side_effect=lambda: ticks[index][0]
+            ),
+            patch.object(
+                window_module.win32process,
+                "GetWindowThreadProcessId",
+                side_effect=lambda hwnd: (1, hwnd),
+            ),
+            patch.object(
+                window_module, "is_foreground_window", side_effect=lambda _: ticks[index][2]
+            ),
+            patch.object(exit_event, "wait", side_effect=advance),
+        ):
+            monitor._watch_browser(exit_event)
+
+        self.assertEqual(
+            changed.call_args_list,
+            [
+                call(GameWindow(path, 123, False, 123)),
+                call(GameWindow(path, 123, True, 123)),
+                call(GameWindow(path, 123, True, 123)),
+                call(GameWindow(path, 456, True, 456)),
+                call(None),
+            ],
+        )
 
 
 if __name__ == "__main__":

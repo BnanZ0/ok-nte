@@ -7,6 +7,7 @@ from types import MethodType
 from ok import Logger
 
 from src.events import BotNotificationMessage, communicate
+from src.game_window import game_window
 from src.runtime.services import RuntimeServices
 
 logger = Logger.get_logger(__name__)
@@ -55,6 +56,7 @@ class Globals:
         communicate.start_success.connect(self._start_runtime_services)
 
     def _start_runtime_services(self, *_):
+        game_window.start()
         self._runtime_services.start(preload_models=("target",))
 
     def on_show_main_window(self, main_window) -> None:

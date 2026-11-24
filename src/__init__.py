@@ -14,31 +14,6 @@ GAME_EXE = "HTGame.exe"
 LAUNCHER_EXE = ["NTEGame.exe", "NTEGlobalGame.exe", "NTETWGame.exe"]
 
 
-def get_game_target() -> tuple[str | None, int | None]:
-    """Return the target exe name and, for a running browser, its window handle."""
-    path, hwnd = get_game_target_path()
-    return os.path.basename(path) if path else None, hwnd
-
-
-def get_game_target_path() -> tuple[str | None, int | None]:
-    """Return the browser executable path, or the native game's process name."""
-    from ok import og
-
-    manager = og.device_manager
-    device = manager.get_preferred_device() if manager is not None else None
-    if not device or device.get("device") != "browser":
-        return GAME_EXE, None
-
-    from ok.device.capture_methods.browser import BrowserCaptureMethod
-
-    capture = manager.capture_method
-    if isinstance(capture, BrowserCaptureMethod):
-        hwnd, exe_path = capture.hwnd, capture.exe_full_path
-        if hwnd and exe_path:
-            return exe_path, hwnd
-    return None, None
-
-
 text_white_color = {
     "r": (244, 255),  # Red range
     "g": (244, 255),  # Green range

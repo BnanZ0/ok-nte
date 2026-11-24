@@ -16,7 +16,7 @@ import numpy as np
 from ok import Logger
 from scipy.signal import butter, correlate, filtfilt
 
-from src import get_game_target
+from src.game_window import game_window
 from src.sound_trigger.capture import MODE_PROCESS, AudioCaptureSource, create_capture_source
 from src.sound_trigger.capture.base import CAPTURE_SAMPLE_RATE
 from src.utils import clock
@@ -266,15 +266,18 @@ class SoundListener:
         target = None
 
         while self._should_run(stop_event):
-            current_target = (
-                get_game_target() if self.process_name is None else (self.process_name, None)
-            )
+            window = game_window.current if self.process_name is None else None
+            if window is not None:
+                process_name, hwnd = window.name, window.hwnd
+                current_target = window.identity
+            else:
+                process_name, hwnd = self.process_name, None
+                current_target = process_name
             if current_target != target:
                 self._stop_capture()
                 target = current_target
                 buffer_pos = total_written = samples_since_check = 0
 
-            process_name, hwnd = current_target
             if process_name is None:
                 stop_event.wait(0.2)
                 continue
