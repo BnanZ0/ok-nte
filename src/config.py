@@ -75,6 +75,15 @@ def blur_area(width, height):
 config = {
     "custom_tasks": True,  # enable creating and editing custom tasks
     "plugin": True,
+    "plugin_repositories": [  # 未安装的 GitHub 插件会显示在插件页
+        # 只填 URL 字符串时, 使用仓库名称并显示于所有界面语言。
+        {
+            "url": "https://github.com/Camellune/ok-nte-cultivation-goal",
+            "name": "消耗体力培养角色",  # 可选, 默认显示仓库名称
+            "file_name": "cultivation_goal",  # 可选, 对应插件清单, 用于识别本地安装
+            "supported_languages": ["zh_CN"],  # 可选, 省略或留空时不限语言
+        },
+    ],
     "gui": {
         "type": "qt",
     },
