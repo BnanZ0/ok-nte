@@ -266,13 +266,13 @@ class NTEInteraction(PostMessageInteraction):
         i = INPUT(0, mi)  # type=0 indicates a mouse event
         return SendInput(1, ctypes.pointer(i), ctypes.sizeof(INPUT))
 
-    def try_activate(self):
+    def try_activate(self, force=False):
         now = clock.now()
         if self._activate_require:
             if not self.hwnd_window.is_foreground():
-                super().try_activate()
+                super().try_activate(force=force)
                 self._next_try_activate_at = now + self._ACTIVATE_REFRESH_INTERVAL
             self._activate_require = False
         elif now >= self._next_try_activate_at:
-            super().try_activate()
+            super().try_activate(force=force)
             self._next_try_activate_at = now + self._ACTIVATE_REFRESH_INTERVAL

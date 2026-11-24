@@ -16,6 +16,8 @@ decorator==5.3.1 ; sys_platform == 'win32'
     # via librosa
 evdev==1.9.3 ; sys_platform == 'win32' and 'linux' in sys_platform
     # via pynput
+greenlet==3.5.6 ; sys_platform == 'win32'
+    # via playwright
 idna==3.18 ; sys_platform == 'win32'
     # via requests
 imageio==2.37.3 ; sys_platform == 'win32'
@@ -60,7 +62,7 @@ numpy==2.4.6 ; sys_platform == 'win32'
     #   tifffile
 ok-pyside-minimal==6.12.0.post2 ; sys_platform == 'win32'
     # via ok-script
-ok-script==3.0.9 ; sys_platform == 'win32'
+ok-script==3.0.13 ; sys_platform == 'win32'
     # via ok-nte
 onnxocr-ppocrv6==0.0.1 ; sys_platform == 'win32'
     # via
@@ -87,6 +89,8 @@ pillow==13.0.0 ; sys_platform == 'win32'
     #   scikit-image
 platformdirs==4.10.0 ; sys_platform == 'win32'
     # via pooch
+playwright==1.65.2 ; sys_platform == 'win32'
+    # via ok-nte
 pooch==1.9.0 ; sys_platform == 'win32'
     # via librosa
 psutil==7.2.2 ; sys_platform == 'win32'

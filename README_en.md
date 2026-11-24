@@ -94,7 +94,7 @@ For source setup and detailed installation steps, see the [installation guide](d
 
 ## 💬 Community
 
-- **Discord**: [https://discord.gg/vVyCatEBgA](https://discord.gg/vVyCatEBgA)
+- **Discord**: [Join](https://discord.gg/vVyCatEBgA)
 
 ## 🔗 Projects developed using [ok-script](https://github.com/ok-oldking/ok-script)
 
