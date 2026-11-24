@@ -7,12 +7,13 @@
 
 ## 💻 Command Line Arguments
 
-You can automate startup by using command line arguments.
+This command runs the daily routine at startup and exits when the task finishes.
 
-```bash
-# Example: Automatically execute the second task (daily tasks) upon startup, and exit the program once the task completes
-ok-nte.exe -t 2 -e
+```powershell
+.\ok-nte.exe -t DailyRoutineTask -e --auto-start true
+# or
+.\.venv\Scripts\python.exe main.py -t DailyRoutineTask -e
 ```
 
-*   `-t` or `--task`: Automatically execute the N-th task upon startup. `1` represents the first task in the task list.
-*   `-e` or `--exit`: Automatically exit the program after the task is completed.
+*   With `-t` or `--task`, you can specify the task's class name (such as `DailyRoutineTask`) or its name.
+*   Use `-e` or `--exit` to close the program after the task completes.

@@ -7,12 +7,13 @@
 
 ## 💻 命令行参数
 
-您可以通过命令行参数实现自动化启动。
+以下命令会在程序启动时运行日常任务，并在任务完成后退出。
 
-```bash
-# 示例：启动后自动执行第二个任务（日常任务），并在任务完成后退出程序
-ok-nte.exe -t 2 -e
+```powershell
+.\ok-nte.exe -t DailyRoutineTask -e --auto-start true
+# or
+.\.venv\Scripts\python.exe main.py -t DailyRoutineTask -e
 ```
 
-*   `-t` 或 `--task`: 启动后自动执行第 N 个任务。`1` 代表任务列表中的第一个。
-*   `-e` 或 `--exit`: 任务执行完毕后自动退出程序。
+*   `-t` 或 `--task` 可填写任务的类名（如 `DailyRoutineTask`）或任务名称。
+*   使用 `-e` 或 `--exit` 在任务完成后自动退出程序。
