@@ -1,4 +1,4 @@
-# Spend Stamina for Character Growth (module version 1.5.10.1)
+# Spend Stamina for Character Growth (module version 1.5.10.2)
 
 Automatically spend stamina on the materials missing from your current character growth goals, as listed in the in-game Cultivation Guide. It is a **standalone task** in the task list, on the same level as Anomaly Zone / Anomaly Hunts / Anomaly Pilgrimage, and does not interfere with them. The module version is independent of the ok-nte host version; until it is merged into a host release, availability follows the standalone plugin release.
 
@@ -16,7 +16,13 @@ At start it opens the character's Cultivation Guide and reads all four target ro
    because the spare high tier can be dismantled to cover the low gap. The log prints both the raw readings
    and the folded `owned/required` so the numbers reconcile.
 5. Move to the next row when one is full; stop when stamina cannot cover one more run.
-6. **Console has the lowest farming priority, but no run limit**: once every other row is stuck (materials
+6. **After every material row is full, coin still has to be checked**: scroll to the bottom of each of
+   the Level / Arc / Ability tabs; their last "required materials" row is always coin (Armor Coin). The
+   three requirements differ and **must be added up**; the owned number on the left is the same inventory
+   on all three tabs, so **count it once** (normally identical; if they differ the majority wins, and if
+   all three differ the check is skipped for this round). If coin is short it runs the Coin Saga dungeon
+   (Anomaly Zone, 40 stamina, drops Magic Thread and coin); Console only comes after coin is covered.
+7. **Console has the lowest farming priority, but no run limit**: once every other row is stuck (materials
    complete, or weekly runs used up while still short), Console is what turns the remaining stamina into
    materials instead of letting it overflow. Which dungeon it runs is decided by the **recommended set**:
    the Console page only shows set names (e.g. "Speedy Hedgehog" x4), which are looked up in a
@@ -35,6 +41,7 @@ At start it opens the character's Cultivation Guide and reads all four target ro
 | Level row 2 | Anomaly Hunts (World BOSS) | 60 | Wild BOSS, walk up before fighting |
 | Ability row 1 | Anomaly Zone dungeon | 40 | Double reward and chaining supported |
 | Arc row 2 | Arc dungeon (Bubble Can) | 40 | Row 1 is generic upgrade material, not a dungeon drop |
+| Coin (last row of all three tabs) | Anomaly Zone - Coin Saga | 40 | Requirements added across tabs, owned counted once; handled only after materials are full |
 | Console (lowest priority) | Anomaly Zone · Console (Rabbit Hole) | 40 | No run limit; dungeon comes from the recommended set, refuses to run when unreadable |
 
 Other rows (common drops, EXP cards, Level row 1, etc.) are out of scope.
@@ -91,4 +98,9 @@ Chaining is automatic with no option: estimated from the previous round's output
 - **Weekly not finished**: if Anomaly Pilgrimage fails midway, weekly is not retried this session; already-claimed runs still count.
 - **Remaining stamina looks off**: only the opening reading comes from the panel; in between the ledger drives it. The panel value is refreshed from the ledger, and one real measurement is taken when the run stops, so the final number is measured. Look for `收工前复核体力: 账本 X → 实测 Y` in the log if you suspect ledger drift.
 - **Out of scope**: common drops / EXP cards / Level row 1.
+- **Coin not handled**: it only takes effect when all three tabs read successfully. If any tab fails
+  (page not scrolled to the bottom, or the slash was not recognised) the log shows
+  `甲硬币 X 页读不出, 本轮不检查甲硬币` and this round goes straight to Console. Under-reading one tab
+  would look like "already enough", which is worse than not farming at all. The
+  `甲硬币 拥有 X, 三页需求 Y` line reconciles the numbers directly.
 - The task is independent of the three anomaly tasks; disabling it leaves them running as before.

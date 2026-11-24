@@ -2065,5 +2065,116 @@ class StopVerifyTests(unittest.TestCase):
         self.assertTrue(any("均已失败" in msg for _, msg in task.logs))
 
 
+class CoinReadTests(unittest.TestCase):
+    """甲硬币读数: 三页各读一行, 需求相加、拥有只算一次、任一页读不出就退出。"""
+
+    def make(self, pages):
+        from src.tasks.cultivation_goal.flow_scan import ScanMixin
+        from src.tasks.cultivation_goal.core import parse_ratios
+
+        class Stub(ScanMixin):
+            def __init__(self, pages):
+                self.pages = list(pages)
+                self.logs = []
+                self.scrolled = 0
+                self.tabs = []
+
+            def _cg_click(self, x, y, name, after_sleep=0):
+                self.tabs.append(name)
+
+            def _cg_scroll_material_to_bottom(self):
+                self.scrolled += 1
+
+            def box_of_screen(self, *args, **kwargs):
+                return None
+
+            def _cg_read_line(self, box, **kwargs):
+                return self.pages.pop(0) if self.pages else ""
+
+            def _cg_read_retry(self, box):
+                return ""
+
+            @staticmethod
+            def _cg_usable_ratios(text):
+                ratios = parse_ratios(text)
+                if ratios and any(getattr(ratio, "guessed", False) for ratio in ratios):
+                    return None
+                return ratios or None
+
+            def _cg_note(self, level, message):
+                self.logs.append((level, message))
+
+        return Stub(pages)
+
+    def test_需求三页相加拥有只取一次(self):
+        stub = self.make(["246364/807500", "246364/1280250", "246364/21000"])
+        row = stub._cg_read_coin()
+        self.assertEqual(row.label, "甲硬币")
+        self.assertEqual(row.ratios[0].owned, 246364, "拥有是同一个库存, 不能乘三")
+        self.assertEqual(row.ratios[0].required, 807500 + 1280250 + 21000)
+        self.assertFalse(row.satisfied)
+        self.assertEqual(stub.scrolled, 3, "每页都要先滑到底, 金币是最后一行")
+
+    def test_任一页读不出就不参与(self):
+        stub = self.make(["246364/807500", "", "246364/21000"])
+        self.assertIsNone(stub._cg_read_coin())
+        self.assertTrue(any("本轮不检查甲硬币" in msg for _, msg in stub.logs))
+
+    def test_单页需求小于拥有不算读错(self):
+        # 异能只要 2.1 万而库存 24 万, 这是真实情况, 不能判成读错。
+        stub = self.make(["246364/807500", "246364/1280250", "246364/21000"])
+        row = stub._cg_read_coin()
+        self.assertIsNotNone(row)
+        self.assertEqual(row.ratios[0].owned, 246364)
+
+    def test_三页拥有互不相同就不参与(self):
+        stub = self.make(["100/500", "200/600", "300/700"])
+        self.assertIsNone(stub._cg_read_coin())
+        self.assertTrue(any("互不相同" in msg for _, msg in stub.logs))
+
+    def test_已够时判为满(self):
+        # 每页需求 3000, 三页合计 9000 = 拥有 9000。
+        stub = self.make(["9000/3000", "9000/3000", "9000/3000"])
+        self.assertTrue(stub._cg_read_coin().satisfied)
+
+    def test_七位数的金币需求能读出来(self):
+        # 弧盘满级需求 1280250 是 7 位, 正则卡 6 位时整行会读成空。
+        stub = self.make(["246364/807500", "246364/1280250", "246364/21000"])
+        self.assertEqual(stub._cg_read_coin().ratios[0].required, 2108750)
+
+
+class CoinLootTests(unittest.TestCase):
+    """甲硬币从结算页币种卡取数量, 读不到就不入账。"""
+
+    def make(self, loot):
+        from src.tasks.cultivation_goal.flow_combat import CombatMixin
+
+        class Stub(CombatMixin):
+            def __init__(self, loot):
+                self._cg_reward_loot = loot
+                self.logs = []
+
+            def _cg_note(self, level, message):
+                self.logs.append((level, message))
+
+        return Stub(loot)
+
+    def test_币种卡数量入账(self):
+        stub = self.make([
+            {"key": "currency_金币", "count": 120000},
+            {"key": "ability_扑克茶会_紫", "count": 2},
+        ])
+        self.assertEqual(stub._cg_read_coin_loot(), {"甲硬币": (120000,)})
+
+    def test_没有币种卡返回None(self):
+        stub = self.make([{"key": "ability_扑克茶会_紫", "count": 2}])
+        self.assertIsNone(stub._cg_read_coin_loot())
+
+    def test_走_read_loot_分流(self):
+        stub = self.make([{"key": "currency_金币", "count": 60000}])
+        stub.cg_loot_reader = None
+        self.assertEqual(stub._cg_read_loot("甲硬币"), {"甲硬币": (60000,)})
+
+
 if __name__ == "__main__":
     unittest.main()

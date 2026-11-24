@@ -1,7 +1,7 @@
 """奖励弹窗图标识别回归测试。
 
 两类样本：
-- 野外 BOSS 领奖：黑之书 / 金币 / 银色卷轴，只认黑之书，货币不认。
+- 野外 BOSS 领奖：黑之书 / 金币，只认黑之书，货币不认。
 - 副本结算：同一次泡影罐头·螺旋乐掉落，认出紫/蓝/绿三档。
 模板主库是 relation 的 41 张列表页带底板图，养成页 40 张兜底。
 """
@@ -26,6 +26,10 @@ _SAMPLES = (
     "2026-11-19_10-53-46-684_cg_reward_wild_list_1_original.png",
 )
 _DUNGEON = "2026-11-19_10-59-08-784_cg_reward_5_original.png"
+# 硬币记结算页: 只有两张卡(魔法丝线 + 金币 240000), 覆盖少卡页与货币数量框。
+# 放 fixtures 里(截图目录被 gitignore), 换机器跑测试也能拿到素材。
+_COIN_PAGE = Path(__file__).resolve().parent / "fixtures" / "reward_icons" / (
+    "2026-11-24_09-42-19_cg_reward_coin_dungeon_original.png")
 
 
 def _load(name):
@@ -45,14 +49,15 @@ class RewardIconTests(unittest.TestCase):
                 self.assertEqual(book.tier, "")
 
     def test_does_not_invent_currency_or_unknown_cards(self):
-        # 金币和银色卷轴不在 40 张模板里，宁可认不出也不能张冠李戴成某个 boss。
+        # 金币不在 40 张模板里，宁可认不出也不能张冠李戴成某个 boss。
         for name in _SAMPLES:
             with self.subTest(name=name):
                 keys = [match.key for match in identify_rewards(_load(name))]
                 self.assertEqual(len(keys), len(set(keys)), "同一清单里不该重复认同一材料")
                 for key in keys:
                     self.assertTrue(key.startswith("boss_") or key.startswith("weekly_")
-                                    or key.startswith("ability_") or key.startswith("arc_"))
+                                    or key.startswith("ability_") or key.startswith("arc_")
+                                    or key.startswith("material_"))
 
     def test_count_box_is_inside_its_card(self):
         for match in identify_rewards(_load(_SAMPLES[0])):
@@ -156,23 +161,24 @@ class RewardIconTests(unittest.TestCase):
         """投影切卡成功时报告待识别卡数, 已排除认出的货币卡。"""
         recognizer = RewardRecognizer(1080)
         matches, total = recognizer.identify_strip_detailed(_load(_DUNGEON))
-        # 5 张卡 = 3 材料(紫/蓝/绿) + 银色卷轴/金币两张货币; 货币不算漏识别。
-        self.assertEqual(total, 3)
-        self.assertEqual(len(matches), 3)
+        # 5 张卡 = 4 材料(魔法丝线+紫/蓝/绿) + 金币一张货币; 货币不算漏识别。
+        self.assertEqual(total, 4)
+        self.assertEqual(len(matches), 4)
+        self.assertIn("material_魔法丝线", [m.key for m in matches])
         self.assertEqual(recognizer.identify_strip_detailed(None), ([], None))
 
     def test_full_list_with_currencies_is_complete(self):
-        """3 张材料 + 2 张货币: 货币排除后清单完整, 不误标残缺。"""
+        """4 张材料 + 1 张货币: 货币排除后清单完整, 不误标残缺。"""
         matches, total = RewardRecognizer(1080).identify_strip_detailed(_load(_DUNGEON))
-        self.assertEqual(len(matches), 3)
-        self.assertEqual(total, 3, "货币卡排除后 3 材料 = 3 待识别, 清单完整")
+        self.assertEqual(len(matches), 4)
+        self.assertEqual(total, 4, "货币卡排除后 4 材料 = 4 待识别, 清单完整")
 
     def test_unrecognized_material_card_marks_incomplete(self):
-        """3 张材料 + 1 张没认出的卡: 只把没认出的计入残缺判定。"""
+        """4 张材料 + 1 张没认出的卡: 只把没认出的计入残缺判定。"""
         original = RewardRecognizer._identify_currency
 
-        def hide_coin(self, card):
-            match = original(self, card)
+        def hide_coin(self, card, x1=0.0, x2=0.0, center_x=0, card_y=None):
+            match = original(self, card, x1, x2, center_x, card_y)
             # 假装金币这张货币没认出 -> 它变成「未识别的材料卡」。
             if match is not None and match.dungeon == "金币":
                 return None
@@ -180,9 +186,33 @@ class RewardIconTests(unittest.TestCase):
 
         with mock.patch.object(RewardRecognizer, "_identify_currency", hide_coin):
             matches, total = RewardRecognizer(1080).identify_strip_detailed(_load(_DUNGEON))
-        self.assertEqual(len(matches), 3)
-        self.assertEqual(total, 4, "银色卷轴排除, 金币算未识别材料卡")
-        self.assertLess(len(matches), total, "3 < 4 -> 清单残缺")
+        self.assertEqual(len(matches), 4)
+        self.assertEqual(total, 5, "5 张卡全按材料算, 其中金币那张没认出")
+        self.assertLess(len(matches), total, "4 < 5 -> 清单残缺")
+
+    def test_two_card_reward_page_is_detected(self):
+        """只有两张卡(魔法丝线+金币)的结算页: 行投影门限按 strip 半宽会一张都切不出,
+        退回固定格后位置错位, 金币卡会被切成半张而认不出。"""
+        from src.tasks.cultivation_goal.reward_icons import last_currencies
+
+        if not _COIN_PAGE.exists():
+            self.skipTest(f"缺少素材 {_COIN_PAGE.name}")
+        frame = _load(_COIN_PAGE)
+        boxes = RewardRecognizer._detect_cards(frame)
+        self.assertEqual(len(boxes), 2, f"两张卡应切出两格, 实得 {boxes}")
+
+        matches, total = RewardRecognizer(1080).identify_strip_detailed(frame)
+        self.assertEqual([m.key for m in matches], ["material_魔法丝线"])
+        self.assertEqual(total, 1, "金币卡排除后只有魔法丝线一张待识别")
+        # 魔法丝线不是 boss 材料, 也不是货币: 它是硬币记副本的专属材料, 只能记日志不入账。
+        self.assertEqual(matches[0].kind, "material")
+        self.assertEqual(matches[0].tier, "")
+
+        coin = [c for c in last_currencies() if c.key == "currency_金币"]
+        self.assertTrue(coin, "金币卡必须认出来, 甲硬币入账靠它的数量")
+        x1, y1, x2, y2 = coin[0].count_box_below
+        self.assertLess(x1, x2, "货币卡数量框 x 不能是 0: 边界没传进去会裁出空图")
+        self.assertGreater(x2 - x1, 0.02)
 
 
 if __name__ == "__main__":

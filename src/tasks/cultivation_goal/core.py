@@ -4,12 +4,14 @@ from __future__ import annotations
 
 import re
 import unicodedata
+from collections import Counter
 from collections.abc import Iterable
 from dataclasses import dataclass, field, replace
 from enum import Enum
 
 # 占有量词(3.11+)防止数字段回溯, 长数字串下运行时间保持线性。
-RATIO_RE = re.compile(r"(?<![\d/])(\d{1,6}+)\s*/\s*(\d{1,6}+)(?![\d/])")
+# 上限放到 9 位: 甲硬币需求实测 1280250(7 位), 卡 6 位会把金币整行读成空。
+RATIO_RE = re.compile(r"(?<![\d/])(\d{1,9}+)\s*/\s*(\d{1,9}+)(?![\d/])")
 # 链式写法 `10 / 10 / 20` 不是槽位比例, 先拦掉再提取。
 CHAIN_RATIO_RE = re.compile(r"\d++\s*/\s*\d++\s*/\s*\d++")
 WEEKLY_RE = re.compile(r"(?<![\d.+-])([0-3])\s*/\s*3(?![\d.])")
@@ -123,6 +125,8 @@ class MaterialRow:
     cost: int
     landing: str = "domain"
     ratios: tuple[Ratio, ...] | None = None
+    # 定制显示名: 甲硬币不是「等级第3行」这种材料行, 但它复用整条读数/派单/入账链路。
+    name: str = ""
 
     @property
     def satisfied(self) -> bool | None:
@@ -134,7 +138,33 @@ class MaterialRow:
 
     @property
     def label(self) -> str:
-        return f"{self.tab}-第{self.row_index + 1}行"
+        return self.name or f"{self.tab}-第{self.row_index + 1}行"
+
+
+# 甲硬币(金币)在三个页签里都是「所需材料」的最后一行, 三页行高相同, 所以读数与按钮
+# 都能用一组固定坐标; 需求是三项之和, 拥有三处是同一个库存, 只取一次。
+COIN_LABEL = "甲硬币"
+COIN_TAB = "等级"
+COIN_ROW_INDEX = 2
+COIN_COST = 40
+# 结算页币种卡在识别结果里的 key。
+COIN_REWARD_KEY = "currency_金币"
+
+
+def coin_owned(values) -> int | None:
+    """三页读到的甲硬币拥有量合成一个数: 三处是同一个库存, 绝不能相加。
+
+    正常三处完全一致; 偶尔某页多读/少读一位时取众数(两票一致即可定); 三个值互不
+    相同说明至少两页读错, 返回 None 让上层放弃这一轮的甲硬币判断。
+    """
+    numbers = [int(v) for v in values if v is not None]
+    if not numbers:
+        return None
+    counts = Counter(numbers)
+    top = max(counts.values())
+    if top < 2:
+        return None
+    return max(number for number, hit in counts.items() if hit == top)
 
 
 def row_gap(row: MaterialRow) -> int | None:

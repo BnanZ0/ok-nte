@@ -22,6 +22,12 @@ class CultivationPositions:
     material_button_x: float = 0.890
     ratio_row_y: dict[str, tuple[float, float, float]] | None = None
     material_row_y: dict[str, tuple[float, float, float]] | None = None
+    # 甲硬币行: 等级/弧盘/异能三页都是「所需材料」的最后一行, 行高一致(11-24 实拍)。
+    # 数字中心 0.856(滑到底后), 「获取材料」按钮文字中心实测三页都在 0.852 ——
+    # 这一行按钮与数字几乎齐平, 不像材料行那样比数字高 0.034。
+    coin_row_y: float = 0.856
+    coin_button_y: float = 0.852
+    coin_tabs: tuple[str, str, str] = ("等级", "弧盘", "异能")
     # 养成指南「空幕」页没有异能页那种四行比例，只有「当前套装 / 推荐套装」两块，
     # 判定依据是套装名（→ 兔子洞关卡），所以只留这两行名称的位置。
     # 两值来自 11-22 实拍 1920x1110（客户区 1080）行投影，文字中心 y=295/666。

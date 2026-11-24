@@ -189,18 +189,18 @@
   },
   {
     "kind": "currency",
-    "name": "银色卷轴",
-    "tiers": {
-      "材料": "currency_银色卷轴.png"
-    },
-    "material": ""
-  },
-  {
-    "kind": "currency",
     "name": "金币",
     "tiers": {
       "材料": "currency_金币.png"
     },
     "material": ""
+  },
+  {
+    "kind": "material",
+    "name": "魔法丝线",
+    "tiers": {
+      "材料": "material_魔法丝线.png"
+    },
+    "material": "异象界域·硬币记掉落"
   }
 ]

@@ -5,14 +5,19 @@ from __future__ import annotations
 import cv2
 import unicodedata
 
-import cv2
-
 from src.tasks.cultivation_goal.core import (
+    COIN_COST,
+    COIN_LABEL,
+    COIN_REWARD_KEY,
+    COIN_ROW_INDEX,
+    COIN_TAB,
     MaterialRow,
     RATIO_RE,
     Ratio,
+    coin_owned,
     parse_ratios,
     repair_swallowed_slash,
+    row_gap,
 )
 from src.tasks.cultivation_goal.flow_const import (
     CG_BURST_CONFIRM_RANGE,
@@ -35,7 +40,11 @@ class ScanMixin:
             return complete
 
         try:
-            from src.tasks.cultivation_goal.reward_icons import identify_rewards_detailed, summarize
+            from src.tasks.cultivation_goal.reward_icons import (
+                identify_rewards_detailed,
+                last_currencies,
+                summarize,
+            )
 
             frame = getattr(self, "frame", None)
             if frame is None or getattr(frame, "size", 0) == 0:
@@ -59,6 +68,21 @@ class ScanMixin:
                     continue
                 loot.append({"key": match.key, "count": count, "dungeon": match.dungeon,
                              "inliers": match.inliers})
+            # 币种卡(金币)不占材料槽位, 但甲硬币要靠它的数量入账, 所以单独读一遍。
+            for currency in last_currencies():
+                if currency.key != COIN_REWARD_KEY:
+                    continue
+                below = getattr(currency, "count_box_below", None)
+                if tag == "副本" and below:
+                    count = self._cg_read_reward_count(below, currency.count_box)
+                else:
+                    count = self._cg_read_reward_count(currency.count_box)
+                if count is None or count <= 0:
+                    self._cg_note("warning", f"币种卡 {currency.dungeon} 数量读不出, 本轮标记残缺")
+                    partial = True
+                    continue
+                loot.append({"key": currency.key, "count": count, "dungeon": currency.dungeon,
+                             "inliers": currency.inliers})
             if card_total is not None and len(matches) < card_total:
                 # 投影切出了卡但有的没认出模板: 缺的那张不能按零入账, 整轮按残缺处理。
                 self._cg_note(
@@ -175,6 +199,78 @@ class ScanMixin:
             pass
         return tuple(ranges)
 
+    def _cg_scroll_material_to_bottom(self, times=6, count=-3):
+        """把「所需材料」卡片滑到底。
+
+        甲硬币是所需材料的**最后一行**: 不下滑时它在屏幕外(第 4 行 y≈1.0),
+        滑到底后它贴在第三个可见位上(y≈0.856)。只有贴底时这个读数位置才固定,
+        所以每次读甲硬币前都要先滑到底。
+
+        不按「画面是否变化」判到底: 卡片大面积是深色背景, 滚一行时像素变化很小,
+        容易被误判成已经到底。直接固定多滚几次, 真到底了再多滚也没有副作用。
+        """
+        scroll = getattr(self, "scroll", None)
+        if not callable(scroll):
+            # 无界面环境(单测桩)没有滚动能力。
+            return False
+        sleeper = getattr(self, "sleep", None)
+        for _ in range(times):
+            scroll(0.50, 0.70, count)
+            if callable(sleeper):
+                sleeper(0.25)
+        return True
+
+    def _cg_read_coin(self):
+        """读甲硬币缺口: 三页各读最后一行, 需求相加、拥有只算一次。
+
+        三页都读得出才返回行; 任何一页读不出就返回 None —— 需求量少算一页会判成
+        「已经够了」而直接去空幕, 那才是真的白刷, 所以宁可这轮不碰甲硬币。
+        """
+        owned_pages = []
+        required_total = 0
+        for tab in POS.coin_tabs:
+            self._cg_click(POS.tab_x[tab], POS.overview_tabs_y, f"{tab} tab", after_sleep=0.6)
+            self._cg_scroll_material_to_bottom()
+            cy = POS.coin_row_y
+            x1, x2 = POS.ratio_box_x
+            box = self.box_of_screen(
+                x1, cy - POS.ratio_half_height, x2, cy + POS.ratio_half_height,
+                name=f"cg_coin_{tab}", hcenter=True,
+            )
+            text = self._cg_read_line(box)
+            ratios = self._cg_usable_ratios(text)
+            if ratios is None:
+                retry = self._cg_read_retry(box)
+                ratios = self._cg_usable_ratios(retry)
+                if ratios is not None:
+                    text = retry
+            self._cg_note("info", f"甲硬币 {tab} 页: {text or '<空>'}")
+            if ratios is None or len(ratios) != 1:
+                self._cg_note("warning", f"甲硬币 {tab} 页读不出, 本轮不检查甲硬币")
+                return None
+            ratio = ratios[0]
+            # 单页需求可以远小于拥有(例如异能只要 2.1 万而库存 24 万), 这是正常的,
+            # 所以不能拿「拥有 ≤ 需求」当校验; 只有整页读不出才算失败。
+            owned_pages.append(ratio.owned)
+            required_total += ratio.required
+        owned = coin_owned(owned_pages)
+        if owned is None:
+            self._cg_note(
+                "warning",
+                f"甲硬币三页拥有量互不相同({owned_pages}), 本轮不检查甲硬币",
+            )
+            return None
+        row = MaterialRow(
+            COIN_TAB, COIN_ROW_INDEX, COIN_COST, "domain",
+            (Ratio(owned, required_total),), name=COIN_LABEL,
+        )
+        self._cg_note(
+            "info",
+            f"甲硬币 拥有 {owned}, 三页需求 {required_total} "
+            f"({'已够' if row.satisfied else f'还缺 {row_gap(row)}'})",
+        )
+        return row
+
     def _cg_read_rows(self):
         """按 tab 分组读完所有目标行，返回值按 TARGET_ROWS 优先级排。"""
         if not self._cg_ensure_guide():
@@ -259,10 +355,15 @@ class ScanMixin:
         self._cg_last_texts = texts
         # 记住最近一次确认的槽位映射, 供后续图标本轮没认出时核对读数完整性。
         self._cg_last_slots = {**(getattr(self, "_cg_last_slots", {}) or {}), **self._cg_row_slots}
-        return tuple(
+        rows = [
             MaterialRow(tab, row_index, cost, landing, read.get((tab, row_index)))
             for tab, row_index, cost, landing in TARGET_ROWS
-        )
+        ]
+        # 甲硬币排最后: 它是「材料都刷够了」之后才该花体力去补的东西, 空幕必须还在它后面。
+        coin = self._cg_read_coin()
+        if coin is not None:
+            rows.append(coin)
+        return tuple(rows)
 
     def _cg_identify_row(self, tab, row_index):
         """认这一行材料图标所属副本，并记录槽位 key 供掉落入账。"""

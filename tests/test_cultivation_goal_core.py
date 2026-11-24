@@ -409,6 +409,75 @@ class WeeklyAccountingTests(unittest.TestCase):
         self.assertEqual(next_weekly_remaining(s, True), 0)
 
 
+class CoinTests(unittest.TestCase):
+    """甲硬币(金币): 三页需求相加, 拥有三处同一库存只算一次。"""
+
+    def row(self, owned, required):
+        return MaterialRow("等级", 2, 40, "domain", (Ratio(owned, required),), name="甲硬币")
+
+    def test_三页拥有相同时只算一次(self):
+        from src.tasks.cultivation_goal.core import coin_owned
+
+        self.assertEqual(coin_owned([246364, 246364, 246364]), 246364)
+
+    def test_某一页读错时取众数(self):
+        from src.tasks.cultivation_goal.core import coin_owned
+
+        self.assertEqual(coin_owned([246364, 246364, 24636]), 246364)
+
+    def test_三值互不相同视为不可信(self):
+        from src.tasks.cultivation_goal.core import coin_owned
+
+        self.assertIsNone(coin_owned([246364, 246365, 24636]))
+        self.assertIsNone(coin_owned([]))
+
+    def test_定制名替换默认行标签(self):
+        self.assertEqual(self.row(1, 2).label, "甲硬币")
+        self.assertEqual(MaterialRow("异能", 0, 40).label, "异能-第1行")
+
+    def test_需求是三项之和(self):
+        # 807500 + 1280250 + 21000 = 2108750, 拥有 246364。
+        row = self.row(246364, 807500 + 1280250 + 21000)
+        self.assertEqual(row.ratios[0].required, 2108750)
+        self.assertFalse(row.satisfied)
+        self.assertEqual(row_gap(row), 2108750 - 246364)
+
+    def test_甲硬币排在材料之后空幕之前(self):
+        """材料未满先刷材料; 材料满了刷甲硬币; 甲硬币也够了才去空幕。"""
+        material = MaterialRow("异能", 0, 40, "domain", (Ratio(0, 10),))
+        coin = self.row(0, 1000)
+        cfg = PlanConfig()
+        state = PlanState(stamina=500, weekly_remaining=0, rows=(material, coin),
+                          weekly_known=True, weekly_blocked=True)
+        self.assertIs(decide(state, cfg).row, material)
+
+        state = PlanState(stamina=500, weekly_remaining=0,
+                          rows=(MaterialRow("异能", 0, 40, "domain", (Ratio(10, 10),)), coin),
+                          weekly_known=True, weekly_blocked=True)
+        picked = decide(state, cfg)
+        self.assertIs(picked.row, coin)
+
+        state = PlanState(stamina=500, weekly_remaining=0,
+                          rows=(MaterialRow("异能", 0, 40, "domain", (Ratio(10, 10),)),
+                                self.row(1000, 1000)),
+                          weekly_known=True, weekly_blocked=True)
+        self.assertIs(decide(state, cfg).action, Action.CONSOLE)
+
+    def test_甲硬币读不出时不影响其它行(self):
+        """没有甲硬币行就不该出现金币判断, 空幕照旧垫底。"""
+        state = PlanState(stamina=500, weekly_remaining=0,
+                          rows=(MaterialRow("异能", 0, 40, "domain", (Ratio(10, 10),)),),
+                          weekly_known=True, weekly_blocked=True)
+        self.assertIs(decide(state, PlanConfig()).action, Action.CONSOLE)
+
+    def test_甲硬币掉落入账(self):
+        ledger = LootLedger(500, (self.row(0, 1000),))
+        self.assertTrue(ledger.apply_loot("甲硬币", (120000,)))
+        self.assertEqual(ledger.rows[0].ratios[0].owned, 120000)
+        self.assertEqual(ledger.dropped["甲硬币"], (120000,))
+        self.assertFalse(ledger.apply_loot("甲硬币", (1, 2)), "槽位数对不上必须拒绝")
+
+
 class GroupLockTests(unittest.TestCase):
     """宿主加载插件后会用 script_name 覆盖 group_name, 必须锁回「体力本」。"""
 

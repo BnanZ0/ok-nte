@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 
 from src.Labels import Labels
+from src.tasks.cultivation_goal.core import COIN_LABEL
 from src.tasks.cultivation_goal.positions import POS
 
 
@@ -237,7 +238,12 @@ class WeeklyMixin:
         if not self._cg_ensure_guide():
             return False
         self._cg_click(POS.tab_x[row.tab], POS.overview_tabs_y, f"{row.tab} tab", after_sleep=0.6)
-        button_y = POS.material_row_y[row.tab][row.row_index]
+        if row.name == COIN_LABEL:
+            # 甲硬币是所需材料的最后一行: 不滑到底它的按钮不在固定位置。
+            self._cg_scroll_material_to_bottom()
+            button_y = POS.coin_button_y
+        else:
+            button_y = POS.material_row_y[row.tab][row.row_index]
         self._cg_click(POS.material_button_x, button_y, f"{row.label} 获取材料", after_sleep=1.2)
         mode = self._cg_enter_landing()
         if mode is None:

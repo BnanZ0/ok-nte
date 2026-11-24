@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import cv2
 
-import cv2
-
 from src.tasks.cultivation_goal.core import (
+    COIN_LABEL,
+    COIN_REWARD_KEY,
     claims_needed,
     lowest_units,
     plan_burst,
@@ -126,6 +126,8 @@ class CombatMixin:
 
     def _cg_read_loot(self, last_label=None):
         """返回本次掉落 {行标签: 各槽位增量}；认不出返回 None 让主循环回页复核。"""
+        if last_label == COIN_LABEL:
+            return self._cg_read_coin_loot()
         reader = getattr(self, "cg_loot_reader", None)
         if callable(reader):
             try:
@@ -148,6 +150,24 @@ class CombatMixin:
             return None
         self._cg_note("info", f"{last_label} 掉落入账: {slots} +{counts}")
         return {last_label: counts}
+
+    def _cg_read_coin_loot(self):
+        """甲硬币没有材料槽位, 直接取结算页币种卡的数量累加。
+
+        读不到就返回 None, 由主循环回页复核: 甲硬币一局掉十几万, 猜一个数会把
+        后面十几局的缺口全算错, 比多读一次面板贵得多。
+        """
+        loot = getattr(self, "_cg_reward_loot", None) or []
+        total = sum(
+            int(item.get("count") or 0)
+            for item in loot
+            if item.get("key") == COIN_REWARD_KEY
+        )
+        if total <= 0:
+            self._cg_note("info", f"{COIN_LABEL} 结算页没有读到币种卡, 本局不入账")
+            return None
+        self._cg_note("info", f"{COIN_LABEL} 掉落入账: +{total}")
+        return {COIN_LABEL: (total,)}
 
     def _cg_log_loot_stats(self, ledger, gains=None):
         """掉落统计: 每行各槽位输出 本次掉落 / 已有 / 还差。已有与缺口从账本读, 掉落用本次增量。"""

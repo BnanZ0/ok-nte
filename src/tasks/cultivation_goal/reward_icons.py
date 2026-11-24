@@ -171,9 +171,14 @@ class RewardRecognizer:
         """
         return self._match_card(card, x1, x2, center_x, self._templates, card_y)
 
-    def _identify_currency(self, card: np.ndarray) -> RewardMatch | None:
-        """只在材料模板全没命中后兜底认货币卡, 保证材料永远优先。"""
-        return self._match_card(card, 0.0, 0.0, 0, self._currency_templates)
+    def _identify_currency(self, card: np.ndarray, x1: float = 0.0, x2: float = 0.0,
+                           center_x: int = 0,
+                           card_y: tuple[float, float] | None = None) -> RewardMatch | None:
+        """只在材料模板全没命中后兜底认货币卡, 保证材料永远优先。
+
+        x1/x2 必须传真实卡边界: 货币卡也要读数量(甲硬币入账), 边界给 0 会裁出空图。
+        """
+        return self._match_card(card, x1, x2, center_x, self._currency_templates, card_y)
 
     def _match_card(self, card: np.ndarray, x1: float, x2: float, center_x: int,
                     templates: list,
@@ -230,45 +235,78 @@ class RewardRecognizer:
             tier=tier,
             inliers=inliers,
             x=int(center_x),
-            count_box=(x2 - (x2 - x1) * 0.42,
-                       top + (bottom - top) * 0.58,
-                       x2, bottom - (bottom - top) * 0.05),
-            # 副本结算页: 卡下沿下方 0~30% 卡高的窄条, 数量就印在这里。
+            # 卡内数量框: 数字右对齐压在卡片右下角。
+            # - 左边界留 60% 卡宽: 45% 会把"12000"的"1"切掉读成 2000;
+            # - 下沿要越过卡底边 8%: "7"这种贴底数字切到 bottom-0.05h 只剩上半截;
+            # - 上沿 60%: 再往上会把图标边缘算进来, 读出"37"这类噪声。
+            count_box=(x2 - (x2 - x1) * 0.6,
+                       top + (bottom - top) * 0.6,
+                       x2, min(1.0, bottom + (bottom - top) * 0.08)),
+            # 副本结算页: 卡下沿下方 0~42% 卡高的窄条, 数量就印在这里。
+            # 取 0.42 而不是 0.3: 单数字("1")贴得更靠下, 0.3 会切掉它的下半截读不出。
             count_box_below=(x1, bottom,
-                             x2, min(1.0, bottom + (bottom - top) * 0.3)),
+                             x2, min(1.0, bottom + (bottom - top) * 0.42)),
         )
 
     @staticmethod
     def _detect_cards(frame: np.ndarray) -> list[tuple[int, int, int, int]]:
-        """亮度投影找奖励卡的行高和每张卡的 x 段。
+        """投影找奖励卡的行高和每张卡的 x 段, 返回 (x1, x2, y1, y2) 像素框。
 
-        副本结算是深色背景上的 5 张亮卡, 直接投影就能切开; 野外清单背景也亮, 
-        切不出来就退回固定比例。返回 (x1, x2, y1, y2) 像素框。
+        两种底色各试一路:
+        - 亮卡: 副本结算/领奖弹窗, 深色背景上的几张亮卡;
+        - 暗卡: 野外清单, 浅灰面板上的几张深卡(整页都是亮的, 亮卡投影只会切出面板本身)。
+        两路都切不出就退回固定比例。
         """
         height, width = frame.shape[:2]
         # 行高/卡宽阈值按 1080 高标定, 其它分辨率等比缩放, 否则高分辨率下切不出卡。
         scale = height / 1080
         gray = cv2.cvtColor(frame[:, :, :3], cv2.COLOR_BGR2GRAY)
-        strip = gray[int(height * 0.38):int(height * 0.65),
-                     int(width * 0.28):int(width * 0.72)]
-        proj = (strip > 50).sum(axis=1)
-        rows = [i + int(height * 0.38) for i, v in enumerate(proj)
-                if v > strip.shape[1] * 0.5]
-        if not rows:
+        for dark in (False, True):
+            boxes = RewardRecognizer._project_cards(gray, height, width, scale, dark)
+            if boxes:
+                return boxes
+        return []
+
+    @staticmethod
+    def _project_cards(gray: np.ndarray, height: int, width: int, scale: float,
+                       dark: bool) -> list[tuple[int, int, int, int]]:
+        top0 = int(height * 0.38)
+        strip = gray[top0:int(height * 0.66), int(width * 0.24):int(width * 0.76)]
+        rows = (strip < 160) if dark else (strip > 50)
+        proj = rows.sum(axis=1)
+        # 亮卡: 只有 1~2 张卡时亮像素远不到半屏（两卡 ≈ 33%）, 门限按「两张最窄卡」定,
+        # 不能用 strip 宽的 50%——那样单卡/双卡页永远切不出来, 只能退回固定格而错位。
+        # 暗卡: 面板整体是亮的, 门限只需压过噪声。
+        min_lit = strip.shape[1] * 0.06 if dark else max(2 * 40 * scale, strip.shape[1] * 0.05)
+        # 取最长连续带: 「获得道具」横幅、底部水印也会亮, 首末行相减会把它们算进行高。
+        spans: list[tuple[int, int]] = []
+        start: int | None = None
+        for i, v in enumerate(proj):
+            if v > min_lit and start is None:
+                start = i
+            elif v <= min_lit and start is not None:
+                spans.append((start, i))
+                start = None
+        if start is not None:
+            spans.append((start, len(proj)))
+        if not spans:
             return []
-        y1, y2 = rows[0], rows[-1]
+        top, bottom = max(spans, key=lambda span: span[1] - span[0])
+        y1, y2 = top + top0, bottom + top0
         # 卡片行高度约 140px; 野外清单整屏连片会拉到 290px, 直接判投影失效。
         if y2 - y1 < 60 * scale or y2 - y1 > 200 * scale:
             return []
         band = gray[y1:y2, :]
-        xp = (band > 50).sum(axis=0)
+        cols = (band < 160) if dark else (band > 50)
+        # 暗卡列门限要低: 金色/亮色卡只有部分列算暗, 0.5 会把中间那张漏掉。
+        min_col = (y2 - y1) * (0.35 if dark else 0.4)
+        xp = cols.sum(axis=0)
         segs: list[tuple[int, int]] = []
-        start: int | None = None
+        start = None
         for x, v in enumerate(xp):
-            lit = v > (y2 - y1) * 0.4
-            if lit and start is None:
+            if v > min_col and start is None:
                 start = x
-            elif not lit and start is not None:
+            elif v <= min_col and start is not None:
                 if 40 * scale < x - start < 200 * scale:
                     segs.append((start, x))
                 start = None
@@ -305,15 +343,22 @@ class RewardRecognizer:
                 boxes.append((int(width * x1), int(width * x2), y1, y2))
         matches: list[RewardMatch] = []
         currencies = 0
+        self.currencies = []
         for px1, px2, py1, py2 in boxes:
             card = frame[py1:py2, px1:px2]
             # 数量框必须跟随投影切出的真实卡边界, 不能用固定 CARD_Y (Major #20)。
+            card_y = (py1 / height, py2 / height)
             found = self.identify_card(card, px1 / width, px2 / width, (px1 + px2) // 2,
-                                       card_y=(py1 / height, py2 / height))
+                                       card_y=card_y)
             if found is None:
                 # 材料模板没命中再试货币; 材料永远优先, 防止货币模板抢材料卡。
-                if self._identify_currency(card) is not None:
+                currency = self._identify_currency(card, px1 / width, px2 / width,
+                                                   (px1 + px2) // 2, card_y)
+                if currency is not None:
                     currencies += 1
+                    # 甲硬币入账要用币种卡的数量, 所以单独留下来; 不混进 matches,
+                    # 否则待识别卡数与材料槽位映射都会被货币卡带偏。
+                    self.currencies.append(currency)
                 continue
             matches.append(found)
         expected = len(boxes) - currencies if projected else None
@@ -321,6 +366,11 @@ class RewardRecognizer:
 
 
 _recognizer: RewardRecognizer | None = None
+
+
+def last_currencies() -> list[RewardMatch]:
+    """上一次识别里认出的币种卡(金币/银卷); 甲硬币入账按币种卡取数量。"""
+    return list(getattr(_recognizer, "currencies", ()) or ())
 
 
 def identify_rewards(frame: np.ndarray, height: int = 1080,
