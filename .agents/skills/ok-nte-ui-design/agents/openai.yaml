@@ -1,0 +1,4 @@
+interface:
+  display_name: "ok-nte UI Design"
+  short_description: "Design PySide6 interfaces that fit ok-nte"
+  default_prompt: "Use $ok-nte-ui-design to design an ok-nte settings page using the existing Qt kit and visual conventions."

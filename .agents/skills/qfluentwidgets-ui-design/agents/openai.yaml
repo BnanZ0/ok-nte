@@ -1,4 +1,0 @@
-interface:
-  display_name: "QFluentWidgets UI Design"
-  short_description: "Design native Fluent-style QFluentWidgets interfaces"
-  default_prompt: "Use $qfluentwidgets-ui-design to design a settings page that follows the official QFluentWidgets style."
