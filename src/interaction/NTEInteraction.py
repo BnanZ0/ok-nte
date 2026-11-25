@@ -19,14 +19,11 @@ from win32api import GetCursorPos
 from src.interaction.cursor_sync import CursorSync
 from src.interaction.keyboard_layout import QwertyPhysicalKeyMapper
 from src.interaction.mouse_blocker import MouseInputBlocker
-from src.utils import clock
 
 logger = Logger.get_logger(__name__)
 
 
 class NTEInteraction(PostMessageInteraction):
-    _ACTIVATE_REFRESH_INTERVAL = 60 * 60
-
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.cursor_position = None
@@ -37,14 +34,8 @@ class NTEInteraction(PostMessageInteraction):
         self.user32 = ctypes.windll.user32
         self.qwerty_physical_key_mapper = QwertyPhysicalKeyMapper()
         self._disable_key_mapping = 0
-        self._activate_require = True
-        self._next_try_activate_at = clock.UNSET
         self._cursor_sync = CursorSync()
         self._cursor_sync.start()
-        self.hwnd_window.visible_monitors.append(self)
-
-    def on_visible(self, visible):
-        self._activate_require = not visible
 
     def on_destroy(self):
         try:
@@ -61,7 +52,7 @@ class NTEInteraction(PostMessageInteraction):
                 return super().send_key(key, down_time=down_time)
             finally:
                 self._disable_key_mapping -= 1
-    
+
     def send_key_down(self, key, activate=True) -> Any:
         with self._input_lock:
             key = self._map_key(key)
@@ -267,12 +258,5 @@ class NTEInteraction(PostMessageInteraction):
         return SendInput(1, ctypes.pointer(i), ctypes.sizeof(INPUT))
 
     def try_activate(self, force=False):
-        now = clock.now()
-        if self._activate_require:
-            if not self.hwnd_window.is_foreground():
-                super().try_activate(force=force)
-                self._next_try_activate_at = now + self._ACTIVATE_REFRESH_INTERVAL
-            self._activate_require = False
-        elif now >= self._next_try_activate_at:
+        if force or not self.hwnd_window.is_foreground():
             super().try_activate(force=force)
-            self._next_try_activate_at = now + self._ACTIVATE_REFRESH_INTERVAL
