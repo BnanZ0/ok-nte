@@ -77,6 +77,7 @@ class _BackgroundAudioRouter:
         self._pending_route: _RouteRequest | None = None
         self._saved_route: _SavedRoute | None = None
         self._worker: threading.Thread | None = None
+        self._warned_unknown_output_for: tuple[str, int | None, int | None] | None = None
 
     def bind_exit(self, *_args) -> None:
         if exit_event := get_exit_event():
@@ -204,8 +205,11 @@ class _BackgroundAudioRouter:
             return
 
         if current is None:
-            logger.warning("background audio routing skipped: current output device is unknown")
+            if self._warned_unknown_output_for != window.identity:
+                self._warned_unknown_output_for = window.identity
+                logger.warning("background audio routing skipped: current output device is unknown")
             return
+        self._warned_unknown_output_for = None
         data, current_render_device, process = current
 
         target_device = svcl.resolve_output_device(data, request.device)
