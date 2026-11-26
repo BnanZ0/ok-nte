@@ -1157,9 +1157,17 @@ def interac_mask(image):
 
 
 def confirm_mask(image):
+    import cv2
+    import numpy as np
+
     mask = iu.create_color_mask(image, text_black_color, to_bgr=False)
     dilated_mask = iu.morphology_mask(mask, kernel_size=5, to_bgr=False)
-    return dilated_mask
+    pts = cv2.findNonZero(mask)
+    if pts is None:
+        return dilated_mask
+    hull = cv2.convexHull(pts)
+    inner = cv2.fillConvexPoly(np.zeros_like(mask), hull, 255)
+    return cv2.bitwise_and(dilated_mask, inner)
 
 
 def exit_mask(image):
