@@ -3,8 +3,11 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import patch
 
+import cv2
 import numpy as np
 from ok import Box
+
+from src.utils import image_utils as iu
 
 vision_module = importlib.import_module("src.tasks.mixin.VisionMixin")
 VisionMixin = vision_module.VisionMixin
@@ -120,6 +123,115 @@ class TestVisionMixin(unittest.TestCase):
 
         self.assertIsNone(result)
         find_homography.assert_not_called()
+
+    def test_scale_image_handles_resize_noop_and_validation(self):
+        img = np.zeros((20, 40, 3), dtype=np.uint8)
+        self.assertIs(iu.scale_image(img, 1.0), img)
+        self.assertEqual((10, 20, 3), iu.scale_image(img, 0.5).shape)
+        self.assertEqual((30, 60, 3), iu.scale_image(img, 1.5).shape)
+
+        empty = np.zeros((0, 0, 3), dtype=np.uint8)
+        self.assertIs(iu.scale_image(empty, 0.5), empty)
+
+        with self.assertRaises(ValueError):
+            iu.scale_image(img, 0)
+        with self.assertRaises(ValueError):
+            iu.scale_image(img, -0.5)
+
+    def test_find_one_scaled_matches_resized_target_and_skips_oversized(self):
+        task = object.__new__(_VisionTask)
+        base_template = np.zeros((20, 20, 3), dtype=np.uint8)
+        cv2.circle(base_template, (10, 10), 7, (255, 255, 255), 2)
+        cv2.line(base_template, (10, 3), (10, 17), (180, 180, 180), 2)
+
+        shrunk_target = iu.scale_image(base_template, 0.7)
+        th, tw = shrunk_target.shape[:2]
+
+        frame = np.zeros((100, 60, 3), dtype=np.uint8)
+        # Place target in top area and distractor shapes below it
+        frame[10 : 10 + th, 20 : 20 + tw] = shrunk_target
+        cv2.rectangle(frame, (18, 55), (38, 75), (200, 200, 200), 2)
+
+        search_box = Box(15, 5, 24, 80)
+        drawn_boxes = []
+        seen_template_shapes = []
+
+        def fake_find_one(
+            feature_name=None,
+            threshold=0,
+            use_gray_scale=False,
+            box=None,
+            template=None,
+            frame=None,
+            match_method=cv2.TM_CCOEFF_NORMED,
+            **kwargs,
+        ):
+            self.assertIsNone(feature_name)
+            seen_template_shapes.append(template.shape[:2])
+            roi = box.crop_frame(frame)
+            if use_gray_scale:
+                roi = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
+                tmpl = cv2.cvtColor(template, cv2.COLOR_BGR2GRAY)
+            else:
+                tmpl = template
+            res = cv2.matchTemplate(roi, tmpl, match_method)
+            _, max_val, _, max_loc = cv2.minMaxLoc(res)
+            if max_val < threshold:
+                return None
+            return Box(
+                box.x + max_loc[0],
+                box.y + max_loc[1],
+                tmpl.shape[1],
+                tmpl.shape[0],
+                confidence=float(max_val),
+            )
+
+        task._frame = frame
+        task.get_feature_by_name = lambda _name: SimpleNamespace(
+            mat=base_template, x=0, y=0, width=20, height=20
+        )
+        task.draw_boxes = lambda boxes, color: drawn_boxes.append((boxes, color))
+        task.find_one = fake_find_one
+
+        result = task.find_one_scaled(
+            "unit_scaled_icon",
+            box=search_box,
+            scale_range=(0.6, 1.4),
+            scale_step=0.1,
+            threshold=0.8,
+            use_gray_scale=True,
+        )
+
+        self.assertIsNotNone(result)
+        self.assertEqual("unit_scaled_icon", result.name)
+        self.assertAlmostEqual(0.7, result.scale, places=3)
+        self.assertEqual((20, 10), (result.x, result.y))
+        self.assertGreater(result.confidence, 0.9)
+        # Templates wider than search_box.width (24) must be skipped before calling find_one
+        self.assertTrue(all(w <= search_box.width and h <= search_box.height for h, w in seen_template_shapes))
+        # No duplicate template shapes tested
+        self.assertEqual(len(seen_template_shapes), len(set(seen_template_shapes)))
+        # Emits blue search box once and red matched box once
+        self.assertEqual(2, len(drawn_boxes))
+        self.assertEqual("blue", drawn_boxes[0][1])
+        self.assertEqual("red", drawn_boxes[1][1])
+
+    def test_find_one_scaled_returns_none_when_no_scale_matches(self):
+        task = object.__new__(_VisionTask)
+        task._frame = np.zeros((40, 40, 3), dtype=np.uint8)
+        task.get_feature_by_name = lambda _name: SimpleNamespace(
+            mat=np.full((10, 10, 3), 255, dtype=np.uint8), x=0, y=0, width=10, height=10
+        )
+        task.draw_boxes = lambda *args, **kwargs: None
+        task.find_one = lambda **kwargs: None
+
+        result = task.find_one_scaled(
+            "unit_missing",
+            box=Box(0, 0, 40, 40),
+            scales=[0.8, 1.0, 1.2],
+            threshold=0.7,
+        )
+        self.assertIsNone(result)
 
 
 if __name__ == "__main__":

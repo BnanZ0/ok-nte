@@ -523,3 +523,32 @@ def find_color_enriched_regions(
 
 def apply_mask(image, mask):
     return cv2.bitwise_and(image, image, mask=mask)
+
+
+def scale_image(
+    image: np.ndarray,
+    scale: float,
+    interpolation: int | None = None,
+) -> np.ndarray:
+    """
+    Scale an image by a positive factor using OpenCV.
+
+    Uses INTER_AREA when shrinking and INTER_CUBIC when enlarging unless
+    an explicit interpolation mode is provided.
+    """
+    if image is None or image.size == 0:
+        return image
+    if scale <= 0:
+        raise ValueError(f"scale must be positive, got {scale}")
+    if np.isclose(scale, 1.0):
+        return image
+
+    height, width = image.shape[:2]
+    target_width = max(1, round(width * scale))
+    target_height = max(1, round(height * scale))
+    if target_width == width and target_height == height:
+        return image
+
+    if interpolation is None:
+        interpolation = cv2.INTER_AREA if scale < 1.0 else cv2.INTER_CUBIC
+    return cv2.resize(image, (target_width, target_height), interpolation=interpolation)

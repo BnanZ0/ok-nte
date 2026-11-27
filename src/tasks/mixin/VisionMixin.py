@@ -9,6 +9,7 @@ from ok.feature.FeatureSet import read_from_json
 
 from src.Labels import Labels
 from src.utils import clock
+from src.utils import image_utils as iu
 
 
 class RotatedTemplateCacheKey(NamedTuple):
@@ -60,6 +61,162 @@ class VisionMixin(BaseTask):
 
     # coco json path/feature name -> original, unscaled feature
     _original_feature_cache: dict[OriginalFeatureCacheKey, Feature] = {}
+
+    @staticmethod
+    def _build_scale_factors(
+        scale_range: tuple[float, float],
+        scale_step: float,
+        scales: tuple[float, ...] | list[float] | None = None,
+    ) -> list[float]:
+        if scales is not None:
+            factors: list[float] = []
+            for raw_scale in scales:
+                scale = float(raw_scale)
+                if scale <= 0:
+                    raise ValueError(f"scale must be positive, got {raw_scale}")
+                if not any(math.isclose(scale, existing, abs_tol=1e-6) for existing in factors):
+                    factors.append(scale)
+            return factors
+
+        min_scale, max_scale = scale_range
+        if min_scale <= 0 or max_scale < min_scale:
+            raise ValueError(f"invalid scale_range: {scale_range}")
+        if scale_step <= 0:
+            raise ValueError(f"scale_step must be positive, got {scale_step}")
+
+        steps = int(math.floor((max_scale - min_scale) / scale_step + 1e-9))
+        factors = [round(min_scale + i * scale_step, 6) for i in range(steps + 1)]
+        if max_scale - factors[-1] > 1e-6:
+            factors.append(round(max_scale, 6))
+        if min_scale <= 1.0 <= max_scale and not any(
+            math.isclose(s, 1.0, abs_tol=1e-6) for s in factors
+        ):
+            factors.append(1.0)
+            factors.sort()
+        return factors
+
+    def find_one_scaled(
+        self,
+        feature_name=None,
+        scale_range: tuple[float, float] = (0.7, 1.3),
+        scale_step: float = 0.05,
+        scales: tuple[float, ...] | list[float] | None = None,
+        horizontal_variance=0,
+        vertical_variance=0,
+        threshold=0,
+        use_gray_scale=False,
+        box: Box | str | None = None,
+        canny_lower=0,
+        canny_higher=0,
+        frame_processor=None,
+        template: np.ndarray | None = None,
+        mask_function=None,
+        frame: np.ndarray | None = None,
+        match_method=cv2.TM_CCOEFF_NORMED,
+        screenshot=False,
+        target_height=0,
+    ) -> Box | None:
+        """
+        Wrap BaseTask.find_one to perform multi-scale template matching.
+
+        Scales the template over the given range/step and returns the highest-
+        confidence matched Box (with `.scale` attached), or None if no scale passes.
+        """
+        frame = self.frame if frame is None else frame
+        if frame is None:
+            return None
+
+        if template is None:
+            if feature_name is None:
+                raise ValueError("Either feature_name or template must be provided")
+            feature_set = getattr(getattr(self, "executor", None), "feature_set", None)
+            if feature_set is not None:
+                feature = feature_set.get_feature_by_name(frame, feature_name)
+            else:
+                feature = self.get_feature_by_name(feature_name)
+            if feature is None:
+                return None
+            base_template = feature.mat
+        else:
+            feature = None
+            base_template = template
+
+        if base_template is None or base_template.size == 0:
+            return None
+
+        frame_height, frame_width = frame.shape[:2]
+        if isinstance(box, str):
+            search_box = self.get_box_by_name(box)
+        elif box is None and feature is not None and (horizontal_variance > 0 or vertical_variance > 0):
+            x_offset = frame_width * horizontal_variance
+            y_offset = frame_height * vertical_variance
+            x1 = max(0, round(feature.x - x_offset))
+            y1 = max(0, round(feature.y - y_offset))
+            x2 = min(frame_width, round(feature.x + feature.width + x_offset))
+            y2 = min(frame_height, round(feature.y + feature.height + y_offset))
+            search_box = Box(x1, y1, x2 - x1, y2 - y1)
+        else:
+            search_box = box
+
+        if search_box is not None:
+            x1 = max(search_box.x, 0)
+            y1 = max(search_box.y, 0)
+            x2 = min(search_box.x + search_box.width, frame_width)
+            y2 = min(search_box.y + search_box.height, frame_height)
+            search_width = x2 - x1
+            search_height = y2 - y1
+        else:
+            x1, y1 = 0, 0
+            search_width, search_height = frame_width, frame_height
+
+        if search_width <= 0 or search_height <= 0:
+            return None
+
+        display_name = feature_name.value if isinstance(feature_name, Labels) else feature_name
+        if search_box is not None and display_name:
+            self.draw_boxes(
+                boxes=Box(x1, y1, search_width, search_height, name=f"search_{display_name}"),
+                color="blue",
+            )
+
+        scale_factors = self._build_scale_factors(scale_range, scale_step, scales)
+        tried_shapes: set[tuple[int, int]] = set()
+        best_box: Box | None = None
+
+        for scale in scale_factors:
+            scaled_template = iu.scale_image(base_template, scale)
+            th, tw = scaled_template.shape[:2]
+            if (th, tw) in tried_shapes:
+                continue
+            tried_shapes.add((th, tw))
+            if tw > search_width or th > search_height:
+                continue
+
+            matched = self.find_one(
+                feature_name=None,
+                threshold=threshold,
+                use_gray_scale=use_gray_scale,
+                box=search_box,
+                canny_lower=canny_lower,
+                canny_higher=canny_higher,
+                frame_processor=frame_processor,
+                template=scaled_template,
+                mask_function=mask_function,
+                frame=frame,
+                match_method=match_method,
+                screenshot=screenshot,
+                target_height=target_height,
+            )
+            if matched is not None and (best_box is None or matched.confidence > best_box.confidence):
+                best_box = matched
+                best_box.scale = round(scale, 4)
+
+        if best_box is not None:
+            if display_name:
+                best_box.name = display_name
+            self.draw_boxes(boxes=best_box, color="red")
+
+        return best_box
 
     def find_sift_feature(
         self,
