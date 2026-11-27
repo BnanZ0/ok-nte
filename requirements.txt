@@ -62,7 +62,7 @@ numpy==2.4.6 ; sys_platform == 'win32'
     #   tifffile
 ok-pyside-minimal==6.12.0.post2 ; sys_platform == 'win32'
     # via ok-script
-ok-script==3.0.13 ; sys_platform == 'win32'
+ok-script==3.0.14 ; sys_platform == 'win32'
     # via ok-nte
 onnxocr-ppocrv6==0.0.1 ; sys_platform == 'win32'
     # via
