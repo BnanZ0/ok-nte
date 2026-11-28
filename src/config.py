@@ -234,6 +234,7 @@ config = {
         ["src.tasks.AnomalyTask", "AnomalyTask"],
         ["src.tasks.AnomalyHunter", "AnomalyHunter"],
         ["src.tasks.AnomalyPilgrimage", "AnomalyPilgrimage"],
+        ["src.tasks.CultivationGoalTask", "CultivationGoalTask"],
         ["src.tasks.RhythmTask", "RhythmTask"],
         ["src.tasks.OwnerSelectionTask", "OwnerSelectionTask"],
         ["src.tasks.AutoHeistTask", "AutoHeistTask"],

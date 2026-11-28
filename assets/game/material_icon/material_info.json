@@ -1,0 +1,165 @@
+{
+  "_note": "材料图标库元数据。key = assets/game/material_icon/<key>.png 的文件名(不含扩展名)。quality 取值: 紫/蓝/绿。source 是该材料的产出副本名, 来自探索指南列表页。",
+  "arc_r1_s2": {
+    "name": "金色苹果核",
+    "quality": "紫",
+    "source": "泡影罐头·苹果核",
+    "tab": "弧盘突破材料"
+  },
+  "arc_r1_s3": {
+    "name": "银质苹果核",
+    "quality": "蓝",
+    "source": "泡影罐头·苹果核",
+    "tab": "弧盘突破材料"
+  },
+  "arc_r1_s4": {
+    "name": "铁制苹果核",
+    "quality": "绿",
+    "source": "泡影罐头·苹果核",
+    "tab": "弧盘突破材料"
+  },
+  "arc_r2_s2": {
+    "name": "螺旋乐齐奏",
+    "quality": "紫",
+    "source": "泡影罐头·螺旋乐",
+    "tab": "弧盘突破材料"
+  },
+  "arc_r2_s3": {
+    "name": "螺旋乐小节",
+    "quality": "蓝",
+    "source": "泡影罐头·螺旋乐",
+    "tab": "弧盘突破材料"
+  },
+  "arc_r2_s4": {
+    "name": "螺旋乐碎屑",
+    "quality": "绿",
+    "source": "泡影罐头·螺旋乐",
+    "tab": "弧盘突破材料"
+  },
+  "arc_r3_s2": {
+    "name": "罐装液态梦",
+    "quality": "紫",
+    "source": "泡影罐头·液态梦",
+    "tab": "弧盘突破材料"
+  },
+  "arc_r3_s3": {
+    "name": "液态梦旅行装",
+    "quality": "蓝",
+    "source": "泡影罐头·液态梦",
+    "tab": "弧盘突破材料"
+  },
+  "arc_r3_s4": {
+    "name": "液态梦试用装",
+    "quality": "绿",
+    "source": "泡影罐头·液态梦",
+    "tab": "弧盘突破材料"
+  },
+  "arc_r4_s2": {
+    "name": "特制冷点心",
+    "quality": "紫",
+    "source": "泡影罐头·冷甜点",
+    "tab": "弧盘突破材料"
+  },
+  "arc_r4_s3": {
+    "name": "原味冷点心",
+    "quality": "蓝",
+    "source": "泡影罐头·冷甜点",
+    "tab": "弧盘突破材料"
+  },
+  "arc_r4_s4": {
+    "name": "无味冷点心",
+    "quality": "绿",
+    "source": "泡影罐头·冷甜点",
+    "tab": "弧盘突破材料"
+  },
+  "curtain_r1_s2": {
+    "name": "钟表把戏 金",
+    "quality": "金",
+    "source": "钟表把戏",
+    "tab": "空幕"
+  },
+  "curtain_r1_s3": {
+    "name": "钟表把戏 金",
+    "quality": "金",
+    "source": "钟表把戏",
+    "tab": "空幕"
+  },
+  "curtain_r1_s4": {
+    "name": "钟表把戏 紫",
+    "quality": "紫",
+    "source": "钟表把戏",
+    "tab": "空幕"
+  },
+  "curtain_r2_s2": {
+    "name": "雕塑展馆 金",
+    "quality": "金",
+    "source": "雕塑展馆",
+    "tab": "空幕"
+  },
+  "curtain_r2_s3": {
+    "name": "雕塑展馆 金",
+    "quality": "金",
+    "source": "雕塑展馆",
+    "tab": "空幕"
+  },
+  "curtain_r2_s4": {
+    "name": "雕塑展馆 紫",
+    "quality": "紫",
+    "source": "雕塑展馆",
+    "tab": "空幕"
+  },
+  "curtain_r3_s2": {
+    "name": "纬线织机 金",
+    "quality": "金",
+    "source": "纬线织机",
+    "tab": "空幕"
+  },
+  "curtain_r3_s3": {
+    "name": "纬线织机 金",
+    "quality": "金",
+    "source": "纬线织机",
+    "tab": "空幕"
+  },
+  "curtain_r3_s4": {
+    "name": "纬线织机 紫",
+    "quality": "紫",
+    "source": "纬线织机",
+    "tab": "空幕"
+  },
+  "curtain_r4_s2": {
+    "name": "守卫萝卜 金",
+    "quality": "金",
+    "source": "守卫萝卜",
+    "tab": "空幕"
+  },
+  "curtain_r4_s3": {
+    "name": "守卫萝卜 金",
+    "quality": "金",
+    "source": "守卫萝卜",
+    "tab": "空幕"
+  },
+  "curtain_r4_s4": {
+    "name": "守卫萝卜 紫",
+    "quality": "紫",
+    "source": "守卫萝卜",
+    "tab": "空幕"
+  },
+  "arc_r5_s2": {
+    "name": "泡影罐头·戏剧芯 紫",
+    "quality": "紫",
+    "source": "泡影罐头·戏剧芯",
+    "tab": "弧盘突破材料"
+  },
+  "arc_r5_s3": {
+    "name": "泡影罐头·戏剧芯 蓝",
+    "quality": "蓝",
+    "source": "泡影罐头·戏剧芯",
+    "tab": "弧盘突破材料"
+  },
+  "arc_r5_s4": {
+    "name": "泡影罐头·戏剧芯 绿",
+    "quality": "绿",
+    "source": "泡影罐头·戏剧芯",
+    "tab": "弧盘突破材料"
+  }
+}
