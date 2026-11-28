@@ -14,6 +14,16 @@ class SearchableComboBox(ComboBox):
         super().__init__(parent=parent)
         self.setEditable(True)
         self.setInsertPolicy(self.InsertPolicy.NoInsert)
+        # Align the embedded QLineEdit with non-editable kit ComboBox labels:
+        # clear native QLineEdit inset/chrome, compensate its 2px horizontal margin,
+        # and shift odd (height - text_height) vertical rounding up by 1px.
+        self.setStyleSheet("QComboBox { padding-left: 10px; }")
+        line_edit = self.lineEdit()
+        line_edit.setStyleSheet(
+            "QLineEdit { background: transparent; border: 0; border-radius: 0; padding: 0;" \
+            "min-height: 0; }"
+        )
+        line_edit.setTextMargins(0, 0, 0, 1)
         completer = QCompleter(self.model(), self)
         completer.setCompletionColumn(self.modelColumn())
         completer.setFilterMode(Qt.MatchFlag.MatchContains)

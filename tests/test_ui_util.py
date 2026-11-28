@@ -4,9 +4,16 @@ from unittest.mock import patch
 
 import shiboken6
 from ok.core.events import EventSignal
-from ok.ui.qt.kit import Dialog
+from ok.ui.qt.kit import Dialog, theme
 from PySide6.QtCore import QCoreApplication, QEvent, QEventLoop, Qt, QThread, QTimer
-from PySide6.QtWidgets import QApplication, QWidget
+from PySide6.QtWidgets import (
+    QApplication,
+    QStyle,
+    QStyleOptionComboBox,
+    QStyleOptionFrame,
+    QVBoxLayout,
+    QWidget,
+)
 
 from src.events import ConfirmationRequested
 from src.ui.foundation import dialogs
@@ -452,6 +459,43 @@ class SearchBehaviorTest(unittest.TestCase):
             self.assertEqual(completer.completionCount(), 0)
         finally:
             shiboken6.delete(combo)
+
+    def test_combo_line_edit_fits_themed_edit_field_without_native_inset(self):
+        container = QWidget()
+        self.addCleanup(shiboken6.delete, container)
+        theme.install(container)
+        self.addCleanup(theme.uninstall, container)
+
+        layout = QVBoxLayout(container)
+        combo = SearchableComboBox(container)
+        combo.addItem("Alpha")
+        layout.addWidget(combo)
+
+        container.resize(320, 80)
+        container.show()
+        self.app.processEvents()
+
+        line_edit = combo.lineEdit()
+        self.assertIsNotNone(line_edit)
+
+        combo_option = QStyleOptionComboBox()
+        combo.initStyleOption(combo_option)
+        edit_field = combo.style().subControlRect(
+            QStyle.ComplexControl.CC_ComboBox,
+            combo_option,
+            QStyle.SubControl.SC_ComboBoxEditField,
+            combo,
+        )
+        self.assertTrue(edit_field.contains(line_edit.geometry()))
+
+        edit_option = QStyleOptionFrame()
+        line_edit.initStyleOption(edit_option)
+        content_rect = line_edit.style().subElementRect(
+            QStyle.SubElement.SE_LineEditContents,
+            edit_option,
+            line_edit,
+        )
+        self.assertEqual(content_rect, line_edit.rect())
 
     def test_list_filter_preserves_items_and_can_be_reapplied_after_rebuild(self):
         search = SearchableListWidget()
